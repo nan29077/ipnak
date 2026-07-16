@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+:root {
+  /* Safe area */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+
+  /* Navy → dark-neutral INK scale (inverted for dark theme) */
+  --navy-50:#222428;--navy-100:#2b2e33;--navy-200:#3a3e45;--navy-300:#6a6f79;
+  --navy-400:#868c97;--navy-500:#9ca2ad;--navy-600:#babfc7;--navy-700:#d9dce1;
+  --navy-800:#edeff2;--navy-900:#ffffff;--navy-950:#0a0a0a;
+
+  /* Aqua (secondary accent / status) */
+  --aqua-50:#ecfdfa;--aqua-100:#cffbf1;--aqua-200:#9ef5e4;--aqua-300:#5fe8d2;
+  --aqua-400:#2dd4bf;--aqua-500:#16b8a6;--aqua-600:#0d9488;--aqua-700:#0f766e;
+
+  /* Orange brand accent (입낚 design system) */
+  --orange-400:#fb8b3c;--orange-500:#f97316;--orange-600:#ea580c;
+  --orange-dim:rgba(249,115,22,0.15);
+
+  /* Dark surface elevations */
+  --surface-0:#161616;--surface-1:#1a1a1a;--surface-2:#1e1e1e;
+  --surface-3:#242424;--surface-4:#272727;--surface-5:#2e2e2e;
+
+  /* Semantic — dark theme */
+  --color-bg:#161616;
+  --color-surface:#1e1e1e;
+  --color-border:rgba(255,255,255,0.08);
+  --color-brand:#f97316;
+  --color-accent:#f97316;
+  --color-text-primary:#ffffff;
+  --color-text-secondary:rgba(255,255,255,0.55);
+  --color-text-tertiary:rgba(255,255,255,0.30);
+
+  /* Shadows — deepened for dark theme */
+  --shadow-soft:0 1px 3px rgba(0,0,0,0.45);
+  --shadow-card:0 1px 2px rgba(0,0,0,0.40),0 4px 14px rgba(0,0,0,0.35);
+  --shadow-cardhover:0 8px 24px rgba(0,0,0,0.55);
+  --shadow-fab:0 8px 22px rgba(249,115,22,0.40);
+  --shadow-sheet:0 -8px 30px rgba(0,0,0,0.55);
+  --shadow-aqua:0 4px 16px rgba(22,184,166,0.30);
+
+  /* Radius */
+  --radius-card:20px;
+  --radius-button:16px;
+  --radius-input:16px;
+  --radius-badge:9999px;
+  --radius-nav:28px;
+}
+
+/* 캔버스 배경은 html에만 둔다. body에 배경을 두면 in-flow 특성상
+   PC 여백의 고정 배경(DesktopPatternBg, z-index:-10)을 덮어버려
+   여백이 계속 검게 보이는 문제가 있었다 → body는 투명. */
+html {
+  background: var(--color-bg);
+}
+html, body {
+  color: var(--color-text-primary);
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  background: transparent;
+}
+
+* { -webkit-font-smoothing: antialiased; }
+
+/* Safe area utilities */
+.pb-safe { padding-bottom: calc(0.5rem + var(--safe-bottom)); }
+.pt-safe { padding-top: var(--safe-top); }
+
+/* Scrollbar */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.leaflet-container { z-index: 0; }
+
+/* ── Animations ── */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-toast { animation: toastIn 0.2s ease-out; }
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.animate-sheet { animation: sheetUp 0.25s ease-out; }
+
+@keyframes likeBurst {
+  from { opacity: 0; transform: scale(0.3); }
+  15%  { opacity: 0.9; }
+  to   { opacity: 0; transform: scale(1.4); }
+}
+.animate-likeburst { animation: likeBurst 0.7s ease-out forwards; }
+
+@keyframes heartPop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.35); }
+  60%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+.animate-heartpop { animation: heartPop 0.35s ease-out; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadein { animation: fadeIn 0.35s ease-out both; }
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scalein { animation: scaleIn 0.2s ease-out both; }
+
+html { scroll-behavior: smooth; }
+
+@layer base {
+  body { @apply font-sans; color: var(--color-text-primary); background: transparent; }
+  ::selection { background: var(--orange-dim); color: #fff; }
+  .focus-ring { @apply ring-2 ring-offset-1; --tw-ring-color: var(--orange-500); --tw-ring-offset-color: var(--surface-0); }
+}
+
+@layer components {
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+  .card-hover {
+    @apply transition-shadow cursor-pointer;
+  }
+  .card-hover:hover { box-shadow: var(--shadow-cardhover); }
+
+  .field {
+    @apply w-full px-3.5 py-2.5 text-[15px] outline-none transition;
+    background: var(--surface-3);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: var(--radius-input);
+  }
+  .field::placeholder { color: rgba(255,255,255,0.30); }
+  .field:focus {
+    border-color: var(--orange-500);
+    box-shadow: 0 0 0 3px var(--orange-dim);
+  }
+  .field:disabled { opacity: 0.5; }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold;
+  }
+  .btn-press {
+    @apply active:scale-[0.97] transition-transform;
+  }
+}
+
+/* Skeleton shimmer */
+@keyframes skelShimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.10) 37%,
+    rgba(255,255,255,0.04) 63%
+  );
+  background-size: 400% 100%;
+  animation: skelShimmer 1.5s linear infinite;
+  border-radius: 0.5rem;
+}
