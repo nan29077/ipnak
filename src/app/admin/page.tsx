@@ -61,7 +61,7 @@ export default async function AdminDashboard() {
           <h2 className="text-sm font-bold text-navy-800">처리 대기 작업</h2>
           {totalTodo > 0 && <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[11px] font-bold text-white">{totalTodo}</span>}
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {todos.map((t) => {
             const Icon = t.icon;
             return (
