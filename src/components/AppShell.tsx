@@ -64,7 +64,7 @@ export function AppShell({ user, shopEnabled = true, pcMarginBg, children }: { u
 // 관리자 설정 이미지(pcMarginBgImage)가 있으면 그것을, 없으면 기본 Unsplash 바다 낚시
 // 사진으로 폴백. 사진은 opacity를 낮춰(0.45) 오버레이처럼 적용해 본문 가독성을 해치지 않고,
 // 본문 컬럼은 솔리드 다크(#161616)라 텍스트 가독성에 영향 없다. 모바일/태블릿(<1024px) 미표시.
-const PC_BG_DEFAULT = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1920&q=80";
+const PC_BG_DEFAULT = "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1920&q=80";
 
 function DesktopPatternBg({ image }: { image?: string }) {
   const src = image && image.trim() ? image : PC_BG_DEFAULT;
@@ -228,3 +228,4 @@ function DesktopNavItem({ href, label, icon: Icon, active }: { href: string; lab
     </Link>
   );
 }
+   
