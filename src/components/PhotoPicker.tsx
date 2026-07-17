@@ -1,5 +1,5 @@
 "use client";
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Camera, Images, ImagePlus, X } from "lucide-react";
 import { Badge } from "@/components/ui";
 
@@ -10,16 +10,19 @@ export type PickedPhoto = { preview: string; submitUrl: string };
 export function PhotoPicker({
   value, onChange, max = 5, capture = false, single = false,
 }: { value: PickedPhoto[]; onChange: (v: PickedPhoto[]) => void; max?: number; capture?: boolean; single?: boolean }) {
-  const baseId = useId();
-  const cameraInputId = `${baseId}-camera`;
-  const galleryInputId = `${baseId}-gallery`;
-  const singleInputId = `${baseId}-single`;
+  // label+id 방식 대신 ref.click()을 직접 호출 — 모바일 브라우저에서 더 안정적
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState("");
 
+  function triggerInput(ref: React.RefObject<HTMLInputElement>) {
+    if (!ref.current) return;
+    ref.current.value = ""; // 같은 파일 재선택 허용
+    ref.current.click();
+  }
+
   function handleFiles(files: FileList | null) {
-    if (!files) return;
+    if (!files || files.length === 0) return;
     setErr("");
     const next: PickedPhoto[] = [];
     Array.from(files).slice(0, max - value.length).forEach((f, i) => {
@@ -31,7 +34,9 @@ export function PhotoPicker({
         setErr("이미지를 불러오지 못했습니다. 다시 시도해주세요.");
       }
     });
-    onChange(single ? next.slice(0, 1) : [...value, ...next].slice(0, max));
+    if (next.length > 0) {
+      onChange(single ? next.slice(0, 1) : [...value, ...next].slice(0, max));
+    }
   }
 
   const canAdd = value.length < max;
@@ -41,8 +46,9 @@ export function PhotoPicker({
       <div className="flex flex-wrap gap-2">
         {value.map((p, i) => (
           <div key={i} className="group relative h-24 w-24 overflow-hidden rounded-xl bg-navy-50 ring-1 ring-navy-100">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={p.preview} alt={`선택한 사진 ${i + 1}`} className="h-full w-full object-cover" />
-            {i === 0 && value.length > 0 && (
+            {i === 0 && (
               <span className="badge absolute bottom-1 left-1 bg-black/70 text-white backdrop-blur-sm">대표</span>
             )}
             <button
@@ -60,62 +66,57 @@ export function PhotoPicker({
           capture ? (
             /* capture 모드: 카메라 촬영 + 갤러리 선택 두 버튼 분리 */
             <div className="flex gap-1.5">
-              {/* 카메라 버튼 — label로 input 트리거 (iOS/Android 호환) */}
-              <label
-                htmlFor={cameraInputId}
+              {/* 카메라 버튼 — ref.click()으로 직접 트리거 */}
+              <button
+                type="button"
+                onClick={() => triggerInput(cameraRef)}
                 className="flex h-24 w-[58px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-navy-200 text-navy-300 transition-colors hover:border-aqua-300 hover:bg-aqua-50/40 hover:text-aqua-500 active:scale-95"
               >
                 <Camera size={20} />
                 <span className="text-[10px] font-medium">카메라</span>
-              </label>
+              </button>
               {/* 갤러리 버튼 */}
-              <label
-                htmlFor={galleryInputId}
+              <button
+                type="button"
+                onClick={() => triggerInput(galleryRef)}
                 className="flex h-24 w-[58px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-navy-200 text-navy-300 transition-colors hover:border-aqua-300 hover:bg-aqua-50/40 hover:text-aqua-500 active:scale-95"
               >
                 <Images size={20} />
                 <span className="text-[10px] font-medium">갤러리</span>
-              </label>
+              </button>
             </div>
           ) : (
             /* 일반 모드: 갤러리 단일 버튼 */
-            <label
-              htmlFor={singleInputId}
+            <button
+              type="button"
+              onClick={() => triggerInput(galleryRef)}
               className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-navy-200 text-navy-300 transition-colors hover:border-aqua-300 hover:bg-aqua-50/40 hover:text-aqua-500 active:scale-95"
             >
               <ImagePlus size={22} />
               <span className="text-[11px] font-medium">사진 추가</span>
-            </label>
+            </button>
           )
         )}
       </div>
 
-      {/* 카메라 전용 input (capture="environment" — 모바일에서 카메라 직접 열기) */}
+      {/* 숨겨진 file input들 — display:none으로 완전히 숨김 (sr-only보다 안정적) */}
       {capture && (
         <input
           ref={cameraRef}
-          id={cameraInputId}
           type="file"
           accept="image/*"
           capture="environment"
-          multiple={false}
-          className="sr-only"
+          className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
-          // 같은 파일 재선택 허용
-          onClick={(e) => { (e.currentTarget as HTMLInputElement).value = ""; }}
         />
       )}
-
-      {/* 갤러리 input (capture 없음 — 사진 앨범에서 선택) */}
       <input
         ref={galleryRef}
-        id={capture ? galleryInputId : singleInputId}
         type="file"
         accept="image/*"
         multiple={!single && !capture}
-        className="sr-only"
+        className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
-        onClick={(e) => { (e.currentTarget as HTMLInputElement).value = ""; }}
       />
 
       <div className="mt-1.5 flex items-center gap-2">
