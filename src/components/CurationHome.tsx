@@ -311,29 +311,29 @@ function FeedRailCard({ post }: { post: FeedPost }) {
   );
 }
 
-/** 1~3위: 라인형 메달 SVG, 4~10위: 반투명 숫자 배지 */
+/** 1~3위: 그라디언트 메달 배지, 4~10위: 반투명 숫자 배지 */
 function RankBadge({ rank }: { rank: number }) {
   if (rank > 3) {
     return (
       <span
-        className="absolute left-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-extrabold shadow"
-        style={{ background: "rgba(0,0,0,0.58)", color: "rgba(255,255,255,0.88)" }}
+        className="absolute left-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-extrabold"
+        style={{ background: "rgba(0,0,0,0.60)", color: "rgba(255,255,255,0.90)", boxShadow: "0 1px 4px rgba(0,0,0,0.5)" }}
       >
         {rank}
       </span>
     );
   }
-  const color = rank === 1 ? "#FFD700" : rank === 2 ? "#C8C8C8" : "#CD7F32";
+  const medal = {
+    1: { bg: "linear-gradient(145deg,#FFE566 0%,#F0A500 100%)", color: "#5C3D00", glow: "0 2px 10px rgba(240,165,0,0.55)" },
+    2: { bg: "linear-gradient(145deg,#EFEFEF 0%,#A0A0A0 100%)", color: "#2a2a2a", glow: "0 2px 8px rgba(0,0,0,0.35)" },
+    3: { bg: "linear-gradient(145deg,#E8964A 0%,#8B4513 100%)", color: "#fff",    glow: "0 2px 10px rgba(139,69,19,0.55)" },
+  }[rank as 1 | 2 | 3];
   return (
-    <span className="absolute left-2 top-1.5" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.6))" }}>
-      <svg width="24" height="30" viewBox="0 0 24 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* 리본 */}
-        <path d="M9 10 L12 4 L15 10" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-        {/* 메달 원 */}
-        <circle cx="12" cy="20" r="8" stroke={color} strokeWidth="1.7" />
-        {/* 순위 숫자 */}
-        <text x="12" y="24.5" textAnchor="middle" fontSize="9" fontWeight="800" fill={color} fontFamily="system-ui,sans-serif">{rank}</text>
-      </svg>
+    <span
+      className="absolute left-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-extrabold"
+      style={{ background: medal.bg, color: medal.color, boxShadow: medal.glow }}
+    >
+      {rank}
     </span>
   );
 }
