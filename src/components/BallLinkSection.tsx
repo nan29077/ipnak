@@ -190,7 +190,7 @@ export function MyBallManager() {
         </div>
       )}
 
-      {/* 볼 등록: NFC 지원 기기에서만 활성화 */}
+      {/* 볼 등록: NFC 지원 기기에서만 활성화, 미지원 기기는 수동 입력 안내 */}
       {supported === false ? (
         <div className="mt-3">
           <button
@@ -201,7 +201,9 @@ export function MyBallManager() {
             <Nfc size={16} strokeWidth={1.9} />
             NFC 미지원 기기
           </button>
-          <p className="mt-2 text-center text-[11px] text-navy-300">{NFC_UNSUPPORTED_MSG}</p>
+          <p className="mt-2 text-center text-[11px] text-navy-300">
+            iPhone 등 NFC 미지원 환경에서는 아래 "볼 ID 직접 입력"을 이용해 주세요.
+          </p>
         </div>
       ) : (
         <button

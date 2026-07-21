@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import { Nfc, Bell, Shield, LogOut, ChevronRight, CircleDashed } from "lucide-react";
+import { Bell, Shield, ChevronRight } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { MyBallManager } from "@/components/BallLinkSection";
+import { BallManualInput } from "@/components/BallManualInput";
 import { PageHeader } from "@/components/ui";
 import { SettingsLogout } from "@/components/SettingsLogout";
 
@@ -24,6 +25,7 @@ export default async function SettingsPage() {
             입낚볼 · NFC
           </p>
           <MyBallManager />
+          <BallManualInput />
         </section>
 
         {/* 알림 설정 */}
