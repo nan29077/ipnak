@@ -9,7 +9,7 @@ import { SocialButtons } from "@/components/SocialButtons";
 import { Button } from "@/components/ui";
 
 const FIELD_CLASS =
-  "w-full rounded-[16px] px-3.5 py-3 text-[15px] bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/40 outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-400/30";
+  "w-full rounded-[16px] px-3.5 py-3 text-[15px] bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/40 outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-400/30 transition-colors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,10 +39,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col justify-end bg-gradient-to-b from-[#0d1626] via-[#161616] to-[#243a63] px-6 pb-8 pt-10">
-      <div className="mx-auto w-full max-w-md">
-        <div className="mb-12 text-center">
-          {/* 다크 배경용 로고 이미지 */}
+    <div className="min-h-screen bg-gradient-to-b from-[#0d1626] via-[#161616] to-[#243a63]">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+
+        {/* 로고 */}
+        <div className="mb-10 text-center">
           <Image
             src="/logo-ipnak-dark.png"
             alt="입낚"
@@ -54,14 +55,15 @@ export default function LoginPage() {
           <p className="text-[13px] text-white/45">나만의 낚시 기록을 시작하세요</p>
         </div>
 
+        {/* 이메일 로그인 폼 */}
         <form
           onSubmit={(e) => { e.preventDefault(); login(email, password); }}
-          className="mb-4"
+          className="mb-4 space-y-2.5"
         >
           <input
             type="email" value={email} onChange={(e) => setEmail(e.target.value)}
             placeholder="이메일" autoComplete="email"
-            className={`${FIELD_CLASS} mb-2.5`}
+            className={FIELD_CLASS}
           />
           <input
             type="password" value={password} onChange={(e) => setPassword(e.target.value)}
@@ -70,7 +72,7 @@ export default function LoginPage() {
           />
           <Button
             type="submit" variant="secondary" full disabled={loading}
-            className="mb-3 mt-4"
+            className="mt-1"
             leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : undefined}
           >
             로그인
@@ -78,12 +80,12 @@ export default function LoginPage() {
         </form>
 
         {/* 테스트 계정 빠른 로그인 */}
-        <div className="mb-4 grid grid-cols-2 gap-2">
+        <div className="mb-5 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => login("admin@ipnak.test", "Admin1234!")}
             disabled={loading}
-            className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-transform active:scale-[0.97] disabled:opacity-50"
+            className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-all active:scale-[0.97] disabled:opacity-50"
           >
             관리자 테스트 로그인
           </button>
@@ -91,23 +93,26 @@ export default function LoginPage() {
             type="button"
             onClick={() => login("angler@ipnak.test", "Angler1234!")}
             disabled={loading}
-            className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-transform active:scale-[0.97] disabled:opacity-50"
+            className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-all active:scale-[0.97] disabled:opacity-50"
           >
             낚시꾼 테스트 로그인
           </button>
         </div>
 
-        <div className="mb-4 flex items-center gap-2.5">
+        {/* 구분선 */}
+        <div className="mb-5 flex items-center gap-2.5">
           <div className="h-px flex-1 bg-white/10" />
-          <span className="text-[12px] text-white/30">또는</span>
+          <span className="text-[12px] text-white/30">또는 소셜 로그인</span>
           <div className="h-px flex-1 bg-white/10" />
         </div>
 
         <SocialButtons />
 
-        <p className="mt-4 text-center text-[12px] text-white/30">
+        <p className="mt-6 text-center text-[12px] text-white/30">
           아직 계정이 없으신가요?{" "}
-          <Link href="/signup" className="text-aqua-300">회원가입</Link>
+          <Link href="/signup" className="font-semibold text-aqua-300 hover:text-aqua-200">
+            회원가입
+          </Link>
         </p>
       </div>
     </div>

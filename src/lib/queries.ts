@@ -105,6 +105,49 @@ export async function getFeedPosts(userId?: string, opts?: { authorId?: string; 
   }
 }
 
+/**
+ * 맞춤 추천 피드 — 사용자의 관심 어종/낚시 방식 기반
+ * - species 목록과 speciesName 매칭
+ * - methods 목록은 hashtags/caption 포함 여부로 매칭
+ * - 최신 + 인기 순으로 최대 20개 반환
+ */
+export async function getPersonalizedFeedPosts(
+  userId: string,
+  interests: { methods: string[]; species: string[] }
+): Promise<FeedPost[]> {
+  const { methods, species } = interests;
+  if (species.length === 0 && methods.length === 0) return [];
+
+  const orConditions: any[] = [];
+
+  // 어종 매칭
+  if (species.length > 0) {
+    orConditions.push({ speciesName: { in: species } });
+  }
+
+  // 낚시 방식 — hashtags(JSON) 또는 caption에 포함
+  for (const m of methods) {
+    orConditions.push({ caption: { contains: m } });
+    orConditions.push({ hashtags: { contains: m } });
+  }
+
+  try {
+    const posts = await prisma.post.findMany({
+      where: {
+        hidden: false,
+        postType: { notIn: ["WALKING_FEED"] },
+        OR: orConditions,
+      },
+      include: feedInclude,
+      orderBy: [{ likes: { _count: "desc" } }, { createdAt: "desc" }],
+      take: 20,
+    });
+    return Promise.all(posts.map((p) => toFeedPost(p, userId)));
+  } catch {
+    return [];
+  }
+}
+
 export async function getPost(id: string, userId?: string) {
   const p = await prisma.post.findUnique({ where: { id }, include: feedInclude });
   if (!p) return null;

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ChevronRight, Flame, BadgeCheck, Route, Trophy, Clock, Lock } from "lucide-react";
+import { ChevronRight, Flame, BadgeCheck, Route, Trophy, Clock, Lock, Sparkles } from "lucide-react";
 import { useAppSettings } from "@/lib/appSettingsContext";
 import { ScrollRail } from "@/components/ScrollRail";
 import {
@@ -9,6 +9,7 @@ import {
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
+import { FishingInterestPopup } from "@/components/FishingInterestPopup";
 import type { FeedPost } from "@/lib/queries";
 import type { CurationCardPost, ResolvedSection } from "@/lib/curation";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -41,6 +42,7 @@ type OngoingTournament = {
 
 export function CurationHome({
   feedPosts, walkingPosts, sections, banners, ongoingTournaments, currentUserId,
+  personalizedPosts, userNickname, userInterests, hasInterests,
 }: {
   feedPosts: FeedPost[];
   walkingPosts?: FeedPost[];
@@ -48,6 +50,10 @@ export function CurationHome({
   banners?: { title: string; imageUrl: string | null }[];
   ongoingTournaments?: OngoingTournament[];
   currentUserId?: string;
+  personalizedPosts?: FeedPost[];
+  userNickname?: string;
+  userInterests?: { methods: string[]; species: string[] };
+  hasInterests?: boolean;
 }) {
   const { bassOnlyMode, walkingFeedEnabled } = useAppSettings();
 
@@ -105,6 +111,26 @@ export function CurationHome({
           <SectionHead title="워킹 피드" desc="데이터피싱 동선 기록" icon={<Route size={16} className="text-aqua-300" />} />
           <ScrollRail className="flex gap-3 overflow-x-auto px-4 pb-1 no-scrollbar" scrollAmount={320}>
             {(walkingPosts ?? []).slice(0, 12).map((p) => <WalkingRailCard key={p.id} post={p} />)}
+          </ScrollRail>
+        </section>
+      )}
+
+      {/* 맞춤 추천 피드 — 관심 어종/방식 기반 AI 큐레이션 */}
+      {personalizedPosts && personalizedPosts.length > 0 && (
+        <section className="mt-6">
+          <div className="mb-2.5 px-4">
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-aqua-400" />
+              <span className="text-[14px] font-bold text-navy-800">
+                {userNickname ? `${userNickname}님을 위한 맞춤 추천 피드` : "나를 위한 맞춤 추천 피드"}
+              </span>
+            </div>
+            <p className="mt-0.5 pl-6 text-[11px] text-navy-500">
+              {userInterests && [...userInterests.species, ...userInterests.methods].slice(0, 4).join(" · ")} 관련 피드
+            </p>
+          </div>
+          <ScrollRail className="flex gap-3 overflow-x-auto px-4 pb-1 no-scrollbar" scrollAmount={320}>
+            {personalizedPosts.slice(0, 12).map((p) => <FeedRailCard key={p.id} post={p} />)}
           </ScrollRail>
         </section>
       )}
@@ -174,6 +200,14 @@ export function CurationHome({
           <ChevronRight size={18} className="text-navy-300" />
         </Link>
       </div>
+
+      {/* 관심사 설정 팝업 — 로그인됐지만 관심사 미설정 시 표시 */}
+      {currentUserId && (
+        <FishingInterestPopup
+          nickname={userNickname}
+          hasInterests={!!hasInterests}
+        />
+      )}
 
     </div>
   );

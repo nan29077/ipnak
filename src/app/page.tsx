@@ -1,14 +1,31 @@
 import { getCurrentUser } from "@/lib/auth";
-import { getFeedPosts, getWalkingFeedPosts } from "@/lib/queries";
+import { getFeedPosts, getWalkingFeedPosts, getPersonalizedFeedPosts } from "@/lib/queries";
 import { prisma } from "@/lib/prisma";
 import { CurationHome } from "@/components/CurationHome";
 import { getMainSections } from "@/lib/curation";
+import { parseInterests } from "@/lib/interestsUtils";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-  const [feedPosts, walkingPosts, sections, bannerRows, ongoingTournaments] = await Promise.all([
+
+  // 로그인 유저: DB에서 관심사 파싱
+  let userInterests = { methods: [] as string[], species: [] as string[] };
+  let userNickname: string | undefined;
+
+  if (user) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { interests: true, nickname: true },
+    });
+    userInterests = parseInterests(dbUser?.interests ?? null);
+    userNickname = dbUser?.nickname ?? undefined;
+  }
+
+  const hasInterests = userInterests.methods.length > 0 || userInterests.species.length > 0;
+
+  const [feedPosts, walkingPosts, sections, bannerRows, ongoingTournaments, personalizedPosts] = await Promise.all([
     getFeedPosts(user?.id, { kind: "FEED" }),
     getWalkingFeedPosts(user?.id),
     getMainSections(10),
@@ -18,6 +35,10 @@ export default async function HomePage() {
       orderBy: { startAt: "asc" },
       include: { _count: { select: { entries: true } } },
     }).catch(() => []),
+    // 맞춤 피드: 관심사 있을 때만 쿼리
+    user && hasInterests
+      ? getPersonalizedFeedPosts(user.id, userInterests)
+      : Promise.resolve([]),
   ]);
 
   // "입점" 관련 배너는 제외 — 대회 배너만 노출
@@ -38,6 +59,10 @@ export default async function HomePage() {
         entryCount: t._count.entries,
       }))}
       currentUserId={user?.id}
+      personalizedPosts={personalizedPosts}
+      userNickname={userNickname}
+      userInterests={userInterests}
+      hasInterests={hasInterests}
     />
   );
 }
