@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg data-dc-tpl="1013" id="ni-fish" viewBox="0 0 300 300" data-om-id="b6b460de:1018" style="width: 100%; height: auto; display: block;" xmlns="http://www.w3.org/2000/svg">
+              <rect data-dc-tpl="1014" x="8" y="8" width="284" height="284" rx="30" fill="#FFF6EE" stroke="#F0B98A" stroke-width="3.5" stroke-dasharray="12 11" data-om-id="b6b460de:1019"/>
+              <g data-dc-tpl="1015" transform="translate(150 120)" data-om-id="b6b460de:1020">
+                <path data-dc-tpl="1016" d="M-58 0 L-92 -30 Q-78 0 -92 30 Z" fill="#FF7A1A" stroke="#1A1512" stroke-width="5" stroke-linejoin="round" data-om-id="b6b460de:1021"/>
+                <ellipse data-dc-tpl="1017" cx="6" cy="0" rx="70" ry="50" fill="#FF7A1A" stroke="#1A1512" stroke-width="5" data-om-id="b6b460de:1022"/>
+                <path data-dc-tpl="1018" d="M-2 -46 Q16 -40 12 -22" fill="#FF9A48" stroke="#1A1512" stroke-width="4.5" stroke-linejoin="round" data-om-id="b6b460de:1023"/>
+                <circle data-dc-tpl="1019" cx="42" cy="-12" r="13" fill="#fff" stroke="#1A1512" stroke-width="5" data-om-id="b6b460de:1024"/><circle data-dc-tpl="1020" cx="44" cy="-11" r="6" fill="#1A1512" data-om-id="b6b460de:1025"/>
+                <path data-dc-tpl="1021" d="M50 12 Q62 20 52 28" fill="none" stroke="#1A1512" stroke-width="5" stroke-linecap="round" data-om-id="b6b460de:1026"/>
+                <circle data-dc-tpl="1022" cx="20" cy="14" r="6" fill="#FFC38C" opacity=".7" data-om-id="b6b460de:1027"/>
+              </g>
+              <text data-dc-tpl="1023" x="150" y="244" font-family="Pretendard,sans-serif" font-weight="800" font-size="13" letter-spacing="4" fill="#FF6B1A" text-anchor="middle" data-om-id="b6b460de:1028">IPNAK</text>
+              <text data-dc-tpl="1024" x="150" y="270" font-family="Pretendard,sans-serif" font-weight="900" font-size="25" letter-spacing="-.5" fill="#1A1512" text-anchor="middle" data-om-id="b6b460de:1029">No Image</text>
+            </svg>

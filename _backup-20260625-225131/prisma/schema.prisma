@@ -1,0 +1,423 @@
+// 입낚 (ipnak) — Prisma schema (SQLite)
+// 필드명은 영어, UI 라벨은 한국어로 표기한다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===== 사용자 / 인증 =====
+// 참고: SQLite는 Prisma enum을 지원하지 않으므로 role/status 등은 String + 주석으로 관리한다.
+// Role: SUPER_ADMIN | ANGLER | PARTNER
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  nickname      String
+  role          String   @default("ANGLER") // Role
+  avatarUrl     String?
+  bio           String?
+  interests     String?  // JSON array of category slugs
+  region        String?
+  createdAt     DateTime @default(now())
+
+  posts          Post[]
+  comments       Comment[]
+  likes          Like[]
+  bookmarks      Bookmark[]
+  shareEvents    ShareEvent[]
+  reportsMade    Report[]          @relation("Reporter")
+  trips          FishingTrip[]
+  fishingPoints  FishingPoint[]
+  catchRecords   CatchRecord[]
+  products       Product[]
+  tournamentEntries TournamentEntry[]
+  bookings       Booking[]
+  notifications  Notification[]
+  sessions       Session[]
+  followedBy     Follow[]          @relation("Following")
+  following      Follow[]          @relation("Follower")
+  listings       ReservationListing[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ===== 게시글 / 피드 =====
+// postType: GENERAL | FISHING_POINT | TOURNAMENT
+// visibility: PUBLIC | FOLLOWERS | PRIVATE | BLURRED
+model Post {
+  id           String   @id @default(cuid())
+  authorId     String
+  author       User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postType     String   @default("GENERAL")
+  caption      String?
+  speciesName  String?
+  categoryPath String?  // 예: 바다낚시 > 갯바위 > 찌낚시
+  fishingType  String?
+  sizeCm       Float?
+  region       String?
+  lat          Float?
+  lng          Float?
+  visibility   String   @default("PUBLIC")
+  hidden       Boolean  @default(false)
+  hashtags     String?  // JSON array
+  createdAt    DateTime @default(now())
+
+  fishingPointId String?
+  fishingPoint   FishingPoint? @relation(fields: [fishingPointId], references: [id])
+  tournamentEntryId String?
+
+  images       PostImage[]
+  comments     Comment[]
+  likes        Like[]
+  bookmarks    Bookmark[]
+  shareEvents  ShareEvent[]
+  reports      Report[]
+  productTags  PostProductTag[]
+}
+
+model PostImage {
+  id       String  @id @default(cuid())
+  postId   String
+  post     Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url      String
+  alt      String?
+  order    Int     @default(0)
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  parentId  String?  // 대댓글
+  parent    Comment? @relation("Replies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("Replies")
+  hidden    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([postId, userId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([postId, userId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  @@unique([followerId, followingId])
+}
+
+model ShareEvent {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  channel   String   @default("link")
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  reporterId  String
+  reporter    User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  postId      String?
+  post        Post?    @relation(fields: [postId], references: [id])
+  targetType  String   @default("POST") // POST | COMMENT | USER
+  reason      String
+  status      String   @default("PENDING") // PENDING | RESOLVED | REJECTED
+  createdAt   DateTime @default(now())
+}
+
+// ===== GPS / 동선 / 피싱 포인트 =====
+model FishingTrip {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String?
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  distanceM   Float    @default(0)
+  durationSec Int      @default(0)
+  catchCount  Int      @default(0)
+  topSpecies  String?
+  region      String?
+  routePoints RoutePoint[]
+  fishingPoints FishingPoint[]
+}
+
+model RoutePoint {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      FishingTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  lat       Float
+  lng       Float
+  accuracy  Float?
+  recordedAt DateTime @default(now())
+  order     Int      @default(0)
+}
+
+// PC Point / Catch Point / 피싱 포인트
+model FishingPoint {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tripId      String?
+  trip        FishingTrip? @relation(fields: [tripId], references: [id])
+  lat         Float
+  lng         Float
+  accuracy    Float?
+  speciesName String?
+  sizeCm      Float?
+  photoUrl    String?
+  gearSetup   String?  // 채비 요약 텍스트
+  region      String?
+  visibility  String   @default("EXACT") // EXACT | BLUR_100 | BLUR_500 | PRIVATE
+  createdAt   DateTime @default(now())
+
+  catchRecord CatchRecord?
+  posts       Post[]
+}
+
+model CatchRecord {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fishingPointId String?  @unique
+  fishingPoint   FishingPoint? @relation(fields: [fishingPointId], references: [id])
+  speciesName    String
+  categoryPath   String?
+  sizeCm         Float?
+  photoUrl       String?
+  shareToFeed    Boolean  @default(true)
+  // 스마트 룰러 측정 데이터
+  originalImageUrl String?
+  measuredImageUrl String?
+  calibrationStart String? // JSON {x,y}
+  calibrationEnd   String? // JSON {x,y}
+  calibrationLengthCm Float?
+  fishHeadPoint    String? // JSON {x,y}
+  fishTailPoint    String? // JSON {x,y}
+  measuredLengthCm Float?
+  confidence       Float?
+  tamperFlag       Boolean @default(false)
+  gear           GearSetup?
+  createdAt      DateTime @default(now())
+}
+
+model GearSetup {
+  id            String   @id @default(cuid())
+  catchRecordId String   @unique
+  catchRecord   CatchRecord @relation(fields: [catchRecordId], references: [id], onDelete: Cascade)
+  rod           String?
+  reel          String?
+  line          String?
+  leader        String?
+  lure          String?
+  bait          String?
+  rig           String?
+  note          String?
+}
+
+// ===== 분류 체계 / 어종 =====
+model FishingCategory {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  label     String
+  kind      String   // MAIN | ENV | METHOD | ACCESS
+  parent    String?
+  water     String?  // FRESH | SEA | BOTH
+  order     Int      @default(0)
+}
+
+model FishSpecies {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  label     String
+  water     String   // FRESH | SEA
+  order     Int      @default(0)
+}
+
+// ===== 쇼핑 태그 / 상품 =====
+model Product {
+  id          String   @id @default(cuid())
+  sellerId    String?
+  seller      User?    @relation(fields: [sellerId], references: [id])
+  name        String
+  brand       String?
+  category    String   // ROD | REEL | LINE | LEADER | LURE | WORM | HOOK ...
+  price       Int      @default(0)
+  imageUrl    String?
+  buyUrl      String?
+  description String?
+  feeRate     Int      @default(10)
+  createdAt   DateTime @default(now())
+  postTags    PostProductTag[]
+}
+
+model PostProductTag {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  posX      Float    @default(0.5) // 사진 위 핀 위치 (0~1)
+  posY      Float    @default(0.5)
+}
+
+// ===== 대회 =====
+model Tournament {
+  id          String   @id @default(cuid())
+  title       String
+  type        String   // WEEKLY | MONTHLY | GRAND
+  speciesName String?
+  description String?
+  rules       String?
+  startAt     DateTime
+  endAt       DateTime
+  status      String   @default("UPCOMING") // UPCOMING | ONGOING | ENDED
+  bannerUrl   String?
+  createdAt   DateTime @default(now())
+  entries     TournamentEntry[]
+}
+
+model TournamentEntry {
+  id           String   @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  speciesName  String
+  sizeCm       Float
+  photoUrl     String?
+  measuredImageUrl String?
+  region       String?
+  lat          Float?
+  lng          Float?
+  status       String   @default("REVIEW") // REVIEW | APPROVED | REJECTED
+  // 스마트 룰러 측정 데이터
+  originalImageUrl     String?
+  calibrationStart     String?  // JSON {x,y}
+  calibrationEnd       String?  // JSON {x,y}
+  calibrationLengthCm  Float?
+  fishHeadPoint        String?  // JSON {x,y}
+  fishTailPoint        String?  // JSON {x,y}
+  measuredLengthCm     Float?
+  confidence           Float?
+  tamperFlag           Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+// ===== 예약 =====
+model ReservationListing {
+  id          String   @id @default(cuid())
+  ownerId     String?
+  owner       User?    @relation(fields: [ownerId], references: [id])
+  name        String
+  category    String   // BOAT | PENSION | PAID_POND | SEAT | SEA_PENSION | GUIDE
+  region      String
+  address     String?
+  lat         Float?
+  lng         Float?
+  imageUrl    String?
+  images      String?  // JSON array
+  description String?
+  targetSpecies String? // JSON array
+  amenities   String?  // JSON array
+  services    String?  // JSON array
+  price       Int      @default(0)
+  maxPeople   Int      @default(4)
+  cancelPolicy String?
+  rating      Float    @default(0)
+  reviewCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  slots       ReservationSlot[]
+  bookings    Booking[]
+}
+
+model ReservationSlot {
+  id          String   @id @default(cuid())
+  listingId   String
+  listing     ReservationListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  date        DateTime
+  timeLabel   String?
+  capacity    Int      @default(4)
+  booked      Int      @default(0)
+}
+
+model Booking {
+  id          String   @id @default(cuid())
+  listingId   String
+  listing     ReservationListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime
+  people      Int      @default(1)
+  totalPrice  Int      @default(0)
+  status      String   @default("REQUESTED") // REQUESTED | CONFIRMED | CANCELLED | DONE
+  createdAt   DateTime @default(now())
+}
+
+// ===== 알림 / 관리자 로그 / 배너 =====
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  target    String?
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model Banner {
+  id        String   @id @default(cuid())
+  title     String
+  body      String?
+  imageUrl  String?
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}

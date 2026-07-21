@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg data-dc-tpl="1010" id="fulld-1f" viewBox="0 0 480 168" data-om-id="2e451774:1014" style="width: 100%; height: auto;" xmlns="http://www.w3.org/2000/svg">
+            
+            <g data-dc-tpl="1012" transform="translate(10 12) scale(0.72)" data-om-id="2e451774:1016">
+              <circle data-dc-tpl="1013" cx="100" cy="100" r="84" fill="none" stroke="#FF6B1A" stroke-width="7" data-om-id="2e451774:1017"/><circle data-dc-tpl="1014" cx="100" cy="100" r="72" fill="#FF6B1A" data-om-id="2e451774:1018"/>
+              <path data-dc-tpl="1015" d="M92 52 L92 118 C92 150 138 150 138 116 C138 98 118 96 110 110" fill="none" stroke="#161210" stroke-width="13" stroke-linecap="round" data-om-id="2e451774:1019"/><path data-dc-tpl="1016" d="M74 62 L92 46 L110 62" fill="none" stroke="#161210" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" data-om-id="2e451774:1020"/><circle data-dc-tpl="1017" cx="92" cy="46" r="5" fill="#161210" data-om-id="2e451774:1021"/>
+            </g>
+            <text data-dc-tpl="1018" x="176" y="100" font-family="Pretendard,sans-serif" font-weight="900" font-size="66" letter-spacing="-3" fill="#fff" data-om-id="2e451774:1022">입<tspan data-dc-tpl="1019" fill="#FF6B1A" data-om-id="2e451774:1023">낚</tspan></text>
+            <text data-dc-tpl="1020" x="179" y="132" font-family="Pretendard,sans-serif" font-weight="800" font-size="13" letter-spacing="4" fill="#FF8A3D" data-om-id="2e451774:1024">FISHING COMMUNITY</text>
+          </svg>

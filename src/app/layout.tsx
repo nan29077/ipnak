@@ -48,10 +48,12 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  const [shopEnabled, bassOnlyMode, reservationEnabled] = await Promise.all([
+  const [shopEnabled, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabledSetting] = await Promise.all([
     getBoolSetting("shop_menu_enabled"),
     getBoolSetting("bass_only_mode"),
     getBoolSetting("reservation_enabled"),
+    getBoolSetting("walking_feed_enabled"),
+    getBoolSetting("points_enabled"),
   ]);
   // PC 여백 배경 이미지(관리자 설정값). 없으면 기본 바다 낚시 사진(Unsplash)으로 폴백.
   const pcMarginBg =
@@ -69,8 +71,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="antialiased font-sans">
         <ToastProvider>
           <RecordingProvider>
-            <AppSettingsProvider value={{ bassOnlyMode, reservationEnabled }}>
-              <AppShell user={user} shopEnabled={shopEnabled} pcMarginBg={pcMarginBg}>{children}</AppShell>
+            <AppSettingsProvider value={{ bassOnlyMode, reservationEnabled, shopMenuEnabled: shopEnabled, walkingFeedEnabled, pointsEnabled: pointsEnabledSetting }}>
+              <AppShell user={user} shopEnabled={shopEnabled} reservationEnabled={reservationEnabled} pointsEnabled={pointsEnabledSetting} pcMarginBg={pcMarginBg}>{children}</AppShell>
             </AppSettingsProvider>
           </RecordingProvider>
         </ToastProvider>

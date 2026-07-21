@@ -313,12 +313,14 @@ export function MapScreen() {
       <div className="fixed left-1/2 z-[1000] flex w-full max-w-[640px] -translate-x-1/2 flex-col gap-2 px-3" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem + 0.75rem)" }}>
         {/* 1행: AI 포인트 추천 + 내 포인트 선택 드롭다운 */}
         <div className="flex items-center gap-2">
-          <AiPointRecommend variant="bar" />
+          <div className="min-w-0 flex-1">
+            <AiPointRecommend variant="bar" />
+          </div>
           {/* 내 포인트 드롭다운 */}
           <div ref={myPointsDropRef} className="relative shrink-0">
             <button
               onClick={() => setMyPointsDropOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+              className="inline-flex min-w-[130px] items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
             >
               <MapPin size={14} className="text-aqua-400" />
               내 포인트
@@ -332,7 +334,7 @@ export function MapScreen() {
                   myRegions.map((r) => (
                     <button
                       key={r.region}
-                      onMouseDown={() => { setCenter({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
+                      onPointerDown={() => { setCenter({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
                       className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                     >
                       <div className="flex items-center gap-2">
@@ -350,7 +352,7 @@ export function MapScreen() {
         {/* 2행: 검색 + 내기록 + 전체화면 — 아래쪽에 위치해 드롭다운이 지도 위로 자유롭게 열림 */}
         <div className="flex items-center gap-2">
           {/* 검색 입력 + 드롭다운 */}
-          <div className="relative flex flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
+          <div className="relative flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
             <Search size={15} className="shrink-0 text-navy-300" />
             <input
               ref={searchInputRef}
@@ -360,7 +362,7 @@ export function MapScreen() {
               onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
               onKeyDown={(e) => { if (e.key === "Escape") { setSearchQuery(""); setSearchFocused(false); searchInputRef.current?.blur(); } }}
               placeholder="낚시 포인트 검색"
-              className="flex-1 bg-transparent text-[13px] text-navy-700 placeholder:text-navy-300 outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[13px] text-navy-700 placeholder:text-navy-300 outline-none"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery("")} className="shrink-0 text-navy-400 hover:text-navy-700">
@@ -376,7 +378,7 @@ export function MapScreen() {
                     {spotResults.map((s) => (
                       <button
                         key={s.name}
-                        onMouseDown={() => { setCenter({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); setGeoResults([]); }}
+                        onPointerDown={() => { setCenter({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); setGeoResults([]); }}
                         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                       >
                         <MapPin size={14} className="shrink-0 text-aqua-400" />
@@ -391,7 +393,7 @@ export function MapScreen() {
                     {geoResults.map((g, i) => (
                       <button
                         key={i}
-                        onMouseDown={() => { setCenter({ lat: g.lat, lng: g.lng }); setSearchQuery(g.name); setSearchFocused(false); setGeoResults([]); }}
+                        onPointerDown={() => { setCenter({ lat: g.lat, lng: g.lng }); setSearchQuery(g.name); setSearchFocused(false); setGeoResults([]); }}
                         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                       >
                         <Navigation size={14} className="shrink-0 text-aqua-300" />
@@ -406,7 +408,7 @@ export function MapScreen() {
                     {pointResults.map((p) => (
                       <button
                         key={p.id}
-                        onMouseDown={() => { setCenter({ lat: p.lat, lng: p.lng }); setSelected(p); setSearchQuery(p.speciesName || p.region || ""); setSearchFocused(false); }}
+                        onPointerDown={() => { setCenter({ lat: p.lat, lng: p.lng }); setSelected(p); setSearchQuery(p.speciesName || p.region || ""); setSearchFocused(false); }}
                         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                       >
                         <Fish size={14} className="shrink-0 text-green-400" />

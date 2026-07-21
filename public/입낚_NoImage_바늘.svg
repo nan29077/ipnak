@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg data-dc-tpl="1030" id="ni-hook" viewBox="0 0 300 300" data-om-id="b6b460de:1035" style="width: 100%; height: auto; display: block;" xmlns="http://www.w3.org/2000/svg">
+              <rect data-dc-tpl="1031" x="8" y="8" width="284" height="284" rx="30" fill="#FFF6EE" stroke="#F0B98A" stroke-width="3.5" stroke-dasharray="12 11" data-om-id="b6b460de:1036"/>
+              <g data-dc-tpl="1032" transform="translate(150 116)" data-om-id="b6b460de:1037">
+                <path data-dc-tpl="1033" d="M0 -66 L0 20 C0 62 66 62 66 16 C66 -8 38 -12 26 8" fill="none" stroke="#1A1512" stroke-width="15" stroke-linecap="round" data-om-id="b6b460de:1038"/>
+                <path data-dc-tpl="1034" d="M-24 -50 L0 -70 L24 -50" fill="none" stroke="#1A1512" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" data-om-id="b6b460de:1039"/>
+                <circle data-dc-tpl="1035" cx="0" cy="-70" r="6" fill="#FF6B1A" data-om-id="b6b460de:1040"/>
+                <circle data-dc-tpl="1036" cx="66" cy="16" r="9" fill="#FF6B1A" stroke="#1A1512" stroke-width="5" data-om-id="b6b460de:1041"/>
+              </g>
+              <text data-dc-tpl="1037" x="150" y="244" font-family="Pretendard,sans-serif" font-weight="800" font-size="13" letter-spacing="4" fill="#FF6B1A" text-anchor="middle" data-om-id="b6b460de:1042">IPNAK</text>
+              <text data-dc-tpl="1038" x="150" y="270" font-family="Pretendard,sans-serif" font-weight="900" font-size="25" letter-spacing="-.5" fill="#1A1512" text-anchor="middle" data-om-id="b6b460de:1043">No Image</text>
+            </svg>

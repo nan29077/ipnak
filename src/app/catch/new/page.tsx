@@ -4,28 +4,35 @@ import { useRouter } from "next/navigation";
 import { Ruler, MapPin, Loader2, Trophy, ChevronRight, Camera, Images } from "lucide-react";
 import { PageHeader, Chip, Sheet, Button, Card, SectionTitle, Input, Select, Textarea, Badge } from "@/components/ui";
 import { PhotoPicker, type PickedPhoto } from "@/components/PhotoPicker";
+import { CameraCapture } from "@/components/CameraCapture";
 import { ProductTagPicker } from "@/components/ProductTagPicker";
 import { ProductTagPlacer, type TagPosition } from "@/components/ProductTagPlacer";
 import { SmartRuler, type RulerResult } from "@/components/SmartRuler";
 import { useToast } from "@/components/Toast";
+import { useRecording } from "@/components/RecordingProvider";
 import { ALL_SPECIES, FISHING_METHODS, FRESH_ENVIRONMENTS, SEA_ENVIRONMENTS, POINT_VISIBILITY, VISIBILITY_OPTIONS, KOREA_SPOTS } from "@/lib/taxonomy";
 import { estimateWeightKg, formatWeight } from "@/lib/fishData";
 
 export default function NewCatchPage() {
   const router = useRouter();
   const toast = useToast();
+  const { status, addCatchToRecording, sessionId, lastPoint } = useRecording();
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [rulerOpen, setRulerOpen] = useState(false);
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
+  const [showCameraCapture, setShowCameraCapture] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [ruler, setRuler] = useState<RulerResult | null>(null);
   const [species, setSpecies] = useState("");
+  const [customSpecies, setCustomSpecies] = useState("");
   const [memo, setMemo] = useState("");
   const [fishingType, setFishingType] = useState("");
+  const [customFishingType, setCustomFishingType] = useState("");
   const [env, setEnv] = useState("");
   const [waterType, setWaterType] = useState<"민물낚시" | "바다낚시">("바다낚시");
   const [region, setRegion] = useState("");
+  const [customRegion, setCustomRegion] = useState("");
   const [size, setSize] = useState("");
   const [gear, setGear] = useState({ rod: "", reel: "", line: "", lure: "", rig: "" });
   const [productIds, setProductIds] = useState<string[]>([]);
@@ -66,18 +73,22 @@ export default function NewCatchPage() {
   async function submit(shareOverride?: boolean) {
     if (!species) { toast("어종을 선택하세요", "error"); return; }
     const share = shareOverride ?? shareToFeed;
+    const resolvedSpecies = species === "기타" ? customSpecies : species;
+    const resolvedFishingType = fishingType === "기타" ? customFishingType : fishingType;
+    const resolvedRegion = region === "기타" ? customRegion : region;
+    if (!resolvedSpecies) { toast("어종을 직접 입력하세요", "error"); return; }
     setLoading(true);
     try {
-      const spot = KOREA_SPOTS.find((s) => s.name === region);
+      const spot = KOREA_SPOTS.find((s) => s.name === resolvedRegion);
       const lat = coords?.lat ?? spot?.lat;
       const lng = coords?.lng ?? spot?.lng;
       const photo = photos[0]?.submitUrl;
       const res = await fetch("/api/catch", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          speciesName: species, fishingType, categoryPath: `${waterType} > ${env || fishingType}`,
+          speciesName: resolvedSpecies, fishingType: resolvedFishingType, categoryPath: `${waterType} > ${env || resolvedFishingType}`,
           caption: memo || undefined,
-          sizeCm: size ? Number(size) : ruler?.measuredLengthCm, region, lat, lng,
+          sizeCm: size ? Number(size) : ruler?.measuredLengthCm, region: resolvedRegion, lat, lng,
           photoUrl: photo, pointVisibility, visibility, shareToFeed: share,
           gearSummary: [gear.rod, gear.reel, gear.rig, gear.lure].filter(Boolean).join(" / "),
           gear, productIds,
@@ -91,10 +102,16 @@ export default function NewCatchPage() {
             calibrationLengthCm: ruler.calibrationLengthCm, fishHeadPoint: ruler.fishHeadPoint,
             fishTailPoint: ruler.fishTailPoint, measuredLengthCm: ruler.measuredLengthCm, confidence: ruler.confidence,
           } : {}),
+          ...(status !== "idle" && sessionId ? { tripId: sessionId } : {}),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "오류");
+      // 데이터피싱 기록 중 잡은 물고기 — 현재 세션에 등록해 공유 시 사진 + 마커 위치 포함
+      if (status !== "idle") {
+        // GPS 위치: 기기 좌표 우선, 실패 시 워킹 세션의 마지막 GPS 포인트로 폴백
+        addCatchToRecording({ photoUrl: photo || null, speciesName: resolvedSpecies || null, lat: coords?.lat ?? lastPoint?.lat ?? null, lng: coords?.lng ?? lastPoint?.lng ?? null });
+      }
       toast("기록 완료", "success");
       router.push(share && data.postId ? `/post/${data.postId}` : "/trip");
       router.refresh();
@@ -106,6 +123,14 @@ export default function NewCatchPage() {
   }
 
   const envOptions = waterType === "민물낚시" ? FRESH_ENVIRONMENTS : SEA_ENVIRONMENTS;
+
+  function handleCameraCapture(dataUrl: string, estimatedCm: number) {
+    setShowCameraCapture(false);
+    const seed = `camera-${Date.now()}`;
+    setPhotos((prev) => [...prev, { preview: dataUrl, submitUrl: `https://picsum.photos/seed/${seed}/800/800` }].slice(0, 3));
+    // 패스 배지 기준으로 추정된 크기 자동 입력 (기존 값 없을 때만)
+    if (!size) setSize(String(estimatedCm));
+  }
 
   function handlePhotoFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -214,9 +239,15 @@ export default function NewCatchPage() {
         <div>
           <SectionTitle className="mb-2 uppercase tracking-[.05em] text-navy-300">어종</SectionTitle>
           <div className="grid grid-cols-2 gap-3">
-            <Select value={species} onChange={(e) => setSpecies(e.target.value)}>
-              <option value="">선택</option>{ALL_SPECIES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </Select>
+            <div>
+              <Select value={species} onChange={(e) => setSpecies(e.target.value)}>
+                <option value="">선택</option>{ALL_SPECIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                <option value="기타">기타(직접입력)</option>
+              </Select>
+              {species === "기타" && (
+                <Input value={customSpecies} onChange={(e) => setCustomSpecies(e.target.value)} placeholder="어종 직접 입력" className="mt-2" />
+              )}
+            </div>
             <Input type="number" value={size} onChange={(e) => setSize(e.target.value)} placeholder={ruler ? String(ruler.measuredLengthCm) : "예: 42.5"} />
           </div>
         </div>
@@ -238,9 +269,15 @@ export default function NewCatchPage() {
             <Select value={env} onChange={(e) => setEnv(e.target.value)}>
               <option value="">장소/환경</option>{envOptions.map((s) => <option key={s} value={s}>{s}</option>)}
             </Select>
-            <Select value={fishingType} onChange={(e) => setFishingType(e.target.value)}>
-              <option value="">낚시 방식</option>{FISHING_METHODS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </Select>
+            <div>
+              <Select value={fishingType} onChange={(e) => setFishingType(e.target.value)}>
+                <option value="">낚시 방식</option>{FISHING_METHODS.map((s) => <option key={s} value={s}>{s}</option>)}
+                <option value="기타">기타(직접입력)</option>
+              </Select>
+              {fishingType === "기타" && (
+                <Input value={customFishingType} onChange={(e) => setCustomFishingType(e.target.value)} placeholder="낚시 방식 직접 입력" className="mt-2" />
+              )}
+            </div>
           </div>
         </Card>
 
@@ -274,7 +311,11 @@ export default function NewCatchPage() {
             </SectionTitle>
             <Select value={region} onChange={(e) => setRegion(e.target.value)}>
               <option value="">지역 선택</option>{KOREA_SPOTS.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+              <option value="기타">기타(직접입력)</option>
             </Select>
+            {region === "기타" && (
+              <Input value={customRegion} onChange={(e) => setCustomRegion(e.target.value)} placeholder="지역 직접 입력" className="mt-2" />
+            )}
           </div>
           <div>
             <p className="mb-1.5 text-xs font-semibold text-navy-500">포인트 위치 공개</p>
@@ -316,7 +357,7 @@ export default function NewCatchPage() {
         <div className="flex flex-col gap-3 pb-4">
           <button
             type="button"
-            onClick={() => { cameraInputRef.current!.value = ""; cameraInputRef.current!.click(); }}
+            onClick={() => { setPhotoSheetOpen(false); setShowCameraCapture(true); }}
             className="flex items-center gap-3 rounded-xl border border-navy-100 bg-navy-50/40 px-4 py-3.5 text-sm font-semibold text-navy-700 transition-colors active:bg-navy-100"
           >
             <Camera size={20} className="text-orange-500" /> 카메라로 촬영
@@ -330,6 +371,14 @@ export default function NewCatchPage() {
           </button>
         </div>
       </Sheet>
+
+      {/* 배스 실루엣 기준 커스텀 카메라 */}
+      {showCameraCapture && (
+        <CameraCapture
+          onCapture={(url, cm) => handleCameraCapture(url, cm)}
+          onClose={() => setShowCameraCapture(false)}
+        />
+      )}
 
       <Sheet open={rulerOpen} onClose={() => setRulerOpen(false)} title="스마트 자 · 사이즈 측정">
         {photos[0] && (
