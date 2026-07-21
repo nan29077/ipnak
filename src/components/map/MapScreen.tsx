@@ -21,6 +21,7 @@ export function MapScreen() {
   const { status, route, distance, elapsed, savedTrips, activeCatches, start, pause, finish, postToFeed, removeTrip, lastPoint } = useRecording();
   const [center, setCenter] = useState<LatLng>({ lat: KOREA_SPOTS[0].lat, lng: KOREA_SPOTS[0].lng });
   const [points, setPoints] = useState<any[]>([]);
+  const [myPoints, setMyPoints] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
   const [recordsOpen, setRecordsOpen] = useState(false);
   const [detailTrip, setDetailTrip] = useState<{ tripId?: string | null; initial?: TripDetail | null } | null>(null);
@@ -98,9 +99,10 @@ export function MapScreen() {
   const [finishedRoute, setFinishedRoute] = useState<LatLng[]>([]);
   const prevSavedCount = useRef(0);
 
-  // 공개 피싱 포인트 로드
+  // 공개 피싱 포인트 + 내 피싱 포인트 로드
   useEffect(() => {
     fetch("/api/points").then((r) => r.json()).then((d) => setPoints(d.points || [])).catch(() => {});
+    fetch("/api/points/mine").then((r) => r.json()).then((d) => setMyPoints(d.points || [])).catch(() => {});
   }, []);
 
   // idle 상태: GPS 현재 위치 실시간 추적 (기록 중에는 RecordingProvider가 담당)
@@ -192,13 +194,26 @@ export function MapScreen() {
     }
   }
 
+  // 공개 포인트 + 내 포인트 합치기 (내 것 우선, 중복 제거)
+  const allPoints = useMemo(() => {
+    const myIds = new Set(myPoints.map((p) => p.id));
+    const publicOnly = points.filter((p) => !myIds.has(p.id));
+    return [...myPoints, ...publicOnly];
+  }, [points, myPoints]);
+
   const markers: MapMarker[] = [
     // 기록 중: 현재 위치 마커
     ...(route.length > 0 ? [{ id: "me", position: route[route.length - 1], kind: "current" as const, title: "현재 위치" }] : []),
     // idle: GPS 현재 위치 마커 (기록 전에도 표시)
     ...(status === "idle" && idlePos ? [{ id: "idle-me", position: idlePos, kind: "current" as const, title: "내 위치" }] : []),
-    // 공개 피싱 포인트 마커
-    ...points.map((p) => ({ id: p.id, position: { lat: p.lat, lng: p.lng }, kind: "catch" as const, title: `${p.speciesName ?? ""} ${p.sizeCm ?? ""}cm`, data: p })),
+    // 피싱 포인트 — 물고기 마커 (사진 섬네일)
+    ...allPoints.map((p) => ({
+      id: p.id,
+      position: { lat: p.lat, lng: p.lng },
+      kind: "fish" as const,
+      title: p.speciesName ?? "피싱 포인트",
+      data: { ...p, count: 1, photoUrl: p.photoUrl },
+    })),
     // 현재 세션 피쉬 마커 (물고기 아이콘)
     ...catchGroups.map((g, i) => ({
       id: `fish-catch-${i}`,
@@ -727,11 +742,21 @@ export function MapScreen() {
             </div>
             {selected.gearSetup && <p className="mt-2 text-sm text-navy-600">채비: {selected.gearSetup}</p>}
             {selected.blurRadius > 0 && <p className="mt-2 text-xs text-navy-300">※ 위치가 반경 {selected.blurRadius}m로 흐림 처리되었습니다.</p>}
-            {selected.postId && (
-              <Link href={`/post/${selected.postId}`} className="mt-4 block rounded-xl bg-orange-500 py-3 text-center text-sm font-semibold text-white shadow-soft btn-press transition-colors hover:bg-orange-600">
-                피싱 피드 게시글 보기
-              </Link>
-            )}
+            <div className="mt-4 flex flex-col gap-2">
+              {selected.tripId && (
+                <button
+                  onClick={() => { setSelected(null); setDetailTrip({ tripId: selected.tripId }); }}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-aqua-500/15 py-3 text-sm font-semibold text-aqua-400 transition-colors hover:bg-aqua-500/25 btn-press"
+                >
+                  <ClipboardList size={16} /> 피싱 데이터 보기
+                </button>
+              )}
+              {selected.postId && (
+                <Link href={`/post/${selected.postId}`} className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-semibold text-white shadow-soft btn-press transition-colors hover:bg-orange-600">
+                  피싱 피드 게시글 보기
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </Sheet>
