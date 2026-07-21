@@ -65,6 +65,12 @@ body {
   background: transparent;
 }
 
+/* iOS Safari: maximumScale 제거 후 입력 필드 포커스 시 자동 확대 방지
+   font-size 16px 이상이면 iOS가 확대하지 않음 */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
 * { -webkit-font-smoothing: antialiased; }
 
 /* Safe area utilities */

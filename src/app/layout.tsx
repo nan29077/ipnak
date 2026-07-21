@@ -41,7 +41,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // maximumScale: 1 제거 — iOS Safari에서 스크롤·당겨서새로고침 차단하는 원인
+  // 입력 필드 포커스 시 자동 확대는 globals.css input font-size:16px 으로 방지
   themeColor: "#161616",
   viewportFit: "cover",
 };
