@@ -17,5 +17,5 @@
     "target": "ES2017"
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "_backup-20260625-225131", "_restore_롤백_20260629", "capacitor.config.ts"]
+  "exclude": ["node_modules", "_backup-20260625-225131", "_restore_롤백_20260629"]
 }
