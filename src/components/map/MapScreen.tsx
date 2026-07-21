@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye } from "lucide-react";
@@ -30,6 +30,28 @@ export function MapScreen() {
   const [noCatchModal, setNoCatchModal] = useState(false);
   // 기록 삭제 확인
   const [deleteTarget, setDeleteTarget] = useState<TripRec | null>(null);
+
+  // ---- 낚시 포인트 검색 ----
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const spotResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return KOREA_SPOTS.filter((s) => s.name.includes(searchQuery)).slice(0, 3);
+  }, [searchQuery]);
+
+  const pointResults = useMemo(() => {
+    if (searchQuery.trim().length < 2) return [];
+    const q = searchQuery.toLowerCase();
+    return points
+      .filter((p) =>
+        (p.speciesName && p.speciesName.toLowerCase().includes(q)) ||
+        (p.region && p.region.toLowerCase().includes(q)) ||
+        (p.gearSetup && p.gearSetup.toLowerCase().includes(q))
+      )
+      .slice(0, 5);
+  }, [searchQuery, points]);
 
   // ---- 지도 상세 풀스크린 모드 (배경 모드 bgMode 와 별개) ----
   const [mapDetailMode, setMapDetailMode] = useState(false);
@@ -223,9 +245,66 @@ export function MapScreen() {
     <div className="relative h-[calc(100vh-7.5rem)] w-full md:h-[calc(100vh-3rem)]">
       {/* 검색 바 + 내 기록 — z-[1000]: Leaflet 내부 레이어(200~800)보다 높게 고정 */}
       <div className="absolute inset-x-4 top-4 z-[1000] flex items-center gap-2">
-        <div className="flex flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-3 shadow-card backdrop-blur">
-          <Search size={16} className="text-navy-300" />
-          <span className="text-[14px] text-navy-300">낚시 포인트 검색</span>
+        {/* 검색 입력 + 드롭다운 */}
+        <div className="relative flex flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-3 shadow-card backdrop-blur">
+          <Search size={16} className="shrink-0 text-navy-300" />
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            onKeyDown={(e) => { if (e.key === "Escape") { setSearchQuery(""); setSearchFocused(false); searchInputRef.current?.blur(); } }}
+            placeholder="낚시 포인트 검색"
+            className="flex-1 bg-transparent text-[14px] text-navy-700 placeholder:text-navy-300 outline-none"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="shrink-0 text-navy-400 hover:text-navy-700">
+              <X size={14} />
+            </button>
+          )}
+
+          {/* 드롭다운 결과 */}
+          {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || searchQuery.length >= 2) && (
+            <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card">
+              {spotResults.length > 0 && (
+                <>
+                  <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400">지역</p>
+                  {spotResults.map((s) => (
+                    <button
+                      key={s.name}
+                      onMouseDown={() => { setCenter({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <MapPin size={14} className="shrink-0 text-aqua-400" />
+                      <span className="text-[13px] font-semibold text-navy-700">{s.name}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+              {pointResults.length > 0 && (
+                <>
+                  <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${spotResults.length > 0 ? " border-t border-navy-100" : ""}`}>낚시 포인트</p>
+                  {pointResults.map((p) => (
+                    <button
+                      key={p.id}
+                      onMouseDown={() => { setCenter({ lat: p.lat, lng: p.lng }); setSelected(p); setSearchQuery(p.speciesName || p.region || ""); setSearchFocused(false); }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <Fish size={14} className="shrink-0 text-green-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-navy-700">{p.speciesName || "어종 미상"}</p>
+                        {p.region && <p className="truncate text-[11px] text-navy-400">{p.region}</p>}
+                      </div>
+                    </button>
+                  ))}
+                </>
+              )}
+              {searchQuery.length >= 2 && spotResults.length === 0 && pointResults.length === 0 && (
+                <p className="py-5 text-center text-[13px] text-navy-400">검색 결과가 없습니다</p>
+              )}
+            </div>
+          )}
         </div>
         <AiPointRecommend variant="bar" />
         <button
