@@ -748,21 +748,16 @@ export function MapScreen() {
             </div>
             {selected.gearSetup && <p className="mt-2 text-sm text-navy-600">채비: {selected.gearSetup}</p>}
             {selected.blurRadius > 0 && <p className="mt-2 text-xs text-navy-300">※ 위치가 반경 {selected.blurRadius}m로 흐림 처리되었습니다.</p>}
-            <div className="mt-4 flex flex-col gap-2">
-              {selected.tripId && (
+            {selected.isMine && selected.tripId && (
+              <div className="mt-4">
                 <button
                   onClick={() => { setSelected(null); setDetailTrip({ tripId: selected.tripId }); }}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-aqua-500/15 py-3 text-sm font-semibold text-aqua-400 transition-colors hover:bg-aqua-500/25 btn-press"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-aqua-500/15 py-3 text-sm font-semibold text-aqua-400 transition-colors hover:bg-aqua-500/25 btn-press"
                 >
                   <ClipboardList size={16} /> 피싱 데이터 보기
                 </button>
-              )}
-              {selected.postId && (
-                <Link href={`/post/${selected.postId}`} className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-semibold text-white shadow-soft btn-press transition-colors hover:bg-orange-600">
-                  피싱 피드 게시글 보기
-                </Link>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </Sheet>
