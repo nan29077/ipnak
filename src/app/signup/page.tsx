@@ -24,6 +24,14 @@ const FISH_SPECIES = [
 const FIELD_CLASS =
   "w-full rounded-[16px] px-3.5 py-3 text-[15px] bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/40 outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-400/30 transition-colors";
 
+/* 비밀번호 정책: 영문 + 숫자 + 특수문자 모두 포함, 8자 이상 */
+const PW_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]).{8,}$/;
+function validatePassword(pw: string): string | null {
+  if (pw.length < 8) return "비밀번호는 8자 이상이어야 합니다.";
+  if (!PW_REGEX.test(pw)) return "영문, 숫자, 특수문자를 모두 포함해야 합니다.";
+  return null;
+}
+
 /* ── 멀티셀렉트 칩 + 직접입력 컴포넌트 ─────────────────────── */
 function TagSelector({
   label, items, selected, onToggle, customPlaceholder, customItems, onAddCustom, onRemoveCustom,
@@ -141,6 +149,8 @@ export default function SignupPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const pwError = validatePassword(form.password);
+    if (pwError) { toast(pwError, "error"); return; }
     if (form.password !== form.confirmPassword) {
       toast("비밀번호가 일치하지 않습니다.", "error");
       return;
@@ -171,8 +181,10 @@ export default function SignupPage() {
   }
 
   return (
+    /* 외부 div: 배경만 담당. min-h-screen은 화면 짧을 때 배경 채우기용.
+       overflow는 기본값(visible)이므로 콘텐츠가 길면 자연스럽게 스크롤됨. */
     <div className="min-h-screen bg-gradient-to-b from-[#0d1626] via-[#161616] to-[#243a63]">
-      <div className="mx-auto w-full max-w-md px-6 py-10">
+      <div className="mx-auto w-full max-w-md px-6 pt-10 pb-16">
 
         {/* 헤더 */}
         <div className="mb-8 text-center">
@@ -199,10 +211,17 @@ export default function SignupPage() {
               className={FIELD_CLASS}
             />
             <input
-              type="password" required placeholder="비밀번호 (6자 이상)" autoComplete="new-password"
+              type="password" required placeholder="비밀번호 (영문+숫자+특수문자, 8자 이상)" autoComplete="new-password"
               value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className={FIELD_CLASS}
+              className={`${FIELD_CLASS} ${
+                form.password && validatePassword(form.password)
+                  ? "border-red-500/60 focus:border-red-500 focus:ring-red-500/30"
+                  : ""
+              }`}
             />
+            {form.password && validatePassword(form.password) && (
+              <p className="text-[12px] text-red-400">{validatePassword(form.password)}</p>
+            )}
             <input
               type="password" required placeholder="비밀번호 확인" autoComplete="new-password"
               value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
@@ -252,7 +271,7 @@ export default function SignupPage() {
 
           <Button
             type="submit" variant="secondary" full
-            disabled={loading || (!!form.confirmPassword && form.password !== form.confirmPassword)}
+            disabled={loading || !!validatePassword(form.password) || (!!form.confirmPassword && form.password !== form.confirmPassword)}
             leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : undefined}
           >
             가입하기

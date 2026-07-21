@@ -39,8 +39,10 @@ export default function LoginPage() {
   }
 
   return (
+    /* 외부 컨테이너: 배경만 담당, 스크롤 허용 */
     <div className="min-h-screen bg-gradient-to-b from-[#0d1626] via-[#161616] to-[#243a63]">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+      {/* 내용 컨테이너: 위쪽 30% 여백 → 시각적으로 중앙보다 약간 아래에 배치 */}
+      <div className="mx-auto w-full max-w-md px-6 pt-[22vh] pb-12">
 
         {/* 로고 */}
         <div className="mb-10 text-center">

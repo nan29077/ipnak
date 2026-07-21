@@ -3,9 +3,14 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, createSession } from "@/lib/auth";
 
+const PW_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]).{8,}$/;
+
 const schema = z.object({
   email: z.string().email("올바른 이메일을 입력하세요."),
-  password: z.string().min(6, "비밀번호는 6자 이상이어야 합니다."),
+  password: z
+    .string()
+    .min(8, "비밀번호는 8자 이상이어야 합니다.")
+    .regex(PW_REGEX, "비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다."),
   nickname: z.string().min(2, "닉네임은 2자 이상이어야 합니다."),
   fishingMethods: z.array(z.string()).optional(),
   fishSpecies: z.array(z.string()).optional(),
