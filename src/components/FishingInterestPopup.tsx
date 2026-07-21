@@ -112,23 +112,6 @@ export function FishingInterestPopup({
     setOpen(false);
   }
 
-  // iOS 바디 스크롤 잠금: 팝업 열릴 때 배경 스크롤 방지
-  useEffect(() => {
-    if (!open) return;
-    const y = window.scrollY;
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${y}px`;
-    document.body.style.width = "100%";
-    return () => {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-      document.body.style.top = "";
-      window.scrollTo(0, y);
-    };
-  }, [open]);
-
   if (!open) return null;
 
   return (
