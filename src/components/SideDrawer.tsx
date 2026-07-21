@@ -139,7 +139,7 @@ export function SideDrawer({
               className="flex w-full items-center gap-3.5 px-5 py-3 text-left text-[15px] font-medium text-white/80 transition-colors hover:bg-white/5 active:bg-white/10"
             >
               <Settings size={20} strokeWidth={1.8} />
-              설정
+              입낚볼/설정
             </Link>
           </div>
         </nav>
