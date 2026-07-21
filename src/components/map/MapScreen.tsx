@@ -45,14 +45,14 @@ export function MapScreen() {
   const pointResults = useMemo(() => {
     if (searchQuery.trim().length < 2) return [];
     const q = searchQuery.toLowerCase();
-    return points
+    return myPoints
       .filter((p) =>
         (p.speciesName && p.speciesName.toLowerCase().includes(q)) ||
         (p.region && p.region.toLowerCase().includes(q)) ||
         (p.gearSetup && p.gearSetup.toLowerCase().includes(q))
       )
       .slice(0, 5);
-  }, [searchQuery, points]);
+  }, [searchQuery, myPoints]);
 
   // ---- 지도 상세 풀스크린 모드 (배경 모드 bgMode 와 별개) ----
   const [mapDetailMode, setMapDetailMode] = useState(false);
@@ -99,9 +99,8 @@ export function MapScreen() {
   const [finishedRoute, setFinishedRoute] = useState<LatLng[]>([]);
   const prevSavedCount = useRef(0);
 
-  // 공개 피싱 포인트 + 내 피싱 포인트 로드
+  // 내 피싱 포인트만 로드 (다른 사용자 포인트는 지도에 표시 안 함)
   useEffect(() => {
-    fetch("/api/points").then((r) => r.json()).then((d) => setPoints(d.points || [])).catch(() => {});
     fetch("/api/points/mine").then((r) => r.json()).then((d) => setMyPoints(d.points || [])).catch(() => {});
   }, []);
 
@@ -194,12 +193,8 @@ export function MapScreen() {
     }
   }
 
-  // 공개 포인트 + 내 포인트 합치기 (내 것 우선, 중복 제거)
-  const allPoints = useMemo(() => {
-    const myIds = new Set(myPoints.map((p) => p.id));
-    const publicOnly = points.filter((p) => !myIds.has(p.id));
-    return [...myPoints, ...publicOnly];
-  }, [points, myPoints]);
+  // 내 포인트만 지도에 표시
+  const allPoints = myPoints;
 
   const markers: MapMarker[] = [
     // 기록 중: 현재 위치 마커
