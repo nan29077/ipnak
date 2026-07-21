@@ -54,7 +54,7 @@ function decodeNdefText(payload: number[] | Uint8Array): string {
 async function readBallIdCapacitor(): Promise<string | null> {
   try {
     // 동적 import — 웹 환경에서 플러그인이 없어도 번들 에러 방지
-    const { NFC } = await import("@capacitor-community/nfc" as any);
+    const { NFC } = await import(/* webpackIgnore: true */ "@capacitor-community/nfc" as any);
 
     return new Promise<string | null>((resolve) => {
       let listenerHandle: any;
@@ -132,7 +132,7 @@ export class NfcService {
   static async isSupported(): Promise<boolean> {
     if (isCapacitor()) {
       try {
-        const { NFC } = await import("@capacitor-community/nfc" as any);
+        const { NFC } = await import(/* webpackIgnore: true */ "@capacitor-community/nfc" as any);
         const result = await NFC.isEnabled();
         return result?.isEnabled ?? false;
       } catch {
