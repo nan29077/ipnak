@@ -311,7 +311,43 @@ export function MapScreen() {
     <div className="relative h-[calc(100vh-7.5rem)] w-full md:h-[calc(100vh-3rem)]">
       {/* 상단 컨트롤 영역 — fixed로 스크롤과 무관하게 지도 위에 항상 고정 */}
       <div className="fixed left-1/2 z-[1000] flex w-full max-w-[640px] -translate-x-1/2 flex-col gap-2 px-3" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem + 0.75rem)" }}>
-        {/* 1행: 검색 + 내기록 + 전체화면 아이콘 */}
+        {/* 1행: AI 포인트 추천 + 내 포인트 선택 드롭다운 */}
+        <div className="flex items-center gap-2">
+          <AiPointRecommend variant="bar" />
+          {/* 내 포인트 드롭다운 */}
+          <div ref={myPointsDropRef} className="relative shrink-0">
+            <button
+              onClick={() => setMyPointsDropOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+            >
+              <MapPin size={14} className="text-aqua-400" />
+              내 포인트
+              <ChevronDown size={12} className={`transition-transform duration-200${myPointsDropOpen ? " rotate-180" : ""}`} />
+            </button>
+            {myPointsDropOpen && (
+              <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e] shadow-card">
+                {myRegions.length === 0 ? (
+                  <p className="px-4 py-4 text-center text-[12px] text-navy-400">기록된 포인트가 없습니다</p>
+                ) : (
+                  myRegions.map((r) => (
+                    <button
+                      key={r.region}
+                      onMouseDown={() => { setCenter({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <div className="flex items-center gap-2">
+                        <MapPin size={13} className="shrink-0 text-aqua-400" />
+                        <span className="text-[13px] font-semibold text-navy-700">{r.region}</span>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-aqua-500/15 px-1.5 py-0.5 text-[10px] font-bold text-aqua-400">{r.count}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        {/* 2행: 검색 + 내기록 + 전체화면 — 아래쪽에 위치해 드롭다운이 지도 위로 자유롭게 열림 */}
         <div className="flex items-center gap-2">
           {/* 검색 입력 + 드롭다운 */}
           <div className="relative flex flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
@@ -331,7 +367,7 @@ export function MapScreen() {
                 <X size={13} />
               </button>
             )}
-            {/* 드롭다운 결과 */}
+            {/* 드롭다운 결과 — 검색창 아래 지도 위로 열림 */}
             {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || geoResults.length > 0 || searchQuery.length >= 2) && (
               <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card">
                 {spotResults.length > 0 && (
@@ -404,42 +440,6 @@ export function MapScreen() {
             <Expand size={15} className="text-aqua-400" />
           </button>
         </div>
-        {/* 2행: AI 포인트 추천 + 내 포인트 선택 드롭다운 */}
-        <div className="flex items-center gap-2">
-          <AiPointRecommend variant="bar" />
-          {/* 내 포인트 드롭다운 */}
-          <div ref={myPointsDropRef} className="relative shrink-0">
-            <button
-              onClick={() => setMyPointsDropOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
-            >
-              <MapPin size={14} className="text-aqua-400" />
-              내 포인트
-              <ChevronDown size={12} className={`transition-transform duration-200${myPointsDropOpen ? " rotate-180" : ""}`} />
-            </button>
-            {myPointsDropOpen && (
-              <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e] shadow-card">
-                {myRegions.length === 0 ? (
-                  <p className="px-4 py-4 text-center text-[12px] text-navy-400">기록된 포인트가 없습니다</p>
-                ) : (
-                  myRegions.map((r) => (
-                    <button
-                      key={r.region}
-                      onMouseDown={() => { setCenter({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
-                    >
-                      <div className="flex items-center gap-2">
-                        <MapPin size={13} className="shrink-0 text-aqua-400" />
-                        <span className="text-[13px] font-semibold text-navy-700">{r.region}</span>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-aqua-500/15 px-1.5 py-0.5 text-[10px] font-bold text-aqua-400">{r.count}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       <MapView center={center} route={displayRoute} markers={markers} onMarkerClick={(m) => m.data && setSelected(m.data)} />
@@ -480,7 +480,7 @@ export function MapScreen() {
                   <span className="text-[12px] font-bold text-aqua-400">마지막 기록</span>
                   <span className="flex items-center gap-1.5 text-[11px] text-navy-300">
                     {timeAgo(last.createdAt)}
-                    {lastRecOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    {lastRecOpen ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
                   </span>
                 </button>
                 {lastRecOpen && (
