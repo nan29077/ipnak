@@ -56,6 +56,8 @@
    여백이 계속 검게 보이는 문제가 있었다 → body는 투명. */
 html {
   background: var(--color-bg);
+  /* iOS Safari: 당겨서새로고침(pull-to-refresh) 허용 */
+  overscroll-behavior-y: auto;
 }
 html, body {
   color: var(--color-text-primary);
@@ -63,6 +65,16 @@ html, body {
 }
 body {
   background: transparent;
+  /* iOS Safari: 모멘텀 스크롤 + 세로 스크롤 명시 허용 */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+}
+
+/* iOS Safari: 가로 스크롤 컨테이너가 세로 스크롤 이벤트를 가로채지 않도록
+   pan-x pinch-zoom → 가로만 처리하고 세로는 부모(body)에게 전달 */
+.overflow-x-auto,
+.overflow-x-scroll {
+  touch-action: pan-x pinch-zoom;
 }
 
 /* iOS Safari: maximumScale 제거 후 입력 필드 포커스 시 자동 확대 방지

@@ -112,10 +112,31 @@ export function FishingInterestPopup({
     setOpen(false);
   }
 
+  // iOS 바디 스크롤 잠금: 팝업 열릴 때 배경 스크롤 방지
+  useEffect(() => {
+    if (!open) return;
+    const y = window.scrollY;
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${y}px`;
+    document.body.style.width = "100%";
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+      window.scrollTo(0, y);
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-end justify-center px-4 pb-4 sm:items-center sm:pb-0">
+    /* pb: MobileBottomNav(5.5rem) + safe-area 만큼 띄워서 버튼이 nav 뒤에 숨지 않도록 */
+    <div
+      className="fixed inset-0 z-[9999] flex items-end justify-center px-4 sm:items-center sm:pb-0"
+      style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom, 0px))" }}
+    >
       {/* 딤 */}
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
@@ -123,31 +144,34 @@ export function FishingInterestPopup({
         aria-hidden
       />
 
-      {/* 팝업 카드 */}
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/[0.1] bg-[#1a2535] shadow-2xl">
+      {/* 팝업 카드 — flex column + max-height로 소형 화면에서도 버튼 항상 노출 */}
+      <div
+        className="relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/[0.1] bg-[#1a2535] shadow-2xl"
+        style={{ maxHeight: "calc(100vh - 7rem - env(safe-area-inset-bottom, 0px))" }}
+      >
 
         {/* 닫기 버튼 */}
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.08] text-white/50 hover:bg-white/[0.15] hover:text-white"
+          className="absolute right-4 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.08] text-white/50 hover:bg-white/[0.15] hover:text-white"
         >
           <X size={14} strokeWidth={2} />
         </button>
 
         {/* 헤더 */}
-        <div className="bg-gradient-to-r from-[#0d1626] to-[#1e3a5f] px-6 py-6">
+        <div className="shrink-0 bg-gradient-to-r from-[#0d1626] to-[#1e3a5f] px-6 py-5">
           <p className="text-[11px] font-bold uppercase tracking-wider text-aqua-400">맞춤 추천</p>
-          <h2 className="mt-1 text-[20px] font-extrabold text-white">
+          <h2 className="mt-1 text-[18px] font-extrabold text-white">
             {nickname ? `${nickname}님, ` : ""}관심 낚시 분야를 알려주세요
           </h2>
-          <p className="mt-1 text-[12px] text-white/50">
+          <p className="mt-0.5 text-[12px] text-white/50">
             AI가 관심 어종·방식에 맞는 피드를 추천해 드려요
           </p>
         </div>
 
-        {/* 스크롤 영역 */}
-        <div className="max-h-[60vh] overflow-y-auto px-6 py-5 space-y-5">
+        {/* 스크롤 영역 — flex-1으로 남은 공간 채움, 버튼은 항상 하단에 고정 */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4" style={{ WebkitOverflowScrolling: "touch" }}>
 
           {/* 낚시 방식 */}
           <div>
@@ -208,8 +232,8 @@ export function FishingInterestPopup({
           </div>
         </div>
 
-        {/* 버튼 영역 */}
-        <div className="border-t border-white/[0.08] px-6 py-4 space-y-2">
+        {/* 버튼 영역 — shrink-0으로 항상 표시 */}
+        <div className="shrink-0 border-t border-white/[0.08] px-6 py-4 space-y-2">
           <button
             type="button"
             onClick={save}
