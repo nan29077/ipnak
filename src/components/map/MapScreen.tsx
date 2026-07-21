@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X } from "lucide-react";
+import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { MapView } from "@/components/map/MapView";
 import { Sheet, Button, Card, Badge } from "@/components/ui";
@@ -425,23 +425,33 @@ export function MapScreen() {
                     </button>
                   </div>
                 </div>
-                <div className="mt-2.5">
-                  {t.postId ? (
-                    <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-aqua-500">
-                      <Share2 size={14} /> 워킹 피드에 게시됨
-                    </span>
-                  ) : (
-                    <Button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        try { await postToFeed(t); }
-                        catch (err: any) { if (err?.code === "NO_FISH") setNoCatchModal(true); }
-                      }}
-                      disabled={t.posting} variant="primary" size="sm" full leftIcon={<Share2 size={15} />}
-                    >
-                      {t.posting ? "올리는 중..." : "워킹 피드에 올리기"}
-                    </Button>
-                  )}
+                <div className="mt-2.5 flex items-center gap-2">
+                  <div className="flex-1">
+                    {t.postId ? (
+                      <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-aqua-500">
+                        <Share2 size={14} /> 워킹 피드에 게시됨
+                      </span>
+                    ) : (
+                      <Button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try { await postToFeed(t); }
+                          catch (err: any) { if (err?.code === "NO_FISH") setNoCatchModal(true); }
+                        }}
+                        disabled={t.posting} variant="primary" size="sm" full leftIcon={<Share2 size={15} />}
+                      >
+                        {t.posting ? "올리는 중..." : "워킹 피드에 올리기"}
+                      </Button>
+                    )}
+                  </div>
+                  <Button
+                    onClick={(e) => { e.stopPropagation(); openDetail(t); }}
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Eye size={14} />}
+                  >
+                    상세 보기
+                  </Button>
                 </div>
               </Card>
             ))}
