@@ -150,7 +150,7 @@ export function TripDetailSheet({
     : (data?.catchCount ?? 0);
 
   return (
-    <Sheet open={open} onClose={onClose} title="데이터피싱 기록">
+    <Sheet open={open} onClose={onClose} title="데이터피싱 기록" size="diary">
       {loading && !data ? (
         <LoadingState label="기록을 불러오는 중..." />
       ) : !data ? (
