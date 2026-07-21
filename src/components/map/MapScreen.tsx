@@ -258,11 +258,13 @@ export function MapScreen() {
 
   return (
     <div className="relative h-[calc(100vh-7.5rem)] w-full md:h-[calc(100vh-3rem)]">
-      {/* 검색 바 + 내 기록 — z-[1000]: Leaflet 내부 레이어(200~800)보다 높게 고정 */}
-      <div className="absolute inset-x-4 top-4 z-[1000] flex items-center gap-2">
+      {/* 상단 컨트롤 영역 — 2행 레이아웃 */}
+      <div className="absolute inset-x-3 top-3 z-[1000] flex flex-col gap-2">
+        {/* 1행: 검색 + 내기록 */}
+        <div className="flex items-center gap-2">
         {/* 검색 입력 + 드롭다운 */}
-        <div className="relative flex flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-3 shadow-card backdrop-blur">
-          <Search size={16} className="shrink-0 text-navy-300" />
+        <div className="relative flex flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
+          <Search size={15} className="shrink-0 text-navy-300" />
           <input
             ref={searchInputRef}
             value={searchQuery}
@@ -271,11 +273,11 @@ export function MapScreen() {
             onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
             onKeyDown={(e) => { if (e.key === "Escape") { setSearchQuery(""); setSearchFocused(false); searchInputRef.current?.blur(); } }}
             placeholder="낚시 포인트 검색"
-            className="flex-1 bg-transparent text-[14px] text-navy-700 placeholder:text-navy-300 outline-none"
+            className="flex-1 bg-transparent text-[13px] text-navy-700 placeholder:text-navy-300 outline-none"
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery("")} className="shrink-0 text-navy-400 hover:text-navy-700">
-              <X size={14} />
+              <X size={13} />
             </button>
           )}
 
@@ -321,19 +323,23 @@ export function MapScreen() {
             </div>
           )}
         </div>
-        <AiPointRecommend variant="bar" />
         <button
           onClick={() => setRecordsOpen(true)}
           aria-label="내 데이터피싱 기록"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3.5 py-3 text-[13px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
         >
-          <ClipboardList size={16} className="text-orange-500" />
+          <ClipboardList size={15} className="text-orange-500" />
           내 기록
         </button>
+        </div>
+        {/* 2행: AI 포인트 추천 */}
+        <div className="flex">
+          <AiPointRecommend variant="bar" />
+        </div>
       </div>
 
       {/* 지역 빠른 이동 */}
-      <div className="absolute left-0 right-0 top-[68px] z-[1000] flex gap-2 overflow-x-auto p-3 no-scrollbar">
+      <div className="absolute left-0 right-0 top-[108px] z-[1000] flex gap-2 overflow-x-auto p-3 no-scrollbar">
         {KOREA_SPOTS.map((s) => (
           <button key={s.name} onClick={() => setCenter({ lat: s.lat, lng: s.lng })}
             className="inline-flex items-center gap-1 whitespace-nowrap rounded-xl bg-[#161616]/95 px-3 py-1.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]">
@@ -348,7 +354,7 @@ export function MapScreen() {
       <button
         onClick={() => setMapDetailMode(true)}
         aria-label="포인트 상세 보기 (지도 전체화면)"
-        className="absolute right-3 top-[120px] z-[1000] inline-flex items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card ring-1 ring-white/10 backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+        className="absolute right-3 top-[158px] z-[1000] inline-flex items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card ring-1 ring-white/10 backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
       >
         <Expand size={15} className="text-aqua-400" /> 포인트 상세 보기
       </button>
@@ -412,7 +418,7 @@ export function MapScreen() {
                       onClick={() => openDetail(last)}
                       className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-aqua-500/20 py-1.5 text-[12px] font-semibold text-aqua-400"
                     >
-                      동선 상세보기 <ChevronRight size={13} />
+                      워킹 상세보기 <ChevronRight size={13} />
                     </button>
                   </div>
                 )}
