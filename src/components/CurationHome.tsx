@@ -266,7 +266,7 @@ function SectionHead({ title, desc, moreHref, icon }: { title: string; desc?: st
       </div>
       {moreHref && (
         <Link href={moreHref} className="flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-orange-400 hover:text-orange-300">
-          모아보기 <ChevronRight size={14} />
+          전체보기 <ChevronRight size={14} />
         </Link>
       )}
     </div>
@@ -311,14 +311,29 @@ function FeedRailCard({ post }: { post: FeedPost }) {
   );
 }
 
+function rankStyle(rank: number): { bg: string; text: string } {
+  if (rank === 1) return { bg: "#FFD700", text: "#1a1200" };
+  if (rank === 2) return { bg: "#C0C0C0", text: "#2a2a2a" };
+  if (rank === 3) return { bg: "#CD7F32", text: "#fff" };
+  return { bg: "rgba(0,0,0,0.55)", text: "rgba(255,255,255,0.85)" };
+}
+
 function CurationCard({ post, rank }: { post: CurationCardPost; rank?: number }) {
+  const rs = rank != null ? rankStyle(rank) : null;
   return (
     <Link href={post.href} className="block w-[250px] shrink-0 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card transition-colors hover:border-orange-500/40">
       <div className="relative h-32 w-full bg-navy-50">
         {post.thumbnail
           ? <img src={post.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
           : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#242424] to-[#161616] text-navy-300"><IconFish size={26} /></div>}
-        {rank != null && <span className="absolute left-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-[12px] font-extrabold text-white shadow">{rank}</span>}
+        {rank != null && rs && (
+          <span
+            className="absolute left-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-extrabold shadow"
+            style={{ background: rs.bg, color: rs.text }}
+          >
+            {rank}
+          </span>
+        )}
         {post.boardLabel
           ? <span className="absolute right-2.5 top-2.5 inline-flex items-center rounded-md bg-aqua-500/90 px-2 py-0.5 text-[11px] font-bold text-white shadow">{post.boardLabel}</span>
           : post.speciesName && <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-0.5 rounded-md bg-black/70 px-2 py-0.5 text-[11px] font-bold text-white shadow"><IconFish size={10} />{post.speciesName}</span>}
