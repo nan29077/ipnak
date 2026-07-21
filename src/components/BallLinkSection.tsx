@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight } from "lucide-react";
+import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, Trash2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import NfcService from "@/services/NfcService";
 
@@ -55,6 +55,7 @@ function useBallLink() {
   const [supported, setSupported] = useState<boolean | null>(null); // null = 확인 중
   const [balls, setBalls] = useState<Ball[] | null>(null);
   const [reading, setReading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setBalls(await fetchBalls());
@@ -93,7 +94,26 @@ function useBallLink() {
     }
   }, [supported, reading, toast, refresh]);
 
-  return { supported, balls, reading, tagAndRegister };
+  const deleteBall = useCallback(async (ballId: string) => {
+    if (deleting) return;
+    setDeleting(ballId);
+    try {
+      const res = await fetch(`/api/balls/${encodeURIComponent(ballId)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast(data.error || "볼 삭제에 실패했어요.", "error");
+        return;
+      }
+      toast(`입낚볼(${ballId}) 연동 해제 완료`, "success");
+      await refresh();
+    } catch {
+      toast("네트워크 오류가 발생했어요.", "error");
+    } finally {
+      setDeleting(null);
+    }
+  }, [deleting, toast, refresh]);
+
+  return { supported, balls, reading, tagAndRegister, deleteBall, deleting };
 }
 
 /* ── 측정 페이지: 입낚볼 연동 카드 ── */
@@ -142,7 +162,7 @@ export function BallLinkSection() {
 
 /* ── 마이페이지: 내 입낚볼 관리 ── */
 export function MyBallManager() {
-  const { supported, balls, reading, tagAndRegister } = useBallLink();
+  const { supported, balls, reading, tagAndRegister, deleteBall, deleting } = useBallLink();
 
   function register() {
     tagAndRegister();
@@ -174,12 +194,27 @@ export function MyBallManager() {
                   연동일 {String(b.linkedAt).slice(0, 10)}
                 </p>
               </div>
-              <Link
-                href={`/diary?ballId=${encodeURIComponent(b.ballId)}`}
-                className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-navy-50 px-2.5 py-1 text-[11px] font-semibold text-navy-600 transition-colors hover:bg-navy-100"
-              >
-                기록 보기 <ChevronRight size={12} strokeWidth={2.2} />
-              </Link>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Link
+                  href={`/diary?ballId=${encodeURIComponent(b.ballId)}`}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-navy-50 px-2.5 py-1 text-[11px] font-semibold text-navy-600 transition-colors hover:bg-navy-100"
+                >
+                  기록 보기 <ChevronRight size={12} strokeWidth={2.2} />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => deleteBall(b.ballId)}
+                  disabled={!!deleting}
+                  title="연동 해제"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-red-400/60 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
+                >
+                  {deleting === b.ballId ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={13} strokeWidth={1.9} />
+                  )}
+                </button>
+              </div>
             </li>
           ))}
         </ul>
