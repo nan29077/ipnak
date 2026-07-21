@@ -40,6 +40,7 @@ export function MapScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [geoResults, setGeoResults] = useState<{ name: string; lat: number; lng: number }[]>([]);
 
   const spotResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -121,6 +122,29 @@ export function MapScreen() {
     document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [myPointsDropOpen]);
+
+  // 검색어 → Nominatim 지오코딩 (한국 지역 검색)
+  useEffect(() => {
+    if (searchQuery.trim().length < 2) { setGeoResults([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=4&countrycodes=kr&accept-language=ko`
+        );
+        const data = await res.json();
+        setGeoResults(
+          (data as any[]).slice(0, 4).map((d) => ({
+            name: d.display_name.split(",")[0].trim(),
+            lat: parseFloat(d.lat),
+            lng: parseFloat(d.lon),
+          }))
+        );
+      } catch {
+        setGeoResults([]);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // GPS idle 상태 추적 (기록 전에도 현재 위치 마커 표시)
   const [idlePos, setIdlePos] = useState<LatLng | null>(null);
@@ -285,8 +309,8 @@ export function MapScreen() {
 
   return (
     <div className="relative h-[calc(100vh-7.5rem)] w-full md:h-[calc(100vh-3rem)]">
-      {/* 상단 컨트롤 영역 — 2행 레이아웃, 겹침 없음 */}
-      <div className="absolute inset-x-3 top-3 z-[1000] flex flex-col gap-2">
+      {/* 상단 컨트롤 영역 — fixed로 스크롤과 무관하게 지도 위에 항상 고정 */}
+      <div className="fixed left-1/2 z-[1000] flex w-full max-w-[640px] -translate-x-1/2 flex-col gap-2 px-3" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem + 0.75rem)" }}>
         {/* 1행: 검색 + 내기록 + 전체화면 아이콘 */}
         <div className="flex items-center gap-2">
           {/* 검색 입력 + 드롭다운 */}
@@ -308,15 +332,15 @@ export function MapScreen() {
               </button>
             )}
             {/* 드롭다운 결과 */}
-            {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || searchQuery.length >= 2) && (
+            {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || geoResults.length > 0 || searchQuery.length >= 2) && (
               <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card">
                 {spotResults.length > 0 && (
                   <>
-                    <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400">지역</p>
+                    <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400">주요 지역</p>
                     {spotResults.map((s) => (
                       <button
                         key={s.name}
-                        onMouseDown={() => { setCenter({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); }}
+                        onMouseDown={() => { setCenter({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); setGeoResults([]); }}
                         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                       >
                         <MapPin size={14} className="shrink-0 text-aqua-400" />
@@ -325,9 +349,24 @@ export function MapScreen() {
                     ))}
                   </>
                 )}
+                {geoResults.length > 0 && (
+                  <>
+                    <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${spotResults.length > 0 ? " border-t border-navy-100" : ""}`}>지역 검색</p>
+                    {geoResults.map((g, i) => (
+                      <button
+                        key={i}
+                        onMouseDown={() => { setCenter({ lat: g.lat, lng: g.lng }); setSearchQuery(g.name); setSearchFocused(false); setGeoResults([]); }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                      >
+                        <Navigation size={14} className="shrink-0 text-aqua-300" />
+                        <span className="text-[13px] font-semibold text-navy-700">{g.name}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
                 {pointResults.length > 0 && (
                   <>
-                    <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${spotResults.length > 0 ? " border-t border-navy-100" : ""}`}>낚시 포인트</p>
+                    <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${(spotResults.length > 0 || geoResults.length > 0) ? " border-t border-navy-100" : ""}`}>내 낚시 포인트</p>
                     {pointResults.map((p) => (
                       <button
                         key={p.id}
@@ -343,7 +382,7 @@ export function MapScreen() {
                     ))}
                   </>
                 )}
-                {searchQuery.length >= 2 && spotResults.length === 0 && pointResults.length === 0 && (
+                {searchQuery.length >= 2 && spotResults.length === 0 && pointResults.length === 0 && geoResults.length === 0 && (
                   <p className="py-5 text-center text-[13px] text-navy-400">검색 결과가 없습니다</p>
                 )}
               </div>
