@@ -311,29 +311,41 @@ function FeedRailCard({ post }: { post: FeedPost }) {
   );
 }
 
-function rankStyle(rank: number): { bg: string; text: string } {
-  if (rank === 1) return { bg: "#FFD700", text: "#1a1200" };
-  if (rank === 2) return { bg: "#C0C0C0", text: "#2a2a2a" };
-  if (rank === 3) return { bg: "#CD7F32", text: "#fff" };
-  return { bg: "rgba(0,0,0,0.55)", text: "rgba(255,255,255,0.85)" };
+/** 1~3위: 라인형 메달 SVG, 4~10위: 반투명 숫자 배지 */
+function RankBadge({ rank }: { rank: number }) {
+  if (rank > 3) {
+    return (
+      <span
+        className="absolute left-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-extrabold shadow"
+        style={{ background: "rgba(0,0,0,0.58)", color: "rgba(255,255,255,0.88)" }}
+      >
+        {rank}
+      </span>
+    );
+  }
+  const color = rank === 1 ? "#FFD700" : rank === 2 ? "#C8C8C8" : "#CD7F32";
+  return (
+    <span className="absolute left-2 top-1.5" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.6))" }}>
+      <svg width="24" height="30" viewBox="0 0 24 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* 리본 */}
+        <path d="M9 10 L12 4 L15 10" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        {/* 메달 원 */}
+        <circle cx="12" cy="20" r="8" stroke={color} strokeWidth="1.7" />
+        {/* 순위 숫자 */}
+        <text x="12" y="24.5" textAnchor="middle" fontSize="9" fontWeight="800" fill={color} fontFamily="system-ui,sans-serif">{rank}</text>
+      </svg>
+    </span>
+  );
 }
 
 function CurationCard({ post, rank }: { post: CurationCardPost; rank?: number }) {
-  const rs = rank != null ? rankStyle(rank) : null;
   return (
     <Link href={post.href} className="block w-[250px] shrink-0 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card transition-colors hover:border-orange-500/40">
       <div className="relative h-32 w-full bg-navy-50">
         {post.thumbnail
           ? <img src={post.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
           : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#242424] to-[#161616] text-navy-300"><IconFish size={26} /></div>}
-        {rank != null && rs && (
-          <span
-            className="absolute left-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-extrabold shadow"
-            style={{ background: rs.bg, color: rs.text }}
-          >
-            {rank}
-          </span>
-        )}
+        {rank != null && <RankBadge rank={rank} />}
         {post.boardLabel
           ? <span className="absolute right-2.5 top-2.5 inline-flex items-center rounded-md bg-aqua-500/90 px-2 py-0.5 text-[11px] font-bold text-white shadow">{post.boardLabel}</span>
           : post.speciesName && <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-0.5 rounded-md bg-black/70 px-2 py-0.5 text-[11px] font-bold text-white shadow"><IconFish size={10} />{post.speciesName}</span>}
