@@ -154,8 +154,6 @@ export function MapScreen() {
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsPreferenceLoaded, setGpsPreferenceLoaded] = useState(false);
   const idleWatchRef = useRef<number | null>(null);
-  // GPS 권한 사전 안내 다이얼로그
-  const [showGpsDialog, setShowGpsDialog] = useState(false);
   // 사용자가 검색/포인트 선택으로 수동 이동한 경우 GPS 자동 추적 일시 정지
   const userMovedRef = useRef(false);
   const userMovedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -221,9 +219,7 @@ export function MapScreen() {
     if (!navigator.geolocation) { setGpsAvail(false); return; }
 
     // 사용자가 GPS를 켜 둔 경우에는 새로고침 뒤에도 즉시 추적을 재개한다.
-    // 권한 안내 팝업은 최초 활성화 시에만 보여 준다.
     if (gpsEnabled) {
-      setShowGpsDialog(false);
       startIdleGpsWatch();
       return () => {
         if (idleWatchRef.current !== null) {
@@ -241,8 +237,8 @@ export function MapScreen() {
         } else if (result.state === "denied") {
           setGpsAvail(false);
         } else {
-          // 'prompt' 상태 → 브라우저 네이티브 다이얼로그 전에 커스텀 안내 표시
-          setShowGpsDialog(true);
+          // 별도 앱 안내 없이 브라우저의 단일 위치 권한 팝업을 바로 표시한다.
+          startIdleGpsWatch();
         }
       }).catch(() => startIdleGpsWatch());
     } else {
@@ -372,7 +368,6 @@ export function MapScreen() {
       }
       setGpsTrackingEnabled(false);
       setGpsAvail(null);
-      setShowGpsDialog(false);
       toast("GPS를 껐습니다", "info");
       return;
     }
@@ -396,17 +391,6 @@ export function MapScreen() {
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
-  }
-
-  // GPS 커스텀 안내 다이얼로그 핸들러
-  function handleGpsAllow() {
-    setShowGpsDialog(false);
-    setGpsTrackingEnabled(true);
-    startIdleGpsWatch();
-  }
-  function handleGpsDeny() {
-    setShowGpsDialog(false);
-    setGpsAvail(false);
   }
 
   return (
@@ -558,55 +542,6 @@ export function MapScreen() {
       </div>
 
       <MapView center={center} route={displayRoute} markers={markers} onMarkerClick={(m) => m.data && setSelected(m.data)} />
-
-      {/* GPS 권한 사전 안내 다이얼로그 */}
-      {showGpsDialog && (
-        <div className="fixed inset-0 z-[9990] flex items-end justify-center px-4 pb-28 sm:items-center sm:pb-0" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}>
-          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-white/[0.08] bg-[#1a1a1a] shadow-2xl">
-            <div className="h-[2px] bg-gradient-to-r from-orange-700/30 via-orange-400 to-orange-700/30" />
-            <div className="px-6 pt-6 pb-2">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/15 ring-1 ring-orange-500/25">
-                <Navigation size={26} className="text-orange-400" strokeWidth={1.6} />
-              </div>
-              <h2 className="text-[18px] font-extrabold leading-tight text-white">
-                낚시 동선 기록에<br />위치 권한이 필요해요
-              </h2>
-              <p className="mt-2 text-[13px] leading-relaxed text-white/50">
-                GPS를 허용하면 실시간 동선 기록과<br />내 위치 기반 포인트 추천을 받을 수 있어요.
-              </p>
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
-                  <p className="text-[12px] text-white/55">낚시 동선 실시간 기록</p>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
-                  <p className="text-[12px] text-white/55">현재 위치 지도 표시</p>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
-                  <p className="text-[12px] text-white/55">AI 포인트 추천 정확도 향상</p>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-white/[0.06] px-6 py-4 space-y-2">
-              <button
-                onClick={handleGpsAllow}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white transition-colors active:opacity-80"
-              >
-                <Navigation size={16} strokeWidth={2} />
-                GPS 허용하기
-              </button>
-              <button
-                onClick={handleGpsDeny}
-                className="w-full rounded-2xl py-2.5 text-[13px] font-medium text-white/35 hover:text-white/55"
-              >
-                나중에
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 통계 + 컨트롤 — 모바일: fixed(nav 위), PC: absolute(지도 하단) */}
       <div className="map-controls-bar">
