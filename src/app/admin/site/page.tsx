@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Megaphone, Monitor, Sliders } from "lucide-react";
+import { Bot, Megaphone, Monitor, Sliders } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getBoolSetting, getSetting } from "@/lib/settings";
 import { AdminTitle, Table } from "@/components/admin/ui";
@@ -12,6 +12,8 @@ import { ReservationToggle } from "@/components/admin/ReservationToggle";
 import { WalkingFeedToggle } from "@/components/admin/WalkingFeedToggle";
 import { PointsToggle } from "@/components/admin/PointsToggle";
 import { GroupPointsToggle } from "@/components/admin/GroupPointsToggle";
+import { AiApiConnection } from "@/components/admin/AiApiConnection";
+import { getAiConnectionStatus } from "@/lib/aiCredentials";
 import { Badge, EmptyState } from "@/components/ui";
 import { kstFormat, cn } from "@/lib/utils";
 
@@ -21,16 +23,19 @@ const TABS = [
   { key: "banners", label: "배너 · 공지", icon: Megaphone },
   { key: "pcbg", label: "PC 여백 관리", icon: Monitor },
   { key: "appmode", label: "앱 기능 설정", icon: Sliders },
+  { key: "api", label: "AI API 연결", icon: Bot },
 ];
 
 export default async function AdminSite({ searchParams }: { searchParams: { tab?: string } }) {
   const tab =
-    searchParams.tab === "pcbg"
+    searchParams.tab === "api"
+      ? "api"
+      : searchParams.tab === "pcbg"
       ? "pcbg"
       : searchParams.tab === "appmode"
       ? "appmode"
       : "banners";
-  const [banners, shopEnabled, pcMarginBg, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabled, groupPointsRequired] = await Promise.all([
+  const [banners, shopEnabled, pcMarginBg, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabled, groupPointsRequired, aiConnection] = await Promise.all([
     prisma.banner.findMany({ orderBy: { order: "asc" } }),
     getBoolSetting("shop_menu_enabled"),
     getSetting("pcMarginBgImage"),
@@ -39,6 +44,7 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
     getBoolSetting("walking_feed_enabled"),
     getBoolSetting("points_enabled"),
     getBoolSetting("group_points_required"),
+    getAiConnectionStatus(),
   ]);
 
   return (
@@ -122,6 +128,8 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
         <div className="grid gap-4 lg:grid-cols-2">
           <PcMarginBg initial={pcMarginBg} />
         </div>
+      ) : tab === "api" ? (
+        <div className="max-w-2xl"><AiApiConnection initial={aiConnection} /></div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           <PointsToggle initial={pointsEnabled} />

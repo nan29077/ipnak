@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { aiSettingKey, protectAiCredential } from "@/lib/aiCredentials";
 
 // 관리자 통합 액션 (모두 실제 DB 반영, 결제/외부 API 제외)
 export async function POST(req: Request) {
@@ -36,6 +37,21 @@ export async function POST(req: Request) {
   };
 
   try {
+    if (b.type === "AI_CONNECTION_SAVE") {
+      const values = [b.openai, b.naverClientId, b.naverClientSecret];
+      if (values.some((v) => v != null && (typeof v !== "string" || v.length > 512))) {
+        return NextResponse.json({ error: "API 키 형식이 올바르지 않습니다." }, { status: 400 });
+      }
+      if ((Boolean(b.naverClientId) && !b.naverClientSecret) || (!b.naverClientId && Boolean(b.naverClientSecret))) {
+        return NextResponse.json({ error: "네이버 Client ID와 Secret을 함께 입력해 주세요." }, { status: 400 });
+      }
+      const entries: ["openai" | "naverClientId" | "naverClientSecret", string][] = [
+        ["openai", b.openai], ["naverClientId", b.naverClientId], ["naverClientSecret", b.naverClientSecret],
+      ].filter((entry): entry is ["openai" | "naverClientId" | "naverClientSecret", string] => Boolean(entry[1]));
+      await Promise.all(entries.map(([name, value]) => prisma.setting.upsert({ where: { key: aiSettingKey(name) }, update: { value: protectAiCredential(value) }, create: { key: aiSettingKey(name), value: protectAiCredential(value) } })));
+      await log("AI_CONNECTION_SAVE", "AI_API", `OpenAI: ${b.openai ? "updated" : "unchanged"}, NAVER: ${b.naverClientId ? "updated" : "unchanged"}`);
+      return NextResponse.json({ ok: true });
+    }
     switch (b.type) {
       case "PRO_CREATE": {
         let linkedUserId: string | null = null;
@@ -180,6 +196,7 @@ export async function POST(req: Request) {
         await prisma.banner.create({ data: { title: b.title, body: b.body || null, imageUrl: b.imageUrl || null, active: true } });
         await log("BANNER_CREATE", undefined, b.title); break;
       case "SETTING_SET":
+        if (String(b.key || "").startsWith("ai_connection_")) return NextResponse.json({ error: "AI 키는 AI API 연결 메뉴에서만 변경할 수 있습니다." }, { status: 400 });
         await prisma.setting.upsert({
           where: { key: b.key },
           update: { value: String(b.value) },

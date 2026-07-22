@@ -15,6 +15,8 @@ import { km, duration, stopwatch, timeAgo } from "@/lib/utils";
 import { KOREA_SPOTS } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 
+const GPS_PREFERENCE_KEY = "ipnak:data-fishing:gps-enabled";
+
 export function MapScreen() {
   const toast = useToast();
   // 기록 세션은 전역(RecordingProvider)에서 관리 — 페이지를 벗어나거나 새로고침/재실행해도 유지됨
@@ -149,6 +151,8 @@ export function MapScreen() {
   // GPS idle 상태 추적 (기록 전에도 현재 위치 마커 표시)
   const [idlePos, setIdlePos] = useState<LatLng | null>(null);
   const [gpsAvail, setGpsAvail] = useState<boolean | null>(null); // null=미확인, true/false=결과
+  const [gpsEnabled, setGpsEnabled] = useState(false);
+  const [gpsPreferenceLoaded, setGpsPreferenceLoaded] = useState(false);
   const idleWatchRef = useRef<number | null>(null);
   // GPS 권한 사전 안내 다이얼로그
   const [showGpsDialog, setShowGpsDialog] = useState(false);
@@ -159,6 +163,20 @@ export function MapScreen() {
   // 기록 종료 후 동선을 지도에 유지 (finish() 시 route가 초기화돼도 마지막 경로 보존)
   const [finishedRoute, setFinishedRoute] = useState<LatLng[]>([]);
   const prevSavedCount = useRef(0);
+
+  function setGpsTrackingEnabled(enabled: boolean) {
+    setGpsEnabled(enabled);
+    try {
+      window.localStorage.setItem(GPS_PREFERENCE_KEY, String(enabled));
+    } catch { /* localStorage unavailable */ }
+  }
+
+  useEffect(() => {
+    try {
+      setGpsEnabled(window.localStorage.getItem(GPS_PREFERENCE_KEY) === "true");
+    } catch { /* localStorage unavailable */ }
+    setGpsPreferenceLoaded(true);
+  }, []);
 
   // 내 피싱 포인트만 로드 (다른 사용자 포인트는 지도에 표시 안 함)
   useEffect(() => {
@@ -174,6 +192,7 @@ export function MapScreen() {
         const p: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setIdlePos(p);
         setGpsAvail(true);
+        setGpsTrackingEnabled(true);
         // 사용자가 수동으로 지도를 이동한 경우 GPS 자동 센터 이동 일시 정지
         if (!userMovedRef.current) setCenter(p);
       },
@@ -191,6 +210,7 @@ export function MapScreen() {
   }
 
   useEffect(() => {
+    if (!gpsPreferenceLoaded) return;
     if (status !== "idle") {
       if (idleWatchRef.current !== null) {
         navigator.geolocation?.clearWatch(idleWatchRef.current);
@@ -199,6 +219,19 @@ export function MapScreen() {
       return;
     }
     if (!navigator.geolocation) { setGpsAvail(false); return; }
+
+    // 사용자가 GPS를 켜 둔 경우에는 새로고침 뒤에도 즉시 추적을 재개한다.
+    // 권한 안내 팝업은 최초 활성화 시에만 보여 준다.
+    if (gpsEnabled) {
+      setShowGpsDialog(false);
+      startIdleGpsWatch();
+      return () => {
+        if (idleWatchRef.current !== null) {
+          navigator.geolocation.clearWatch(idleWatchRef.current);
+          idleWatchRef.current = null;
+        }
+      };
+    }
 
     // Permissions API 지원 시 권한 상태 먼저 확인 → 커스텀 안내 다이얼로그 표시
     if (typeof navigator.permissions !== "undefined") {
@@ -223,7 +256,7 @@ export function MapScreen() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, gpsEnabled, gpsPreferenceLoaded]);
 
   // 새 기록이 저장되면(finish 완료) 동선을 지도에 표시
   useEffect(() => {
@@ -311,17 +344,38 @@ export function MapScreen() {
   ];
 
   function locateMe() {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => toast("위치 권한이 없어 이동할 수 없습니다", "info"),
-        { enableHighAccuracy: true, timeout: 4000 }
-      );
+    if (!navigator.geolocation) {
+      toast("이 브라우저에서는 GPS를 지원하지 않습니다", "info");
+      return;
     }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const currentPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setIdlePos(currentPosition);
+        setGpsAvail(true);
+        setGpsTrackingEnabled(true);
+        startIdleGpsWatch();
+        moveToManual(currentPosition);
+        toast("현재 위치로 지도를 이동했습니다", "success");
+      },
+      () => toast("위치 권한이 없어 현재 위치를 불러올 수 없습니다", "info"),
+      { enableHighAccuracy: true, timeout: 4000 }
+    );
   }
 
   // GPS 버튼 클릭 — 꺼져 있으면 권한 재요청, 켜져 있으면 현재 위치로 이동
   function requestGps() {
+    if (gpsEnabled) {
+      if (idleWatchRef.current !== null) {
+        navigator.geolocation?.clearWatch(idleWatchRef.current);
+        idleWatchRef.current = null;
+      }
+      setGpsTrackingEnabled(false);
+      setGpsAvail(null);
+      setShowGpsDialog(false);
+      toast("GPS를 껐습니다", "info");
+      return;
+    }
     if (!navigator.geolocation) {
       toast("이 브라우저는 GPS를 지원하지 않습니다", "info");
       return;
@@ -331,6 +385,8 @@ export function MapScreen() {
         const p: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setIdlePos(p);
         setGpsAvail(true);
+        setGpsTrackingEnabled(true);
+        startIdleGpsWatch();
         setCenter(p);
         toast("GPS가 켜졌습니다", "success");
       },
@@ -345,6 +401,7 @@ export function MapScreen() {
   // GPS 커스텀 안내 다이얼로그 핸들러
   function handleGpsAllow() {
     setShowGpsDialog(false);
+    setGpsTrackingEnabled(true);
     startIdleGpsWatch();
   }
   function handleGpsDeny() {
@@ -353,11 +410,11 @@ export function MapScreen() {
   }
 
   return (
-    <div className="relative h-[calc(100vh-7.5rem)] w-full md:h-[calc(100vh-3rem)]">
+    <div className="relative h-[calc(100vh-7.5rem)] w-full overflow-x-hidden md:h-[calc(100vh-3rem)]">
       {/* 상단 컨트롤 영역 — fixed로 스크롤과 무관하게 지도 위에 항상 고정 */}
-      <div className="fixed left-1/2 z-[1000] flex w-full max-w-[640px] -translate-x-1/2 flex-col gap-2 px-3" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem + 0.75rem)" }}>
+      <div className="absolute inset-x-0 top-3 z-[1000] mx-auto flex w-full max-w-[640px] flex-col gap-2 px-3">
         {/* 1행: AI 포인트 추천 + 내 기록 + 전체화면 */}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <div className="min-w-0 flex-1">
             <AiPointRecommend variant="bar" />
           </div>
@@ -380,7 +437,7 @@ export function MapScreen() {
           </button>
         </div>
         {/* 2행: 검색 + 내 포인트 드롭다운 */}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {/* 검색 입력 + 드롭다운 */}
           <div className="relative flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
             <Search size={15} className="shrink-0 text-navy-300" />
@@ -392,7 +449,7 @@ export function MapScreen() {
               onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
               onKeyDown={(e) => { if (e.key === "Escape") { setSearchQuery(""); setSearchFocused(false); searchInputRef.current?.blur(); } }}
               placeholder="낚시 포인트 검색"
-              className="min-w-0 flex-1 bg-transparent text-[13px] text-navy-700 placeholder:text-navy-300 outline-none"
+              className="min-w-0 flex-1 bg-transparent text-base text-navy-700 placeholder:text-navy-300 outline-none md:text-[13px]"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery("")} className="shrink-0 text-navy-400 hover:text-navy-700">
@@ -456,11 +513,20 @@ export function MapScreen() {
               </div>
             )}
           </div>
+          <button
+            type="button"
+            onClick={locateMe}
+            aria-label="현위치로 지도 이동"
+            title="현위치"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#161616]/95 text-aqua-400 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+          >
+            <Navigation size={16} />
+          </button>
           {/* 내 포인트 드롭다운 (2행 우측으로 이동) */}
           <div ref={myPointsDropRef} className="relative shrink-0">
             <button
               onClick={() => setMyPointsDropOpen((v) => !v)}
-              className="inline-flex min-w-[110px] items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+              className="inline-flex min-w-[96px] items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e] md:min-w-[110px]"
             >
               <MapPin size={14} className="text-aqua-400" />
               내 포인트
@@ -636,13 +702,13 @@ export function MapScreen() {
                   onClick={requestGps}
                   className={[
                     "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[16px] border px-4 py-2.5 text-[14px] font-semibold transition-all btn-press active:scale-[0.97]",
-                    gpsAvail
+                    gpsEnabled
                       ? "border-orange-500/60 bg-orange-500/15 text-orange-400"
                       : "border-navy-100/30 bg-white/5 text-navy-400 grayscale",
                   ].join(" ")}
                 >
-                  <Navigation size={18} className={gpsAvail ? "text-orange-400" : "text-navy-400"} />
-                  GPS {gpsAvail ? "ON" : "OFF"}
+                  <Navigation size={18} className={gpsEnabled ? "text-orange-400" : "text-navy-400"} />
+                  GPS {gpsEnabled ? "ON" : "OFF"}
                 </button>
               </>
             )}

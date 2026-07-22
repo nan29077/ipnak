@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Bell, Check, Loader2, Inbox } from "lucide-react";
 import { timeAgo, cn } from "@/lib/utils";
@@ -72,8 +73,8 @@ export function NotificationBell() {
         )}
       </button>
 
-      {open && (
-        <div className="animate-scalein absolute right-0 top-12 z-50 w-[320px] max-w-[88vw] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#1e1e1e] shadow-sheet">
+      {open && typeof document !== "undefined" && createPortal(
+        <div className="animate-scalein fixed z-[10000] w-[320px] max-w-[88vw] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#1e1e1e] shadow-sheet" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem)", right: "max(0.75rem, calc((100vw - 640px) / 2 + 0.75rem))" }}>
           {/* 상단 aqua 액센트 라인 */}
           <div className="h-[2px] bg-gradient-to-r from-aqua-600 via-aqua-500 to-aqua-700" />
 
@@ -122,7 +123,8 @@ export function NotificationBell() {
               </ul>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

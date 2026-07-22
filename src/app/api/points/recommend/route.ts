@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { distanceMeters } from "@/lib/map";
+import { getAiCredentials } from "@/lib/aiCredentials";
 import {
   KOREA_REGIONS, findSido, findSigungu, genSpots,
   SPOT_TYPE_LABEL, SPOT_WATER, type NamedSpot, type Sigungu,
@@ -20,8 +21,7 @@ async function fetchNaverBlogReports(
   sido: string | null, sigungu: string | null,
   species: string | null, month: number | null, day: number | null,
 ): Promise<WebFishReport[]> {
-  const clientId = process.env.NAVER_SEARCH_CLIENT_ID;
-  const clientSecret = process.env.NAVER_SEARCH_CLIENT_SECRET;
+  const { naverClientId: clientId, naverClientSecret: clientSecret } = await getAiCredentials();
   if (!clientId || !clientSecret) return [];
   try {
     const parts = [sido || "", sigungu || "", species || "", "조황", month ? `${month}월` : "", day ? `${day}일` : ""].filter(Boolean);
@@ -44,6 +44,25 @@ async function fetchNaverBlogReports(
   } catch {
     return [];
   }
+}
+
+async function makeOpenAiBasis(openaiKey: string, points: { name: string; score: number; postCount: number; reason: string }[], reports: WebFishReport[]) {
+  if (!openaiKey) return "";
+  try {
+    const context = JSON.stringify({ points: points.slice(0, 3), recentBlogReports: reports.slice(0, 3).map((r) => ({ title: r.title, description: r.description, date: r.date })) });
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+      body: JSON.stringify({
+        model: process.env.OPENAI_RECOMMEND_MODEL || "gpt-4.1-mini",
+        input: `You are a Korean fishing assistant. Based only on this JSON, write a concise Korean recommendation in two sentences or fewer. Do not invent weather, fish activity, or facts. Mention uncertainty when data is sparse. JSON: ${context}`,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return typeof data.output_text === "string" ? data.output_text.trim().slice(0, 300) : "";
+  } catch { return ""; }
 }
 
 // ===== AI 포인트 추천 (시군 단위 · 날짜 기반) =====
@@ -209,9 +228,11 @@ export async function POST(req: Request) {
 
   // 웹 조황 검색 (네이버 블로그) — 비동기 병렬
   const webResults = await fetchNaverBlogReports(sidoName, sgName, species, month, day);
+  const { openai } = await getAiCredentials();
+  const aiBasis = await makeOpenAiBasis(openai, points, webResults);
 
   return NextResponse.json({
-    basis,
+    basis: aiBasis || basis,
     broadened,
     query: { sido: sidoName || "전체", sigungu: sgName || "전체", month, day, species: species || null },
     points,

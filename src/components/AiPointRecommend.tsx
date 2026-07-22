@@ -11,6 +11,7 @@ import { KOREA_REGIONS } from "@/lib/regions";
 import { ALL_SPECIES } from "@/lib/taxonomy";
 import { timeAgo } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { useToast } from "@/components/Toast";
 
 type MemberPost = {
   id: string; imageUrl: string | null; caption: string | null;
@@ -31,6 +32,7 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 function daysInMonth(m: number) { return [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m] || 31; }
 
 export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar" }) {
+  const toast = useToast();
   const today = new Date();
   const [open, setOpen] = useState(false);
   const [sido, setSido] = useState("전체");
@@ -40,6 +42,20 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
   const [species, setSpecies] = useState("전체");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<RecResult | null>(null);
+
+  async function openRecommendation() {
+    try {
+      const res = await fetch("/api/ai/status", { cache: "no-store" });
+      const status = await res.json();
+      if (!status.openaiConfigured && !status.naverConfigured) {
+        toast("AI 포인트 추천은 준비 중입니다. 곧 더 정확한 조황 정보로 찾아올게요.", "info");
+        return;
+      }
+      setOpen(true);
+    } catch {
+      toast("AI 포인트 추천은 준비 중입니다.", "info");
+    }
+  }
 
   const sigunguList = useMemo(
     () => KOREA_REGIONS.find((s) => s.name === sido)?.sigungu ?? [],
@@ -72,7 +88,7 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
     <>
       {variant === "bar" ? (
         <button
-          onClick={() => setOpen(true)}
+          onClick={openRecommendation}
           aria-label="AI 포인트 추천"
           className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-orange-500/95 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-card backdrop-blur btn-press transition-colors hover:bg-orange-600"
         >
@@ -81,7 +97,7 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
         </button>
       ) : (
         <button
-          onClick={() => setOpen(true)}
+          onClick={openRecommendation}
           aria-label="AI 포인트 추천"
           className="mx-3 mt-3 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/15 to-[#161616] px-4 py-3.5 text-left shadow-card btn-press transition-colors hover:from-orange-500/25"
         >
