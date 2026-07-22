@@ -150,6 +150,11 @@ export function MapScreen() {
   const [idlePos, setIdlePos] = useState<LatLng | null>(null);
   const [gpsAvail, setGpsAvail] = useState<boolean | null>(null); // null=미확인, true/false=결과
   const idleWatchRef = useRef<number | null>(null);
+  // GPS 권한 사전 안내 다이얼로그
+  const [showGpsDialog, setShowGpsDialog] = useState(false);
+  // 사용자가 검색/포인트 선택으로 수동 이동한 경우 GPS 자동 추적 일시 정지
+  const userMovedRef = useRef(false);
+  const userMovedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 기록 종료 후 동선을 지도에 유지 (finish() 시 route가 초기화돼도 마지막 경로 보존)
   const [finishedRoute, setFinishedRoute] = useState<LatLng[]>([]);
@@ -161,9 +166,32 @@ export function MapScreen() {
   }, []);
 
   // idle 상태: GPS 현재 위치 실시간 추적 (기록 중에는 RecordingProvider가 담당)
+  function startIdleGpsWatch() {
+    if (!navigator.geolocation || idleWatchRef.current !== null) return;
+    setGpsAvail(null);
+    idleWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const p: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setIdlePos(p);
+        setGpsAvail(true);
+        // 사용자가 수동으로 지도를 이동한 경우 GPS 자동 센터 이동 일시 정지
+        if (!userMovedRef.current) setCenter(p);
+      },
+      () => { setGpsAvail(false); },
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+  }
+
+  // 사용자 수동 이동: 10초 후 GPS 추적 재개
+  function moveToManual(pos: LatLng) {
+    setCenter(pos);
+    userMovedRef.current = true;
+    if (userMovedTimerRef.current) clearTimeout(userMovedTimerRef.current);
+    userMovedTimerRef.current = setTimeout(() => { userMovedRef.current = false; }, 10000);
+  }
+
   useEffect(() => {
     if (status !== "idle") {
-      // 기록 시작 시 idle GPS watcher 해제
       if (idleWatchRef.current !== null) {
         navigator.geolocation?.clearWatch(idleWatchRef.current);
         idleWatchRef.current = null;
@@ -171,23 +199,30 @@ export function MapScreen() {
       return;
     }
     if (!navigator.geolocation) { setGpsAvail(false); return; }
-    setGpsAvail(null);
-    idleWatchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const p: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setIdlePos(p);
-        setGpsAvail(true);
-        setCenter(p);
-      },
-      () => { setGpsAvail(false); },
-      { enableHighAccuracy: true, maximumAge: 5000 }
-    );
+
+    // Permissions API 지원 시 권한 상태 먼저 확인 → 커스텀 안내 다이얼로그 표시
+    if (typeof navigator.permissions !== "undefined") {
+      navigator.permissions.query({ name: "geolocation" as PermissionName }).then((result) => {
+        if (result.state === "granted") {
+          startIdleGpsWatch();
+        } else if (result.state === "denied") {
+          setGpsAvail(false);
+        } else {
+          // 'prompt' 상태 → 브라우저 네이티브 다이얼로그 전에 커스텀 안내 표시
+          setShowGpsDialog(true);
+        }
+      }).catch(() => startIdleGpsWatch());
+    } else {
+      startIdleGpsWatch();
+    }
+
     return () => {
       if (idleWatchRef.current !== null) {
         navigator.geolocation.clearWatch(idleWatchRef.current);
         idleWatchRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   // 새 기록이 저장되면(finish 완료) 동선을 지도에 표시
@@ -307,49 +342,44 @@ export function MapScreen() {
     );
   }
 
+  // GPS 커스텀 안내 다이얼로그 핸들러
+  function handleGpsAllow() {
+    setShowGpsDialog(false);
+    startIdleGpsWatch();
+  }
+  function handleGpsDeny() {
+    setShowGpsDialog(false);
+    setGpsAvail(false);
+  }
+
   return (
     <div className="relative h-[calc(100vh-7.5rem)] w-full md:h-[calc(100vh-3rem)]">
       {/* 상단 컨트롤 영역 — fixed로 스크롤과 무관하게 지도 위에 항상 고정 */}
       <div className="fixed left-1/2 z-[1000] flex w-full max-w-[640px] -translate-x-1/2 flex-col gap-2 px-3" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem + 0.75rem)" }}>
-        {/* 1행: AI 포인트 추천 + 내 포인트 선택 드롭다운 */}
+        {/* 1행: AI 포인트 추천 + 내 기록 + 전체화면 */}
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <AiPointRecommend variant="bar" />
           </div>
-          {/* 내 포인트 드롭다운 */}
-          <div ref={myPointsDropRef} className="relative shrink-0">
-            <button
-              onClick={() => setMyPointsDropOpen((v) => !v)}
-              className="inline-flex min-w-[130px] items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
-            >
-              <MapPin size={14} className="text-aqua-400" />
-              내 포인트
-              <ChevronDown size={12} className={`transition-transform duration-200${myPointsDropOpen ? " rotate-180" : ""}`} />
-            </button>
-            {myPointsDropOpen && (
-              <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e] shadow-card">
-                {myRegions.length === 0 ? (
-                  <p className="px-4 py-4 text-center text-[12px] text-navy-400">기록된 포인트가 없습니다</p>
-                ) : (
-                  myRegions.map((r) => (
-                    <button
-                      key={r.region}
-                      onPointerDown={() => { setCenter({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
-                    >
-                      <div className="flex items-center gap-2">
-                        <MapPin size={13} className="shrink-0 text-aqua-400" />
-                        <span className="text-[13px] font-semibold text-navy-700">{r.region}</span>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-aqua-500/15 px-1.5 py-0.5 text-[10px] font-bold text-aqua-400">{r.count}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+          {/* 내 기록 버튼 (1행으로 이동) */}
+          <button
+            onClick={() => setRecordsOpen(true)}
+            aria-label="내 데이터피싱 기록"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+          >
+            <ClipboardList size={15} className="text-orange-500" />
+            내 기록
+          </button>
+          {/* 전체화면 버튼 (1행으로 이동) */}
+          <button
+            onClick={() => setMapDetailMode(true)}
+            aria-label="지도 전체화면"
+            className="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-2xl bg-[#161616]/95 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+          >
+            <Expand size={15} className="text-aqua-400" />
+          </button>
         </div>
-        {/* 2행: 검색 + 내기록 + 전체화면 — 아래쪽에 위치해 드롭다운이 지도 위로 자유롭게 열림 */}
+        {/* 2행: 검색 + 내 포인트 드롭다운 */}
         <div className="flex items-center gap-2">
           {/* 검색 입력 + 드롭다운 */}
           <div className="relative flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
@@ -369,7 +399,7 @@ export function MapScreen() {
                 <X size={13} />
               </button>
             )}
-            {/* 드롭다운 결과 — 검색창 아래 지도 위로 열림 */}
+            {/* 드롭다운 결과 */}
             {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || geoResults.length > 0 || searchQuery.length >= 2) && (
               <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card">
                 {spotResults.length > 0 && (
@@ -378,7 +408,7 @@ export function MapScreen() {
                     {spotResults.map((s) => (
                       <button
                         key={s.name}
-                        onPointerDown={() => { setCenter({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); setGeoResults([]); }}
+                        onPointerDown={() => { moveToManual({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); setGeoResults([]); }}
                         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                       >
                         <MapPin size={14} className="shrink-0 text-aqua-400" />
@@ -393,7 +423,7 @@ export function MapScreen() {
                     {geoResults.map((g, i) => (
                       <button
                         key={i}
-                        onPointerDown={() => { setCenter({ lat: g.lat, lng: g.lng }); setSearchQuery(g.name); setSearchFocused(false); setGeoResults([]); }}
+                        onPointerDown={() => { moveToManual({ lat: g.lat, lng: g.lng }); setSearchQuery(g.name); setSearchFocused(false); setGeoResults([]); }}
                         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                       >
                         <Navigation size={14} className="shrink-0 text-aqua-300" />
@@ -408,7 +438,7 @@ export function MapScreen() {
                     {pointResults.map((p) => (
                       <button
                         key={p.id}
-                        onPointerDown={() => { setCenter({ lat: p.lat, lng: p.lng }); setSelected(p); setSearchQuery(p.speciesName || p.region || ""); setSearchFocused(false); }}
+                        onPointerDown={() => { moveToManual({ lat: p.lat, lng: p.lng }); setSelected(p); setSearchQuery(p.speciesName || p.region || ""); setSearchFocused(false); }}
                         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                       >
                         <Fish size={14} className="shrink-0 text-green-400" />
@@ -426,25 +456,91 @@ export function MapScreen() {
               </div>
             )}
           </div>
-          <button
-            onClick={() => setRecordsOpen(true)}
-            aria-label="내 데이터피싱 기록"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
-          >
-            <ClipboardList size={15} className="text-orange-500" />
-            내 기록
-          </button>
-          <button
-            onClick={() => setMapDetailMode(true)}
-            aria-label="지도 전체화면"
-            className="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-2xl bg-[#161616]/95 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
-          >
-            <Expand size={15} className="text-aqua-400" />
-          </button>
+          {/* 내 포인트 드롭다운 (2행 우측으로 이동) */}
+          <div ref={myPointsDropRef} className="relative shrink-0">
+            <button
+              onClick={() => setMyPointsDropOpen((v) => !v)}
+              className="inline-flex min-w-[110px] items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+            >
+              <MapPin size={14} className="text-aqua-400" />
+              내 포인트
+              <ChevronDown size={12} className={`transition-transform duration-200${myPointsDropOpen ? " rotate-180" : ""}`} />
+            </button>
+            {myPointsDropOpen && (
+              <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e] shadow-card">
+                {myRegions.length === 0 ? (
+                  <p className="px-4 py-4 text-center text-[12px] text-navy-400">기록된 포인트가 없습니다</p>
+                ) : (
+                  myRegions.map((r) => (
+                    <button
+                      key={r.region}
+                      onPointerDown={() => { moveToManual({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <div className="flex items-center gap-2">
+                        <MapPin size={13} className="shrink-0 text-aqua-400" />
+                        <span className="text-[13px] font-semibold text-navy-700">{r.region}</span>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-aqua-500/15 px-1.5 py-0.5 text-[10px] font-bold text-aqua-400">{r.count}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <MapView center={center} route={displayRoute} markers={markers} onMarkerClick={(m) => m.data && setSelected(m.data)} />
+
+      {/* GPS 권한 사전 안내 다이얼로그 */}
+      {showGpsDialog && (
+        <div className="fixed inset-0 z-[9990] flex items-end justify-center px-4 pb-28 sm:items-center sm:pb-0" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-white/[0.08] bg-[#1a1a1a] shadow-2xl">
+            <div className="h-[2px] bg-gradient-to-r from-orange-700/30 via-orange-400 to-orange-700/30" />
+            <div className="px-6 pt-6 pb-2">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/15 ring-1 ring-orange-500/25">
+                <Navigation size={26} className="text-orange-400" strokeWidth={1.6} />
+              </div>
+              <h2 className="text-[18px] font-extrabold leading-tight text-white">
+                낚시 동선 기록에<br />위치 권한이 필요해요
+              </h2>
+              <p className="mt-2 text-[13px] leading-relaxed text-white/50">
+                GPS를 허용하면 실시간 동선 기록과<br />내 위치 기반 포인트 추천을 받을 수 있어요.
+              </p>
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
+                  <p className="text-[12px] text-white/55">낚시 동선 실시간 기록</p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
+                  <p className="text-[12px] text-white/55">현재 위치 지도 표시</p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
+                  <p className="text-[12px] text-white/55">AI 포인트 추천 정확도 향상</p>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-white/[0.06] px-6 py-4 space-y-2">
+              <button
+                onClick={handleGpsAllow}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white transition-colors active:opacity-80"
+              >
+                <Navigation size={16} strokeWidth={2} />
+                GPS 허용하기
+              </button>
+              <button
+                onClick={handleGpsDeny}
+                className="w-full rounded-2xl py-2.5 text-[13px] font-medium text-white/35 hover:text-white/55"
+              >
+                나중에
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 통계 + 컨트롤 — 모바일: fixed(nav 위), PC: absolute(지도 하단) */}
       <div className="map-controls-bar">
