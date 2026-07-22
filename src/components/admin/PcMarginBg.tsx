@@ -80,7 +80,7 @@ export function PcMarginBg({ initial }: { initial: string }) {
             value={value.startsWith("data:") ? "" : value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="https://… 또는 /uploads/사진.jpg"
-            className="w-full bg-transparent py-2.5 text-[14px] text-navy-800 outline-none placeholder:text-navy-300"
+            className="w-full bg-transparent py-2.5 text-[14px] text-black outline-none placeholder:text-navy-300"
           />
         </div>
         <button
