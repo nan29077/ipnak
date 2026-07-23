@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
-  IconHome, IconMap, IconTrophy, IconCalendar, IconTackleBox, IconUser, IconRod, IconLogin, IconShield, IconRuler,
+  IconHome, IconMap, IconTrophy, IconCalendar, IconTackleBox, IconUser, IconLogin, IconShield, IconRuler,
   IconBook, IconUsers,
 } from "@/components/FishingIcon";
 import { cn } from "@/lib/utils";
@@ -88,10 +88,10 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
 }
 
 // 데스크톱(≥1024px) 전용: 앱 프레임 바깥 여백에 실제 바다/낚시 사진을 배경으로 깐다.
-// 관리자 설정 이미지(pcMarginBgImage)가 있으면 그것을, 없으면 기본 Unsplash 바다 낚시
-// 사진으로 폴백. 사진은 opacity를 낮춰(0.45) 오버레이처럼 적용해 본문 가독성을 해치지 않고,
+// 관리자 설정 이미지(pcMarginBgImage)가 있으면 그것을, 없으면 로컬 배스 앵글러 이미지를
+// 기본값으로 사용한다. 사진은 opacity를 낮춰 오버레이처럼 적용해 본문 가독성을 해치지 않고,
 // 본문 컬럼은 솔리드 다크(#161616)라 텍스트 가독성에 영향 없다. 모바일/태블릿(<1024px) 미표시.
-const PC_BG_DEFAULT = "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1920&q=80";
+const PC_BG_DEFAULT = "/pc-bg-bass-angler.png";
 
 function DesktopPatternBg({ image }: { image?: string }) {
   const src = image && image.trim() ? image : PC_BG_DEFAULT;
@@ -110,13 +110,16 @@ function DesktopPatternBg({ image }: { image?: string }) {
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
-          opacity: 0.45,
+          opacity: 0.38,
         }}
       />
       {/* (2) 옅은 다크 베일 — 사진 톤을 한 단계 가라앉혀 여백이 본문보다 튀지 않게 */}
       <div
         className="absolute inset-0"
-        style={{ background: "linear-gradient(135deg, rgba(8,12,18,0.35) 0%, rgba(8,12,18,0.1) 100%)" }}
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(8,12,18,0.30) 0%, rgba(8,12,18,0.12) 34%, rgba(8,12,18,0.22) 66%, rgba(8,12,18,0.38) 100%)",
+        }}
       />
     </div>
   );
@@ -175,15 +178,6 @@ function DesktopRightNav({ pathname, user, nav }: { pathname: string; user: Sess
     <aside className="sticky top-0 hidden h-screen w-[104px] shrink-0 py-4 pl-2 md:flex" aria-label="PC 메뉴">
       {/* 앱 우측에 떠 있는 둥근 다크 패널 */}
       <div className="flex w-full flex-col items-center rounded-[28px] bg-[#1a1a1a] py-4 text-white shadow-xl shadow-black/40 ring-1 ring-white/10">
-        {/* 브랜드 */}
-        <Link
-          href="/"
-          aria-label="입낚 홈"
-          className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-500 transition-colors hover:bg-orange-500/25"
-        >
-          <IconRod size={22} strokeWidth={2} />
-        </Link>
-
         {/* 메뉴 (항목이 많아도 잘리지 않도록 세로 스크롤 허용) */}
         <nav className="no-scrollbar flex w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto px-2" aria-label="메뉴">
           {NAV.slice(0, 2).map((n) => (

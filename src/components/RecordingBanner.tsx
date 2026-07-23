@@ -14,7 +14,7 @@ export function RecordingBanner() {
 
   const tracking = status === "tracking";
   return (
-    <div className="sticky top-12 z-30 px-3.5 pt-2">
+    <div className="sticky top-[52px] z-30 px-3.5 pt-2">
       <div className="mx-auto flex max-w-[640px] items-center gap-2.5 rounded-2xl border border-orange-500/30 bg-[#1a1a1a]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
         <span className={"flex h-7 w-7 shrink-0 items-center justify-center rounded-full " + (tracking ? "bg-orange-500/20 text-orange-500" : "bg-navy-100 text-navy-300")}>
           <Radio size={15} className={tracking ? "animate-pulse" : ""} />

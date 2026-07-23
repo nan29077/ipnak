@@ -488,6 +488,17 @@ async function main() {
     update: {},
     create: { key: "group_points_required", value: "false" },
   });
+  // 입낚볼 판매는 기본 활성화. 최고관리자가 앱 설정에서 끌 수 있다.
+  await prisma.setting.upsert({
+    where: { key: "ipnak_ball_enabled" },
+    update: {},
+    create: { key: "ipnak_ball_enabled", value: "true" },
+  });
+  await prisma.setting.upsert({
+    where: { key: "ipnak_ball_price" },
+    update: {},
+    create: { key: "ipnak_ball_price", value: "39000" },
+  });
 
   console.log("✅ seed 완료!");
   console.log("   관리자: admin@ipnak.test / Admin1234!");

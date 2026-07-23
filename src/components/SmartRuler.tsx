@@ -43,7 +43,7 @@ const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 const CAL_COLOR = "#2dd4bf"; // aqua / cyan
-const FISH_COLOR = "#f59e0b"; // amber
+const FISH_COLOR = "#f97316"; // brand orange
 
 // 어종 목록 (fishData 에서)
 const ALL_SPECIES_NAMES = Object.keys(SPECIES_AVG_CM);

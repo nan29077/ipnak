@@ -81,7 +81,7 @@ export function MemberPointTopup({ userId, nickname, points }: { userId: string;
       </button>
 
       {open && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 px-4 py-6" onClick={() => setOpen(false)}>
+        <div className="admin-content fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 px-4 py-6" onClick={() => setOpen(false)}>
           <div className="flex max-h-[88vh] w-full max-w-[420px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-navy-100 px-4 py-3">
               <p className="text-[15px] font-bold text-navy-800">{nickname} · 포인트 관리</p>

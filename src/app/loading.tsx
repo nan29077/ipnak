@@ -28,7 +28,7 @@ function PostCardSkeleton() {
 export default function FeedLoading() {
   return (
     <div className="animate-fadein">
-      <div className="sticky top-12 z-10 flex h-14 items-center justify-between border-b border-navy-100 bg-[#161616]/80 px-3 backdrop-blur-md">
+      <div className="sticky top-[52px] z-10 flex h-14 items-center justify-between border-b border-navy-100 bg-[#161616]/80 px-3 backdrop-blur-md">
         <Skeleton className="h-6 w-20" />
         <Skeleton className="h-8 w-8 rounded-full" />
       </div>

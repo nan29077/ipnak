@@ -3,9 +3,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Users, MapPin, Fish, Settings, UserPlus, Loader2, CheckCircle, Clock, Crown, Heart, MessageCircle, Image as ImageIcon, Send, X, Lock, Navigation, Plus } from "lucide-react";
+import { ArrowLeft, Users, MapPin, Fish, Settings, UserPlus, Loader2, CheckCircle, Clock, Crown, Heart, MessageCircle, Image as ImageIcon, Send, X, Lock, Navigation, Plus, Route } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { TripDetailSheet, type TripDetail } from "@/components/TripDetailSheet";
 
 const GroupPointsMapDynamic = dynamic(
   () => import("@/components/GroupPointsMap").then((m) => m.GroupPointsMap),
@@ -42,6 +43,12 @@ type GroupPointItem = {
   id: string; lat: number; lng: number; title: string;
   description?: string | null; authorId: string;
   authorNickname: string; authorAvatar: string | null; createdAt: string;
+  tripId?: string | null; distanceM?: number | null; durationSec?: number | null; catchCount?: number | null;
+};
+
+type MyFishingTrip = {
+  id: string; title?: string | null; distanceM: number; durationSec: number;
+  catchCount: number; region?: string | null; createdAt: string;
 };
 
 function isApproved(role: string | null) {
@@ -502,6 +509,8 @@ function PointsTab({ groupId }: { groupId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [tripDetail, setTripDetail] = useState<TripDetail | null>(null);
+  const [tripLoadingId, setTripLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -521,6 +530,20 @@ function PointsTab({ groupId }: { groupId: string }) {
   function onAdded(p: GroupPointItem) {
     setPoints((prev) => [p, ...prev]);
     setShowAdd(false);
+  }
+
+  async function openSharedTrip(point: GroupPointItem) {
+    if (!point.tripId || tripLoadingId) return;
+    setTripLoadingId(point.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/groups/${groupId}/points/${point.id}/trip`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data.error || "데이터피싱 기록을 불러오지 못했습니다."); return; }
+      setTripDetail(data.trip);
+    } finally {
+      setTripLoadingId(null);
+    }
   }
 
   return (
@@ -582,6 +605,17 @@ function PointsTab({ groupId }: { groupId: string }) {
                       {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
                     </span>
                   </div>
+                  {p.tripId && (
+                    <button
+                      type="button"
+                      onClick={() => openSharedTrip(p)}
+                      disabled={tripLoadingId === p.id}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-orange-500/15 px-3 py-2 text-[12px] font-bold text-orange-400 ring-1 ring-orange-500/25 transition-colors hover:bg-orange-500/25 disabled:opacity-60"
+                    >
+                      {tripLoadingId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Route size={14} />}
+                      데이터피싱 무료로 보기
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -597,6 +631,7 @@ function PointsTab({ groupId }: { groupId: string }) {
           onAdded={onAdded}
         />
       )}
+      <TripDetailSheet open={!!tripDetail} onClose={() => setTripDetail(null)} initial={tripDetail} />
     </div>
   );
 }
@@ -608,7 +643,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
   onClose: () => void;
   onAdded: (p: GroupPointItem) => void;
 }) {
-  const [step, setStep] = useState<"method" | "map" | "form">("method");
+  const [step, setStep] = useState<"method" | "map" | "trips" | "form">("method");
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [title, setTitle] = useState("");
@@ -616,6 +651,9 @@ function AddPointModal({ groupId, onClose, onAdded }: {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [trips, setTrips] = useState<MyFishingTrip[]>([]);
+  const [tripsLoading, setTripsLoading] = useState(false);
+  const [tripId, setTripId] = useState<string | null>(null);
 
   const handlePickOnMap = useCallback((la: number, lo: number) => {
     setLat(la); setLng(lo);
@@ -636,14 +674,33 @@ function AddPointModal({ groupId, onClose, onAdded }: {
     );
   }
 
+  async function showMyFishingTrips() {
+    setStep("trips");
+    if (trips.length > 0) return;
+    setTripsLoading(true); setError("");
+    try {
+      const res = await fetch("/api/trips", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data.error || "내 데이터피싱 기록을 불러오지 못했습니다."); return; }
+      setTrips(data.trips || []);
+    } finally { setTripsLoading(false); }
+  }
+
+  function selectTrip(trip: MyFishingTrip) {
+    setTripId(trip.id);
+    setTitle(trip.title || `${new Date(trip.createdAt).toLocaleDateString("ko-KR")} 데이터피싱`);
+    setDescription(`${trip.region ? `${trip.region} · ` : ""}이동 ${(trip.distanceM / 1000).toFixed(1)}km · 조과 ${trip.catchCount}마리`);
+    setStep("form");
+  }
+
   async function submit() {
-    if (!lat || !lng || !title.trim()) { setError("위치와 제목은 필수입니다."); return; }
+    if ((!tripId && (!lat || !lng)) || !title.trim()) { setError("위치와 제목은 필수입니다."); return; }
     setSubmitting(true); setError("");
     try {
       const res = await fetch(`/api/groups/${groupId}/points`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat, lng, title: title.trim(), description: description.trim() || undefined }),
+        body: JSON.stringify({ lat, lng, tripId, title: title.trim(), description: description.trim() || undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || "포인트 등록에 실패했습니다."); return; }
@@ -695,6 +752,40 @@ function AddPointModal({ groupId, onClose, onAdded }: {
                 <p className="text-[12px] text-navy-400">지도를 탭해서 포인트 위치를 직접 선택</p>
               </div>
             </button>
+            <button onClick={showMyFishingTrips}
+              className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#242424] p-4 text-left transition-colors hover:border-orange-500/40">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15">
+                <Route size={18} className="text-orange-400" strokeWidth={1.5} />
+              </span>
+              <div>
+                <p className="text-[14px] font-bold text-navy-900">내 데이터피싱</p>
+                <p className="text-[12px] text-navy-400">내가 기록한 이동 동선과 조과를 내시단에 공유</p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {step === "trips" && (
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto pb-2">
+            <button type="button" onClick={() => setStep("method")} className="mb-1 text-[12px] font-semibold text-orange-400">← 다른 방법 선택</button>
+            {tripsLoading ? (
+              <div className="flex justify-center py-10"><Loader2 size={22} className="animate-spin text-orange-500" /></div>
+            ) : trips.length === 0 ? (
+              <div className="rounded-2xl bg-white/[0.04] px-4 py-8 text-center">
+                <Route size={26} className="mx-auto text-navy-400" />
+                <p className="mt-2 text-[13px] font-semibold text-navy-600">공유할 데이터피싱 기록이 없어요</p>
+                <p className="mt-1 text-[11px] text-navy-400">데이터피싱을 종료한 뒤 다시 확인해 주세요.</p>
+              </div>
+            ) : trips.map((trip) => (
+              <button key={trip.id} type="button" onClick={() => selectTrip(trip)}
+                className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#242424] p-3.5 text-left transition-colors hover:border-orange-500/40">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15"><Route size={18} className="text-orange-400" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-bold text-navy-900">{trip.title || "데이터피싱 기록"}</span>
+                  <span className="mt-0.5 block text-[11px] text-navy-400">{new Date(trip.createdAt).toLocaleDateString("ko-KR")} · {(trip.distanceM / 1000).toFixed(1)}km · 조과 {trip.catchCount}마리</span>
+                </span>
+              </button>
+            ))}
           </div>
         )}
 
@@ -752,7 +843,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
                 className="w-full resize-none rounded-xl bg-[#2a2a2a] px-3.5 py-3 text-[13px] text-navy-800 outline-none placeholder:text-navy-500 ring-1 ring-navy-100/20 focus:ring-orange-500/50"
               />
             </div>
-            <button onClick={submit} disabled={submitting || !title.trim() || !lat || !lng}
+            <button onClick={submit} disabled={submitting || !title.trim() || (!tripId && (!lat || !lng))}
               className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-soft disabled:opacity-50">
               {submitting ? <Loader2 size={18} className="animate-spin mx-auto" /> : "포인트 공유하기"}
             </button>

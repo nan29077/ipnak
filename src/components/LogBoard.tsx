@@ -26,7 +26,7 @@ export function LogBoard({ posts, counts, currentUserId }: { posts: LogListItem[
   return (
     <div className="min-h-screen">
       {/* 상단: 커뮤니티 세그먼트 + 소개 */}
-      <div className="sticky top-12 z-30 border-b border-navy-100 bg-[#161616]/85 backdrop-blur-md">
+      <div className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#161616]/85 backdrop-blur-md">
         <CommunityTabs />
         <div className="flex gap-1.5 overflow-x-auto px-3 pb-2.5 no-scrollbar">
           <CatChip label="전체" active={cat === "ALL"} onClick={() => setCat("ALL")} count={posts.length} />

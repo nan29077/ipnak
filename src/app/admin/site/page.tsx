@@ -13,6 +13,7 @@ import { WalkingFeedToggle } from "@/components/admin/WalkingFeedToggle";
 import { PointsToggle } from "@/components/admin/PointsToggle";
 import { GroupPointsToggle } from "@/components/admin/GroupPointsToggle";
 import { AiApiConnection } from "@/components/admin/AiApiConnection";
+import { IpnakBallToggle } from "@/components/admin/IpnakBallToggle";
 import { getAiConnectionStatus } from "@/lib/aiCredentials";
 import { Badge, EmptyState } from "@/components/ui";
 import { kstFormat, cn } from "@/lib/utils";
@@ -35,7 +36,7 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
       : searchParams.tab === "appmode"
       ? "appmode"
       : "banners";
-  const [banners, shopEnabled, pcMarginBg, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabled, groupPointsRequired, aiConnection] = await Promise.all([
+  const [banners, shopEnabled, pcMarginBg, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabled, groupPointsRequired, ballEnabled, aiConnection] = await Promise.all([
     prisma.banner.findMany({ orderBy: { order: "asc" } }),
     getBoolSetting("shop_menu_enabled"),
     getSetting("pcMarginBgImage"),
@@ -44,6 +45,7 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
     getBoolSetting("walking_feed_enabled"),
     getBoolSetting("points_enabled"),
     getBoolSetting("group_points_required"),
+    getBoolSetting("ipnak_ball_enabled"),
     getAiConnectionStatus(),
   ]);
 
@@ -126,6 +128,7 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
         </>
       ) : tab === "pcbg" ? (
         <div className="grid gap-4 lg:grid-cols-2">
+          <IpnakBallToggle initial={ballEnabled} />
           <PcMarginBg initial={pcMarginBg} />
         </div>
       ) : tab === "api" ? (

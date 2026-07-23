@@ -11,7 +11,7 @@ export function PageHeader({
 }: { title: string; back?: boolean; right?: React.ReactNode; sub?: string }) {
   const router = useRouter();
   return (
-    <header className="sticky top-12 z-30 border-b border-navy-100 bg-[#161616]/85 backdrop-blur-md">
+    <header className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#161616]/85 backdrop-blur-md">
       <div className="flex h-14 items-center gap-2 px-3">
         {back && (
           <button onClick={() => router.back()} aria-label="뒤로" className="-ml-1 rounded-full p-1.5 text-navy-700 transition-colors hover:bg-navy-50 active:bg-navy-100">

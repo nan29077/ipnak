@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, FileImage, MessageCircle, Flag, Trophy, ClipboardCheck,
   Anchor, CalendarDays, ShoppingBag, Fish, SlidersHorizontal, Settings, Shield,
-  LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins,
+  LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins, Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -51,6 +51,7 @@ const GROUPS: MenuGroup[] = [
       { href: "/admin/listings", label: "예약 상품 관리", icon: Anchor },
       { href: "/admin/bookings", label: "예약 내역", icon: CalendarDays },
       { href: "/admin/products", label: "상품 태그", icon: ShoppingBag },
+      { href: "/admin/ipnak-ball", label: "입낚볼 관리", icon: Package },
     ],
   },
   {
@@ -188,7 +189,7 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
             <button onClick={logout} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-red-500 btn-press"><LogOut size={13} /> 로그아웃</button>
           </div>
         </header>
-        <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+        <main className="admin-content min-w-0 flex-1 p-4 md:p-6">{children}</main>
       </div>
     </div>
   );

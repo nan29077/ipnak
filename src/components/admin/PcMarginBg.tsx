@@ -5,7 +5,11 @@ import { Loader2, Upload, Link as LinkIcon, RotateCcw, Monitor } from "lucide-re
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_IMG = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1920&q=80";
+const DEFAULT_IMG = "/pc-bg-bass-angler.png";
+const LEGACY_DEFAULT_IMAGES = new Set([
+  "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1920&q=80",
+  "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1920&q=80",
+]);
 
 // 최고관리자: PC(데스크톱) 좌우 여백 배경 이미지 관리
 // - 이미지 URL 입력 또는 파일 업로드(Data URL)로 지정
@@ -14,7 +18,8 @@ export function PcMarginBg({ initial }: { initial: string }) {
   const router = useRouter();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState(initial || DEFAULT_IMG);
+  const initialValue = !initial || LEGACY_DEFAULT_IMAGES.has(initial) ? DEFAULT_IMG : initial;
+  const [value, setValue] = useState(initialValue);
   const [loading, setLoading] = useState(false);
 
   const isDefault = value === DEFAULT_IMG;

@@ -37,17 +37,18 @@ export function PointsBadge({ initial, initialEnabled }: { initial: number; init
     <Link
       href="/me/points"
       aria-label={`보유 포인트 ${points.toLocaleString()}P`}
-      className="flex items-center gap-1 rounded-full px-2.5 py-1.5 transition-colors"
+      title="포인트 관리로 이동"
+      className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1.5 transition-transform hover:scale-[1.03] active:scale-95"
       style={{
-        backgroundColor: "rgba(251, 191, 36, 0.14)", // amber-400 @ 14%
-        boxShadow: "inset 0 0 0 1px rgba(251, 191, 36, 0.28)",
+        backgroundColor: "rgba(249, 115, 22, 0.14)",
+        boxShadow: "inset 0 0 0 1px rgba(249, 115, 22, 0.28)",
       }}
     >
-      <Coins size={15} strokeWidth={2} style={{ color: "#fcd34d" }} />
-      <span className="text-[13px] font-extrabold tabular-nums leading-none" style={{ color: "#fcd34d" }}>
+      <Coins size={15} strokeWidth={2} style={{ color: "#fb8b3c" }} />
+      <span className="text-[13px] font-extrabold tabular-nums leading-none" style={{ color: "#fb8b3c" }}>
         {points.toLocaleString()}
       </span>
-      <span className="text-[11px] font-bold leading-none" style={{ color: "rgba(252, 211, 77, 0.75)" }}>
+      <span className="text-[11px] font-bold leading-none" style={{ color: "rgba(251, 139, 60, 0.75)" }}>
         P
       </span>
     </Link>

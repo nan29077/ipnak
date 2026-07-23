@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye } from "lucide-react";
+import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye, LocateFixed, ShieldCheck } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { MapView } from "@/components/map/MapView";
 import { Sheet, Button, Card, Badge } from "@/components/ui";
@@ -153,6 +153,7 @@ export function MapScreen() {
   const [gpsAvail, setGpsAvail] = useState<boolean | null>(null); // null=미확인, true/false=결과
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsPreferenceLoaded, setGpsPreferenceLoaded] = useState(false);
+  const [gpsGuideOpen, setGpsGuideOpen] = useState(false);
   const idleWatchRef = useRef<number | null>(null);
   // 사용자가 검색/포인트 선택으로 수동 이동한 경우 GPS 자동 추적 일시 정지
   const userMovedRef = useRef(false);
@@ -171,7 +172,9 @@ export function MapScreen() {
 
   useEffect(() => {
     try {
-      setGpsEnabled(window.localStorage.getItem(GPS_PREFERENCE_KEY) === "true");
+      const enabled = window.localStorage.getItem(GPS_PREFERENCE_KEY) === "true";
+      setGpsEnabled(enabled);
+      if (!enabled) setGpsGuideOpen(true);
     } catch { /* localStorage unavailable */ }
     setGpsPreferenceLoaded(true);
   }, []);
@@ -238,11 +241,11 @@ export function MapScreen() {
           setGpsAvail(false);
         } else {
           // 별도 앱 안내 없이 브라우저의 단일 위치 권한 팝업을 바로 표시한다.
-          startIdleGpsWatch();
+          setGpsGuideOpen(true);
         }
-      }).catch(() => startIdleGpsWatch());
+      }).catch(() => setGpsGuideOpen(true));
     } else {
-      startIdleGpsWatch();
+      setGpsGuideOpen(true);
     }
 
     return () => {
@@ -393,8 +396,59 @@ export function MapScreen() {
     );
   }
 
+  function enableGpsFromGuide() {
+    setGpsGuideOpen(false);
+    requestGps();
+  }
+
   return (
-    <div className="relative h-[calc(100vh-7.5rem)] w-full overflow-x-hidden md:h-[calc(100vh-3rem)]">
+    <div className="relative h-[calc(100vh-7.75rem)] w-full overflow-x-hidden md:h-[calc(100vh-3.25rem)]">
+      {gpsGuideOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center px-5" role="dialog" aria-modal="true" aria-labelledby="gps-guide-title">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-[3px]"
+            aria-label="GPS 안내 닫기"
+            onClick={() => setGpsGuideOpen(false)}
+          />
+          <div className="animate-scalein relative w-full max-w-[360px] overflow-hidden rounded-[28px] border border-white/10 bg-[#1e1e1e] shadow-2xl shadow-black/60">
+            <div className="h-1 w-full bg-gradient-to-r from-orange-700 via-orange-400 to-aqua-400" />
+            <div className="px-6 pb-6 pt-7 text-center">
+              <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-orange-500/15 ring-1 ring-orange-500/30">
+                <LocateFixed size={30} className="text-orange-400" strokeWidth={1.8} />
+                <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-aqua-500 text-white ring-4 ring-[#1e1e1e]">
+                  <ShieldCheck size={13} strokeWidth={2.2} />
+                </span>
+              </div>
+              <h2 id="gps-guide-title" className="mt-5 text-[20px] font-extrabold tracking-tight text-white">GPS를 켜고 낚시를 기록해요</h2>
+              <p className="mx-auto mt-2 max-w-[290px] text-[14px] leading-6 text-navy-500">
+                현재 위치를 확인하면 낚시 중 이동한 경로와 거리, 조과 위치가 자동으로 기록됩니다.
+              </p>
+              <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-aqua-500/10 px-3.5 py-3 text-left ring-1 ring-aqua-500/20">
+                <ShieldCheck size={17} className="mt-0.5 shrink-0 text-aqua-400" />
+                <p className="text-[12px] leading-5 text-navy-500">위치 정보는 데이터피싱 기록을 만드는 데만 사용해요.</p>
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setGpsGuideOpen(false)}
+                  className="rounded-2xl bg-white/[0.06] px-4 py-3 text-[14px] font-semibold text-navy-500 ring-1 ring-white/10 transition-colors hover:bg-white/10 active:scale-[0.98]"
+                >
+                  나중에
+                </button>
+                <button
+                  type="button"
+                  onClick={enableGpsFromGuide}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-3 text-[14px] font-bold text-white shadow-lg shadow-orange-500/25 transition-colors hover:bg-orange-600 active:scale-[0.98]"
+                >
+                  <Navigation size={16} /> GPS 켜기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
       {/* 상단 컨트롤 영역 — fixed로 스크롤과 무관하게 지도 위에 항상 고정 */}
       <div className="absolute inset-x-0 top-3 z-[1000] mx-auto flex w-full max-w-[640px] flex-col gap-2 px-3">
         {/* 1행: AI 포인트 추천 + 내 기록 + 전체화면 */}

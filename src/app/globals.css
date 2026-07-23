@@ -79,6 +79,23 @@ input, textarea, select {
 
 * { -webkit-font-smoothing: antialiased; }
 
+/* 입낚볼 구매 시트: PC 스크롤바를 브랜드 주황색으로 통일 */
+.ipnak-ball-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--orange-500) #25282d;
+}
+.ipnak-ball-scrollbar::-webkit-scrollbar { width: 10px; }
+.ipnak-ball-scrollbar::-webkit-scrollbar-track {
+  background: #25282d;
+  border-radius: 9999px;
+}
+.ipnak-ball-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--orange-400), var(--orange-600));
+  border: 2px solid #25282d;
+  border-radius: 9999px;
+}
+.ipnak-ball-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--orange-400); }
+
 /* Safe area utilities */
 .pb-safe { padding-bottom: calc(0.5rem + var(--safe-bottom)); }
 .pt-safe { padding-top: var(--safe-top); }
@@ -206,4 +223,36 @@ html { scroll-behavior: smooth; }
   background-size: 400% 100%;
   animation: skelShimmer 1.5s linear infinite;
   border-radius: 0.5rem;
+}
+
+/* 최고 관리자 본문: 밝은 카드와 다크 테마 텍스트가 충돌하지 않도록
+   관리자 영역의 표면·제목·보조 텍스트 명도를 별도로 보정한다. */
+.admin-content {
+  color: #edeff2;
+}
+.admin-content .card {
+  background: #1e1e1e;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.admin-content .bg-white:not(.rounded-full) {
+  background-color: #1e1e1e !important;
+}
+.admin-content .text-black {
+  color: #f5f6f7 !important;
+}
+.admin-content .text-navy-900 { color: #ffffff !important; }
+.admin-content .text-navy-800 { color: #f4f5f6 !important; }
+.admin-content .text-navy-700 { color: #e3e5e8 !important; }
+.admin-content .text-navy-600 { color: #d1d4d9 !important; }
+.admin-content .text-navy-500 { color: #bec3ca !important; }
+.admin-content .text-navy-400 { color: #a9afb8 !important; }
+.admin-content .text-navy-300 { color: #9198a3 !important; }
+.admin-content input,
+.admin-content textarea,
+.admin-content select {
+  color: #f4f5f6;
+}
+.admin-content input::placeholder,
+.admin-content textarea::placeholder {
+  color: #7f8792;
 }

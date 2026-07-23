@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getProfileData } from "@/lib/profile";
 import { getWalkingFeedPosts } from "@/lib/queries";
 import { prisma } from "@/lib/prisma";
-import { getBoolSetting } from "@/lib/settings";
+import { getBoolSetting, getSetting } from "@/lib/settings";
 import { getBalance, pointsEnabled } from "@/lib/points";
 import { ProfileView } from "@/components/ProfileView";
 import { MeActions } from "@/components/MeActions";
@@ -17,6 +17,7 @@ import { MiniRouteMap } from "@/components/MiniRouteMap";
 import { ROLE_LABELS, reservationCategoryLabel } from "@/lib/taxonomy";
 import { won, kstFormat } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
 
 export const dynamic = "force-dynamic";
 
@@ -35,10 +36,12 @@ export default async function MePage() {
   const data = await getProfileData(user.id, user.id);
   if (!data) redirect("/login");
   const { stats } = data;
-  const [shopEnabled, reservationEnabled, pEnabled] = await Promise.all([
+  const [shopEnabled, reservationEnabled, pEnabled, ballEnabled, ballPriceRaw] = await Promise.all([
     getBoolSetting("shop_menu_enabled"),
     getBoolSetting("reservation_enabled"),
     pointsEnabled(),
+    getBoolSetting("ipnak_ball_enabled"),
+    getSetting("ipnak_ball_price"),
   ]);
   const pointBalance = pEnabled ? await getBalance(user.id) : 0;
 
@@ -129,6 +132,8 @@ export default async function MePage() {
 
       <div className="space-y-4 p-4">
         {data.user.bio && <p className="text-sm leading-relaxed text-navy-600">{data.user.bio}</p>}
+
+        {user.role === "ANGLER" && ballEnabled && <IpnakBallPurchase price={Number(ballPriceRaw)} buyer={{ name: user.nickname, email: user.email }} />}
 
         {/* 포인트 관리 — 포인트 기능 활성화 시 노출 */}
         {pEnabled && (

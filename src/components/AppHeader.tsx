@@ -16,7 +16,7 @@ export function AppHeader({
   return (
     <>
     <header className="pt-safe sticky top-0 z-40 border-b border-navy-100 bg-[#161616]/90 backdrop-blur-md">
-      <div className="flex h-12 items-center gap-1.5 px-3.5">
+      <div className="flex h-[52px] items-center gap-1.5 px-3.5">
         {/* 햄버거: 좌측 전체 메뉴 드로어 (모바일 전용 — PC는 우측 사이드바 사용) */}
         <button
           type="button"
@@ -44,8 +44,13 @@ export function AppHeader({
               <NotificationBell />
             </>
           ) : (
-            <Link href="/login" aria-label="로그인" className="rounded-full p-2 text-navy-700 transition-colors hover:bg-navy-50 active:bg-navy-100">
-              <IconLogin size={21} strokeWidth={1.9} />
+            <Link
+              href="/login"
+              aria-label="로그인"
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-2 text-[13px] font-semibold text-navy-700 transition-colors hover:bg-navy-50 active:bg-navy-100"
+            >
+              <IconLogin size={19} strokeWidth={1.9} />
+              <span>로그인</span>
             </Link>
           )}
         </div>

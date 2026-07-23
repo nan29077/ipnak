@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import { ToastProvider } from "@/components/Toast";
@@ -8,35 +9,45 @@ import { getBoolSetting, getSetting } from "@/lib/settings";
 import { AppShell } from "@/components/AppShell";
 import { AppSettingsProvider } from "@/lib/appSettingsContext";
 
-export const metadata: Metadata = {
-  // 배포 도메인 확정 시 교체 (OG/트위터 이미지 절대경로 기준)
-  metadataBase: new URL("https://ipnak.com"),
-  title: {
-    default: "입낚 — 낚시 커뮤니티",
-    template: "%s | 입낚",
-  },
-  description: "낚시인들의 소통 공간, 입낚에서 함께해요. GPS 낚시 동선, 스마트 자 계측, 피싱 포인트, 온라인 대회, 예약까지.",
-  keywords: ["입낚", "낚시", "낚시 커뮤니티", "조황", "피싱 포인트", "낚시 대회", "낚시 예약"],
-  icons: {
-    icon: "/favicon-ipnak.png",
-    apple: "/favicon-ipnak.png",
-    shortcut: "/favicon-ipnak.png",
-  },
-  openGraph: {
-    title: "입낚 — 낚시 커뮤니티",
-    description: "낚시인들의 소통 공간, 입낚에서 함께해요.",
-    type: "website",
-    siteName: "입낚",
-    locale: "ko_KR",
-    images: [{ url: "/og-ipnak.jpg", width: 1200, height: 630, alt: "입낚" }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "입낚 — 낚시 커뮤니티",
-    description: "낚시인들의 소통 공간, 입낚에서 함께해요.",
-    images: ["/og-ipnak.jpg"],
-  },
-};
+const SHARE_TITLE = "입낚 — 낚시인의 모든 순간을 기록하다";
+const SHARE_DESCRIPTION = "조황 기록, 피싱포인트, 스마트 계측, 낚시 커뮤니티를 입낚에서 한 번에 만나보세요.";
+const SHARE_IMAGE = "/og-ipnak-share-v3.png";
+
+// 카카오톡 등 외부 크롤러가 개발 미리보기 주소에서도 이미지를 찾을 수 있도록
+// 현재 요청 호스트를 기준으로 OG 이미지와 공유 URL을 절대경로로 만든다.
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = headers();
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const forwardedHost = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host");
+  const forwardedProto = requestHeaders.get("x-forwarded-proto") || (forwardedHost?.includes("localhost") ? "http" : "https");
+  const siteUrl = configuredUrl || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : "https://ipnak.com");
+  const metadataBase = new URL(siteUrl);
+  const imageUrl = new URL(SHARE_IMAGE, metadataBase).toString();
+
+  return {
+    metadataBase,
+    title: { default: SHARE_TITLE, template: "%s | 입낚" },
+    description: SHARE_DESCRIPTION,
+    keywords: ["입낚", "낚시", "낚시 커뮤니티", "조황", "피싱 포인트", "낚시 대회", "낚시 예약"],
+    icons: { icon: "/favicon-ipnak.png", apple: "/favicon-ipnak.png", shortcut: "/favicon-ipnak.png" },
+    alternates: { canonical: metadataBase },
+    openGraph: {
+      title: SHARE_TITLE,
+      description: SHARE_DESCRIPTION,
+      url: metadataBase,
+      type: "website",
+      siteName: "입낚",
+      locale: "ko_KR",
+      images: [{ url: imageUrl, width: 1730, height: 909, alt: "입낚 — 낚시인의 모든 순간을 기록하다", type: "image/png" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: SHARE_TITLE,
+      description: SHARE_DESCRIPTION,
+      images: [imageUrl],
+    },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -56,10 +67,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     getBoolSetting("walking_feed_enabled"),
     getBoolSetting("points_enabled"),
   ]);
-  // PC 여백 배경 이미지(관리자 설정값). 없으면 기본 바다 낚시 사진(Unsplash)으로 폴백.
+  // 관리자 설정값이 없으면 AppShell의 로컬 배스 앵글러 배경을 사용한다.
   const pcMarginBg =
-    (await getSetting("pcMarginBgImage")) ||
-    "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1920&q=80";
+    (await getSetting("pcMarginBgImage")) || undefined;
   return (
     <html lang="ko">
       <head>

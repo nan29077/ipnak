@@ -33,7 +33,7 @@ export default async function MarketPage() {
 
   return (
     <div className="min-h-screen bg-surface pb-24">
-      <header className="sticky top-12 z-30 border-b border-navy-100 bg-[#161616]/85 backdrop-blur-md">
+      <header className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#161616]/85 backdrop-blur-md">
         <div className="flex h-14 items-center gap-2 px-3.5">
           <span className="mr-auto text-[19px] font-extrabold tracking-tight text-navy-900">중고피싱</span>
           {user && (

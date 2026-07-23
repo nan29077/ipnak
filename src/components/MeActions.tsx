@@ -23,15 +23,16 @@ export function MeActions({ isAdmin }: { isAdmin: boolean }) {
           </Button>
         </Link>
       )}
-      <Button
-        variant="outline"
-        full
-        leftIcon={<Settings size={18} />}
-        className="justify-start"
-        onClick={() => toast("설정 화면은 준비 중입니다", "info")}
-      >
-        설정
-      </Button>
+      <Link href="/settings" className="block">
+        <Button
+          variant="outline"
+          full
+          leftIcon={<Settings size={18} />}
+          className="justify-start"
+        >
+          설정
+        </Button>
+      </Link>
       <Button
         variant="outline"
         full

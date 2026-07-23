@@ -26,6 +26,17 @@ const config: Config = {
           400: "#fb8b3c", 500: "#f97316", 600: "#ea580c", 700: "#c2410c",
           800: "#9a3412", 900: "#7c2d12",
         },
+        // 기존 amber/yellow 유틸리티도 브랜드 주황색으로 표시한다.
+        amber: {
+          50: "#fff4ec", 100: "#ffe6d5", 200: "#feccaa", 300: "#fdac74",
+          400: "#fb8b3c", 500: "#f97316", 600: "#ea580c", 700: "#c2410c",
+          800: "#9a3412", 900: "#7c2d12",
+        },
+        yellow: {
+          50: "#fff4ec", 100: "#ffe6d5", 200: "#feccaa", 300: "#fdac74",
+          400: "#fb8b3c", 500: "#f97316", 600: "#ea580c", 700: "#c2410c",
+          800: "#9a3412", 900: "#7c2d12",
+        },
         // ── Dark surface scale (explicit elevation) ──
         surface: {
           DEFAULT: "#161616", 100: "#1a1a1a", 200: "#1e1e1e",
