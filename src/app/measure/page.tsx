@@ -143,6 +143,8 @@ export default function MeasurePage() {
 
     // OpenCV.js init()을 await하면 7MB CDN 스크립트 파싱으로 메인 스레드가 블록됨
     // → 이미 로드·초기화된 경우에만 감지 시도, 미로드면 즉시 팝업
+    // OpenCV.js는 7MB CDN 스크립트 — 모바일에서 파싱 시 메인 스레드 완전 블록
+    // init() 호출 자체를 금지하고, 이미 로드된 경우에만 감지 실행
     const cvReady = typeof window !== "undefined" && !!(window as any).cv?.Mat;
 
     let reference: any = null;
@@ -152,10 +154,8 @@ export default function MeasurePage() {
       } catch {
         reference = null;
       }
-    } else {
-      // 백그라운드 로드 시작 (await 없음 — 다음 촬영 시 준비됨)
-      engines().ball.init().catch(() => {});
     }
+    // cvReady = false: init() 일절 호출하지 않고 즉시 팝업으로 이동
 
     if (reference?.found) {
       // 실물 입낚볼과 A4 인쇄물의 주황색 원형 로고는 모두 지름 40mm 기준으로 계산한다.
@@ -363,20 +363,6 @@ export default function MeasurePage() {
     setProceedWithoutBall(false);
     workCanvasRef.current = null;
   }
-
-  /* ── 페이지 마운트 시 OpenCV 백그라운드 프리로드 (촬영 전 미리 준비) ── */
-  useEffect(() => {
-    // requestIdleCallback으로 메인 스레드 여유 시간에만 로드 시작
-    const startLoad = () => engines().ball.init().catch(() => {});
-    if (typeof requestIdleCallback !== "undefined") {
-      const id = requestIdleCallback(startLoad, { timeout: 5000 });
-      return () => cancelIdleCallback(id);
-    } else {
-      const t = setTimeout(startLoad, 2000);
-      return () => clearTimeout(t);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   /* ── 재촬영: 네이티브 카메라 재시작 ── */
   const retake = useCallback(() => {
