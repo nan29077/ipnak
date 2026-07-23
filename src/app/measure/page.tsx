@@ -140,27 +140,28 @@ export default function MeasurePage() {
 
   async function analyze(_work: HTMLCanvasElement) {
     setLoadingMsg("40mm 입낚볼·인쇄 로고 기준물을 찾는 중...");
+
+    let reference: any = null;
     try {
       const eng = engines();
-      await eng.ball.init();
-      const reference = eng.ball.detectBest(_work);
-      if (reference?.found) {
-        // 실물 입낚볼과 A4 인쇄물의 주황색 원형 로고는 모두 지름 40mm 기준으로 계산한다.
-        setBall(reference);
-        setIsMockFish(false);
-        setPhase("MANUAL_HEAD");
-      } else {
-        setBall(null);
-        setIsMockFish(true);
-        setPhase("MANUAL_HEAD"); // 캔버스 표시 유지
-        setShowNoBallPopup(true); // 기준물 미발견 확인 팝업
-      }
+      // 8초 안에 감지 완료되지 않으면 기준물 없음으로 즉시 처리
+      const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+      const detect = eng.ball.init().then(() => eng.ball.detectBest(_work)).catch(() => null);
+      reference = await Promise.race([detect, timeout]);
     } catch {
-      // 네트워크·기기 환경에서 감지 엔진을 쓸 수 없어도 사진 기록과 수동 지정은 계속 가능하다.
+      reference = null;
+    }
+
+    if (reference?.found) {
+      // 실물 입낚볼과 A4 인쇄물의 주황색 원형 로고는 모두 지름 40mm 기준으로 계산한다.
+      setBall(reference);
+      setIsMockFish(false);
+      setPhase("MANUAL_HEAD");
+    } else {
       setBall(null);
       setIsMockFish(true);
-      setPhase("MANUAL_HEAD");
-      setShowNoBallPopup(true);
+      setPhase("MANUAL_HEAD"); // 캔버스 표시 유지
+      setShowNoBallPopup(true); // 기준물 미발견 팝업 즉시 표시
     }
   }
 
