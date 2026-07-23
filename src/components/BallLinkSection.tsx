@@ -194,7 +194,7 @@ export function BallLinkSection() {
                 download="ipnak-ball-40mm-logo-print-sheet-a4.svg"
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-2 py-2.5 text-[12px] font-bold text-white active:scale-[0.98]"
               >
-                <Download size={15} /> A4 9개 인쇄물
+                <Download size={15} /> 입낚볼 이미지 인쇄
               </a>
               <button
                 type="button"
@@ -260,7 +260,7 @@ export function BallLinkSection() {
         </div>
       </Sheet>
 
-      <Sheet open={ballExampleOpen} onClose={() => setBallExampleOpen(false)} title="입낚볼 사용 예시" size="lg">
+      <Sheet open={ballExampleOpen} onClose={() => setBallExampleOpen(false)} title="입낚볼 사용 예시" size="diary">
         <div className="space-y-4 pb-2">
           <UsageExample
             src="/ipnak-ball-handheld-bass-example.png"

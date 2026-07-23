@@ -449,149 +449,144 @@ export function MapScreen() {
         </div>,
         document.body
       )}
-      {/* 상단 컨트롤 영역 — fixed로 스크롤과 무관하게 지도 위에 항상 고정 */}
-      <div className="absolute inset-x-0 top-3 z-[1000] mx-auto flex w-full max-w-[640px] flex-col gap-2 px-3">
-        {/* 1행: AI 포인트 추천 + 내 기록 + 전체화면 */}
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <AiPointRecommend variant="bar" />
-          </div>
-          {/* 내 기록 버튼 (1행으로 이동) */}
-          <button
-            onClick={() => setRecordsOpen(true)}
-            aria-label="내 데이터피싱 기록"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
-          >
-            <ClipboardList size={15} className="text-orange-500" />
-            내 기록
-          </button>
-          {/* 전체화면 버튼 (1행으로 이동) */}
-          <button
-            onClick={() => setMapDetailMode(true)}
-            aria-label="지도 전체화면"
-            className="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-2xl bg-[#161616]/95 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
-          >
-            <Expand size={15} className="text-aqua-400" />
-          </button>
+      {/* 상단 컨트롤 영역 — grid로 열 끝선 정렬 */}
+      <div className="absolute inset-x-0 top-3 z-[1000] mx-auto w-full max-w-[640px] px-3" style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "8px" }}>
+        {/* 1행 Col1: AI 포인트 추천 */}
+        <div className="min-w-0">
+          <AiPointRecommend variant="bar" />
         </div>
-        {/* 2행: 검색 + 내 포인트 드롭다운 */}
-        <div className="flex min-w-0 items-center gap-2">
-          {/* 검색 입력 + 드롭다운 */}
-          <div className="relative flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
-            <Search size={15} className="shrink-0 text-navy-300" />
-            <input
-              ref={searchInputRef}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-              onKeyDown={(e) => { if (e.key === "Escape") { setSearchQuery(""); setSearchFocused(false); searchInputRef.current?.blur(); } }}
-              placeholder="낚시 포인트 검색"
-              className="min-w-0 flex-1 bg-transparent text-base text-navy-700 placeholder:text-navy-300 outline-none md:text-[13px]"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="shrink-0 text-navy-400 hover:text-navy-700">
-                <X size={13} />
-              </button>
-            )}
-            {/* 드롭다운 결과 */}
-            {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || geoResults.length > 0 || searchQuery.length >= 2) && (
-              <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card">
-                {spotResults.length > 0 && (
-                  <>
-                    <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400">주요 지역</p>
-                    {spotResults.map((s) => (
-                      <button
-                        key={s.name}
-                        onPointerDown={() => { moveToManual({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); setGeoResults([]); }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
-                      >
-                        <MapPin size={14} className="shrink-0 text-aqua-400" />
-                        <span className="text-[13px] font-semibold text-navy-700">{s.name}</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-                {geoResults.length > 0 && (
-                  <>
-                    <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${spotResults.length > 0 ? " border-t border-navy-100" : ""}`}>지역 검색</p>
-                    {geoResults.map((g, i) => (
-                      <button
-                        key={i}
-                        onPointerDown={() => { moveToManual({ lat: g.lat, lng: g.lng }); setSearchQuery(g.name); setSearchFocused(false); setGeoResults([]); }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
-                      >
-                        <Navigation size={14} className="shrink-0 text-aqua-300" />
-                        <span className="text-[13px] font-semibold text-navy-700">{g.name}</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-                {pointResults.length > 0 && (
-                  <>
-                    <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${(spotResults.length > 0 || geoResults.length > 0) ? " border-t border-navy-100" : ""}`}>내 낚시 포인트</p>
-                    {pointResults.map((p) => (
-                      <button
-                        key={p.id}
-                        onPointerDown={() => { moveToManual({ lat: p.lat, lng: p.lng }); setSelected(p); setSearchQuery(p.speciesName || p.region || ""); setSearchFocused(false); }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
-                      >
-                        <Fish size={14} className="shrink-0 text-green-400" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-semibold text-navy-700">{p.speciesName || "어종 미상"}</p>
-                          {p.region && <p className="truncate text-[11px] text-navy-400">{p.region}</p>}
-                        </div>
-                      </button>
-                    ))}
-                  </>
-                )}
-                {searchQuery.length >= 2 && spotResults.length === 0 && pointResults.length === 0 && geoResults.length === 0 && (
-                  <p className="py-5 text-center text-[13px] text-navy-400">검색 결과가 없습니다</p>
-                )}
-              </div>
-            )}
-          </div>
+        {/* 1행 Col2: 내 기록 */}
+        <button
+          onClick={() => setRecordsOpen(true)}
+          aria-label="내 데이터피싱 기록"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+        >
+          <ClipboardList size={15} className="text-orange-500" />
+          내 기록
+        </button>
+        {/* 1행 Col3: 전체화면 */}
+        <button
+          onClick={() => setMapDetailMode(true)}
+          aria-label="지도 전체화면"
+          className="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-2xl bg-[#161616]/95 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+        >
+          <Expand size={15} className="text-aqua-400" />
+        </button>
+        {/* 2행 Col1: 검색 (현위치 버튼 내장) */}
+        <div className="relative flex min-w-0 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
+          <Search size={15} className="shrink-0 text-navy-300" />
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            onKeyDown={(e) => { if (e.key === "Escape") { setSearchQuery(""); setSearchFocused(false); searchInputRef.current?.blur(); } }}
+            placeholder="낚시 포인트 검색"
+            className="min-w-0 flex-1 bg-transparent text-base text-navy-700 placeholder:text-navy-300 outline-none md:text-[13px]"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="shrink-0 text-navy-400 hover:text-navy-700">
+              <X size={13} />
+            </button>
+          )}
           <button
             type="button"
             onClick={locateMe}
             aria-label="현위치로 지도 이동"
             title="현위치"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#161616]/95 text-aqua-400 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+            className="shrink-0 text-aqua-400 transition-transform active:scale-90 hover:text-aqua-300"
           >
-            <Navigation size={16} />
+            <Navigation size={15} />
           </button>
-          {/* 내 포인트 드롭다운 (2행 우측으로 이동) */}
-          <div ref={myPointsDropRef} className="relative shrink-0">
-            <button
-              onClick={() => setMyPointsDropOpen((v) => !v)}
-              className="inline-flex min-w-[96px] items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e] md:min-w-[110px]"
-            >
-              <MapPin size={14} className="text-aqua-400" />
-              내 포인트
-              <ChevronDown size={12} className={`transition-transform duration-200${myPointsDropOpen ? " rotate-180" : ""}`} />
-            </button>
-            {myPointsDropOpen && (
-              <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e] shadow-card">
-                {myRegions.length === 0 ? (
-                  <p className="px-4 py-4 text-center text-[12px] text-navy-400">기록된 포인트가 없습니다</p>
-                ) : (
-                  myRegions.map((r) => (
+          {/* 드롭다운 결과 */}
+          {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || geoResults.length > 0 || searchQuery.length >= 2) && (
+            <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card">
+              {spotResults.length > 0 && (
+                <>
+                  <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400">주요 지역</p>
+                  {spotResults.map((s) => (
                     <button
-                      key={r.region}
-                      onPointerDown={() => { moveToManual({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                      key={s.name}
+                      onPointerDown={() => { moveToManual({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); setGeoResults([]); }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
                     >
-                      <div className="flex items-center gap-2">
-                        <MapPin size={13} className="shrink-0 text-aqua-400" />
-                        <span className="text-[13px] font-semibold text-navy-700">{r.region}</span>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-aqua-500/15 px-1.5 py-0.5 text-[10px] font-bold text-aqua-400">{r.count}</span>
+                      <MapPin size={14} className="shrink-0 text-aqua-400" />
+                      <span className="text-[13px] font-semibold text-navy-700">{s.name}</span>
                     </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+                  ))}
+                </>
+              )}
+              {geoResults.length > 0 && (
+                <>
+                  <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${spotResults.length > 0 ? " border-t border-navy-100" : ""}`}>지역 검색</p>
+                  {geoResults.map((g, i) => (
+                    <button
+                      key={i}
+                      onPointerDown={() => { moveToManual({ lat: g.lat, lng: g.lng }); setSearchQuery(g.name); setSearchFocused(false); setGeoResults([]); }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <Navigation size={14} className="shrink-0 text-aqua-300" />
+                      <span className="text-[13px] font-semibold text-navy-700">{g.name}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+              {pointResults.length > 0 && (
+                <>
+                  <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${(spotResults.length > 0 || geoResults.length > 0) ? " border-t border-navy-100" : ""}`}>내 낚시 포인트</p>
+                  {pointResults.map((p) => (
+                    <button
+                      key={p.id}
+                      onPointerDown={() => { moveToManual({ lat: p.lat, lng: p.lng }); setSelected(p); setSearchQuery(p.speciesName || p.region || ""); setSearchFocused(false); }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <Fish size={14} className="shrink-0 text-green-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-navy-700">{p.speciesName || "어종 미상"}</p>
+                        {p.region && <p className="truncate text-[11px] text-navy-400">{p.region}</p>}
+                      </div>
+                    </button>
+                  ))}
+                </>
+              )}
+              {searchQuery.length >= 2 && spotResults.length === 0 && pointResults.length === 0 && geoResults.length === 0 && (
+                <p className="py-5 text-center text-[13px] text-navy-400">검색 결과가 없습니다</p>
+              )}
+            </div>
+          )}
+        </div>
+        {/* 2행 Col2+3: 내 포인트 드롭다운 */}
+        <div ref={myPointsDropRef} className="relative" style={{ gridColumn: "span 2" }}>
+          <button
+            onClick={() => setMyPointsDropOpen((v) => !v)}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+          >
+            <MapPin size={14} className="text-aqua-400" />
+            내 포인트
+            <ChevronDown size={12} className={`transition-transform duration-200${myPointsDropOpen ? " rotate-180" : ""}`} />
+          </button>
+          {myPointsDropOpen && (
+            <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e] shadow-card">
+              {myRegions.length === 0 ? (
+                <p className="px-4 py-4 text-center text-[12px] text-navy-400">기록된 포인트가 없습니다</p>
+              ) : (
+                myRegions.map((r) => (
+                  <button
+                    key={r.region}
+                    onPointerDown={() => { moveToManual({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <MapPin size={13} className="shrink-0 text-aqua-400" />
+                      <span className="text-[13px] font-semibold text-navy-700">{r.region}</span>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-aqua-500/15 px-1.5 py-0.5 text-[10px] font-bold text-aqua-400">{r.count}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
 
