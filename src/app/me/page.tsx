@@ -30,7 +30,7 @@ const BOOKING_STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   DONE: { label: "이용완료", tone: "gray" },
 };
 
-export default async function MePage() {
+export default async function MePage({ searchParams }: { searchParams?: { ipnakBallPurchase?: string } }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const data = await getProfileData(user.id, user.id);
@@ -133,7 +133,13 @@ export default async function MePage() {
       <div className="space-y-4 p-4">
         {data.user.bio && <p className="text-sm leading-relaxed text-navy-600">{data.user.bio}</p>}
 
-        {user.role === "ANGLER" && ballEnabled && <IpnakBallPurchase price={Number(ballPriceRaw)} buyer={{ name: user.nickname, email: user.email }} />}
+        {user.role === "ANGLER" && ballEnabled && (
+          <IpnakBallPurchase
+            price={Number(ballPriceRaw)}
+            buyer={{ name: user.nickname, email: user.email }}
+            openOnMount={searchParams?.ipnakBallPurchase === "1"}
+          />
+        )}
 
         {/* 포인트 관리 — 포인트 기능 활성화 시 노출 */}
         {pEnabled && (

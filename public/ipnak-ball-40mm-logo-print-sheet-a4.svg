@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297">
+  <rect width="210" height="297" fill="#ffffff"/>
+  <defs>
+    <g id="ipnak-logo-reference">
+      <circle cx="0" cy="0" r="19.25" fill="#ff6b1a" stroke="#ff6b1a" stroke-width="1.5"/>
+      <path d="M-1.9 -10.4V3.4C-1.9 9.8 7.3 9.8 7.3 3C7.3-.6 3.3-1 1.7 1.8" fill="none" stroke="#161210" stroke-width="3.25" stroke-linecap="round"/>
+      <path d="M-6.4 -8L-1.9 -12L2.6 -8" fill="none" stroke="#161210" stroke-width="3.25" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="-1.9" cy="-12" r="1.25" fill="#161210"/>
+    </g>
+  </defs>
+  <use href="#ipnak-logo-reference" x="35" y="54"/>
+  <use href="#ipnak-logo-reference" x="105" y="54"/>
+  <use href="#ipnak-logo-reference" x="175" y="54"/>
+  <use href="#ipnak-logo-reference" x="35" y="148.5"/>
+  <use href="#ipnak-logo-reference" x="105" y="148.5"/>
+  <use href="#ipnak-logo-reference" x="175" y="148.5"/>
+  <use href="#ipnak-logo-reference" x="35" y="243"/>
+  <use href="#ipnak-logo-reference" x="105" y="243"/>
+  <use href="#ipnak-logo-reference" x="175" y="243"/>
+</svg>

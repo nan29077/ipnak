@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { CurationHome } from "@/components/CurationHome";
 import { getMainSections } from "@/lib/curation";
 import { parseInterests } from "@/lib/interestsUtils";
+import { MobileLandingRedirect } from "@/components/MobileLandingRedirect";
 
 export const dynamic = "force-dynamic";
 
@@ -47,22 +48,27 @@ export default async function HomePage() {
     .map((b) => ({ title: b.title, imageUrl: b.imageUrl }));
 
   return (
-    <CurationHome
-      feedPosts={feedPosts}
-      walkingPosts={walkingPosts}
-      sections={sections}
-      banners={filteredBanners}
-      ongoingTournaments={ongoingTournaments.map((t) => ({
-        id: t.id, title: t.title, type: t.type, speciesName: t.speciesName,
-        startDate: t.startAt?.toISOString() ?? null,
-        endDate: t.endAt?.toISOString() ?? null,
-        entryCount: t._count.entries,
-      }))}
-      currentUserId={user?.id}
-      personalizedPosts={personalizedPosts}
-      userNickname={userNickname}
-      userInterests={userInterests}
-      hasInterests={hasInterests}
-    />
+    <>
+      <MobileLandingRedirect />
+      <div className="hidden md:block">
+        <CurationHome
+          feedPosts={feedPosts}
+          walkingPosts={walkingPosts}
+          sections={sections}
+          banners={filteredBanners}
+          ongoingTournaments={ongoingTournaments.map((t) => ({
+            id: t.id, title: t.title, type: t.type, speciesName: t.speciesName,
+            startDate: t.startAt?.toISOString() ?? null,
+            endDate: t.endAt?.toISOString() ?? null,
+            entryCount: t._count.entries,
+          }))}
+          currentUserId={user?.id}
+          personalizedPosts={personalizedPosts}
+          userNickname={userNickname}
+          userInterests={userInterests}
+          hasInterests={hasInterests}
+        />
+      </div>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * 입낚볼 감지 엔진 (웹 전용)
- * 형광 오렌지 원형 물체를 이미지에서 찾아 픽셀→mm 비율 계산
+ * 실물 입낚볼 또는 40mm 입낚 로고 인쇄물을 이미지에서 찾아 픽셀→mm 비율 계산
  * 볼 실제 지름: 40mm 고정
  *
  * OpenCV.js 는 번들에 포함하지 않고 측정 페이지 진입 시 CDN 에서 지연 로드한다.
@@ -84,7 +84,7 @@ class BallDetector {
   }
 
   /**
-   * 메인 감지: ArUco 마커 우선, 실패 시 오렌지 원형(볼) 감지
+   * 메인 감지: ArUco 마커 우선, 실패 시 오렌지 원형(실물 볼·40mm 인쇄 로고) 감지
    * @param {HTMLImageElement|HTMLCanvasElement} imageElement
    */
   detectBest(imageElement) {
@@ -126,7 +126,7 @@ class BallDetector {
         diameterPx: ball.diameter,
         mmPerPixel: this.BALL_REAL_DIAMETER_MM / ball.diameter,
         confidence: ball.score,
-        method: 'ball',
+        method: 'ipnak-40mm-reference',
         errorMessage: null,
       }
     } catch (e) {

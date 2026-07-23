@@ -178,13 +178,11 @@ export default function GroupDetailPage() {
           <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-4">
             <p className="mb-2 text-[12px] font-bold text-navy-400">낚시단 단장</p>
             <div className="flex items-center gap-2.5">
-              {group.leaderAvatar ? (
-                <img src={group.leaderAvatar} alt={group.leaderNickname} className="h-9 w-9 rounded-full object-cover" />
-              ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-aqua-500 text-[14px] font-bold text-white">
-                  {group.leaderNickname.charAt(0)}
-                </div>
-              )}
+              <img
+                src={getAvatarUrl(group.leaderId, group.leaderAvatar)}
+                alt={group.leaderNickname}
+                className="h-9 w-9 rounded-full object-cover"
+              />
               <div className="min-w-0">
                 <p className="text-[14px] font-semibold text-navy-800">{group.leaderNickname}</p>
                 <p className="text-[11px] text-orange-400">{group.name} 단장</p>

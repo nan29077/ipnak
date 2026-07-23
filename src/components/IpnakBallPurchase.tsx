@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronLeft, CreditCard, Loader2, MapPin, Minus, Package, Plus, Radio, Search, ShieldCheck, Truck, X } from "lucide-react";
 import { AddressSearchModal } from "@/components/AddressSearchModal";
@@ -14,7 +14,7 @@ const methods = [
   { key: "phone", label: "휴대폰 결제" },
 ];
 
-export function IpnakBallPurchase({ price, buyer }: { price: number; buyer: { name: string; email: string } }) {
+export function IpnakBallPurchase({ price, buyer, openOnMount = false }: { price: number; buyer: { name: string; email: string }; openOnMount?: boolean }) {
   const toast = useToast();
   const detailAddressRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -29,6 +29,13 @@ export function IpnakBallPurchase({ price, buyer }: { price: number; buyer: { na
     recipientName: buyer.name, recipientPhone: "", postalCode: "", address: "",
     addressDetail: "", deliveryMemo: "",
   });
+
+  useEffect(() => {
+    if (openOnMount) {
+      setStep("intro");
+      setOpen(true);
+    }
+  }, [openOnMount]);
 
   const close = () => {
     if (!loading) {

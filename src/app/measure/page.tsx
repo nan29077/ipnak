@@ -137,9 +137,24 @@ export default function MeasurePage() {
   }
 
   async function analyze(_work: HTMLCanvasElement) {
-    // 입낚볼 없이도 즉시 동작 — 볼 감지 건너뜀, 수동 탭 모드로 바로 진입
-    // (입낚볼 연동 시: 볼 감지 코드 재활성화 예정)
-    setIsMockFish(true);
+    setLoadingMsg("40mm 입낚볼·인쇄 로고 기준물을 찾는 중...");
+    try {
+      const eng = engines();
+      await eng.ball.init();
+      const reference = eng.ball.detectBest(_work);
+      if (reference?.found) {
+        // 실물 입낚볼과 A4 인쇄물의 주황색 원형 로고는 모두 지름 40mm 기준으로 계산한다.
+        setBall(reference);
+        setIsMockFish(false);
+      } else {
+        setBall(null);
+        setIsMockFish(true);
+      }
+    } catch {
+      // 네트워크·기기 환경에서 감지 엔진을 쓸 수 없어도 사진 기록과 수동 지정은 계속 가능하다.
+      setBall(null);
+      setIsMockFish(true);
+    }
     setPhase("MANUAL_HEAD");
   }
 

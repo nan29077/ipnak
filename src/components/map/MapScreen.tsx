@@ -402,7 +402,7 @@ export function MapScreen() {
   }
 
   return (
-    <div className="relative h-[calc(100vh-7.75rem)] w-full overflow-x-hidden md:h-[calc(100vh-3.25rem)]">
+    <div className="relative h-[calc(100dvh-7.75rem)] max-h-[calc(100dvh-7.75rem)] w-full overflow-hidden overscroll-none md:h-[calc(100dvh-3.25rem)] md:max-h-[calc(100dvh-3.25rem)]">
       {gpsGuideOpen && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center px-5" role="dialog" aria-modal="true" aria-labelledby="gps-guide-title">
           <button

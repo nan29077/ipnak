@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
 import {
   IconHome, IconMap, IconTrophy, IconCalendar, IconTackleBox, IconUser, IconLogin, IconShield, IconRuler,
   IconBook, IconUsers,
@@ -28,7 +27,7 @@ function commerceItem(shopEnabled: boolean): NavItemDef {
 // 모바일 하단 4탭 (+ 중앙 물고기기록 FAB): 홈 / 데이터피싱 / [●+] / 중고피싱 / 마이
 function buildMobileNav(shopEnabled: boolean): NavItemDef[] {
   return [
-    { href: "/", label: "홈", icon: IconHome, match: (p) => p === "/" || p.startsWith("/feed") || p.startsWith("/post") || p.startsWith("/log") || p.startsWith("/profile") },
+    { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/post") || p.startsWith("/log") || p.startsWith("/profile") },
     { href: "/map", label: "데이터피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
     commerceItem(shopEnabled),
     { href: "/me", label: "마이", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },
@@ -36,7 +35,7 @@ function buildMobileNav(shopEnabled: boolean): NavItemDef[] {
 }
 
 // PC 우측 세로 메뉴: 전체 메뉴 나열 (물고기기록 FAB는 slice(2) 앞에 삽입)
-function buildDesktopNav(shopEnabled: boolean): NavItemDef[] {
+function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): NavItemDef[] {
   return [
     { href: "/", label: "홈", icon: IconHome, match: (p) => p === "/" || p.startsWith("/post") || p.startsWith("/profile") },
     { href: "/map", label: "데이터피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
@@ -45,7 +44,9 @@ function buildDesktopNav(shopEnabled: boolean): NavItemDef[] {
     { href: "/log", label: "조황일지", icon: IconBook, match: (p) => p.startsWith("/log") },
     { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/groups") || p.startsWith("/explore") },
     { href: "/tournaments", label: "대회", icon: IconTrophy, match: (p) => p.startsWith("/tournaments") },
-    { href: "/reservations", label: "예약", icon: IconCalendar, match: (p) => p.startsWith("/reservations") },
+    ...(reservationEnabled
+      ? [{ href: "/reservations", label: "예약", icon: IconCalendar, match: (p: string) => p.startsWith("/reservations") }]
+      : []),
     commerceItem(shopEnabled),
     { href: "/me", label: "마이페이지", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },
   ];
@@ -58,7 +59,7 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
   const pathname = usePathname() || "/";
   const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/admin");
   const MOBILE_NAV = buildMobileNav(shopEnabled);
-  const DESKTOP_NAV = buildDesktopNav(shopEnabled);
+  const DESKTOP_NAV = buildDesktopNav(shopEnabled, reservationEnabled);
   const showFab = !bare && !FAB_HIDDEN_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (bare) return <>{children}</>;
@@ -127,6 +128,7 @@ function DesktopPatternBg({ image }: { image?: string }) {
 
 function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[] }) {
   const NAV = nav;
+  const measureActive = pathname.startsWith("/measure") || pathname.startsWith("/diary");
   return (
     <nav
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#161616]/95 backdrop-blur md:hidden"
@@ -137,16 +139,45 @@ function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[
           <NavItem key={n.href} {...n} active={n.match(pathname)} />
         ))}
         {/* 중앙 원형 + 버튼: 물고기기록(측정) */}
-        <div className="flex shrink-0 flex-col items-center px-1">
+        <div
+          className={cn(
+            "flex shrink-0 flex-col items-center rounded-xl px-1 pb-1 transition-colors",
+            measureActive && "bg-orange-500/15"
+          )}
+        >
           <Link
             href="/measure"
-            className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg shadow-orange-500/30 ring-4 ring-[#161616] transition-transform active:scale-95"
-            aria-label="물고기 기록 (측정)"
+            aria-current={measureActive ? "page" : undefined}
+            className={cn(
+              "-mt-5 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-orange-500 text-white shadow-lg shadow-orange-500/30 ring-[3px] transition-all active:scale-95",
+              measureActive ? "ring-orange-300/70 shadow-orange-500/50" : "ring-[#161616]"
+            )}
+            aria-label="AI 측정"
           >
-            <Plus size={26} />
+            <svg
+              viewBox="60 32 96 132"
+              aria-hidden
+              className="h-10 w-10"
+              fill="none"
+            >
+              <path
+                d="M92 52V118C92 150 138 150 138 116C138 98 118 96 110 110"
+                stroke="#161210"
+                strokeWidth="13"
+                strokeLinecap="round"
+              />
+              <path
+                d="M74 62L92 46L110 62"
+                stroke="#161210"
+                strokeWidth="13"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="92" cy="46" r="5" fill="#161210" />
+            </svg>
           </Link>
-          <span className={cn("mt-0.5 text-[9px] font-semibold", pathname.startsWith("/measure") || pathname.startsWith("/diary") ? "text-orange-500" : "text-navy-300")}>
-            물고기기록
+          <span className={cn("mt-0.5 text-[9px] font-semibold", measureActive ? "text-orange-500" : "text-navy-300")}>
+            AI측정
           </span>
         </div>
         {NAV.slice(2).map((n) => (
@@ -187,11 +218,11 @@ function DesktopRightNav({ pathname, user, nav }: { pathname: string; user: Sess
           {/* 물고기기록 — AI 측정 (주요 액션) */}
           <Link
             href="/measure"
-            aria-label="물고기 기록 (측정)"
+            aria-label="AI 측정"
             className="my-1 flex w-full flex-col items-center gap-1 rounded-2xl bg-orange-500 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-orange-500/30 transition-transform hover:bg-orange-600 active:scale-95"
           >
-            <Plus size={22} strokeWidth={2.4} />
-            물고기기록
+            <IconRuler size={22} strokeWidth={2.4} />
+            AI 측정
           </Link>
 
           {NAV.slice(2).map((n) => (
