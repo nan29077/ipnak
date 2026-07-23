@@ -45,6 +45,8 @@ export default function MeasurePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [ball, setBall] = useState<any>(null);
   const [isMockFish, setIsMockFish] = useState(false);
+  const [showNoBallPopup, setShowNoBallPopup] = useState(false);
+  const [proceedWithoutBall, setProceedWithoutBall] = useState(false);
   const [head, setHead] = useState<Point | null>(null);
   const [tail, setTail] = useState<Point | null>(null);
   const [species, setSpecies] = useState<string>(tournamentSpecies ?? "기타");
@@ -146,24 +148,42 @@ export default function MeasurePage() {
         // 실물 입낚볼과 A4 인쇄물의 주황색 원형 로고는 모두 지름 40mm 기준으로 계산한다.
         setBall(reference);
         setIsMockFish(false);
+        setPhase("MANUAL_HEAD");
       } else {
         setBall(null);
         setIsMockFish(true);
+        setPhase("MANUAL_HEAD"); // 캔버스 표시 유지
+        setShowNoBallPopup(true); // 기준물 미발견 확인 팝업
       }
     } catch {
       // 네트워크·기기 환경에서 감지 엔진을 쓸 수 없어도 사진 기록과 수동 지정은 계속 가능하다.
       setBall(null);
       setIsMockFish(true);
+      setPhase("MANUAL_HEAD");
+      setShowNoBallPopup(true);
     }
-    setPhase("MANUAL_HEAD");
+  }
+
+  function handleNoBallConfirm() {
+    setShowNoBallPopup(false);
+    setProceedWithoutBall(true);
+    // phase는 이미 MANUAL_HEAD — 그대로 진행
+  }
+
+  function handleNoBallCancel() {
+    setShowNoBallPopup(false);
+    reset();
   }
 
   /* ── 측정값 계산 ── */
   useEffect(() => {
     if (!head || !tail) { setResult(null); return; }
     if (!ball) {
-      // 볼 없음 — 길이 계산 불가, 사진 기록은 가능
-      setResult({ lengthCm: null, weightG: null, grade: { label: "사진 기록", color: "#888", grade: "N/A" }, legal: null });
+      // 볼 없음 — 길이 계산 불가. 기준물 없이 진행한 경우 "계측 실패"로 표시
+      const gradeLabel = proceedWithoutBall ? "계측 실패" : "사진 기록";
+      const gradeColor = proceedWithoutBall ? "#ff6b6b" : "#888";
+      const gradeCode  = proceedWithoutBall ? "FAIL"    : "N/A";
+      setResult({ lengthCm: null, weightG: null, grade: { label: gradeLabel, color: gradeColor, grade: gradeCode }, legal: null });
       return;
     }
     const eng = engines();
@@ -172,7 +192,8 @@ export default function MeasurePage() {
     const grade = eng.calc.getConfidenceGrade(ball.confidence, ball.method);
     const legal = eng.calc.checkLegalSize(lengthCm, species);
     setResult({ lengthCm, weightG, grade, legal });
-  }, [ball, head, tail, species]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ball, head, tail, species, proceedWithoutBall]);
 
   /* ── 오버레이 렌더 ── */
   useEffect(() => {
@@ -332,6 +353,8 @@ export default function MeasurePage() {
     setTail(null);
     setResult(null);
     setIsMockFish(false);
+    setShowNoBallPopup(false);
+    setProceedWithoutBall(false);
     workCanvasRef.current = null;
   }
 
@@ -609,6 +632,52 @@ export default function MeasurePage() {
           </div>
         )}
       </div>
+
+      {/* ── 기준물 미발견 팝업 ── */}
+      {showNoBallPopup && createPortal(
+        <div
+          className="fixed inset-0 z-[9000] flex items-end justify-center px-4 pb-12 sm:items-center sm:pb-0"
+          style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(4px)" }}
+        >
+          <div className="w-full max-w-[360px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#1a1a1a] shadow-2xl">
+            <div className="h-[2px] bg-gradient-to-r from-orange-700/30 via-orange-400 to-orange-700/30" />
+            <div className="px-6 pb-7 pt-8 text-center">
+              {/* 아이콘 */}
+              <div className="mx-auto mb-5 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
+                <AlertTriangle size={28} className="text-orange-400" strokeWidth={1.7} />
+              </div>
+              <h2 className="text-[19px] font-extrabold tracking-tight text-white">기준물을 찾지 못했어요</h2>
+              <p className="mx-auto mt-2.5 max-w-[280px] text-[13px] leading-[1.7] text-white/50">
+                입낚볼·인쇄 기준물이 사진에서 인식되지 않아 정확한 길이 측정이 어렵습니다.
+              </p>
+              <div className="mt-3 rounded-2xl bg-orange-500/10 px-3.5 py-2.5 text-[12px] leading-relaxed text-orange-300 ring-1 ring-orange-500/20">
+                기준물 없이 진행하면 측정 기록에<br />
+                <span className="font-bold">사이즈가 계측 실패로 표시</span>됩니다
+              </div>
+              <p className="mt-4 text-[14px] font-semibold text-white/80">
+                기준물 없이 촬영을 진행하시겠습니까?
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleNoBallCancel}
+                  className="rounded-2xl bg-white/[0.06] py-3.5 text-[14px] font-semibold text-white/60 ring-1 ring-white/10 transition-colors hover:bg-white/10 active:scale-[0.98]"
+                >
+                  아니요
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNoBallConfirm}
+                  className="rounded-2xl bg-orange-500 py-3.5 text-[14px] font-bold text-white shadow-lg shadow-orange-500/20 transition-colors hover:bg-orange-600 active:scale-[0.98]"
+                >
+                  예, 계속할게요
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* ── 첫 방문 튜토리얼 오버레이 ── */}
       {tutorialOpen && (
