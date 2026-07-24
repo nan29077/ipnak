@@ -292,10 +292,10 @@ export default function MeasurePage() {
     setPhase("RESULT");
   }
 
-  /* ── 실시간 스캐너 "직접 측정": 스캐너 종료 → 갤러리/수동 모드 전환 ── */
-  function handleLiveScanManual() {
+  /* ── 실시간 스캐너 "직접 측정"/권한 거부: 스캐너 종료 → 수동 점찍기 모드로 전환 ── */
+  function handleLiveScanSwitchToManual() {
     setLiveScanOpen(false);
-    galleryInputRef.current?.click();
+    startManual();
   }
 
   async function analyze(_work: HTMLCanvasElement) {
@@ -937,7 +937,7 @@ export default function MeasurePage() {
       {liveScanOpen && (
         <LiveScanCamera
           onConfirm={handleLiveScanConfirm}
-          onManual={handleLiveScanManual}
+          onSwitchToManual={handleLiveScanSwitchToManual}
           onClose={() => setLiveScanOpen(false)}
         />
       )}

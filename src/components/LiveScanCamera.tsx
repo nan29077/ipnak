@@ -6,13 +6,14 @@
  * - 감지 성공(입낚볼 + 머리/꼬리 + pose=flat + 신뢰도 충분) 시:
  *     캔버스 오버레이(입낚볼 원 + 머리/꼬리 점 + 연결선) + 길이 미리보기 + "측정하기" 활성화
  * - "측정하기": 마지막 성공 프레임 + 감지 좌표를 부모로 넘겨 기존 결과 파이프라인 재사용
- * - "직접 측정": 스트림 종료 → 갤러리/수동 모드로 전환
- * - 어떤 에러도 수동 모드로 폴백 가능하도록 설계 (권한 거부 시 '갤러리에서 선택' 대안 제공)
+ * - "직접 측정": 스트림 종료 → 부모의 수동 점찍기 모드로 전환 (onSwitchToManual)
+ * - 권한 거부 등 어떤 에러도 수동 모드로 폴백 가능하도록 설계
+ * - 세로/가로 방향 모두 풀스크린. 가로 모드는 우측 세로 사이드바로 UI 재배치
  *
- * ⚠️ 오버레이 정렬을 위해 video / overlay 모두 object-contain 사용 (letterbox 동일 → 좌표 일치)
+ * ⚠️ 오버레이 정렬을 위해 video / overlay 모두 object-cover 사용 (동일 크롭 → 좌표 일치)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, Camera, Loader2, RefreshCw, ScanLine, Images, Check, Ruler } from "lucide-react";
+import { X, Camera, Loader2, RefreshCw, ScanLine, RotateCw, Check, Ruler } from "lucide-react";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 
 type Point = { x: number; y: number };
@@ -38,7 +39,7 @@ export type LiveScanResult = {
 
 type Props = {
   onConfirm: (result: LiveScanResult) => void; // "측정하기" — 결과 화면으로
-  onManual: () => void;                         // "직접 측정" — 갤러리/수동 모드
+  onSwitchToManual: () => void;                 // "직접 측정" / 권한 거부 — 수동 점찍기 모드로 전환
   onClose: () => void;                          // X — 닫기
 };
 
@@ -57,7 +58,7 @@ type Detection = {
   lengthCm: number | null;
 };
 
-export function LiveScanCamera({ onConfirm, onManual, onClose }: Props) {
+export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -77,6 +78,10 @@ export function LiveScanCamera({ onConfirm, onManual, onClose }: Props) {
   const [scanning, setScanning] = useState(false);
   // 브라우저 권한 요청 전 커스텀 안내 팝업 (LiveMeasureCamera 와 동일 UX)
   const [consented, setConsented] = useState(false);
+  // 가로/세로 방향 + '가로로 촬영하기' 안내 토스트
+  const [isLandscape, setIsLandscape] = useState(false);
+  const [showRotateHint, setShowRotateHint] = useState(false);
+  const rotateHintRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── 스트림/폴링 정리 (재사용) ── */
   const cleanupStream = useCallback(() => {
@@ -101,6 +106,19 @@ export function LiveScanCamera({ onConfirm, onManual, onClose }: Props) {
     } else {
       setConsented(true);
     }
+  }, []);
+
+  /* ── 화면 방향 감지 (가로/세로 레이아웃 전환) ── */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const check = () => setIsLandscape(window.innerWidth > window.innerHeight);
+    check();
+    window.addEventListener("resize", check);
+    window.addEventListener("orientationchange", check);
+    return () => {
+      window.removeEventListener("resize", check);
+      window.removeEventListener("orientationchange", check);
+    };
   }, []);
 
   /* ── 카메라 시작 (LiveMeasureCamera 검증 로직 기반, iOS Safari 대응) ── */
@@ -247,6 +265,7 @@ export function LiveScanCamera({ onConfirm, onManual, onClose }: Props) {
     return () => {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       if (firstScanRef.current) { clearTimeout(firstScanRef.current); firstScanRef.current = null; }
+      if (rotateHintRef.current) { clearTimeout(rotateHintRef.current); rotateHintRef.current = null; }
       abortRef.current?.abort();
     };
   }, []);
@@ -421,146 +440,195 @@ export function LiveScanCamera({ onConfirm, onManual, onClose }: Props) {
     onConfirm(result);
   }, [cleanupStream, onConfirm, onClose]);
 
-  /* ── "직접 측정": 스트림 종료 후 갤러리/수동 모드로 ── */
-  const goManual = useCallback(() => {
+  /* ── "직접 측정" / 권한 거부: 스트림 종료 후 부모의 수동 점찍기 모드로 ── */
+  const switchToManual = useCallback(() => {
     cleanupStream();
-    onManual();
-  }, [cleanupStream, onManual]);
+    onSwitchToManual();
+  }, [cleanupStream, onSwitchToManual]);
+
+  /* ── "가로로 촬영하기": 화면 회전 유도 안내 (2초 후 자동 사라짐) ── */
+  const triggerRotateHint = useCallback(() => {
+    setShowRotateHint(true);
+    if (rotateHintRef.current) clearTimeout(rotateHintRef.current);
+    rotateHintRef.current = setTimeout(() => setShowRotateHint(false), 2000);
+  }, []);
 
   const canConfirm = !!det;
 
+  /* ── 안내 텍스트 (세로/가로 공용) ── */
+  const guidance = canConfirm ? (
+    <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-green-400">
+      <Check size={15} strokeWidth={2.5} />
+      인식 완료 — '측정하기'를 눌러 확정하세요
+    </p>
+  ) : (
+    <div className="flex flex-col items-center gap-1 text-center">
+      <p className="flex items-center gap-1.5 text-[13px] font-semibold text-white/90">
+        {scanning && <Loader2 size={13} className="animate-spin text-orange-400" />}
+        물고기를 바닥에 옆으로 눕혀주세요
+      </p>
+      <p className="text-[11px] text-white/55">입낚볼과 물고기가 함께 보이도록 맞춰주세요</p>
+    </div>
+  );
+
+  /* ── 측정하기 버튼 (세로/가로 공용) ── */
+  const measureButton = (
+    <button
+      type="button"
+      onClick={confirm}
+      disabled={!canConfirm}
+      className={
+        "flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-bold transition-all active:scale-[0.98] " +
+        (canConfirm
+          ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30 hover:bg-orange-600"
+          : "bg-white/10 text-white/35")
+      }
+    >
+      <ScanLine size={18} strokeWidth={2} />
+      측정하기
+    </button>
+  );
+
+  /* ── 직접 측정 버튼 (세로/가로 공용) ── */
+  const manualButton = (
+    <button
+      type="button"
+      onClick={switchToManual}
+      className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-[13px] font-semibold text-white/70 transition-colors hover:text-white/95"
+    >
+      <Ruler size={15} strokeWidth={1.9} />
+      직접 측정
+    </button>
+  );
+
   return (
-    <div className="fixed inset-0 z-[400] flex flex-col bg-black">
-      {/* 상단 바 */}
-      <div className="pt-safe flex items-center justify-between px-4 py-3">
+    <div className="fixed inset-0 z-[400] overflow-hidden bg-black">
+      {/* ── 카메라 프리뷰 + 오버레이 (진짜 풀스크린, object-cover) ── */}
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        autoPlay
+        style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0 }}
+      />
+      <canvas
+        ref={overlayRef}
+        style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
+      />
+
+      {/* ── 상단 바 (가로 모드에서 축소) ── */}
+      <div
+        className={
+          "pt-safe absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent " +
+          (isLandscape ? "px-3 py-1.5" : "px-4 py-3")
+        }
+      >
         <div className="flex items-center gap-2">
-          <ScanLine size={17} strokeWidth={1.9} className="text-orange-400" />
-          <span className="text-[14px] font-bold text-white">AI 실시간 스캐너</span>
-          <span className="animate-pulse rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold text-orange-400 ring-1 ring-orange-500/30">
-            입낚 AI 측정 중
-          </span>
+          <ScanLine size={isLandscape ? 15 : 17} strokeWidth={1.9} className="text-orange-400" />
+          <span className={"font-bold text-white " + (isLandscape ? "text-[12px]" : "text-[14px]")}>AI 실시간 스캐너</span>
+          {!isLandscape && (
+            <span className="animate-pulse rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold text-orange-400 ring-1 ring-orange-500/30">
+              입낚 AI 측정 중
+            </span>
+          )}
         </div>
         <button
           onClick={onClose}
           aria-label="닫기"
-          className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+          className={"rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 " + (isLandscape ? "p-1.5" : "p-2")}
         >
-          <X size={19} />
+          <X size={isLandscape ? 17 : 19} />
         </button>
       </div>
 
-      {/* 카메라 프리뷰 + 오버레이 */}
-      <div className="relative min-h-0 flex-1">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          autoPlay
-          className="absolute inset-0 h-full w-full object-contain"
-        />
-        <canvas
-          ref={overlayRef}
-          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-        />
+      {/* 감지 시 상단 배지 */}
+      {canConfirm && (
+        <div className="pointer-events-none absolute left-1/2 top-14 z-20 -translate-x-1/2">
+          <span className="flex items-center gap-1.5 rounded-full bg-green-500/90 px-3 py-1.5 text-[12px] font-bold text-white shadow-lg">
+            <Check size={14} strokeWidth={2.6} />
+            물고기 인식됨
+            {det?.lengthCm != null && <span className="ml-0.5">· 약 {det.lengthCm}cm</span>}
+          </span>
+        </div>
+      )}
 
-        {/* 감지 시 상단 배지 */}
-        {canConfirm && (
-          <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2">
-            <span className="flex items-center gap-1.5 rounded-full bg-green-500/90 px-3 py-1.5 text-[12px] font-bold text-white shadow-lg">
-              <Check size={14} strokeWidth={2.6} />
-              물고기 인식됨
-              {det?.lengthCm != null && <span className="ml-0.5">· 약 {det.lengthCm}cm</span>}
-            </span>
+      {camStatus === "loading" && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 text-white/80">
+          <Loader2 size={30} className="animate-spin text-orange-400" />
+          <p className="text-[13px]">카메라 준비 중...</p>
+        </div>
+      )}
+
+      {camStatus === "error" && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-8 text-center">
+          <p className="whitespace-pre-line text-[13px] leading-relaxed text-white/85">{camError}</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              onClick={() => setRetry((n) => n + 1)}
+              className="inline-flex items-center gap-1.5 rounded-[14px] bg-orange-500 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600"
+            >
+              <RefreshCw size={15} /> 재시도
+            </button>
+            <button
+              onClick={switchToManual}
+              className="inline-flex items-center gap-1.5 rounded-[14px] bg-aqua-500 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-aqua-600"
+            >
+              <Ruler size={15} /> 직접 측정
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-[14px] bg-white/10 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20"
+            >
+              닫기
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {camStatus === "loading" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/80">
-            <Loader2 size={30} className="animate-spin text-orange-400" />
-            <p className="text-[13px]">카메라 준비 중...</p>
-          </div>
-        )}
-
-        {camStatus === "error" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
-            <p className="whitespace-pre-line text-[13px] leading-relaxed text-white/85">{camError}</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <button
-                onClick={() => setRetry((n) => n + 1)}
-                className="inline-flex items-center gap-1.5 rounded-[14px] bg-orange-500 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600"
-              >
-                <RefreshCw size={15} /> 재시도
-              </button>
-              <button
-                onClick={goManual}
-                className="inline-flex items-center gap-1.5 rounded-[14px] bg-aqua-500 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-aqua-600"
-              >
-                <Images size={15} /> 갤러리에서 선택
-              </button>
-              <button
-                onClick={onClose}
-                className="rounded-[14px] bg-white/10 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20"
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 하단: 안내 + 버튼 */}
-      {camStatus !== "error" && (
-        <div className="pb-safe px-4 pb-5 pt-3">
-          {/* 상태 안내 */}
-          <div className="mb-3 flex flex-col items-center gap-1 text-center">
-            {canConfirm ? (
-              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-green-400">
-                <Check size={15} strokeWidth={2.5} />
-                인식 완료 — '측정하기'를 눌러 확정하세요
-              </p>
-            ) : (
-              <>
-                <p className="flex items-center gap-1.5 text-[13px] font-semibold text-white/85">
-                  {scanning && <Loader2 size={13} className="animate-spin text-orange-400" />}
-                  물고기를 바닥에 옆으로 눕혀주세요
-                </p>
-                <p className="text-[11px] text-white/40">입낚볼과 물고기가 함께 보이도록 맞춰 주세요</p>
-              </>
-            )}
-          </div>
-
-          {/* 측정하기 */}
+      {/* ── 하단(세로) 컨트롤 ── */}
+      {camStatus !== "error" && !isLandscape && (
+        <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
+          <div className="mb-3">{guidance}</div>
+          {measureButton}
+          {/* 가로로 촬영하기 */}
           <button
             type="button"
-            onClick={confirm}
-            disabled={!canConfirm}
-            className={
-              "flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-bold transition-all active:scale-[0.98] " +
-              (canConfirm
-                ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30 hover:bg-orange-600"
-                : "bg-white/10 text-white/35")
-            }
+            onClick={triggerRotateHint}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-white/10 py-3 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/15"
           >
-            <ScanLine size={18} strokeWidth={2} />
-            측정하기
+            <RotateCw size={15} strokeWidth={2} />
+            가로로 촬영하기
           </button>
+          <div className="mt-2">{manualButton}</div>
+        </div>
+      )}
 
-          {/* 직접 측정 (갤러리/수동) */}
-          <button
-            type="button"
-            onClick={goManual}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-[13px] font-semibold text-white/60 transition-colors hover:text-white/90"
-          >
-            <Ruler size={15} strokeWidth={1.9} />
-            직접 측정 (갤러리/수동)
-          </button>
+      {/* ── 우측(가로) 사이드바 컨트롤 ── */}
+      {camStatus !== "error" && isLandscape && (
+        <div
+          className="pt-safe pb-safe absolute inset-y-0 right-0 z-30 flex w-[248px] max-w-[46vw] flex-col justify-center gap-3 px-4"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div className="mb-1">{guidance}</div>
+          {measureButton}
+          {manualButton}
+        </div>
+      )}
+
+      {/* ── '가로로 촬영하기' 안내 토스트 (2초 후 자동 사라짐) ── */}
+      {showRotateHint && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-8">
+          <div className="flex items-center gap-2 rounded-2xl bg-black/80 px-5 py-3 text-[14px] font-semibold text-white shadow-xl ring-1 ring-white/10">
+            <RotateCw size={18} className="text-orange-400" />
+            기기를 가로로 돌려주세요
+          </div>
         </div>
       )}
 
       {/* ── 권한 사전 안내 오버레이 (컨테이너 내부 절대위치 — iOS portal 터치 버그 회피) ── */}
       {!consented && (
         <div
-          className="absolute inset-0 z-20 flex items-end justify-center"
+          className="absolute inset-0 z-50 flex items-end justify-center"
           style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }}
         >
           <div
