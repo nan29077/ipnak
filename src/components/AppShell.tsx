@@ -12,6 +12,7 @@ import { RecordingBanner } from "@/components/RecordingBanner";
 import { FeedWriteFab } from "@/components/FeedWriteFab";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { UserProvider } from "@/lib/userContext";
+import { AppDownloadSheet } from "@/components/AppDownloadSheet";
 
 export type SessionUser = {
   id: string; email: string; nickname: string; role: string; avatarUrl: string | null; points?: number;
@@ -98,6 +99,9 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
 
       {/* 모바일: 하단 네비게이션 */}
       <MobileBottomNav pathname={pathname} nav={MOBILE_NAV} />
+
+      {/* 모바일 진입 시 앱 다운로드 유도 바텀시트 (랜딩 경로는 컴포넌트 내부에서 제외) */}
+      <AppDownloadSheet />
     </div>
     </UserProvider>
   );
