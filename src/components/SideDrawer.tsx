@@ -48,7 +48,7 @@ export function SideDrawer({
   }
 
   const fishing: Item[] = [
-    { href: "/", label: "홈", icon: Home, match: (p) => p === "/" },
+    { href: "/home", label: "홈", icon: Home, match: (p) => p === "/home" },
     { href: "/map", label: "데이터피싱", icon: Map },
     { href: "/measure", label: "물고기기록 (측정)", icon: Ruler },
     { href: "/diary", label: "계측일지", icon: NotebookPen },
