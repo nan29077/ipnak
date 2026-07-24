@@ -220,22 +220,22 @@ export default function LandingPage() {
         <div className="relative z-20 flex flex-shrink-0 items-center justify-center gap-3 flex-row px-8 md:flex-col md:px-0 md:py-8">
           <div
             className="flex-1 transition-all duration-500 h-[1.5px] md:h-auto md:w-[1.5px]"
-            style={{ background: anyActive ? "rgba(249,115,22,0.45)" : "rgba(255,255,255,0.14)" }}
+            style={{ background: anyActive ? "rgba(249,115,22,0.6)" : "rgba(255,255,255,0.38)" }}
           />
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[10px] font-black tracking-widest transition-all duration-500"
             style={{
-              background: anyActive ? "rgba(249,115,22,0.15)" : "rgba(255,255,255,0.07)",
-              border: anyActive ? "1.5px solid rgba(249,115,22,0.5)" : "1.5px solid rgba(255,255,255,0.15)",
-              color: anyActive ? "#fb923c" : "rgba(255,255,255,0.3)",
-              boxShadow: anyActive ? "0 0 16px rgba(249,115,22,0.28)" : "none",
+              background: anyActive ? "rgba(249,115,22,0.18)" : "rgba(255,255,255,0.10)",
+              border: anyActive ? "1.5px solid rgba(249,115,22,0.7)" : "1.5px solid rgba(255,255,255,0.45)",
+              color: anyActive ? "#fb923c" : "rgba(255,255,255,0.7)",
+              boxShadow: anyActive ? "0 0 16px rgba(249,115,22,0.35)" : "none",
             }}
           >
             OR
           </span>
           <div
             className="flex-1 transition-all duration-500 h-[1.5px] md:h-auto md:w-[1.5px]"
-            style={{ background: anyActive ? "rgba(249,115,22,0.45)" : "rgba(255,255,255,0.14)" }}
+            style={{ background: anyActive ? "rgba(249,115,22,0.6)" : "rgba(255,255,255,0.38)" }}
           />
         </div>
 
