@@ -75,7 +75,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
   const [videoHasData, setVideoHasData] = useState(false);
   const [retry, setRetry] = useState(0);
   const [det, setDet] = useState<Detection | null>(null);
-  const [scanning, setScanning] = useState(false);
   // 브라우저 권한 요청 전 커스텀 안내 팝업 (LiveMeasureCamera 와 동일 UX)
   const [consented, setConsented] = useState(false);
   // 가로/세로 방향 + '가로로 촬영하기' 안내 토스트
@@ -335,7 +334,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       const v = videoRef.current;
       if (!v || v.readyState < 2 || !v.videoWidth) return;
       isScanningRef.current = true;
-      setScanning(true);
       try {
         const s = Math.min(1, SCAN_MAX_PX / Math.max(v.videoWidth, v.videoHeight));
         const frame = document.createElement("canvas");
@@ -399,7 +397,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         if (!stopped) { successRef.current = null; setDet(null); }
       } finally {
         isScanningRef.current = false;
-        if (!stopped) setScanning(false);
       }
     };
 
@@ -462,9 +459,8 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       인식 완료 — '측정하기'를 눌러 확정하세요
     </p>
   ) : (
-    <div className="flex flex-col items-center gap-1 text-center">
-      <p className="flex items-center gap-1.5 text-[13px] font-semibold text-white/90">
-        {scanning && <Loader2 size={13} className="animate-spin text-orange-400" />}
+    <div className="flex flex-col items-center gap-1 text-center" style={{ animation: "slowBlink 3s ease-in-out infinite" }}>
+      <p className="text-[13px] font-semibold text-white/90">
         물고기를 바닥에 옆으로 눕혀주세요
       </p>
       <p className="text-[11px] text-white/55">입낚볼과 물고기가 함께 보이도록 맞춰주세요</p>
@@ -503,6 +499,9 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
 
   return (
     <div className="fixed inset-0 z-[400] overflow-hidden bg-black">
+      {/* 안내 텍스트 느린 깜빡임 keyframe */}
+      <style>{`@keyframes slowBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+
       {/* ── 카메라 프리뷰 + 오버레이 (진짜 풀스크린, object-cover) ── */}
       <video
         ref={videoRef}
@@ -603,15 +602,26 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         </div>
       )}
 
-      {/* ── 우측(가로) 사이드바 컨트롤 ── */}
+      {/* ── 하단(가로) 컨트롤 — 버튼을 한 줄로 나란히 배치해 세로 공간 절약 ── */}
       {camStatus !== "error" && isLandscape && (
         <div
-          className="pt-safe pb-safe absolute inset-y-0 right-0 z-30 flex w-[248px] max-w-[46vw] flex-col justify-center gap-3 px-4"
-          style={{ background: "rgba(0,0,0,0.6)" }}
+          className="pb-safe absolute inset-x-0 bottom-0 left-0 right-0 z-30 px-4 pb-3 pt-2.5"
+          style={{ background: "rgba(0,0,0,0.65)" }}
         >
-          <div className="mb-1">{guidance}</div>
-          {measureButton}
-          {manualButton}
+          <div className="mb-2">{guidance}</div>
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">{measureButton}</div>
+            {/* 세로로 촬영하기 */}
+            <button
+              type="button"
+              onClick={triggerRotateHint}
+              className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-white/10 px-4 py-3 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/15"
+            >
+              <RotateCw size={15} strokeWidth={2} />
+              세로로 촬영하기
+            </button>
+            <div className="min-w-0 max-w-[130px] flex-1">{manualButton}</div>
+          </div>
         </div>
       )}
 
@@ -620,7 +630,7 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-8">
           <div className="flex items-center gap-2 rounded-2xl bg-black/80 px-5 py-3 text-[14px] font-semibold text-white shadow-xl ring-1 ring-white/10">
             <RotateCw size={18} className="text-orange-400" />
-            기기를 가로로 돌려주세요
+            {isLandscape ? "기기를 세로로 돌려주세요" : "기기를 가로로 돌려주세요"}
           </div>
         </div>
       )}

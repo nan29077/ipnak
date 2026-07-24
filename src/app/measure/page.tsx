@@ -292,10 +292,15 @@ export default function MeasurePage() {
     setPhase("RESULT");
   }
 
-  /* ── 실시간 스캐너 "직접 측정"/권한 거부: 스캐너 종료 → 수동 점찍기 모드로 전환 ── */
+  /* ── 실시간 스캐너 "직접 측정"/권한 거부: 스캐너 종료 → 갤러리 선택 → CHOICE → 수동 점찍기 ──
+     스캐너 상태에는 이미지가 없어 startManual()이 IDLE로 빠지므로,
+     갤러리에서 사진을 고르게 한 뒤 handleFile → CHOICE 흐름을 태운다. ── */
   function handleLiveScanSwitchToManual() {
     setLiveScanOpen(false);
-    startManual();
+    // 스캐너 unmount 완료 후 갤러리 열기
+    setTimeout(() => {
+      galleryInputRef.current?.click();
+    }, 150);
   }
 
   async function analyze(_work: HTMLCanvasElement) {
