@@ -26,10 +26,23 @@ import { BallLinkSection } from "@/components/BallLinkSection";
 import { useRecording } from "@/components/RecordingProvider";
 import { DiarySheet } from "@/components/DiarySheet";
 
-type Phase = "IDLE" | "ANALYZING" | "ERROR" | "MANUAL_HEAD" | "MANUAL_TAIL" | "RESULT" | "SAVING" | "SAVED";
+type Phase =
+  | "IDLE"
+  | "ANALYZING"
+  | "CHOICE"       // 사진 로드 후: 자동 스캔 / 수동 점찍기 선택
+  | "SCANNING"     // AI 자동 스캔 진행 중
+  | "SCAN_FAILED"  // 자동 스캔 실패 → 잠시 안내 후 수동 전환
+  | "ERROR"
+  | "MANUAL_HEAD"
+  | "MANUAL_TAIL"
+  | "RESULT"
+  | "SAVING"
+  | "SAVED";
 type Point = { x: number; y: number };
 
 const MAX_WORK_PX = 1280;
+const SCAN_TIMEOUT_MS = 12000; // 자동 스캔 하드 타임아웃 — 무한 로딩 방지
+const SCAN_MIN_CONFIDENCE = 0.7; // 이 미만이면 실패 처리
 
 export default function MeasurePage() {
   const toast = useToast();
@@ -47,6 +60,7 @@ export default function MeasurePage() {
 
   const [phase, setPhase] = useState<Phase>("IDLE");
   const [loadingMsg, setLoadingMsg] = useState("");
+  const [scanFailMsg, setScanFailMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [ball, setBall] = useState<any>(null);
   const [isMockFish, setIsMockFish] = useState(false);
@@ -78,6 +92,8 @@ export default function MeasurePage() {
   const cameraInputRef = useRef<HTMLInputElement>(null); // 네이티브 카메라 앱
   const workCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const enginesRef = useRef<{ ball: any; fish: any; calc: any; overlay: any } | null>(null);
+  const scanAbortRef = useRef<AbortController | null>(null); // 자동 스캔 fetch 취소용
+  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function engines() {
     if (!enginesRef.current) {
@@ -96,11 +112,13 @@ export default function MeasurePage() {
     if (!loggedIn) { setLoginModal(true); return; }
     if (!file) return;
     setErrorMsg(null);
+    setScanFailMsg(null);
     setBall(null);
     setHead(null);
     setTail(null);
     setResult(null);
     setIsMockFish(false);
+    setProceedWithoutBall(false);
     setPhase("ANALYZING");
     setLoadingMsg("사진 준비 중...");
 
@@ -122,11 +140,115 @@ export default function MeasurePage() {
       URL.revokeObjectURL(url);
       setHasImage(true);
 
-      await analyze(work);
+      // 사진 로드 완료 → 측정 방식 선택 화면
+      setPhase("CHOICE");
     } catch (e: any) {
       setErrorMsg(e?.message || "사진을 불러오지 못했어요.");
       setPhase(hasImage ? "ERROR" : "IDLE");
     }
+  }
+
+  /* ── 자동 스캔: AI로 입낚볼·물고기 머리/꼬리 인식 (12초 하드 타임아웃) ── */
+  async function autoScan() {
+    const work = workCanvasRef.current;
+    if (!work) { startManual(); return; }
+
+    // 이전 스캔 정리
+    scanAbortRef.current?.abort();
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+
+    setScanFailMsg(null);
+    setBall(null);
+    setHead(null);
+    setTail(null);
+    setResult(null);
+    setIsMockFish(false);
+    setPhase("SCANNING");
+    setLoadingMsg("물고기와 입낚볼을 인식 중이에요...");
+
+    const controller = new AbortController();
+    scanAbortRef.current = controller;
+    // 12초 하드 타임아웃 — fetch도 함께 중단
+    scanTimerRef.current = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
+
+    try {
+      const dataUrl = work.toDataURL("image/jpeg", 0.82);
+      const res = await fetch("/api/measure/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: dataUrl, width: work.width, height: work.height }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error("ai-error");
+      const data = await res.json();
+
+      // 실패 조건: 입낚볼/물고기 미감지, 자세 flat 아님, 신뢰도 부족, 응답 이상
+      if (
+        !data?.ok ||
+        !data.ball || !data.head || !data.tail ||
+        data.pose !== "flat" ||
+        typeof data.confidence !== "number" ||
+        data.confidence < SCAN_MIN_CONFIDENCE
+      ) {
+        throw new Error("scan-unreliable");
+      }
+
+      // 정규화 좌표(0~1) → 작업 캔버스 픽셀 좌표
+      const diameterPx = 2 * data.ball.r * work.width;
+      if (!(diameterPx > 0)) throw new Error("scan-unreliable");
+
+      const ballObj = {
+        found: true,
+        centerX: data.ball.x * work.width,
+        centerY: data.ball.y * work.height,
+        diameterPx,
+        mmPerPixel: 40 / diameterPx, // 입낚볼 실지름 40mm
+        confidence: data.confidence,
+        method: "ai-scan",
+      };
+      const headP: Point = { x: data.head.x * work.width, y: data.head.y * work.height };
+      const tailP: Point = { x: data.tail.x * work.width, y: data.tail.y * work.height };
+
+      setBall(ballObj);
+      setIsMockFish(false);
+      setHead(headP);
+      setTail(tailP);
+      setPhase("RESULT"); // 길이 계산은 result useEffect가 처리
+    } catch {
+      // 어떤 실패든 수동 모드로 폴백
+      scanFailToManual();
+    } finally {
+      if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null; }
+      scanAbortRef.current = null;
+    }
+  }
+
+  /* ── 자동 스캔 실패 → 안내 후 2초 뒤 수동 모드 ── */
+  function scanFailToManual() {
+    setScanFailMsg("자동 측정이 어려운 사진이에요. 머리 끝과 꼬리 끝을 직접 연결해 주세요.");
+    setPhase("SCAN_FAILED");
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+    scanTimerRef.current = setTimeout(() => {
+      setScanFailMsg(null);
+      startManual();
+    }, 2000);
+  }
+
+  /* ── 수동 모드 시작: 기존 방식(입낚볼 감지 → 머리/꼬리 탭) 그대로 ── */
+  function startManual() {
+    const work = workCanvasRef.current;
+    if (!work) { setPhase("IDLE"); return; }
+    setScanFailMsg(null);
+    setPhase("ANALYZING");
+    setLoadingMsg("40mm 입낚볼·인쇄 로고 기준물을 찾는 중...");
+    // analyze는 동기에 가깝지만 방어적으로 await
+    analyze(work).catch(() => {
+      // 기준물 감지 실패해도 수동 진행 가능하도록 폴백
+      setBall(null);
+      setIsMockFish(true);
+      setPhase("MANUAL_HEAD");
+      setShowNoBallPopup(true);
+    });
   }
 
   /* ── (미사용) 실시간 카메라 촬영본 핸들러 — 네이티브 카메라로 대체 ── */
@@ -357,9 +479,14 @@ export default function MeasurePage() {
   }
 
   function reset() {
+    // 진행 중인 자동 스캔 중단 (네트워크 요청 + 타이머)
+    scanAbortRef.current?.abort();
+    scanAbortRef.current = null;
+    if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null; }
     setPhase("IDLE");
     setHasImage(false);
     setErrorMsg(null);
+    setScanFailMsg(null);
     setBall(null);
     setHead(null);
     setTail(null);
@@ -369,6 +496,12 @@ export default function MeasurePage() {
     setProceedWithoutBall(false);
     workCanvasRef.current = null;
   }
+
+  // 언마운트 시 진행 중인 스캔 정리
+  useEffect(() => () => {
+    scanAbortRef.current?.abort();
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+  }, []);
 
   /* ── 재촬영: 네이티브 카메라 재시작 ── */
   const retake = useCallback(() => {
@@ -401,7 +534,7 @@ export default function MeasurePage() {
   const [diaryOpen, setDiaryOpen] = useState(false);
 
   const showCanvas = hasImage && phase !== "IDLE";
-  const busy = phase === "ANALYZING" || phase === "SAVING";
+  const busy = phase === "ANALYZING" || phase === "SCANNING" || phase === "SAVING";
 
   return (
     <div className={showCanvas ? "pb-2" : "pb-10"}>
@@ -494,6 +627,56 @@ export default function MeasurePage() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── 측정 방식 선택 (자동 스캔 / 수동 점찍기) ── */}
+        {phase === "CHOICE" && (
+          <div className="space-y-2.5">
+            <div className="flex items-start gap-2 rounded-2xl border border-navy-100 bg-surface-200 px-3 py-2.5">
+              <Fish size={15} strokeWidth={1.9} className="mt-0.5 shrink-0 text-aqua-400" />
+              <p className="text-[12px] leading-relaxed text-navy-500">
+                물고기를 바닥에 옆으로 눕혀 입낚볼과 함께 찍으면 자동 측정이 가능해요.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={autoScan}
+              className="flex w-full items-center gap-3 rounded-2xl border-2 border-orange-500/50 bg-orange-500/5 px-4 py-3.5 text-left transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15 text-orange-500">
+                <ScanLine size={20} strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-bold text-navy-900">자동 스캔으로 측정</span>
+                <span className="block text-[11px] text-navy-400">물고기가 옆으로 눕혀진 사진에 추천</span>
+              </span>
+              <ChevronRight size={18} className="ml-auto shrink-0 text-navy-300" />
+            </button>
+
+            <button
+              type="button"
+              onClick={startManual}
+              className="flex w-full items-center gap-3 rounded-2xl border-2 border-navy-200 bg-surface-200 px-4 py-3.5 text-left transition-colors hover:border-aqua-400 active:scale-[0.98]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-aqua-500/15 text-aqua-400">
+                <Ruler size={20} strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-bold text-navy-900">직접 점 찍어 측정</span>
+                <span className="block text-[11px] text-navy-400">머리·꼬리 끝을 직접 탭해서 측정</span>
+              </span>
+              <ChevronRight size={18} className="ml-auto shrink-0 text-navy-300" />
+            </button>
+          </div>
+        )}
+
+        {/* ── 자동 스캔 실패 안내 (2초 후 자동으로 수동 전환) ── */}
+        {phase === "SCAN_FAILED" && scanFailMsg && (
+          <div className="flex items-center gap-2 rounded-2xl border border-orange-500/30 bg-orange-500/10 px-3 py-2.5">
+            <AlertTriangle size={16} strokeWidth={1.9} className="shrink-0 text-orange-400" />
+            <p className="text-[13px] font-medium text-orange-300">{scanFailMsg}</p>
           </div>
         )}
 
