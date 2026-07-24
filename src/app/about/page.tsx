@@ -7,7 +7,7 @@ import {
   Fish, Ruler, CircleDot, Route,
 } from "lucide-react";
 
-/* ── 배경 이미지 3장 (각 1번씩만 등장) ── */
+/* ── PC 배경 이미지 3장 (각 1번씩 등장) ── */
 // A: 호수 보트 일출  B: 바다 보트 선셋  C: 배스 점프 선셋
 const IMG_A = "/낚시%20배경%20사진/배경%20이미지A.png";
 const IMG_B = "/낚시%20배경%20사진/배경%20이미지B.png";
@@ -16,6 +16,14 @@ const IMG_C = "/낚시%20배경%20사진/배경%20이미지C.png";
 // 8섹션 ÷ 3이미지 = 2.667 → A:섹션0~2, B:섹션3~5, C:섹션6~7
 // FeatureSection의 bgIdx = Math.floor((featIdx + 1) * 3 / 8)
 // feat0=0, feat1=0, feat2=1, feat3=1, feat4=1, feat5=2
+
+/* ── 모바일 배경 이미지 2장 (각 1번씩 등장) ── */
+const MOBILE_IMG_3 = "/낚시%20배경%20사진/모바일%20배경이미지3.png";
+const MOBILE_IMG_4 = "/낚시%20배경%20사진/모바일%20배경이미지4.png";
+
+// 8섹션 ÷ 2이미지 = 4 → 3: 섹션0~3, 4: 섹션4~7
+// FeatureSection의 mobileBgIdx = Math.floor((featIdx + 1) / 4)
+// feat0,1,2=0, feat3,4,5=1
 
 /* ── 기능 소개 데이터 ── */
 const FEATURES = [
@@ -76,46 +84,79 @@ const FEATURES = [
 ];
 
 /**
- * 뷰포트 고정 배경 관리자 — IntersectionObserver로 현재 섹션 감지 후
- * 해당 배경(A/B/C)을 opacity 전환으로 부드럽게 크로스페이드
+ * 뷰포트 고정 배경 관리자
+ * - PC(≥768px): A/B/C 3장, data-bg-idx 기반 크로스페이드
+ * - 모바일(<768px): 3/4 2장, data-mobile-bg-idx 기반 크로스페이드
  */
 function FixedBgManager() {
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [activePcIdx, setActivePcIdx] = useState(0);
+  const [activeMobileIdx, setActiveMobileIdx] = useState(0);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // 가장 많이 보이는 섹션의 bgIdx로 전환
-        let best: IntersectionObserverEntry | null = null;
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            if (!best || entry.intersectionRatio > best.intersectionRatio) {
-              best = entry;
-            }
+    const pickBest = (
+      entries: IntersectionObserverEntry[],
+      setter: (idx: number) => void,
+      attr: string
+    ) => {
+      let best: IntersectionObserverEntry | null = null;
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          if (!best || entry.intersectionRatio > best.intersectionRatio) {
+            best = entry;
           }
-        });
-        if (best) {
-          setActiveIdx(Number((best.target as HTMLElement).dataset.bgIdx ?? 0));
         }
-      },
-      { threshold: [0.1, 0.3, 0.5, 0.7] }
+      });
+      if (best) {
+        setter(Number((best.target as HTMLElement).dataset[attr] ?? 0));
+      }
+    };
+
+    const opts = { threshold: [0.1, 0.3, 0.5, 0.7] };
+
+    const pcObserver = new IntersectionObserver(
+      (entries) => pickBest(entries, setActivePcIdx, "bgIdx"),
+      opts
+    );
+    const mobileObserver = new IntersectionObserver(
+      (entries) => pickBest(entries, setActiveMobileIdx, "mobileBgIdx"),
+      opts
     );
 
-    document.querySelectorAll("[data-bg-idx]").forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    document.querySelectorAll("[data-bg-idx]").forEach((el) => pcObserver.observe(el));
+    document.querySelectorAll("[data-mobile-bg-idx]").forEach((el) => mobileObserver.observe(el));
+
+    return () => {
+      pcObserver.disconnect();
+      mobileObserver.disconnect();
+    };
   }, []);
 
   return (
     <div className="pointer-events-none fixed inset-0" style={{ zIndex: 1 }}>
+      {/* PC 배경 3장 — 모바일에서는 CSS로 숨김 */}
       {[IMG_A, IMG_B, IMG_C].map((src, i) => (
         <div
-          key={i}
-          className="absolute inset-0"
+          key={`pc-${i}`}
+          className="absolute inset-0 hidden md:block"
           style={{
             backgroundImage: `url('${src}')`,
             backgroundSize: "cover",
             backgroundPosition: "center",
-            opacity: activeIdx === i ? 1 : 0,
+            opacity: activePcIdx === i ? 1 : 0,
+            transition: "opacity 0.9s ease",
+          }}
+        />
+      ))}
+      {/* 모바일 배경 2장 — PC에서는 CSS로 숨김 */}
+      {[MOBILE_IMG_3, MOBILE_IMG_4].map((src, i) => (
+        <div
+          key={`mobile-${i}`}
+          className="absolute inset-0 block md:hidden"
+          style={{
+            backgroundImage: `url('${src}')`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            opacity: activeMobileIdx === i ? 1 : 0,
             transition: "opacity 0.9s ease",
           }}
         />
@@ -126,13 +167,16 @@ function FixedBgManager() {
 
 function FeatureSection({ feat, idx }: { feat: (typeof FEATURES)[0]; idx: number }) {
   const Icon = feat.icon;
-  // 8섹션(히어로=0, feat0~5=1~6, 앱다운=7) 기준 bgIdx 계산
+  // PC: 8섹션 ÷ 3이미지
   const bgIdx = Math.floor(((idx + 1) * 3) / 8);
+  // 모바일: 8섹션 ÷ 2이미지 (feat0~2=0, feat3~5=1)
+  const mobileBgIdx = Math.floor((idx + 1) / 4);
 
   return (
     <section
       className="relative flex min-h-screen items-center justify-center px-6 py-24"
       data-bg-idx={bgIdx}
+      data-mobile-bg-idx={mobileBgIdx}
       style={{ zIndex: 2 }}
     >
       {/* 배경 오버레이 */}
@@ -252,6 +296,7 @@ export default function AboutPage() {
       <section
         className="relative flex min-h-screen flex-col items-center justify-center gap-8 px-6 py-24"
         data-bg-idx={0}
+        data-mobile-bg-idx={0}
         style={{ zIndex: 2 }}
       >
         <div className="absolute inset-0 bg-black/65" />
@@ -324,6 +369,7 @@ export default function AboutPage() {
       <section
         className="relative flex min-h-screen flex-col items-center justify-center gap-10 px-6 py-24"
         data-bg-idx={2}
+        data-mobile-bg-idx={1}
         style={{ zIndex: 2 }}
       >
         <div className="absolute inset-0 bg-black/72" />
