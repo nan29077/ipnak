@@ -28,7 +28,7 @@ export default function LandingPage() {
     }
   }, [router]);
 
-  /** 터치 시 리플 생성 + touched 상태 짧게 활성 */
+  /** 터치 시 리플 생성 + touched 상태 활성 (손가락 뗄 때까지 유지) */
   const handleTouch = (e: React.TouchEvent, target: "top" | "bottom") => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const touch = e.touches[0];
@@ -44,7 +44,7 @@ export default function LandingPage() {
       setBottomRipples(r => [...r, ripple]);
       setTimeout(() => setBottomRipples(r => r.filter(rip => rip.id !== id)), 800);
     }
-    setTimeout(() => setTouched(null), 350);
+    // touched 상태는 onTouchEnd / onTouchCancel 에서 해제
   };
 
   const isTopActive = hovered === "left" || touched === "top";
@@ -68,6 +68,20 @@ export default function LandingPage() {
           animation: ipnakRipple 0.8s ease-out forwards;
           pointer-events: none;
           z-index: 30;
+        }
+        @keyframes ipnakActivePulse {
+          0%, 100% { opacity: 0.7; }
+          50%      { opacity: 1;   }
+        }
+        @keyframes ipnakBorderPulse {
+          0%, 100% { opacity: 0.6; }
+          50%      { opacity: 1;   }
+        }
+        .ipnak-active-glow {
+          animation: ipnakActivePulse 1.6s ease-in-out infinite;
+        }
+        .ipnak-active-border {
+          animation: ipnakBorderPulse 1.6s ease-in-out infinite;
         }
       `}</style>
 
@@ -109,13 +123,15 @@ export default function LandingPage() {
           onMouseLeave={() => setHovered(null)}
           onClick={goAbout}
           onTouchStart={(e) => handleTouch(e, "top")}
+          onTouchEnd={() => setTouched(null)}
+          onTouchCancel={() => setTouched(null)}
         >
           {/* 터치·호버 공통 주황 글로우 오버레이 */}
           <div
-            className="absolute inset-0 transition-all duration-500"
+            className={`absolute inset-0 transition-all duration-500${isTopActive ? " ipnak-active-glow" : ""}`}
             style={{
               background: isTopActive
-                ? "radial-gradient(ellipse at center, rgba(249,115,22,0.13) 0%, transparent 70%)"
+                ? "radial-gradient(ellipse at center, rgba(249,115,22,0.18) 0%, transparent 70%)"
                 : "transparent",
             }}
           />
@@ -132,12 +148,12 @@ export default function LandingPage() {
 
           {/* 활성 글로우 테두리 — 모바일:하단선, PC:오른쪽선 */}
           <div
-            className="absolute transition-all duration-500
+            className={`absolute transition-all duration-500
               bottom-0 left-0 right-0 h-[2px]
-              md:bottom-auto md:right-0 md:top-0 md:h-full md:w-[2px] md:left-auto"
+              md:bottom-auto md:right-0 md:top-0 md:h-full md:w-[2px] md:left-auto${isTopActive ? " ipnak-active-border" : ""}`}
             style={{
               background: isTopActive
-                ? "linear-gradient(to right, transparent, rgba(249,115,22,0.75), transparent)"
+                ? "linear-gradient(to right, transparent, rgba(249,115,22,0.85), transparent)"
                 : "transparent",
             }}
           />
@@ -236,13 +252,15 @@ export default function LandingPage() {
           onMouseLeave={() => setHovered(null)}
           onClick={enterApp}
           onTouchStart={(e) => handleTouch(e, "bottom")}
+          onTouchEnd={() => setTouched(null)}
+          onTouchCancel={() => setTouched(null)}
         >
           {/* 터치·호버 공통 주황 글로우 오버레이 */}
           <div
-            className="absolute inset-0 transition-all duration-500"
+            className={`absolute inset-0 transition-all duration-500${isBottomActive ? " ipnak-active-glow" : ""}`}
             style={{
               background: isBottomActive
-                ? "radial-gradient(ellipse at center, rgba(249,115,22,0.13) 0%, transparent 70%)"
+                ? "radial-gradient(ellipse at center, rgba(249,115,22,0.18) 0%, transparent 70%)"
                 : "transparent",
             }}
           />
@@ -259,12 +277,12 @@ export default function LandingPage() {
 
           {/* 활성 글로우 테두리 — 모바일:상단선, PC:왼쪽선 */}
           <div
-            className="absolute transition-all duration-500
+            className={`absolute transition-all duration-500
               top-0 left-0 right-0 h-[2px]
-              md:top-0 md:left-0 md:right-auto md:h-full md:w-[2px]"
+              md:top-0 md:left-0 md:right-auto md:h-full md:w-[2px]${isBottomActive ? " ipnak-active-border" : ""}`}
             style={{
               background: isBottomActive
-                ? "linear-gradient(to right, transparent, rgba(249,115,22,0.75), transparent)"
+                ? "linear-gradient(to right, transparent, rgba(249,115,22,0.85), transparent)"
                 : "transparent",
             }}
           />
