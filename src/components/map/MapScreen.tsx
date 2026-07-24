@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye, LocateFixed, ShieldCheck, Map as MapIcon2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { MapView } from "@/components/map/MapView";
 import { Sheet, Button, Card, Badge } from "@/components/ui";
@@ -22,6 +23,7 @@ const MAP_TUTORIAL_KEY = "ipnak:map:tutorial:done";
 
 export function MapScreen({ userId }: { userId?: string }) {
   const toast = useToast();
+  const router = useRouter();
   const loggedIn = !!userId;
   const [loginModal, setLoginModal] = useState(false);
   // 기록 세션은 전역(RecordingProvider)에서 관리 — 페이지를 벗어나거나 새로고침/재실행해도 유지됨
@@ -498,7 +500,7 @@ export function MapScreen({ userId }: { userId?: string }) {
         {/* 1행 Col2: 내 기록 */}
         <button
           data-tutorial-step="7"
-          onClick={() => setRecordsOpen(true)}
+          onClick={() => { if (!loggedIn) { router.push('/login'); return; } setRecordsOpen(true); }}
           aria-label="내 데이터피싱 기록"
           className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
         >

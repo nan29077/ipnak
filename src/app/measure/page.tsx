@@ -93,6 +93,7 @@ export default function MeasurePage() {
 
   /* ── 촬영/선택 → 작업 캔버스(최대 1280px) 준비 → 분석 ── */
   async function handleFile(file: File | undefined | null) {
+    if (!loggedIn) { setLoginModal(true); return; }
     if (!file) return;
     setErrorMsg(null);
     setBall(null);
