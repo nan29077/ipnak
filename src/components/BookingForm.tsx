@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Minus, Plus } from "lucide-react";
 import { Sheet, Button, Select, Card } from "@/components/ui";
 import { useToast } from "@/components/Toast";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { won, kstFormat } from "@/lib/utils";
 import { addDays } from "date-fns";
 
@@ -14,6 +15,7 @@ export function BookingForm({ listingId, price, maxPeople, slots, loggedIn }: {
   const router = useRouter();
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [loginModal, setLoginModal] = useState(false);
   const [date, setDate] = useState(slots[0]?.date ?? kstFormat(addDays(new Date(), 1), "yyyy-MM-dd"));
   const [people, setPeople] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export function BookingForm({ listingId, price, maxPeople, slots, loggedIn }: {
         <div className="mx-auto flex max-w-[640px] items-center gap-3">
           <div className="md:hidden"><p className="text-[11px] text-navy-400">1인</p><p className="text-base font-extrabold text-navy-800">{won(price)}</p></div>
           <Button size="lg" className="ml-auto flex-1 md:flex-none md:px-8"
-            onClick={() => loggedIn ? setOpen(true) : toast("로그인이 필요합니다", "error")}>
+            onClick={() => loggedIn ? setOpen(true) : setLoginModal(true)}>
             예약하기
           </Button>
         </div>
@@ -82,6 +84,8 @@ export function BookingForm({ listingId, price, maxPeople, slots, loggedIn }: {
           </Button>
         </div>
       </Sheet>
+
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="예약" />
     </>
   );
 }

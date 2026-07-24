@@ -3,17 +3,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trophy, Camera, Images, ScanLine } from "lucide-react";
 import { Sheet, Button } from "@/components/ui";
-import { useToast } from "@/components/Toast";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 
 export function TournamentSubmit({ tournamentId, species, loggedIn }: {
   tournamentId: string; species: string | null; loggedIn: boolean;
 }) {
   const router = useRouter();
-  const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [loginModal, setLoginModal] = useState(false);
 
   function handleOpen() {
-    if (!loggedIn) { toast("로그인이 필요합니다", "error"); return; }
+    if (!loggedIn) { setLoginModal(true); return; }
     setOpen(true);
   }
 
@@ -63,6 +63,8 @@ export function TournamentSubmit({ tournamentId, species, loggedIn }: {
           </p>
         </div>
       </Sheet>
+
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="대회 기록 제출" />
     </>
   );
 }

@@ -62,7 +62,7 @@ export default async function ProfilePage({ params }: { params: { id: string } }
           {isMe ? (
             <a href="/me"><Button variant="outline" full>내 프로필 관리</Button></a>
           ) : (
-            <FollowButton userId={user.id} initial={data.isFollowing} />
+            <FollowButton userId={user.id} initial={data.isFollowing} loggedIn={!!viewer} />
           )}
         </div>
       </div>

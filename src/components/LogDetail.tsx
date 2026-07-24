@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Heart, MessageSquare, Share2, Bookmark, Eye, Send, MapPin, X } from "lucide-react";
 import { useToast } from "@/components/Toast";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { FishingTagCards } from "@/components/FishingTagCards";
 import { logCategoryLabel } from "@/lib/taxonomy";
 import { timeAgo, cn } from "@/lib/utils";
@@ -11,19 +12,26 @@ import { getAvatarUrl } from "@/lib/avatarUtils";
 
 export function LogDetail({ post, currentUserId }: { post: FeedPost; currentUserId?: string }) {
   const toast = useToast();
+  const loggedIn = !!currentUserId;
   const [liked, setLiked] = useState(post.liked);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [saved, setSaved] = useState(post.saved);
+  const [loginModal, setLoginModal] = useState(false);
+  const [loginFeature, setLoginFeature] = useState("이 기능");
+
+  function requireLogin(feature: string) { setLoginFeature(feature); setLoginModal(true); }
 
   async function toggleLike() {
+    if (!loggedIn) { requireLogin("좋아요"); return; }
     setLiked((v) => !v); setLikeCount((c) => c + (liked ? -1 : 1));
     const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
-    if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("로그인이 필요합니다", "error"); }
+    if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
   }
   async function toggleSave() {
+    if (!loggedIn) { requireLogin("저장"); return; }
     setSaved((v) => !v);
     const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
-    if (!res.ok) { setSaved(post.saved); toast("로그인이 필요합니다", "error"); }
+    if (!res.ok) { setSaved(post.saved); toast("저장에 실패했습니다", "error"); }
     else toast(saved ? "저장을 취소했습니다" : "저장했습니다", "success");
   }
   async function share() {
@@ -95,12 +103,14 @@ export function LogDetail({ post, currentUserId }: { post: FeedPost; currentUser
         </button>
       </div>
 
-      <LogComments postId={post.id} count={post.commentCount} currentUserId={currentUserId} />
+      <LogComments postId={post.id} count={post.commentCount} currentUserId={currentUserId} onRequireLogin={() => requireLogin("댓글 작성")} />
+
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature={loginFeature} />
     </article>
   );
 }
 
-function LogComments({ postId, count, currentUserId }: { postId: string; count: number; currentUserId?: string }) {
+function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId: string; count: number; currentUserId?: string; onRequireLogin?: () => void }) {
   const toast = useToast();
   const [comments, setComments] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -116,6 +126,7 @@ function LogComments({ postId, count, currentUserId }: { postId: string; count: 
   if (!loaded) load();
 
   async function post(body: string, parentId?: string) {
+    if (!currentUserId) { onRequireLogin?.(); return false; }
     if (!body.trim()) return false;
     const res = await fetch(`/api/posts/${postId}/comments`, {
       method: "POST", headers: { "Content-Type": "application/json" },
