@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { useUser } from "@/lib/userContext";
 import {
@@ -46,6 +46,7 @@ const SCAN_MIN_CONFIDENCE = 0.7; // 이 미만이면 실패 처리
 
 export default function MeasurePage() {
   const toast = useToast();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { addCatchToRecording, status: recStatus, lastPoint, sessionId } = useRecording();
   const currentUser = useUser();
@@ -169,7 +170,8 @@ export default function MeasurePage() {
     const controller = new AbortController();
     scanAbortRef.current = controller;
     // 12초 하드 타임아웃 — fetch도 함께 중단
-    scanTimerRef.current = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
+    scanTimerRef.current = timeoutId;
 
     try {
       const dataUrl = work.toDataURL("image/jpeg", 0.82);
@@ -218,7 +220,11 @@ export default function MeasurePage() {
       // 어떤 실패든 수동 모드로 폴백
       scanFailToManual();
     } finally {
-      if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null; }
+      // 하드 타임아웃 타이머만 정리한다. 실패 폴백(scanFailToManual)이 catch에서
+      // scanTimerRef에 '2초 후 수동 전환' 타이머를 새로 걸어두므로, 그 타이머까지
+      // null 처리하지 않도록 이 로컬 timeoutId 기준으로만 정리한다.
+      clearTimeout(timeoutId);
+      if (scanTimerRef.current === timeoutId) scanTimerRef.current = null;
       scanAbortRef.current = null;
     }
   }
@@ -542,6 +548,9 @@ export default function MeasurePage() {
       <PageHeader
         title="AI 측정"
         back
+        // 측정 진행 중이면 페이지를 벗어나지 않고 초기 상태(사진 선택 전)로 리셋.
+        // 이미 IDLE(사진 선택 전)이면 그때만 이전 페이지로 나간다.
+        onBack={() => { if (phase !== "IDLE") reset(); else router.back(); }}
         sub="입낚볼 기준 물고기 자동 계측"
         right={
           <button
