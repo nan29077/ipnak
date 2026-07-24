@@ -11,6 +11,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { RecordingBanner } from "@/components/RecordingBanner";
 import { FeedWriteFab } from "@/components/FeedWriteFab";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { UserProvider } from "@/lib/userContext";
 
 export type SessionUser = {
   id: string; email: string; nickname: string; role: string; avatarUrl: string | null; points?: number;
@@ -74,9 +75,10 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
     }
   }, [bare]);
 
-  if (bare) return <>{children}</>;
+  if (bare) return <UserProvider user={user}>{children}</UserProvider>;
 
   return (
+    <UserProvider user={user}>
     <div className="min-h-screen">
       {/* PC 여백 배경: 관리자 설정 이미지(없으면 기본 낚시 풍경) — 데스크톱에서만 */}
       <DesktopPatternBg image={pcMarginBg} />
@@ -97,6 +99,7 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
       {/* 모바일: 하단 네비게이션 */}
       <MobileBottomNav pathname={pathname} nav={MOBILE_NAV} />
     </div>
+    </UserProvider>
   );
 }
 

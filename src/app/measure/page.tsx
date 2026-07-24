@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
+import { useUser } from "@/lib/userContext";
 import {
   Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
   CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, Ruler, ChevronRight,
@@ -33,6 +35,9 @@ export default function MeasurePage() {
   const toast = useToast();
   const searchParams = useSearchParams();
   const { addCatchToRecording, status: recStatus, lastPoint, sessionId } = useRecording();
+  const currentUser = useUser();
+  const loggedIn = !!currentUser;
+  const [loginModal, setLoginModal] = useState(false);
 
   // 대회 참가 모드 — URL ?tournamentId=xxx&species=xxx 로 진입
   const tournamentId = searchParams.get("tournamentId");
@@ -370,9 +375,10 @@ export default function MeasurePage() {
     cameraInputRef.current?.click();
   }, []);
 
-  /* ── AI 카메라 계측 열기: 첫 방문이면 튜토리얼 먼저, 이후엔 네이티브 카메라 직접 ── */
+  /* ── AI 카메라 계측 열기: 비로그인이면 로그인 안내, 첫 방문이면 튜토리얼 먼저 ── */
   const TUTORIAL_KEY = "ipnak_ai_tutorial_done";
   const openCamera = useCallback(() => {
+    if (!loggedIn) { setLoginModal(true); return; }
     try {
       if (!localStorage.getItem(TUTORIAL_KEY)) {
         setTutorialStep(0);
@@ -381,7 +387,7 @@ export default function MeasurePage() {
       }
     } catch { /* noop */ }
     cameraInputRef.current?.click(); // 네이티브 카메라 앱 열기
-  }, []);
+  }, [loggedIn]);
 
   // autoCamera 모드: 페이지 마운트 즉시 카메라 열기 (대회 제출 플로우에서 단계 줄이기)
   useEffect(() => {
@@ -398,6 +404,7 @@ export default function MeasurePage() {
 
   return (
     <div className={showCanvas ? "pb-2" : "pb-10"}>
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="AI 측정 기능" />
       <PageHeader
         title="AI 측정"
         back
@@ -456,7 +463,7 @@ export default function MeasurePage() {
               </button>
               <button
                 type="button"
-                onClick={() => galleryInputRef.current?.click()}
+                onClick={() => { if (!loggedIn) { setLoginModal(true); return; } galleryInputRef.current?.click(); }}
                 className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-6 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
               >
                 <Images size={26} strokeWidth={1.7} />

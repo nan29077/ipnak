@@ -3,15 +3,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { PenLine, Camera, BookOpen, ShoppingBag, FileText, X } from "lucide-react";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 
 /**
  * 우측 하단 플로팅 글쓰기 버튼(FAB).
  * - 탭하면 글 종류 선택 시트가 뜬다: "피싱 피드 올리기"(사진) / "일반 쓰기"(글).
  * - 시트는 createPortal로 document.body에 렌더링 → 하단 메뉴바(z-40) 위에 항상 표시.
- * - 비로그인 시 /login 으로 유도.
+ * - 비로그인 시 로그인 팝업 표시.
  */
 export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
   const [open, setOpen] = useState(false);
+  const [loginModal, setLoginModal] = useState(false);
   const [mounted, setMounted] = useState(false);
   const loggedIn = !!currentUserId;
 
@@ -19,11 +21,12 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
 
   return (
     <>
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="글쓰기 기능" />
       {/* FAB 버튼 — 하단 메뉴 위에 떠 있는 글쓰기 원형 버튼 */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 top-0 z-40 mx-auto flex w-full max-w-[760px] justify-center">
         <div className="relative w-full max-w-[640px]">
           <button
-            onClick={() => (loggedIn ? setOpen(true) : (window.location.href = "/login"))}
+            onClick={() => (loggedIn ? setOpen(true) : setLoginModal(true))}
             aria-label="글쓰기"
             className="pointer-events-auto absolute right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] flex h-14 w-14 items-center justify-center rounded-full bg-[#1a1a1a] text-orange-500 shadow-xl shadow-black/40 ring-1 ring-orange-500/40 transition-all hover:bg-[#232323] hover:ring-orange-500/70 active:scale-95 md:bottom-6"
           >

@@ -14,6 +14,7 @@ import { distanceMeters, type LatLng, type MapMarker } from "@/lib/map";
 import { km, duration, stopwatch, timeAgo } from "@/lib/utils";
 import { KOREA_SPOTS } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 
 const GPS_PREFERENCE_KEY = "ipnak:data-fishing:gps-enabled";
 
@@ -21,6 +22,8 @@ const MAP_TUTORIAL_KEY = "ipnak:map:tutorial:done";
 
 export function MapScreen({ userId }: { userId?: string }) {
   const toast = useToast();
+  const loggedIn = !!userId;
+  const [loginModal, setLoginModal] = useState(false);
   // 기록 세션은 전역(RecordingProvider)에서 관리 — 페이지를 벗어나거나 새로고침/재실행해도 유지됨
   const { status, route, distance, elapsed, savedTrips, activeCatches, start, pause, finish, postToFeed, removeTrip, lastPoint } = useRecording();
   const [center, setCenter] = useState<LatLng>({ lat: KOREA_SPOTS[0].lat, lng: KOREA_SPOTS[0].lng });
@@ -429,6 +432,7 @@ export function MapScreen({ userId }: { userId?: string }) {
 
   return (
     <div className="relative h-[calc(100dvh-7.75rem)] max-h-[calc(100dvh-7.75rem)] w-full overflow-hidden overscroll-none md:h-[calc(100dvh-3.25rem)] md:max-h-[calc(100dvh-3.25rem)]">
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="데이터피싱 기록 기능" />
       {gpsGuideOpen && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center px-5" role="dialog" aria-modal="true" aria-labelledby="gps-guide-title">
           <button
@@ -714,7 +718,7 @@ export function MapScreen({ userId }: { userId?: string }) {
               <>
                 <Button
                   data-tutorial-step="5"
-                  onClick={start}
+                  onClick={() => { if (!loggedIn) { setLoginModal(true); return; } start(); }}
                   variant="primary"
                   className="flex-1 whitespace-nowrap"
                   leftIcon={<Clock size={18} />}

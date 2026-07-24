@@ -1,5 +1,6 @@
 "use client";
-import { memo, useCallback, useState, useRef, useMemo, useEffect } from "react";
+import { memo, useCallback, useState, useRef, useMemo, useEffect, useContext } from "react";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
@@ -38,6 +39,8 @@ const TYPE_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
 
 function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: FeedPost; currentUserId?: string; linkToDetail?: boolean }) {
   const toast = useToast();
+  const loggedIn = !!currentUserId;
+  const [loginModal, setLoginModal] = useState(false);
   const [liked, setLiked] = useState(post.liked);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [commentCount, setCommentCount] = useState(post.commentCount);
@@ -70,10 +73,11 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
 
   // 잠금 썸네일 탭 → 잔액 확인 후 부족하면 안내 팝업, 충분하면 열람 확인
   async function onTapUnlock() {
+    if (!loggedIn) { setLoginModal(true); return; }
     if (unlocking) return;
     try {
       const res = await fetch("/api/points/balance", { cache: "no-store" });
-      if (res.status === 401) { toast("로그인이 필요합니다", "error"); return; }
+      if (res.status === 401) { setLoginModal(true); return; }
       const data = await res.json();
       const bal = typeof data.balance === "number" ? data.balance : 0;
       setCurrentBalance(bal);
@@ -144,15 +148,17 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
   }, [walkingData, post.images, post.id]);
 
   async function toggleLike() {
+    if (!loggedIn) { setLoginModal(true); return; }
     setLikePop(true);
     setTimeout(() => setLikePop(false), 350);
     setLiked((v) => !v);
     setLikeCount((c) => c + (liked ? -1 : 1));
     const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
-    if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("로그인이 필요합니다", "error"); }
+    if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
   }
 
   async function likeFromDoubleTap() {
+    if (!loggedIn) { setLoginModal(true); return; }
     // 더블탭: 좋아요 토글 (이미 좋아요면 취소, 아니면 추가)
     setShowBurst(true);
     if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
@@ -160,7 +166,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
     setLiked((v) => !v);
     setLikeCount((c) => c + (liked ? -1 : 1));
     const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
-    if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("로그인이 필요합니다", "error"); }
+    if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
   }
 
   function onImageTap() {
@@ -187,9 +193,10 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
     if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
   }, []);
   async function toggleSave() {
+    if (!loggedIn) { setLoginModal(true); return; }
     setSaved((v) => !v);
     const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
-    if (!res.ok) { setSaved(post.saved); toast("로그인이 필요합니다", "error"); }
+    if (!res.ok) { setSaved(post.saved); toast("저장에 실패했습니다", "error"); }
     else toast(saved ? "저장을 취소했습니다" : "저장했습니다", "success");
   }
   const share = useCallback(async () => {
@@ -457,7 +464,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
         >
           <Heart size={26} strokeWidth={1.7} className={cn(likePop && "animate-heartpop", liked ? "fill-red-500 text-red-500" : "text-navy-700")} />
         </button>
-        <button onClick={() => setCommentsOpen(true)} className="btn-press" aria-label="댓글">
+        <button onClick={() => { if (!loggedIn) { setLoginModal(true); return; } setCommentsOpen(true); }} className="btn-press" aria-label="댓글">
           <MessageCircle size={26} strokeWidth={1.7} className="text-navy-700" />
         </button>
         <button onClick={share} className="btn-press" aria-label="공유"><Share2 size={24} strokeWidth={1.7} className="text-navy-700" /></button>
@@ -506,6 +513,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
       </div>
       )}
 
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="이 기능" />
       <CommentSheet postId={post.id} open={commentsOpen} onClose={() => setCommentsOpen(false)} currentUserId={currentUserId} onCommentAdded={() => setCommentCount((c) => c + 1)} />
 
       <ConfirmDialog
