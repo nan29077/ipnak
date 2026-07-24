@@ -1,6 +1,6 @@
 "use client";
 /**
- * 측정일지 페이지
+ * 계측일지 페이지
  * - 통계 카드 (최대어 / 평균 길이 / 총 마릿수)
  * - 어종 필터 + 무한 스크롤 기록 리스트
  * - 기록 상세 시트 (이미지 + 자동 태그) / 삭제
@@ -109,7 +109,7 @@ export default function DiaryPage() {
   return (
     <div className="pb-10">
       <PageHeader
-        title="측정일지"
+        title="계측일지"
         back
         sub="AI 측정 기록 모아보기"
         right={

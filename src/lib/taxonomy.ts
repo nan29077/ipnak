@@ -60,21 +60,15 @@ export const productCategoryLabel = (key: string) =>
 
 // 조행기(카페형 게시판) 카테고리
 export const LOG_CATEGORIES: { key: string; label: string }[] = [
-  { key: "SEA_LURE", label: "바다루어" },
-  { key: "SEA_FLOAT", label: "찌낚시" },
-  { key: "BOAT", label: "선상·배낚시" },
-  { key: "ROCK", label: "갯바위" },
-  { key: "SURF", label: "원투·서프" },
-  { key: "FRESH_BASS", label: "배스" },
-  { key: "FRESH_CRUCIAN", label: "붕어·대물" },
-  { key: "EGING", label: "에깅·문어" },
-  { key: "GEAR", label: "장비 리뷰" },
-  { key: "QNA", label: "질문·답변" },
-  { key: "FREE", label: "자유게시판" },
+  { key: "WALKING",    label: "워킹조행기" },
+  { key: "JWADAE",     label: "좌대조행기" },
+  { key: "SEA",        label: "바다조행기" },
+  { key: "FRESHWATER", label: "민물조행기" },
+  { key: "BOATING",    label: "보팅조행기" },
 ];
 
 export const logCategoryLabel = (key: string | null | undefined) =>
-  LOG_CATEGORIES.find((c) => c.key === key)?.label ?? "자유게시판";
+  LOG_CATEGORIES.find((c) => c.key === key)?.label ?? "조행기";
 
 // 예약 카테고리
 export const RESERVATION_CATEGORIES: { key: string; label: string }[] = [

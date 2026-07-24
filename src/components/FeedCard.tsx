@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
 import Link from "next/link";
 import {
-  Heart, MessageCircle, Share2, Bookmark, Tag, MapPin, Ruler, MoreHorizontal, Fish, Send, Flag, ChevronLeft, ChevronRight,
+  Heart, MessageCircle, Share2, Bookmark, Tag, MapPin, Ruler, Fish, Send, Flag, ChevronLeft, ChevronRight,
   Navigation, Clock, Route, Lock, Loader2, Maximize2, X,
 } from "lucide-react";
 import { useToast } from "@/components/Toast";
@@ -36,10 +36,11 @@ const TYPE_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   WALKING_FEED: { label: "워킹 피드", tone: "green" },
 };
 
-function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?: string }) {
+function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: FeedPost; currentUserId?: string; linkToDetail?: boolean }) {
   const toast = useToast();
   const [liked, setLiked] = useState(post.liked);
   const [likeCount, setLikeCount] = useState(post.likeCount);
+  const [commentCount, setCommentCount] = useState(post.commentCount);
   const [saved, setSaved] = useState(post.saved);
   const [idx, setIdx] = useState(0);
   const [showTags, setShowTags] = useState(false);
@@ -49,7 +50,11 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
   const [savePop, setSavePop] = useState(false);
   const lastTapRef = useRef(0);
   const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  // touch → click 이중 호출 방지 (e.preventDefault() 없이 처리)
+  const touchFiredRef = useRef(false);
   const badge = TYPE_BADGE[post.postType];
   const router = useRouter();
 
@@ -161,12 +166,26 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
   function onImageTap() {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
+      // 더블탭 — 좋아요 (예약된 상세보기 이동은 취소)
       lastTapRef.current = 0;
+      if (singleTapTimerRef.current) { clearTimeout(singleTapTimerRef.current); singleTapTimerRef.current = null; }
       likeFromDoubleTap();
     } else {
       lastTapRef.current = now;
+      // 단일탭 — 더블탭이 뒤따르지 않으면 상세보기로 이동
+      if (linkToDetail) {
+        if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = setTimeout(() => {
+          singleTapTimerRef.current = null;
+          router.push(`/post/${post.id}`);
+        }, 300);
+      }
     }
   }
+
+  useEffect(() => () => {
+    if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+  }, []);
   async function toggleSave() {
     setSaved((v) => !v);
     const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
@@ -182,22 +201,17 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
     try { await navigator.clipboard.writeText(url); toast("링크를 복사했습니다", "success"); }
     catch { toast("공유 링크: " + url, "info"); }
   }, [post, toast]);
-  const report = useCallback(async () => {
-    await fetch(`/api/posts/${post.id}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "사용자 신고" }) });
-    toast("신고가 접수되었습니다", "success");
-  }, [post.id, toast]);
-
   const multi = slides.length > 1;
 
   return (
-    <article className="border-b border-navy-100 bg-[#1e1e1e] md:mb-3 md:rounded-2xl md:border md:border-navy-100 md:shadow-card">
+    <article className="border-b border-[#2a2a2a] bg-[#1a1a1a] md:mb-3 md:rounded-2xl md:border md:border-[#2a2a2a] md:shadow-card">
       {/* 헤더 */}
       <div className="flex items-center gap-2.5 px-3.5 py-3">
         <Link href={`/profile/${post.author.id}`}>
-          <img src={getAvatarUrl(post.author.id, post.author.avatarUrl)} alt={post.author.nickname} loading="lazy" decoding="async" className="h-9 w-9 rounded-full object-cover ring-1 ring-navy-100" />
+          <img src={getAvatarUrl(post.author.id, post.author.avatarUrl)} alt={post.author.nickname} loading="lazy" decoding="async" className="h-10 w-10 rounded-full object-cover ring-2 ring-[#2a2a2a]" />
         </Link>
         <div className="min-w-0 flex-1">
-          <Link href={`/profile/${post.author.id}`} className="block truncate text-[14px] font-semibold text-navy-900">
+          <Link href={`/profile/${post.author.id}`} className="block truncate text-[14px] font-bold text-navy-900">
             {post.author.nickname}
           </Link>
           <div className="flex items-center gap-1 text-[11px] text-navy-300">
@@ -209,28 +223,41 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
           </div>
         </div>
         {badge?.label && <Badge tone={badge.tone}>{badge.label}</Badge>}
-        {/* 워킹 피드에서는 더보기(...) 숨김 */}
-        {post.postType !== "WALKING_FEED" && (
-          <button onClick={report} aria-label="더보기 / 신고" className="rounded-full p-1 text-navy-300 transition-colors hover:bg-navy-50"><MoreHorizontal size={20} /></button>
-        )}
       </div>
 
       {/* 이미지 캐러셀 + 피싱태그 */}
       <div
         className="relative aspect-square w-full select-none bg-navy-50"
-        onTouchStart={(e) => { touchStartXRef.current = e.touches[0].clientX; }}
-        onTouchEnd={(e) => {
-          e.preventDefault(); // synthetic click 억제 — onImageTap이 두 번 호출되는 버그 방지
-          const startX = touchStartXRef.current;
-          touchStartXRef.current = null;
-          if (startX !== null) {
-            const delta = e.changedTouches[0].clientX - startX;
-            if (Math.abs(delta) >= 40) {
-              if (delta < 0) setIdx((i) => Math.min(slides.length - 1, i + 1));
-              else setIdx((i) => Math.max(0, i - 1));
-              return;
-            }
+        onTouchStart={(e) => {
+          // 화면 왼쪽 끝 20px — iOS 뒤로가기 제스처 보호, 이 영역은 캡처 안 함
+          if (e.touches[0].clientX < 20) {
+            touchStartXRef.current = null;
+            touchStartYRef.current = null;
+            return;
           }
+          touchStartXRef.current = e.touches[0].clientX;
+          touchStartYRef.current = e.touches[0].clientY;
+        }}
+        onTouchEnd={(e) => {
+          // e.preventDefault() 제거 — touchFiredRef로 이중 호출 방지 (iOS 뒤로가기 제스처 허용)
+          const startX = touchStartXRef.current;
+          const startY = touchStartYRef.current;
+          touchStartXRef.current = null;
+          touchStartYRef.current = null;
+          if (startX === null) return; // 왼쪽 끝 제스처 or touchStart 미발생 → 무시
+          const deltaX = e.changedTouches[0].clientX - startX;
+          const deltaY = startY !== null ? e.changedTouches[0].clientY - startY : 0;
+          // 세로 이동 12px 이상이면 스크롤로 간주 — 탭/네비게이션 무시
+          if (Math.abs(deltaY) > 12) return;
+          // 가로 스와이프 40px 이상이면 슬라이드 이동
+          if (Math.abs(deltaX) >= 40) {
+            if (deltaX < 0) setIdx((i) => Math.min(slides.length - 1, i + 1));
+            else setIdx((i) => Math.max(0, i - 1));
+            return;
+          }
+          // touch → click 이중 호출 방지 플래그 설정 후 탭 처리
+          touchFiredRef.current = true;
+          setTimeout(() => { touchFiredRef.current = false; }, 400);
           onImageTap();
         }}
       >
@@ -249,7 +276,7 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
           const slide = slides[idx];
           if (slide?.type === "map") {
             return (
-              <div className="h-full w-full cursor-pointer" onClick={onImageTap}>
+              <div className="h-full w-full cursor-pointer" onClick={() => { if (touchFiredRef.current) return; onImageTap(); }}>
                 <MiniRouteMap
                   points={walkingData?.routePoints ?? []}
                   catchPoints={walkingData?.catchMarkers}
@@ -263,7 +290,7 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
               alt={(slide as Extract<(typeof slides)[number], { type: "img" }>)?.alt || "낚시 사진"}
               decoding="async"
               className="h-full w-full cursor-pointer object-cover"
-              onClick={onImageTap}
+              onClick={() => { if (touchFiredRef.current) return; onImageTap(); }}
             />
           );
         })()}
@@ -307,7 +334,24 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
           </span>
         )}
         {post.blurRadius > 0 && (
-          <span className="badge absolute bottom-2.5 left-2.5 bg-black/55 text-white backdrop-blur-sm">위치 흐림 공개</span>
+          <>
+            {/* 위치 흐림 — 이미지 하단 블러 그라디언트 오버레이 */}
+            <div
+              className="pointer-events-none absolute bottom-0 left-0 right-0"
+              style={{
+                height: "38%",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                maskImage: "linear-gradient(to top, black 40%, transparent 100%)",
+                WebkitMaskImage: "linear-gradient(to top, black 40%, transparent 100%)",
+                background: "linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 100%)",
+              }}
+            />
+            {/* 위치 흐림 뱃지 */}
+            <span className="badge absolute bottom-2.5 left-2.5 z-10 bg-black/70 text-white backdrop-blur-sm">
+              위치 흐림 공개
+            </span>
+          </>
         )}
 
         {/* 피싱태그 토글 */}
@@ -362,7 +406,10 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
 
       {/* WALKING_FEED 전용 정보 스트립 */}
       {!locked && post.postType === "WALKING_FEED" && walkingData && (
-        <div className="flex items-center justify-around border-b border-t border-navy-100 bg-[#181818] px-3.5 py-3">
+        <div
+          className={cn("flex items-center justify-around border-b border-t border-[#2a2a2a] bg-[#141414] px-3.5 py-3", linkToDetail && "cursor-pointer")}
+          onClick={linkToDetail ? () => router.push(`/post/${post.id}`) : undefined}
+        >
           <div className="flex flex-col items-center gap-0.5">
             <Navigation size={15} className="text-aqua-400" />
             <p className="text-[13px] font-bold text-navy-800">{km(walkingData.distanceM ?? 0)}</p>
@@ -385,7 +432,10 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
 
       {/* 피싱포인트·일반 피드 메타 정보 줄 */}
       {post.postType !== "WALKING_FEED" && (post.region || post.fishingType || post.speciesName) && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-navy-100 px-3.5 py-2 text-[12px] text-navy-500">
+        <div
+          className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[#2a2a2a] px-3.5 py-2 text-[12px] text-navy-500", linkToDetail && "cursor-pointer")}
+          onClick={linkToDetail ? () => router.push(`/post/${post.id}`) : undefined}
+        >
           {post.region && (
             <span className="flex items-center gap-1"><MapPin size={12} className="shrink-0 text-navy-400" />{post.region}</span>
           )}
@@ -400,21 +450,19 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
 
       {/* 액션 바 (잠금 상태에서는 숨김) */}
       {!locked && (
-      <div className="flex items-center gap-[18px] px-3.5 pb-1.5 pt-3">
+      <div className="flex items-center gap-5 px-3.5 pb-1 pt-3">
         <button
           onClick={toggleLike}
-          className="flex items-center gap-1 btn-press" aria-label="좋아요"
+          className="btn-press" aria-label="좋아요"
         >
-          <Heart size={22} strokeWidth={1.9} className={cn(likePop && "animate-heartpop", liked ? "fill-red-500 text-red-500" : "text-navy-700")} />
-          <span className="text-[13px] font-semibold text-navy-700">{likeCount}</span>
+          <Heart size={26} strokeWidth={1.7} className={cn(likePop && "animate-heartpop", liked ? "fill-red-500 text-red-500" : "text-navy-700")} />
         </button>
-        <button onClick={() => setCommentsOpen(true)} className="flex items-center gap-1 btn-press" aria-label="댓글">
-          <MessageCircle size={22} strokeWidth={1.9} className="text-navy-700" />
-          <span className="text-[13px] text-navy-700">{post.commentCount}</span>
+        <button onClick={() => setCommentsOpen(true)} className="btn-press" aria-label="댓글">
+          <MessageCircle size={26} strokeWidth={1.7} className="text-navy-700" />
         </button>
-        <button onClick={share} className="btn-press" aria-label="공유"><Share2 size={22} strokeWidth={1.9} className="text-navy-700" /></button>
+        <button onClick={share} className="btn-press" aria-label="공유"><Share2 size={24} strokeWidth={1.7} className="text-navy-700" /></button>
         <button onClick={() => { setSavePop(true); setTimeout(() => setSavePop(false), 350); toggleSave(); }} className="ml-auto btn-press" aria-label="저장">
-          <Bookmark size={22} strokeWidth={1.9} className={cn(savePop && "animate-heartpop", saved ? "fill-navy-700 text-navy-700" : "text-navy-700")} />
+          <Bookmark size={26} strokeWidth={1.7} className={cn(savePop && "animate-heartpop", saved ? "fill-navy-700 text-navy-700" : "text-navy-700")} />
         </button>
       </div>
       )}
@@ -431,17 +479,17 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
 
       {/* 본문 (잠금 상태에서는 숨김) */}
       {!locked && (
-      <div className="px-3.5 pb-3.5">
-        <p className="text-[13px] font-semibold text-navy-900">좋아요 {likeCount}개</p>
+      <div className="px-3.5 pb-4">
+        <p className="text-[14px] font-bold text-navy-900">좋아요 {likeCount}개</p>
         {/* WALKING_FEED는 자동생성 캡션 대신 정보 스트립으로 표시 */}
         {post.caption && post.postType !== "WALKING_FEED" && (
           <p className="mt-1 text-[13px] leading-relaxed text-navy-900">
-            <Link href={`/profile/${post.author.id}`}><strong>{post.author.nickname}</strong></Link>{" "}
+            <Link href={`/profile/${post.author.id}`} className="font-bold">{post.author.nickname}</Link>{" "}
             {post.caption}
           </p>
         )}
         {post.hashtags.length > 0 && (
-          <p className="mt-1 text-[12px] font-medium text-aqua-700">{post.hashtags.map((h) => `#${h}`).join(" ")}</p>
+          <p className="mt-1 text-[12px] font-medium text-aqua-400">{post.hashtags.map((h) => `#${h}`).join(" ")}</p>
         )}
         {/* 피싱태그 리스트 (클릭 추적 → 작성자 리퍼럴 적립) */}
         {post.productTags.length > 0 && (
@@ -449,16 +497,16 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
             <FishingTagCards postId={post.id} tags={post.productTags} compact />
           </div>
         )}
-        {post.commentCount > 0 && (
-          <button onClick={() => setCommentsOpen(true)} className="mt-2 block text-[13px] text-navy-300 transition-colors hover:text-navy-500">
-            댓글 {post.commentCount}개 모두 보기
+        {commentCount > 0 && (
+          <button onClick={() => setCommentsOpen(true)} className="mt-1.5 block text-[13px] text-navy-400 transition-colors hover:text-navy-500">
+            댓글 {commentCount}개 모두 보기
           </button>
         )}
-        <p className="mt-1 text-[11px] text-navy-300">{timeAgo(post.createdAt)}</p>
+        <p className="mt-1.5 text-[11px] uppercase tracking-wide text-navy-400">{timeAgo(post.createdAt)}</p>
       </div>
       )}
 
-      <CommentSheet postId={post.id} open={commentsOpen} onClose={() => setCommentsOpen(false)} currentUserId={currentUserId} />
+      <CommentSheet postId={post.id} open={commentsOpen} onClose={() => setCommentsOpen(false)} currentUserId={currentUserId} onCommentAdded={() => setCommentCount((c) => c + 1)} />
 
       <ConfirmDialog
         open={confirmOpen}
@@ -498,7 +546,7 @@ function FeedCardImpl({ post, currentUserId }: { post: FeedPost; currentUserId?:
 
 export const FeedCard = memo(FeedCardImpl);
 
-function CommentSheet({ postId, open, onClose, currentUserId }: { postId: string; open: boolean; onClose: () => void; currentUserId?: string }) {
+function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: { postId: string; open: boolean; onClose: () => void; currentUserId?: string; onCommentAdded?: () => void }) {
   const toast = useToast();
   const [comments, setComments] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -515,7 +563,7 @@ function CommentSheet({ postId, open, onClose, currentUserId }: { postId: string
   }
   if (open && !loaded) load();
 
-  async function post(body: string, parentId?: string) {
+  async function postComment(body: string, parentId?: string) {
     if (!body.trim()) return false;
     const res = await fetch(`/api/posts/${postId}/comments`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -524,11 +572,12 @@ function CommentSheet({ postId, open, onClose, currentUserId }: { postId: string
     const data = await res.json();
     if (!res.ok) { toast(data.error || "오류", "error"); return false; }
     setComments((c) => [...c, data.comment]);
+    onCommentAdded?.();
     return true;
   }
 
   async function send() {
-    if (await post(text)) setText("");
+    if (await postComment(text)) setText("");
   }
 
   // 답글 시작 — 대상이 대댓글이면 그 부모(최상위)에 붙이고 @멘션은 대상 작성자로
@@ -536,15 +585,27 @@ function CommentSheet({ postId, open, onClose, currentUserId }: { postId: string
     setReplyTo({ parentId: comment.parentId || comment.id, nickname: comment.author.nickname });
   }
   async function sendReply(parentId: string, body: string) {
-    if (await post(body, parentId)) setReplyTo(null);
+    if (await postComment(body, parentId)) setReplyTo(null);
   }
 
   const top = comments.filter((c) => !c.parentId);
   const replies = (id: string) => comments.filter((c) => c.parentId === id);
 
+  const commentInput = (
+    <div className="flex items-center gap-2">
+      <input
+        ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && send()}
+        placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
+        className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#252525] focus:ring-2 focus:ring-aqua-100"
+      />
+      <button onClick={send} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press transition-colors hover:bg-orange-600"><Send size={16} /></button>
+    </div>
+  );
+
   return (
-    <Sheet open={open} onClose={() => { onClose(); setLoaded(false); setReplyTo(null); }} title="댓글">
-      <div className="max-h-[55vh] space-y-3 overflow-y-auto pb-2">
+    <Sheet open={open} onClose={() => { onClose(); setLoaded(false); setReplyTo(null); }} title="댓글" footer={commentInput}>
+      <div className="space-y-3 pb-2">
         {!loaded && <p className="py-6 text-center text-sm text-navy-300">불러오는 중...</p>}
         {loaded && top.length === 0 && <p className="py-6 text-center text-sm text-navy-300">첫 댓글을 남겨보세요</p>}
         {top.map((c) => (
@@ -566,15 +627,6 @@ function CommentSheet({ postId, open, onClose, currentUserId }: { postId: string
             )}
           </div>
         ))}
-      </div>
-      <div className="mt-2 flex items-center gap-2 border-t border-navy-100 pt-3">
-        <input
-          ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
-          className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#1e1e1e] focus:ring-2 focus:ring-aqua-100"
-        />
-        <button onClick={send} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press transition-colors hover:bg-orange-600"><Send size={16} /></button>
       </div>
     </Sheet>
   );

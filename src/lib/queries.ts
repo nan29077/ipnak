@@ -87,18 +87,39 @@ const feedInclude = {
 
 export async function getFeedPosts(userId?: string, opts?: { authorId?: string; postType?: string; savedBy?: string; kind?: string | null }) {
   const baseWhere: any = { hidden: false };
-  if (opts?.authorId) baseWhere.authorId = opts.authorId;
   if (opts?.postType) baseWhere.postType = opts.postType;
-  else baseWhere.postType = { notIn: ["WALKING_FEED", "FISHING_POINT"] }; // 워킹 피드·낚시포인트는 피싱 피드 목록에서 항상 제외
+  else baseWhere.postType = { notIn: ["WALKING_FEED", "FISHING_POINT"] };
   if (opts?.savedBy) baseWhere.bookmarks = { some: { userId: opts.savedBy } };
-  // kind 기본값 FEED(피싱 피드). null 을 명시하면 종류 무관.
+
+  // ── 공개 범위 필터 ──────────────────────────────────────────────────
+  // PUBLIC·BLURRED: 누구나 볼 수 있음
+  // FOLLOWERS: 작성자를 팔로우하는 사람만 + 본인
+  // PRIVATE: 본인만
+  if (userId) {
+    const following = await prisma.follow.findMany({
+      where: { followerId: userId },
+      select: { followingId: true },
+    });
+    const followingIds = following.map((f) => f.followingId);
+    baseWhere.OR = [
+      { visibility: { in: ["PUBLIC", "BLURRED"] } },
+      { AND: [{ visibility: "FOLLOWERS" }, { authorId: { in: followingIds } }] },
+      { authorId: userId }, // 본인 게시물은 공개범위 무관 노출
+    ];
+  } else {
+    // 비로그인: 전체공개 + 위치흐림만
+    baseWhere.visibility = { in: ["PUBLIC", "BLURRED"] };
+  }
+  // ─────────────────────────────────────────────────────────────────────
+
+  if (opts?.authorId) baseWhere.authorId = opts.authorId;
+
   const useKind = opts?.kind !== null;
   const where = useKind ? { ...baseWhere, kind: opts?.kind ?? "FEED" } : baseWhere;
   try {
     const posts = await prisma.post.findMany({ where, include: feedInclude, orderBy: { createdAt: "desc" }, take: 60 });
     return Promise.all(posts.map((p) => toFeedPost(p, userId)));
   } catch (e) {
-    // prisma db push 전(또는 client 미재생성): kind 컬럼/필드 미존재 → kind 필터 없이 폴백 (WALKING_FEED는 항상 제외)
     if (!useKind) throw e;
     const posts = await prisma.post.findMany({ where: baseWhere, include: feedInclude, orderBy: { createdAt: "desc" }, take: 60 });
     return Promise.all(posts.map((p) => toFeedPost(p, userId)));
@@ -136,6 +157,8 @@ export async function getPersonalizedFeedPosts(
       where: {
         hidden: false,
         postType: { notIn: ["WALKING_FEED"] },
+        // 맞춤 추천 피드에서도 비공개/팔로워전용 글은 미노출
+        visibility: { in: ["PUBLIC", "BLURRED"] },
         OR: orConditions,
       },
       include: feedInclude,

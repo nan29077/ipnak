@@ -6,6 +6,7 @@
  * - Web NFC(NDEFReader)는 Android Chrome 에서만 지원 — 미지원 기기는 안내 문구 노출
  */
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, ShoppingBag, Camera, Crosshair, Download, Image as ImageIcon, Smartphone } from "lucide-react";
 import { useToast } from "@/components/Toast";
@@ -99,6 +100,7 @@ function useBallLink() {
 
 /* ── 측정 페이지: 입낚볼 연동 카드 ── */
 export function BallLinkSection() {
+  const router = useRouter();
   const { supported, balls, reading, tagAndRegister } = useBallLink();
   const linked = balls && balls.length > 0 ? balls[0] : null;
   const [guideOpen, setGuideOpen] = useState(false);
@@ -165,6 +167,7 @@ export function BallLinkSection() {
         >
           <CircleHelp size={16} strokeWidth={2} />
           입낚볼 없이도 AI 측정이 가능해요
+          <span className="rounded-lg bg-aqua-500/20 px-2.5 py-0.5 text-[11px] font-extrabold text-aqua-300">보기</span>
         </button>
       </div>
 
@@ -189,13 +192,13 @@ export function BallLinkSection() {
             <p className="text-[13px] font-bold text-orange-300">40mm 인쇄 기준물 사용 안내</p>
             <p className="mt-1 text-[12px] leading-relaxed text-navy-400">인쇄할 때는 크기 조정 없이 100%로 출력해 주세요. A4 한 장에 40mm 주황색 입낚 로고가 9개 배열됩니다. 인쇄물은 평평한 종이라 카메라와 같은 높이에 놓아야 해요.</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <a
-                href="/ipnak-ball-40mm-logo-print-sheet-a4.svg"
-                download="ipnak-ball-40mm-logo-print-sheet-a4.svg"
+              <button
+                type="button"
+                onClick={() => router.push("/print/ball-sheet")}
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-2 py-2.5 text-[12px] font-bold text-white active:scale-[0.98]"
               >
                 <Download size={15} /> 입낚볼 이미지 인쇄
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={() => setExampleOpen(true)}

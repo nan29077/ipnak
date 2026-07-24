@@ -5,6 +5,7 @@ import { CurationHome } from "@/components/CurationHome";
 import { getMainSections } from "@/lib/curation";
 import { parseInterests } from "@/lib/interestsUtils";
 import { MobileLandingRedirect } from "@/components/MobileLandingRedirect";
+import { PcLandingRedirect } from "@/components/PcLandingRedirect";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export default async function HomePage() {
   return (
     <>
       <MobileLandingRedirect />
+      <PcLandingRedirect />
       <div className="hidden md:block">
         <CurationHome
           feedPosts={feedPosts}

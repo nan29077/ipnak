@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import {
   IconHome, IconMap, IconTrophy, IconCalendar, IconTackleBox, IconUser, IconLogin, IconShield, IconRuler,
-  IconBook, IconUsers,
+  IconBook, IconUsers, IconFish,
 } from "@/components/FishingIcon";
 import { cn } from "@/lib/utils";
 import { AppHeader } from "@/components/AppHeader";
@@ -40,7 +41,7 @@ function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): Nav
     { href: "/", label: "홈", icon: IconHome, match: (p) => p === "/" || p.startsWith("/post") || p.startsWith("/profile") },
     { href: "/map", label: "데이터피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
     // ↑ 여기(인덱스 2 앞)에 물고기기록(측정) FAB 삽입
-    { href: "/diary", label: "측정일지", icon: IconRuler, match: (p) => p.startsWith("/diary") },
+    { href: "/diary", label: "계측일지", icon: IconFish, match: (p) => p.startsWith("/diary") },
     { href: "/log", label: "조황일지", icon: IconBook, match: (p) => p.startsWith("/log") },
     { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/groups") || p.startsWith("/explore") },
     { href: "/tournaments", label: "대회", icon: IconTrophy, match: (p) => p.startsWith("/tournaments") },
@@ -57,10 +58,21 @@ const FAB_HIDDEN_PREFIXES = ["/login", "/signup", "/admin", "/map", "/measure", 
 
 export function AppShell({ user, shopEnabled = true, reservationEnabled = true, pointsEnabled = false, pcMarginBg, children }: { user: SessionUser; shopEnabled?: boolean; reservationEnabled?: boolean; pointsEnabled?: boolean; pcMarginBg?: string; children: React.ReactNode }) {
   const pathname = usePathname() || "/";
-  const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/admin");
+  const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/admin") || pathname.startsWith("/print") || pathname.startsWith("/landing") || pathname.startsWith("/about");
   const MOBILE_NAV = buildMobileNav(shopEnabled);
   const DESKTOP_NAV = buildDesktopNav(shopEnabled, reservationEnabled);
   const showFab = !bare && !FAB_HIDDEN_PREFIXES.some((p) => pathname.startsWith(p));
+
+  // 앱 안에 있을 때 랜딩 리다이렉트 방지 플래그 설정 (PC/모바일 구분)
+  useEffect(() => {
+    if (!bare && typeof window !== "undefined") {
+      if (window.innerWidth >= 768) {
+        sessionStorage.setItem("ipnak_pc_entered", "1");
+      } else {
+        sessionStorage.setItem("ipnak_mobile_entered", "1");
+      }
+    }
+  }, [bare]);
 
   if (bare) return <>{children}</>;
 
@@ -176,7 +188,7 @@ function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[
               <circle cx="92" cy="46" r="5" fill="#161210" />
             </svg>
           </Link>
-          <span className={cn("mt-0.5 text-[9px] font-semibold", measureActive ? "text-orange-500" : "text-navy-300")}>
+          <span className={cn("mt-0.5 text-[10px] font-semibold", measureActive ? "text-orange-500" : "text-navy-300")}>
             AI측정
           </span>
         </div>
@@ -193,7 +205,7 @@ function NavItem({ href, label, icon: Icon, active }: { href: string; label: str
     <Link
       href={href}
       className={cn(
-        "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10px] font-medium transition-all duration-200",
+        "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium transition-all duration-200",
         active ? "bg-orange-500/15 text-orange-500" : "text-navy-300"
       )}
     >
@@ -219,7 +231,11 @@ function DesktopRightNav({ pathname, user, nav }: { pathname: string; user: Sess
           <Link
             href="/measure"
             aria-label="AI 측정"
-            className="my-1 flex w-full flex-col items-center gap-1 rounded-2xl bg-orange-500 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-orange-500/30 transition-transform hover:bg-orange-600 active:scale-95"
+            aria-current={pathname.startsWith("/measure") ? "page" : undefined}
+            className={cn(
+              "my-1 flex w-full flex-col items-center gap-1 rounded-2xl py-2.5 text-[11px] font-semibold transition-colors active:scale-95",
+              pathname.startsWith("/measure") ? "bg-orange-500/15 text-orange-500" : "text-navy-300 hover:bg-white/5 hover:text-white"
+            )}
           >
             <IconRuler size={22} strokeWidth={2.4} />
             AI 측정

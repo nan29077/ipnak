@@ -11,7 +11,7 @@ export const MEASURE_ERRORS = {
   LOCATION_PERMISSION: '위치 권한이 없어 위치 정보를 저장하지 못했어요.',
   NETWORK_ERROR: '네트워크 오류가 발생했어요.\n로컬에 저장 후 나중에 동기화됩니다.',
   ENGINE_LOAD_FAILED: '측정 엔진을 불러오지 못했어요.\n네트워크 연결을 확인한 뒤 다시 시도해주세요.',
-  SAVE_SUCCESS: '측정일지에 저장됐습니다',
+  SAVE_SUCCESS: '계측일지에 저장됐습니다',
 }
 
 // 어종 목록 (minLegalSize: 금지체장 cm, 0 = 제한 없음)

@@ -47,3 +47,42 @@ export async function getProfileData(userId: string, viewerId?: string) {
     isFollowing: !!isFollowing,
   };
 }
+
+// 팔로워/팔로잉 목록 — 마이페이지·낚시방 상단 "팔로워 N · 팔로잉 N" 클릭 시 사용
+export async function getFollowList(userId: string, kind: "followers" | "following", viewerId?: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, nickname: true } });
+  if (!user) return null;
+
+  const follows = kind === "followers"
+    ? await prisma.follow.findMany({
+        where: { followingId: userId },
+        orderBy: { createdAt: "desc" },
+        include: { follower: { select: { id: true, nickname: true, avatarUrl: true, bio: true, region: true } } },
+      })
+    : await prisma.follow.findMany({
+        where: { followerId: userId },
+        orderBy: { createdAt: "desc" },
+        include: { following: { select: { id: true, nickname: true, avatarUrl: true, bio: true, region: true } } },
+      });
+
+  const people = follows.map((f: any) => (kind === "followers" ? f.follower : f.following));
+
+  // 뷰어가 각 사용자를 팔로우 중인지 표시(팔로우/팔로잉 버튼용)
+  let viewerFollowingIds = new Set<string>();
+  if (viewerId && people.length > 0) {
+    const viewerFollows = await prisma.follow.findMany({
+      where: { followerId: viewerId, followingId: { in: people.map((p) => p.id) } },
+      select: { followingId: true },
+    });
+    viewerFollowingIds = new Set(viewerFollows.map((f) => f.followingId));
+  }
+
+  return {
+    user: { id: user.id, nickname: user.nickname },
+    people: people.map((p) => ({
+      id: p.id, nickname: p.nickname, avatarUrl: p.avatarUrl, bio: p.bio, region: p.region,
+      isFollowing: viewerId ? viewerFollowingIds.has(p.id) : false,
+      isSelf: viewerId === p.id,
+    })),
+  };
+}

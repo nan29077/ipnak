@@ -7,7 +7,7 @@ import type { FeedPost } from "@/lib/queries";
 
 export function WalkingFeedPage({ posts, currentUserId }: { posts: FeedPost[]; currentUserId?: string }) {
   return (
-    <div className="bg-[#161616]">
+    <div className="bg-[#121212]">
       <CommunityTabs />
       <div className="px-4 pb-3 pt-2">
         <h1 className="flex items-center gap-1.5 text-[17px] font-extrabold tracking-tight text-navy-900">
@@ -19,7 +19,7 @@ export function WalkingFeedPage({ posts, currentUserId }: { posts: FeedPost[]; c
         <EmptyState title="워킹 피드가 없습니다" desc="데이터피싱 기록 후 피드에 올려보세요" />
       ) : (
         <div className="md:py-3">
-          {posts.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} />)}
+          {posts.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
         </div>
       )}
     </div>

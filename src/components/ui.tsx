@@ -50,27 +50,50 @@ export function LoadingState({ label = "불러오는 중..." }: { label?: string
   );
 }
 
-export function Chip({ children, active, onClick, as, size = "md" }: { children: React.ReactNode; active?: boolean; onClick?: () => void; as?: "button" | "span"; size?: "sm" | "md" }) {
+export function Chip({ children, active, onClick, as, size = "md", className }: { children: React.ReactNode; active?: boolean; onClick?: () => void; as?: "button" | "span"; size?: "sm" | "md"; className?: string }) {
   const cls = cn(
-    "inline-flex items-center whitespace-nowrap rounded-full font-medium transition-all active:scale-[0.97]",
+    "inline-flex items-center whitespace-nowrap rounded-full font-semibold transition-all active:scale-[0.97]",
     size === "sm" ? "px-2.5 py-1 text-[12px]" : "px-3 py-1.5 text-[13px]",
     active
       ? "bg-orange-500 text-white shadow-soft"
-      : "bg-navy-50 text-navy-500 hover:bg-navy-100"
+      : "bg-navy-50 text-navy-500 hover:bg-navy-100",
+    className
   );
   if (as === "span") return <span className={cls}>{children}</span>;
   return <button type="button" onClick={onClick} className={cls}>{children}</button>;
 }
 
-export function Sheet({ open, onClose, title, children, stickyContent, size = "lg" }: {
+export function Sheet({ open, onClose, title, children, stickyContent, footer, size = "lg" }: {
   open: boolean; onClose: () => void; title?: string; children: React.ReactNode;
   /** 제목 아래, 스크롤 영역 위에 고정되는 콘텐츠 (통계 카드 등) */
   stickyContent?: React.ReactNode;
+  /** 스크롤 영역 아래, 시트 바닥에 고정되는 콘텐츠 (입력창 등) */
+  footer?: React.ReactNode;
   size?: "lg" | "md" | "diary";
 }) {
   // createPortal은 클라이언트에서만 동작하므로 hydration 이후에만 렌더링
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  // 모바일 키보드 감지 — visualViewport 높이가 줄면 시트 컨테이너를 키보드 위로 올림
+  const [kbOffset, setKbOffset] = useState(0);
+  useEffect(() => {
+    if (!open || !mounted) return;
+    const vv = (typeof window !== "undefined") ? window.visualViewport : null;
+    if (!vv) return;
+    const update = () => {
+      const offset = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop ?? 0));
+      setKbOffset(offset);
+    };
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+      setKbOffset(0);
+    };
+  }, [open, mounted]);
 
   // 드래그 닫기 상태
   const dragStartY = useRef<number | null>(null);
@@ -114,7 +137,12 @@ export function Sheet({ open, onClose, title, children, stickyContent, size = "l
   const maxH = size === "md" ? "max-h-[52vh]" : size === "diary" ? "max-h-[67vh]" : "max-h-[88vh]";
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-end justify-center" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-x-0 top-0 z-[9999] flex items-end justify-center"
+      style={{ bottom: kbOffset > 0 ? `${kbOffset}px` : 0 }}
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" onClick={onClose} />
       {/* 시트 패널 — 헤더는 고정, 콘텐츠만 스크롤 */}
       <div
@@ -140,13 +168,19 @@ export function Sheet({ open, onClose, title, children, stickyContent, size = "l
         {/* 스크롤 가능한 콘텐츠 — scrollTop=0일 때 아래로 당기면 시트 닫힘 */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-4 pb-6"
+          className="flex-1 overflow-y-auto px-4 pb-4"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
           {children}
         </div>
+        {/* 고정 푸터 (댓글 입력창 등) — 스크롤 밖, 항상 화면 내 고정 */}
+        {footer && (
+          <div className="flex-shrink-0 border-t border-navy-100 px-4 py-3">
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body

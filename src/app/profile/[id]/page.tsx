@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { MapPin, Fish, Ruler } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getProfileData } from "@/lib/profile";
@@ -38,8 +39,8 @@ export default async function ProfilePage({ params }: { params: { id: string } }
 
         <Card className="grid grid-cols-3 divide-x divide-navy-100 p-0">
           <Stat n={stats.postCount} label="게시글" />
-          <Stat n={stats.followerCount} label="팔로워" />
-          <Stat n={stats.followingCount} label="팔로잉" />
+          <Link href={`/profile/${user.id}/followers`}><Stat n={stats.followerCount} label="팔로워" /></Link>
+          <Link href={`/profile/${user.id}/following`}><Stat n={stats.followingCount} label="팔로잉" /></Link>
         </Card>
 
         {user.bio && <p className="text-sm leading-relaxed text-navy-600">{user.bio}</p>}

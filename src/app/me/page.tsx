@@ -99,8 +99,8 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
           )}
           <div className="mt-2 flex gap-4">
             <HeaderStat n={stats.postCount} label="게시글" />
-            <HeaderStat n={stats.followerCount} label="팔로워" />
-            <HeaderStat n={stats.followingCount} label="팔로잉" accent />
+            <Link href={`/profile/${user.id}/followers`}><HeaderStat n={stats.followerCount} label="팔로워" /></Link>
+            <Link href={`/profile/${user.id}/following`}><HeaderStat n={stats.followingCount} label="팔로잉" accent /></Link>
           </div>
         </div>
         <Link href="/me/edit" className="flex items-center gap-1 rounded-full border border-navy-100 px-3 py-1.5 text-[12px] font-semibold text-navy-500 transition-colors hover:border-orange-400 hover:text-orange-400">

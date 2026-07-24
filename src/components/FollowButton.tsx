@@ -1,15 +1,17 @@
 "use client";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { UserPlus, UserCheck } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui";
 
-export function FollowButton({ userId, initial }: { userId: string; initial: boolean }) {
+export function FollowButton({ userId, initial, size = "md", full = true }: { userId: string; initial: boolean; size?: "sm" | "md" | "lg"; full?: boolean }) {
   const toast = useToast();
   const [following, setFollowing] = useState(initial);
   const [busy, setBusy] = useState(false);
 
-  async function toggle() {
+  async function toggle(e?: MouseEvent) {
+    e?.preventDefault();
+    e?.stopPropagation();
     setBusy(true);
     const prev = following;
     setFollowing(!prev);
@@ -24,9 +26,10 @@ export function FollowButton({ userId, initial }: { userId: string; initial: boo
     <Button
       onClick={toggle}
       disabled={busy}
-      full
+      full={full}
+      size={size}
       variant={following ? "outline" : "primary"}
-      leftIcon={following ? <UserCheck size={16} /> : <UserPlus size={16} />}
+      leftIcon={following ? <UserCheck size={size === "sm" ? 14 : 16} /> : <UserPlus size={size === "sm" ? 14 : 16} />}
     >
       {following ? "팔로잉" : "팔로우"}
     </Button>

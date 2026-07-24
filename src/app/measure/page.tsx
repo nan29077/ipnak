@@ -409,7 +409,7 @@ export default function MeasurePage() {
             className="flex items-center gap-1.5 rounded-full bg-navy-50 px-3 py-1.5 text-[12px] font-semibold text-navy-600 transition-colors hover:bg-navy-100"
           >
             <BookOpen size={15} strokeWidth={1.9} />
-            측정일지
+            계측일지
           </button>
         }
       />
@@ -591,7 +591,7 @@ export default function MeasurePage() {
               <p className="text-[15px] font-bold text-aqua-300">
                 {species}{result.lengthCm != null ? ` ${result.lengthCm}cm` : ""} 기록 완료
               </p>
-              <p className="mt-1 text-[12px] text-navy-400">측정일지에서 언제든 다시 볼 수 있어요.</p>
+              <p className="mt-1 text-[12px] text-navy-400">계측일지에서 언제든 다시 볼 수 있어요.</p>
             </div>
 
             {/* 대회 참가 모드 */}
@@ -622,7 +622,7 @@ export default function MeasurePage() {
                 className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all hover:bg-orange-600 active:scale-[0.97]"
               >
                 <BookOpen size={16} strokeWidth={1.9} />
-                측정일지 보기
+                계측일지 보기
               </button>
             </div>
             {/* 데이터피싱에서 진입한 경우: 기록 화면으로 복귀 */}
@@ -707,7 +707,7 @@ export default function MeasurePage() {
         />
       )}
 
-      {/* ── 측정일지 바텀시트 ── */}
+      {/* ── 계측일지 바텀시트 ── */}
       <DiarySheet open={diaryOpen} onClose={() => setDiaryOpen(false)} />
     </div>
   );
@@ -738,8 +738,8 @@ const TUTORIAL_STEPS = [
   {
     icon: <Save size={36} strokeWidth={1.6} className="text-orange-400" />,
     title: "어종 선택 후 저장",
-    desc: "길이가 표시되면 어종을 선택하고\n저장 버튼을 누르면 측정일지에 기록됩니다.\n진행 중인 대회에 바로 제출할 수도 있어요.",
-    hint: "저장 → 측정일지 / 대회 제출",
+    desc: "길이가 표시되면 어종을 선택하고\n저장 버튼을 누르면 계측일지에 기록됩니다.\n진행 중인 대회에 바로 제출할 수도 있어요.",
+    hint: "저장 → 계측일지 / 대회 제출",
   },
 ];
 

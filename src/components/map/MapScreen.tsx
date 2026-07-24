@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye, LocateFixed, ShieldCheck } from "lucide-react";
+import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye, LocateFixed, ShieldCheck, Map as MapIcon2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { MapView } from "@/components/map/MapView";
 import { Sheet, Button, Card, Badge } from "@/components/ui";
@@ -17,7 +17,9 @@ import { getAvatarUrl } from "@/lib/avatarUtils";
 
 const GPS_PREFERENCE_KEY = "ipnak:data-fishing:gps-enabled";
 
-export function MapScreen() {
+const MAP_TUTORIAL_KEY = "ipnak:map:tutorial:done";
+
+export function MapScreen({ userId }: { userId?: string }) {
   const toast = useToast();
   // 기록 세션은 전역(RecordingProvider)에서 관리 — 페이지를 벗어나거나 새로고침/재실행해도 유지됨
   const { status, route, distance, elapsed, savedTrips, activeCatches, start, pause, finish, postToFeed, removeTrip, lastPoint } = useRecording();
@@ -37,6 +39,10 @@ export function MapScreen() {
   // 내 포인트 드롭다운
   const [myPointsDropOpen, setMyPointsDropOpen] = useState(false);
   const myPointsDropRef = useRef<HTMLDivElement>(null);
+
+  // ---- 데이터피싱 튜토리얼 ----
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
 
   // ---- 낚시 포인트 검색 ----
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,6 +118,26 @@ export function MapScreen() {
 
   // 데이터피싱 종료 시 배경 모드 자동 해제
   useEffect(() => { if (status === "idle") setBgMode(false); }, [status]);
+
+  // 데이터피싱 튜토리얼 — 회원별 최초 1회
+  useEffect(() => {
+    try {
+      const key = userId ? `${MAP_TUTORIAL_KEY}:${userId}` : MAP_TUTORIAL_KEY;
+      if (!localStorage.getItem(key)) {
+        const t = setTimeout(() => setTutorialOpen(true), 600);
+        return () => clearTimeout(t);
+      }
+    } catch { /* noop */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  function completeTutorial() {
+    setTutorialOpen(false);
+    try {
+      const key = userId ? `${MAP_TUTORIAL_KEY}:${userId}` : MAP_TUTORIAL_KEY;
+      localStorage.setItem(key, "1");
+    } catch { /* noop */ }
+  }
 
   // 내 포인트 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
@@ -449,14 +475,25 @@ export function MapScreen() {
         </div>,
         document.body
       )}
-      {/* 상단 컨트롤 영역 — grid로 열 끝선 정렬 */}
-      <div className="absolute inset-x-0 top-3 z-[1000] mx-auto w-full max-w-[640px] px-3" style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "8px" }}>
+      {/* 상단 컨트롤 영역 — fixed로 헤더 바로 아래 고정 (지도 터치 스크롤 영향 없음) */}
+      <div
+        className="fixed z-[1000] px-3"
+        style={{
+          top: "calc(env(safe-area-inset-top, 0px) + 52px + 0.75rem)",
+          left: "max(0px, calc(50vw - 380px))",
+          width: "min(640px, 100vw)",
+          display: "grid",
+          gridTemplateColumns: "1fr auto auto",
+          gap: "8px",
+        }}
+      >
         {/* 1행 Col1: AI 포인트 추천 */}
-        <div className="min-w-0">
+        <div className="min-w-0" data-tutorial-step="2">
           <AiPointRecommend variant="bar" />
         </div>
         {/* 1행 Col2: 내 기록 */}
         <button
+          data-tutorial-step="7"
           onClick={() => setRecordsOpen(true)}
           aria-label="내 데이터피싱 기록"
           className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
@@ -473,7 +510,7 @@ export function MapScreen() {
           <Expand size={15} className="text-aqua-400" />
         </button>
         {/* 2행 Col1: 검색 (현위치 버튼 내장) */}
-        <div className="relative flex min-w-0 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
+        <div data-tutorial-step="1" className="relative flex min-w-0 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
           <Search size={15} className="shrink-0 text-navy-300" />
           <input
             ref={searchInputRef}
@@ -559,6 +596,7 @@ export function MapScreen() {
         {/* 2행 Col2+3: 내 포인트 드롭다운 */}
         <div ref={myPointsDropRef} className="relative" style={{ gridColumn: "span 2" }}>
           <button
+            data-tutorial-step="3"
             onClick={() => setMyPointsDropOpen((v) => !v)}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
           >
@@ -590,10 +628,11 @@ export function MapScreen() {
         </div>
       </div>
 
+      <div data-tutorial-step="0" className="absolute inset-0 z-0 pointer-events-none" aria-hidden="true" />
       <MapView center={center} route={displayRoute} markers={markers} onMarkerClick={(m) => m.data && setSelected(m.data)} />
 
       {/* 통계 + 컨트롤 — 모바일: fixed(nav 위), PC: absolute(지도 하단) */}
-      <div className="map-controls-bar">
+      <div data-tutorial-step="4" className="map-controls-bar">
         <div className="mx-auto max-w-[640px] rounded-2xl bg-[#161616]/95 p-3 shadow-card backdrop-blur">
           {/* GPS 꺼짐 경고 */}
           {status === "idle" && gpsAvail === false && (
@@ -674,6 +713,7 @@ export function MapScreen() {
             {status === "idle" && (
               <>
                 <Button
+                  data-tutorial-step="5"
                   onClick={start}
                   variant="primary"
                   className="flex-1 whitespace-nowrap"
@@ -683,6 +723,7 @@ export function MapScreen() {
                 </Button>
                 {/* GPS 토글 버튼 — 켜짐: 컬러/ON, 꺼짐: 흑백/OFF */}
                 <button
+                  data-tutorial-step="4-gps"
                   onClick={requestGps}
                   className={[
                     "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[16px] border px-4 py-2.5 text-[14px] font-semibold transition-all btn-press active:scale-[0.97]",
@@ -700,6 +741,7 @@ export function MapScreen() {
               <>
                 <Button onClick={pause} variant="outline" className="flex-1 whitespace-nowrap" leftIcon={<Pause size={18} />}>일시정지</Button>
                 <Link
+                  data-tutorial-step="6"
                   href="/measure?from=fishing"
                   className="inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[16px] bg-aqua-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft btn-press transition-colors hover:bg-aqua-600 active:scale-[0.97]"
                 >
@@ -962,6 +1004,18 @@ export function MapScreen() {
         onCancel={() => setDeleteTarget(null)}
       />
 
+      {/* ── 데이터피싱 튜토리얼 ── */}
+      {tutorialOpen && typeof document !== "undefined" && (
+        <DataFishingTutorial
+          step={tutorialStep}
+          onNext={() => {
+            if (tutorialStep < MAP_TUTORIAL_STEPS.length - 1) setTutorialStep((s) => s + 1);
+            else completeTutorial();
+          }}
+          onSkip={completeTutorial}
+        />
+      )}
+
       {/* 포인트 상세 시트 */}
       <Sheet open={!!selected} onClose={() => setSelected(null)} title="피싱 포인트">
         {selected && (
@@ -1004,5 +1058,269 @@ function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; 
       <p className="flex items-center justify-center gap-1 text-[11px] text-navy-400">{icon}{label}</p>
       <p className="text-base font-bold text-navy-800">{value}</p>
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────
+   데이터피싱 튜토리얼 — DOM 실측 스포트라이트 오버레이
+   getBoundingClientRect() 로 실제 버튼 위치를 측정해
+   box-shadow 방식으로 픽셀 단위 정확하게 하이라이트
+───────────────────────────────────────────────────── */
+
+const MAP_TUTORIAL_STEPS: Array<{
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  hint: string;
+  /** data-tutorial-step 속성값 — DOM 실측 대상 */
+  target: string;
+  /** 스포트라이트 패딩(px) */
+  pad: number;
+  /** 스포트라이트 border-radius(px) */
+  radius: number;
+}> = [
+  {
+    icon: <MapIcon2 size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "지도로 낚시 포인트를 탐색해요",
+    desc: "지도를 손가락으로 드래그해 원하는 지역으로 이동하고, 두 손가락 핀치로 확대·축소할 수 있어요. 포인트 마커를 탭하면 상세 정보를 확인할 수 있어요.",
+    hint: "지도 화면 — 드래그·핀치로 탐색",
+    target: "0",
+    pad: 0,
+    radius: 0,
+  },
+  {
+    icon: <Search size={30} strokeWidth={1.6} className="text-orange-400" />,
+    title: "낚시 포인트를 검색해요",
+    desc: "상단 두 번째 줄 검색창에서 지역명·포인트명을 입력하면 해당 위치로 지도가 이동해요. 검색창 오른쪽 위치 아이콘으로 현재 위치로도 바로 이동할 수 있어요.",
+    hint: "상단 두 번째 줄 ← 검색창",
+    target: "1",
+    pad: 4,
+    radius: 16,
+  },
+  {
+    icon: <LocateFixed size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "AI가 좋은 포인트를 추천해줘요",
+    desc: "상단 첫 번째 줄의 'AI 포인트 추천'을 탭하면 지도 주변의 조황 포인트를 AI가 분석해 알려줘요. 조류·날씨·어종을 종합해 추천해요.",
+    hint: "상단 첫 번째 줄 ← AI 포인트 추천",
+    target: "2",
+    pad: 4,
+    radius: 16,
+  },
+  {
+    icon: <MapPin size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "내 포인트를 빠르게 찾아가요",
+    desc: "상단 두 번째 줄 오른쪽 '내 포인트'를 탭하면 내가 기록한 낚시 포인트를 지역별로 볼 수 있어요. 목록에서 탭하면 해당 지역으로 지도가 바로 이동해요.",
+    hint: "상단 두 번째 줄 → 내 포인트",
+    target: "3",
+    pad: 4,
+    radius: 16,
+  },
+  {
+    icon: <Navigation size={30} strokeWidth={1.6} className="text-orange-400" />,
+    title: "GPS를 켜서 내 위치를 확인해요",
+    desc: "하단의 'GPS ON' 버튼을 탭해 위치 권한을 허용하면 현재 위치가 지도에 표시돼요. 기록 중에는 이동 경로가 선으로 실시간 그려집니다.",
+    hint: "하단 제어바 → GPS ON 버튼",
+    target: "4",
+    pad: 6,
+    radius: 20,
+  },
+  {
+    icon: <Play size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "기록 시작으로 동선을 기록해요",
+    desc: "하단의 '기록 시작'을 탭하면 이동 거리·경과 시간이 자동으로 기록됩니다. 기록된 동선은 지도 위에 선으로 표시되며, 종료 후 내 기록에 저장돼요.",
+    hint: "하단 제어바 → 기록 시작",
+    target: "5",
+    pad: 4,
+    radius: 16,
+  },
+  {
+    icon: <Fish size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "낚시 중 물고기를 바로 기록해요",
+    desc: "기록 중 하단 '피쉬' 버튼을 탭하면 AI 측정 화면으로 이동해 물고기 사진과 크기를 기록할 수 있어요. 측정 완료 후 데이터피싱 화면으로 자동 복귀해요.",
+    hint: "기록 중 → 하단 피쉬 버튼",
+    target: "4",  // 피쉬 버튼은 기록 중에만 표시 — 하단 컨트롤바 전체 하이라이트
+    pad: 6,
+    radius: 20,
+  },
+  {
+    icon: <ClipboardList size={30} strokeWidth={1.6} className="text-orange-400" />,
+    title: "내 기록을 언제든 확인해요",
+    desc: "상단 오른쪽 '내 기록' 버튼으로 이전 데이터피싱 기록을 모두 볼 수 있어요. 기록을 탭하면 이동 경로·어획 정보를 상세히 확인하고 워킹 피드에 공유할 수 있어요.",
+    hint: "상단 첫 번째 줄 → 내 기록",
+    target: "7",
+    pad: 4,
+    radius: 16,
+  },
+];
+
+function DataFishingTutorial({
+  step, onNext, onSkip,
+}: {
+  step: number; onNext: () => void; onSkip: () => void;
+}) {
+  const s = MAP_TUTORIAL_STEPS[step];
+  const isLast = step === MAP_TUTORIAL_STEPS.length - 1;
+  const [spotRect, setSpotRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  // 스텝이 바뀔 때마다 실제 DOM 위치 측정
+  useEffect(() => {
+    function measure() {
+      const el = document.querySelector<HTMLElement>(`[data-tutorial-step="${s.target}"]`);
+      if (!el) { setSpotRect(null); return; }
+      const r = el.getBoundingClientRect();
+      setSpotRect({ left: r.left, top: r.top, width: r.width, height: r.height });
+    }
+    // 즉시 측정 + 레이아웃 안정 후 재측정
+    measure();
+    const t = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      cancelAnimationFrame(t);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [step, s.target]);
+
+  if (typeof document === "undefined") return null;
+
+  const pad = s.pad;
+  const radius = s.radius;
+
+  // step 4(GPS)·5(기록시작)·6(피쉬기록) → 하단 버튼이 대상이므로 안내 카드를 상단으로
+  const cardAtTop = step >= 4 && step <= 6;
+
+  return createPortal(
+    <>
+      {/* 반짝이는 테두리 펄스 + shimmer sweep 애니메이션 */}
+      <style>{`
+        @keyframes tutorialBorderPulse {
+          0%, 100% {
+            border-color: rgba(249,115,22,0.85);
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.82), 0 0 0 0 rgba(249,115,22,0);
+          }
+          50% {
+            border-color: rgba(251,146,60,1);
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.82), 0 0 0 6px rgba(249,115,22,0.38), 0 0 22px 4px rgba(249,115,22,0.45);
+          }
+        }
+        @keyframes tutorialShimmerSweep {
+          0%        { transform: translateX(-130%); }
+          55%, 100% { transform: translateX(230%); }
+        }
+      `}</style>
+
+      <div className="fixed inset-0 z-[9980] pointer-events-none">
+        {/* 전체 어두운 배경 — spotRect 없을 때(step 0, 대상 미발견)만 표시
+            spotRect 있을 때는 box-shadow(9999px)로만 어둡게 → 버튼 안 텍스트 원래 밝기 유지 */}
+        {!spotRect && (
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.82)" }} />
+        )}
+
+        {/* 스포트라이트: box-shadow로 주변을 어둡게, 테두리는 펄스 애니메이션 */}
+        {spotRect && (
+          <>
+            <div
+              style={{
+                position: "fixed",
+                left: spotRect.left - pad,
+                top: spotRect.top - pad,
+                width: spotRect.width + pad * 2,
+                height: spotRect.height + pad * 2,
+                borderRadius: radius,
+                border: "2px solid #f97316",
+                animation: "tutorialBorderPulse 1.8s ease-in-out infinite",
+                transition: "left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease",
+                zIndex: 9981,
+              }}
+            />
+            {/* 반짝이는 shimmer sweep — 빛이 가로로 지나가며 버튼 텍스트 가독성 강조 */}
+            <div
+              style={{
+                position: "fixed",
+                left: spotRect.left - pad,
+                top: spotRect.top - pad,
+                width: spotRect.width + pad * 2,
+                height: spotRect.height + pad * 2,
+                borderRadius: radius,
+                overflow: "hidden",
+                zIndex: 9982,
+                pointerEvents: "none",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: "-8px",
+                  background: "linear-gradient(108deg, transparent 30%, rgba(255,255,255,0.26) 50%, transparent 70%)",
+                  animation: "tutorialShimmerSweep 2.4s ease-in-out infinite",
+                  willChange: "transform",
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {/* 튜토리얼 카드 — step 4·5·6은 상단, 나머지는 하단 (원래 위치) */}
+        <div
+          className="pointer-events-auto absolute left-0 right-0 px-3"
+          style={
+            cardAtTop
+              ? { top: "calc(env(safe-area-inset-top, 0px) + 64px)", zIndex: 9983 }
+              : { bottom: "calc(5.5rem + env(safe-area-inset-bottom, 0px))", zIndex: 9983 }
+          }
+        >
+          <div className="mx-auto max-w-[480px] overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#161c24] shadow-2xl">
+            {/* 진행 바 */}
+            <div className="flex gap-1 px-4 pt-4">
+              {MAP_TUTORIAL_STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= step ? "bg-orange-500" : "bg-white/15"}`}
+                />
+              ))}
+            </div>
+
+            <div className="px-5 pb-5 pt-4">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-white/[0.06] ring-1 ring-white/10">
+                  {s.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-orange-400">
+                    STEP {step + 1} / {MAP_TUTORIAL_STEPS.length}
+                  </p>
+                  <p className="text-[15px] font-extrabold tracking-tight text-white">{s.title}</p>
+                </div>
+              </div>
+
+              <p className="text-[12px] leading-[1.7] text-white/50">{s.desc}</p>
+
+              <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-3 py-1 text-[11px] font-semibold text-orange-400">
+                <ChevronRight size={11} /> {s.hint}
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  className="rounded-2xl px-4 py-2.5 text-[13px] font-medium text-white/30 transition-colors hover:text-white/55"
+                >
+                  건너뛰기
+                </button>
+                <button
+                  type="button"
+                  onClick={onNext}
+                  className="flex-1 rounded-2xl bg-orange-500 py-2.5 text-[14px] font-bold text-white shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98] active:bg-orange-600"
+                >
+                  {isLast ? "시작하기" : "다음"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body,
   );
 }

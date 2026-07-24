@@ -100,7 +100,20 @@ input, textarea, select {
 .pb-safe { padding-bottom: calc(0.5rem + var(--safe-bottom)); }
 .pt-safe { padding-top: var(--safe-top); }
 
-/* Scrollbar */
+/* Scrollbar — 전역 주황색 씬 스크롤바 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--orange-500) transparent;
+}
+*::-webkit-scrollbar { width: 4px; height: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--orange-500);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--orange-400); }
+*::-webkit-scrollbar-corner { background: transparent; }
+
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 

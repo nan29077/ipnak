@@ -1,7 +1,7 @@
 "use client";
 /**
- * 측정일지 바텀시트
- * AI측정 페이지에서 "측정일지" 버튼 클릭 시 하단에서 올라오는 시트
+ * 계측일지 바텀시트
+ * AI측정 페이지에서 "계측일지" 버튼 클릭 시 하단에서 올라오는 시트
  * DiaryPage 와 동일한 로직 — PageHeader 없이 Sheet 안에 임베드
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -53,7 +53,7 @@ function fmtDate(iso: string) {
 interface DiarySheetProps {
   open: boolean;
   onClose: () => void;
-  /** true 이면 측정일지를 날짜별로 묶어서 표시 (마이페이지 전체보기 용) */
+  /** true 이면 계측일지를 날짜별로 묶어서 표시 (마이페이지 전체보기 용) */
   groupByDate?: boolean;
 }
 
@@ -298,7 +298,7 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
 
   return (
     <>
-      <Sheet open={open} onClose={onClose} title="측정일지" size="diary" stickyContent={statsContent}>
+      <Sheet open={open} onClose={onClose} title="계측일지" size="diary" stickyContent={statsContent}>
         <div className="space-y-2.5">
           {/* ── 기록 리스트 ── */}
           {loading ? (

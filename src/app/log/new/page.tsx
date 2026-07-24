@@ -13,7 +13,7 @@ export default function NewLogPage() {
   const router = useRouter();
   const toast = useToast();
   const { shopMenuEnabled } = useAppSettings();
-  const [boardCategory, setBoardCategory] = useState("FREE");
+  const [boardCategory, setBoardCategory] = useState("WALKING");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [region, setRegion] = useState("");
@@ -53,7 +53,7 @@ export default function NewLogPage() {
   return (
     <div className="pb-10">
       <PageHeader title="조행기 쓰기" back right={
-        <Button onClick={submit} disabled={loading} size="sm" className="rounded-full">
+        <Button onClick={submit} disabled={loading} className="rounded-full">
           {loading ? <Loader2 size={16} className="animate-spin" /> : "등록"}
         </Button>
       } />
@@ -63,7 +63,7 @@ export default function NewLogPage() {
             <SectionTitle className="mb-2 uppercase tracking-[.05em] text-navy-300">게시판</SectionTitle>
             <div className="flex flex-wrap gap-2">
               {LOG_CATEGORIES.map((c) => (
-                <Chip key={c.key} size="sm" active={boardCategory === c.key} onClick={() => setBoardCategory(c.key)}>{c.label}</Chip>
+                <Chip key={c.key} active={boardCategory === c.key} onClick={() => setBoardCategory(c.key)}>{c.label}</Chip>
               ))}
             </div>
           </div>

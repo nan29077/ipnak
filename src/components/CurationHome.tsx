@@ -274,11 +274,16 @@ function SectionHead({ title, desc, moreHref, icon }: { title: string; desc?: st
 }
 
 function FeedRailCard({ post }: { post: FeedPost }) {
-  const thumb = post.images[0];
+  // FISHING_POINT 포스트이고 좌표가 있으면 MiniRouteMap으로 직접 지도 렌더 (외부 정적 맵 서비스 불필요)
+  const isFishingPoint = post.postType === "FISHING_POINT" && post.lat != null && post.lng != null;
+  const thumb = post.images.find((img) => img.alt !== "낚시 포인트 지도") ?? post.images[0];
   return (
     <Link href={`/post/${post.id}`} className="block w-[150px] shrink-0">
-      <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-navy-50">
-        {thumb?.url ? (
+      <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-[#1b2b3a]">
+        {isFishingPoint ? (
+          // 실제 리프렛 지도 렌더 — 외부 정적 지도 서비스에 의존하지 않음
+          <MiniRouteMap points={[{ lat: post.lat!, lng: post.lng! }]} />
+        ) : thumb?.url ? (
           <img
             src={thumb.url}
             alt={thumb.alt || "조황"}
