@@ -21,7 +21,8 @@ import { BallDetector, FishDetector, MeasurementCalculator, AROverlay } from "@/
 import { dbService } from "@/services/DatabaseService";
 import autoTagService from "@/services/AutoTagService";
 import syncService from "@/services/SyncService";
-// LiveMeasureCamera 미사용 — 네이티브 카메라 앱으로 대체
+// 실시간 AI 스캐너 (앱 내 카메라 스트림 + /api/measure/scan 폴링)
+import { LiveScanCamera, type LiveScanResult } from "@/components/LiveScanCamera";
 import { BallLinkSection } from "@/components/BallLinkSection";
 import { useRecording } from "@/components/RecordingProvider";
 import { DiarySheet } from "@/components/DiarySheet";
@@ -60,6 +61,7 @@ export default function MeasurePage() {
   const autoCamera = searchParams.get("autoCamera") === "1";
 
   const [phase, setPhase] = useState<Phase>("IDLE");
+  const [liveScanOpen, setLiveScanOpen] = useState(false); // 실시간 AI 스캐너 열림 여부
   const [loadingMsg, setLoadingMsg] = useState("");
   const [scanFailMsg, setScanFailMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -270,6 +272,30 @@ export default function MeasurePage() {
     setPhase("ANALYZING");
     setLoadingMsg("촬영본 분석 중...");
     await analyze(work);
+  }
+
+  /* ── 실시간 AI 스캐너 "측정하기" 확정 → 기존 결과 파이프라인 재사용 ──
+     autoScan 성공 경로와 동일하게 ball/head/tail 설정 후 RESULT 진입
+     (길이 계산은 result useEffect가 처리) ── */
+  function handleLiveScanConfirm(res: LiveScanResult) {
+    setErrorMsg(null);
+    setScanFailMsg(null);
+    setResult(null);
+    setProceedWithoutBall(false);
+    workCanvasRef.current = res.work;
+    setHasImage(true);
+    setBall(res.ball);
+    setIsMockFish(false);
+    setHead(res.head);
+    setTail(res.tail);
+    setLiveScanOpen(false);
+    setPhase("RESULT");
+  }
+
+  /* ── 실시간 스캐너 "직접 측정": 스캐너 종료 → 갤러리/수동 모드 전환 ── */
+  function handleLiveScanManual() {
+    setLiveScanOpen(false);
+    galleryInputRef.current?.click();
   }
 
   async function analyze(_work: HTMLCanvasElement) {
@@ -509,10 +535,10 @@ export default function MeasurePage() {
     if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
   }, []);
 
-  /* ── 재촬영: 네이티브 카메라 재시작 ── */
+  /* ── 재촬영: 실시간 AI 스캐너 재시작 ── */
   const retake = useCallback(() => {
     reset();
-    cameraInputRef.current?.click();
+    setLiveScanOpen(true);
   }, []);
 
   /* ── AI 카메라 계측 열기: 비로그인이면 로그인 안내, 첫 방문이면 튜토리얼 먼저 ── */
@@ -526,13 +552,13 @@ export default function MeasurePage() {
         return;
       }
     } catch { /* noop */ }
-    cameraInputRef.current?.click(); // 네이티브 카메라 앱 열기
+    setLiveScanOpen(true); // 앱 내 실시간 AI 스캐너 열기
   }, [loggedIn]);
 
   // autoCamera 모드: 페이지 마운트 즉시 카메라 열기 (대회 제출 플로우에서 단계 줄이기)
   useEffect(() => {
     if (!autoCamera) return;
-    const t = setTimeout(() => cameraInputRef.current?.click(), 200);
+    const t = setTimeout(() => setLiveScanOpen(true), 200);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -709,7 +735,7 @@ export default function MeasurePage() {
               <p className="whitespace-pre-line text-[13px] leading-relaxed text-red-300">{errorMsg}</p>
             </div>
             <div className="mt-3 flex gap-2">
-              <Button size="sm" onClick={() => cameraInputRef.current?.click()} leftIcon={<Camera size={15} />}>AI 카메라 재촬영</Button>
+              <Button size="sm" onClick={() => setLiveScanOpen(true)} leftIcon={<Camera size={15} />}>AI 카메라 재촬영</Button>
               <Button size="sm" variant="outline" onClick={() => galleryInputRef.current?.click()} leftIcon={<Images size={15} />}>
                 갤러리 선택
               </Button>
@@ -893,17 +919,26 @@ export default function MeasurePage() {
             if (tutorialStep < TUTORIAL_STEPS.length - 1) {
               setTutorialStep((s) => s + 1);
             } else {
-              // 마지막 단계: "카메라 촬영" 버튼 → 네이티브 카메라 열기
+              // 마지막 단계: "카메라 촬영" 버튼 → 실시간 AI 스캐너 열기
               try { localStorage.setItem("ipnak_ai_tutorial_done", "1"); } catch { /* noop */ }
               setTutorialOpen(false);
-              setTimeout(() => cameraInputRef.current?.click(), 100);
+              setTimeout(() => setLiveScanOpen(true), 100);
             }
           }}
           onSkip={() => {
             try { localStorage.setItem("ipnak_ai_tutorial_done", "1"); } catch { /* noop */ }
             setTutorialOpen(false);
-            setTimeout(() => cameraInputRef.current?.click(), 100);
+            setTimeout(() => setLiveScanOpen(true), 100);
           }}
+        />
+      )}
+
+      {/* ── 실시간 AI 스캐너 (전체화면) ── */}
+      {liveScanOpen && (
+        <LiveScanCamera
+          onConfirm={handleLiveScanConfirm}
+          onManual={handleLiveScanManual}
+          onClose={() => setLiveScanOpen(false)}
         />
       )}
 
