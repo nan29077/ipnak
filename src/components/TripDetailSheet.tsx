@@ -90,9 +90,11 @@ export function TripDetailSheet({
 
   useEffect(() => {
     if (!open) return;
-    if (initial) { setData(initial); return; }
+    // 초기 데이터가 있으면 즉시 표시 (로컬 catches 포함)
+    if (initial) setData(initial);
+    // 서버 ID가 있으면 API에서 완전한 피쉬 데이터로 보완 (initial 유무 무관)
     if (tripId && !tripId.startsWith("local-")) {
-      setLoading(true);
+      if (!initial) setLoading(true);
       fetch(`/api/trips/${tripId}`)
         .then((r) => r.json())
         .then((d) => { if (d?.trip) setData(d.trip); })

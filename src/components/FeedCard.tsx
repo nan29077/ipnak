@@ -58,6 +58,15 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
   const touchStartYRef = useRef<number | null>(null);
   // touch → click 이중 호출 방지 (e.preventDefault() 없이 처리)
   const touchFiredRef = useRef(false);
+  // 슬라이드 트랙 refs
+  const trackRef = useRef<HTMLDivElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const containerWidthRef = useRef(0);
+  const justDraggedRef = useRef(false);
+  // touchmove 클로저에서 최신 값 읽기용 refs (초기값 0 — useEffect가 마운트 직후 동기화)
+  const idxRef = useRef(0);
+  const slidesLengthRef = useRef(0);
   const badge = TYPE_BADGE[post.postType];
   const router = useRouter();
 
@@ -155,6 +164,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
     setLikeCount((c) => c + (liked ? -1 : 1));
     const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
     if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
+    else router.refresh(); // Next.js 클라이언트 라우터 캐시 무효화 — 다른 페이지 갔다 돌아와도 최신 좋아요 상태 유지
   }
 
   async function likeFromDoubleTap() {
@@ -167,6 +177,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
     setLikeCount((c) => c + (liked ? -1 : 1));
     const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
     if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
+    else router.refresh();
   }
 
   function onImageTap() {
@@ -192,12 +203,60 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
   useEffect(() => () => {
     if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
   }, []);
+
+  // 최신 idx / slides.length를 ref에 동기화 (non-passive touchmove 클로저에서 사용)
+  useEffect(() => { idxRef.current = idx; }, [idx]);
+  useEffect(() => { slidesLengthRef.current = slides.length; }, [slides.length]);
+
+  // non-passive touchmove 리스너 — React onTouchMove는 passive라 e.preventDefault()가 무시됨
+  // 이 방식으로만 가로 드래그 중 세로 스크롤을 실제로 막을 수 있음
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const handleTouchMove = (e: TouchEvent) => {
+      const startX = touchStartXRef.current;
+      const startY = touchStartYRef.current;
+      if (startX === null || slidesLengthRef.current <= 1) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = startY !== null ? Math.abs(e.touches[0].clientY - startY) : 0;
+      if (!isDraggingRef.current) {
+        if (dy > Math.abs(dx) + 3) return; // 세로 방향이 더 크면 스크롤 허용
+        if (Math.abs(dx) > 8) isDraggingRef.current = true;
+        else return;
+      }
+      e.preventDefault(); // non-passive이므로 실제로 세로 스크롤 차단
+      const W = containerWidthRef.current;
+      if (!trackRef.current || W <= 0) return;
+      const curIdx = idxRef.current;
+      const len = slidesLengthRef.current;
+      let drag = dx;
+      if ((curIdx === 0 && dx > 0) || (curIdx === len - 1 && dx < 0)) {
+        drag = dx * 0.25; // rubber-band
+      }
+      trackRef.current.style.transform = `translateX(${-curIdx * W + drag}px)`;
+    };
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', handleTouchMove);
+  }, []); // 마운트 시 한 번만 등록, 최신 값은 ref로 읽음
+
+  // 캐러셀 트랙 — idx 변경(화살표 클릭) 시 애니메이션으로 이동
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    if (justDraggedRef.current) {
+      // 터치 드래그로 이미 DOM에서 직접 이동시킨 경우 → 스킵
+      justDraggedRef.current = false;
+      return;
+    }
+    track.style.transition = 'transform 300ms cubic-bezier(0.25,0.46,0.45,0.94)';
+    track.style.transform = `translateX(-${idx * (100 / Math.max(1, slides.length))}%)`;
+  }, [idx, slides.length]);
   async function toggleSave() {
     if (!loggedIn) { setLoginModal(true); return; }
     setSaved((v) => !v);
     const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
     if (!res.ok) { setSaved(post.saved); toast("저장에 실패했습니다", "error"); }
-    else toast(saved ? "저장을 취소했습니다" : "저장했습니다", "success");
+    else { toast(saved ? "저장을 취소했습니다" : "저장했습니다", "success"); router.refresh(); }
   }
   const share = useCallback(async () => {
     const url = `${location.origin}/post/${post.id}`;
@@ -234,7 +293,8 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
 
       {/* 이미지 캐러셀 + 피싱태그 */}
       <div
-        className="relative aspect-square w-full select-none bg-navy-50"
+        ref={carouselRef}
+        className="relative aspect-square w-full select-none overflow-hidden bg-navy-50"
         onTouchStart={(e) => {
           // 화면 왼쪽 끝 20px — iOS 뒤로가기 제스처 보호, 이 영역은 캡처 안 함
           if (e.touches[0].clientX < 20) {
@@ -244,63 +304,91 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
           }
           touchStartXRef.current = e.touches[0].clientX;
           touchStartYRef.current = e.touches[0].clientY;
+          isDraggingRef.current = false;
+          containerWidthRef.current = (e.currentTarget as HTMLElement).offsetWidth;
+          if (trackRef.current) trackRef.current.style.transition = 'none';
         }}
+        // onTouchMove는 JSX 제거 — non-passive 네이티브 리스너(useEffect)에서 처리
+        // React onTouchMove는 passive라 e.preventDefault()가 브라우저에서 무시됨
         onTouchEnd={(e) => {
-          // e.preventDefault() 제거 — touchFiredRef로 이중 호출 방지 (iOS 뒤로가기 제스처 허용)
           const startX = touchStartXRef.current;
           const startY = touchStartYRef.current;
           touchStartXRef.current = null;
           touchStartYRef.current = null;
-          if (startX === null) return; // 왼쪽 끝 제스처 or touchStart 미발생 → 무시
+          if (startX === null) return;
           const deltaX = e.changedTouches[0].clientX - startX;
           const deltaY = startY !== null ? e.changedTouches[0].clientY - startY : 0;
-          // 세로 이동 12px 이상이면 스크롤로 간주 — 탭/네비게이션 무시
-          if (Math.abs(deltaY) > 12) return;
-          // 가로 스와이프 40px 이상이면 슬라이드 이동
-          if (Math.abs(deltaX) >= 40) {
-            if (deltaX < 0) setIdx((i) => Math.min(slides.length - 1, i + 1));
-            else setIdx((i) => Math.max(0, i - 1));
+
+          if (!isDraggingRef.current) {
+            // 드래그 없이 탭만 한 경우 — 트랙 위치 복원 후 탭 처리
+            if (trackRef.current) {
+              trackRef.current.style.transition = '';
+              trackRef.current.style.transform = `translateX(-${idx * (100 / Math.max(1, slides.length))}%)`;
+            }
+            if (Math.abs(deltaY) <= 12) {
+              touchFiredRef.current = true;
+              setTimeout(() => { touchFiredRef.current = false; }, 400);
+              onImageTap();
+            }
             return;
           }
-          // touch → click 이중 호출 방지 플래그 설정 후 탭 처리
-          touchFiredRef.current = true;
-          setTimeout(() => { touchFiredRef.current = false; }, 400);
-          onImageTap();
+          isDraggingRef.current = false;
+
+          // 스와이프 거리 기준으로 이동할 슬라이드 결정
+          let newIdx = idx;
+          if (Math.abs(deltaX) >= 40) {
+            if (deltaX < 0) newIdx = Math.min(slides.length - 1, idx + 1);
+            else newIdx = Math.max(0, idx - 1);
+          }
+
+          // px 단위로 스냅 애니메이션 (드래그 위치에서 자연스럽게 이어짐)
+          const W = containerWidthRef.current;
+          if (trackRef.current && W > 0) {
+            trackRef.current.style.transition = 'transform 300ms cubic-bezier(0.25,0.46,0.45,0.94)';
+            trackRef.current.style.transform = `translateX(${-newIdx * W}px)`;
+          }
+          justDraggedRef.current = true;
+          setIdx(newIdx);
         }}
       >
-        {(() => {
-          if (slides.length === 0) {
-            const sticker = STICKERS[post.id.charCodeAt(0) % 3];
-            return (
-              <img
-                src={sticker}
-                alt="이미지 없음"
-                decoding="async"
-                className="h-full w-full object-contain p-10 opacity-50"
-              />
-            );
-          }
-          const slide = slides[idx];
-          if (slide?.type === "map") {
-            return (
-              <div className="h-full w-full cursor-pointer" onClick={() => { if (touchFiredRef.current) return; onImageTap(); }}>
-                <MiniRouteMap
-                  points={walkingData?.routePoints ?? []}
-                  catchPoints={walkingData?.catchMarkers}
-                />
+        {slides.length === 0 ? (
+          <img
+            src={STICKERS[post.id.charCodeAt(0) % 3]}
+            alt="이미지 없음"
+            decoding="async"
+            className="h-full w-full object-contain p-10 opacity-50"
+          />
+        ) : (
+          /* 슬라이드 트랙 — 가로 flex, CSS transform으로 자연스러운 슬라이드 전환 */
+          <div
+            ref={trackRef}
+            className="flex h-full will-change-transform"
+            style={{ width: `${slides.length * 100}%` }}
+          >
+            {slides.map((slide) => (
+              <div
+                key={slide.key}
+                className="h-full cursor-pointer"
+                style={{ width: `${100 / slides.length}%` }}
+                onClick={() => { if (touchFiredRef.current) return; onImageTap(); }}
+              >
+                {slide.type === "map" ? (
+                  <MiniRouteMap
+                    points={walkingData?.routePoints ?? []}
+                    catchPoints={walkingData?.catchMarkers}
+                  />
+                ) : (
+                  <img
+                    src={slide.url}
+                    alt={slide.alt || "낚시 사진"}
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                )}
               </div>
-            );
-          }
-          return (
-            <img
-              src={(slide as Extract<(typeof slides)[number], { type: "img" }>)?.url}
-              alt={(slide as Extract<(typeof slides)[number], { type: "img" }>)?.alt || "낚시 사진"}
-              decoding="async"
-              className="h-full w-full cursor-pointer object-cover"
-              onClick={() => { if (touchFiredRef.current) return; onImageTap(); }}
-            />
-          );
-        })()}
+            ))}
+          </div>
+        )}
 
         {/* 크게 보기 — 워킹 피드 동선 지도 풀스크린 */}
         {!locked && slides[idx]?.type === "map" && (
@@ -605,7 +693,7 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
         ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && send()}
         placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
-        className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#252525] focus:ring-2 focus:ring-aqua-100"
+        className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-[16px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#252525] focus:ring-2 focus:ring-aqua-100"
       />
       <button onClick={send} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press transition-colors hover:bg-orange-600"><Send size={16} /></button>
     </div>
@@ -654,7 +742,7 @@ function ReplyInput({ nickname, disabled, onCancel, onSubmit }: { nickname: stri
         ref={ref} value={text} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") onSubmit(text); if (e.key === "Escape") onCancel(); }}
         placeholder={disabled ? "로그인 후 답글을 달 수 있어요" : "답글 달기..."}
-        className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-3.5 py-2 text-[13px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#162538]"
+        className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-3.5 py-2 text-[16px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#162538]"
       />
       <button onClick={() => onSubmit(text)} aria-label="답글 전송" className="rounded-full bg-orange-500 p-2 text-white btn-press transition-colors hover:bg-orange-600"><Send size={14} /></button>
       <button onClick={onCancel} aria-label="답글 취소" className="rounded-full p-1.5 text-navy-300 transition-colors hover:bg-navy-50 hover:text-navy-500"><X size={16} /></button>

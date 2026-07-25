@@ -51,6 +51,8 @@ type RecordingCtx = {
   savedTrips: TripRec[];
   activeCatches: TripCatch[];
   sessionId: string | null;
+  /** 직전 세션 ID — 종료 후 30분 내 피쉬 기록 제출 시 tripId로 사용 */
+  lastSessionId: string | null;
   start: () => void;
   pause: () => void;
   finish: () => void;
@@ -74,6 +76,8 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const [route, setRoute] = useState<LatLng[]>([]);
   const [distance, setDistance] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+  const lastSessionExpiry = useRef<number | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [savedTrips, setSavedTrips] = useState<TripRec[]>([]);
   const [activeCatches, setActiveCatches] = useState<TripCatch[]>([]);
@@ -101,7 +105,11 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   // ---- 경로 추적 ----
   const addPoint = useCallback((p: LatLng) => {
     setRoute((r) => {
-      if (r.length > 0) setDistance((d) => d + distanceMeters(r[r.length - 1], p));
+      if (r.length > 0) {
+        const dist = distanceMeters(r[r.length - 1], p);
+        if (dist < 3) return r; // 최소 3m 미만 포인트 무시 (정지 중 경로 오염 방지)
+        setDistance((d) => d + dist);
+      }
       return [...r, p];
     });
   }, []);
@@ -121,9 +129,12 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const startWatchers = useCallback(() => {
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       watchId.current = navigator.geolocation.watchPosition(
-        (pos) => addPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) => {
+          if (pos.coords.accuracy > 30) return; // 정확도 30m 초과 신호 무시 (노이즈 필터)
+          addPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
         () => { startMock(); toast("위치 권한이 없어 시뮬레이션 경로로 진행합니다", "info"); },
-        { enableHighAccuracy: true, maximumAge: 1000 }
+        { enableHighAccuracy: true, maximumAge: 0 }
       );
     } else {
       startMock();
@@ -318,6 +329,11 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     setRoute([]);
     setDistance(0);
     setElapsed(0);
+    // 직전 세션 ID 30분 보존 — 종료 직후 피쉬 기록 제출 시 tripId로 활용
+    if (snapSession) {
+      setLastSessionId(snapSession);
+      lastSessionExpiry.current = Date.now() + 30 * 60 * 1000;
+    }
     setSessionId(null);
     setActiveCatches([]);
 
@@ -449,6 +465,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     savedTrips,
     activeCatches,
     sessionId,
+    lastSessionId: (lastSessionExpiry.current && Date.now() < lastSessionExpiry.current) ? lastSessionId : null,
     start,
     pause,
     finish,

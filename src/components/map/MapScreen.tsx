@@ -313,8 +313,10 @@ export function MapScreen({ userId }: { userId?: string }) {
   }, [lastPoint, status]);
 
   function openDetail(rec: TripRec) {
+    const catchesInitial = (rec.catches ?? []) as TripDetail['catches'];
+    const serverId = rec.id.startsWith("local-") ? undefined : rec.id;
     if (rec.route && rec.route.length > 0) {
-      // 방금 기록한 임시 데이터: 메모리의 경로로 즉시 상세 표시
+      // 방금 기록한 임시 데이터: 로컬 catches 즉시 표시 + 서버 ID 있으면 API로 전체 데이터 보완
       setDetailTrip({
         initial: {
           id: rec.id,
@@ -322,12 +324,23 @@ export function MapScreen({ userId }: { userId?: string }) {
           durationSec: rec.durationSec,
           createdAt: rec.createdAt,
           routePoints: rec.route,
-          catches: [],
+          catches: catchesInitial,
         },
+        tripId: serverId,
       });
     } else {
-      // 서버 저장 기록: id로 상세 조회
-      setDetailTrip({ tripId: rec.id });
+      // 서버 저장 기록: id로 상세 조회 (로컬 catches 있으면 초기값으로 표시)
+      setDetailTrip({
+        tripId: rec.id,
+        initial: catchesInitial.length > 0 ? {
+          id: rec.id,
+          distanceM: rec.distanceM,
+          durationSec: rec.durationSec,
+          createdAt: rec.createdAt,
+          routePoints: [],
+          catches: catchesInitial,
+        } : undefined,
+      });
     }
   }
 
@@ -689,7 +702,7 @@ export function MapScreen({ userId }: { userId?: string }) {
                       </div>
                       <div className="flex-1">
                         <p className="text-[10px] text-navy-400">어획</p>
-                        <p className="text-[14px] font-bold text-navy-800">{last.catches?.length ?? 0}마리</p>
+                        <p className="text-[14px] font-bold text-navy-800">{(last.catches?.length ?? 0) > 0 ? last.catches!.length : ((last as any).catchCount ?? 0)}마리</p>
                       </div>
                     </div>
                     <button
@@ -788,9 +801,12 @@ export function MapScreen({ userId }: { userId?: string }) {
                   <div className="flex flex-wrap gap-1.5">
                     <Badge tone="aqua" className="gap-1"><Navigation size={11} />{km(t.distanceM)}</Badge>
                     <Badge tone="navy" className="gap-1"><Clock size={11} />{duration(t.durationSec)}</Badge>
-                    {(t.catches?.length ?? 0) > 0 && (
-                      <Badge tone="green" className="gap-1"><Fish size={11} />{t.catches!.length}마리</Badge>
-                    )}
+                    {(() => {
+                      const count = (t.catches?.length ?? 0) > 0 ? t.catches!.length : ((t as any).catchCount ?? 0);
+                      return count > 0 ? (
+                        <Badge tone="green" className="gap-1"><Fish size={11} />{count}마리</Badge>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <span className="inline-flex items-center gap-1 text-[11px] text-navy-300">

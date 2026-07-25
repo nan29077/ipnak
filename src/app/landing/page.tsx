@@ -23,7 +23,7 @@ export default function LandingPage() {
       sessionStorage.setItem("ipnak_mobile_entered", "1");
       // 쿠키 세팅: 미들웨어에서 재방문 시 /measure 로 직행
       document.cookie = "ipnak_entered=mobile; path=/; max-age=86400";
-      router.push("/measure");
+      router.push("/home");
     } else {
       sessionStorage.setItem("ipnak_pc_entered", "1");
       // 쿠키 세팅: 미들웨어에서 재방문 시 홈 유지
@@ -112,7 +112,7 @@ export default function LandingPage() {
             backgroundPosition: "center",
           }}
         />
-        <div className="absolute inset-0 bg-black/10 hidden md:block" />
+        <div className="absolute inset-0 bg-black/0 hidden md:block" />
 
         {/* ──────────────────────────────────────────────
             상단(모바일) / 좌측(PC): 입낚 소개
@@ -145,8 +145,8 @@ export default function LandingPage() {
             className="absolute inset-0 transition-all duration-700 hidden md:block"
             style={{
               background: hovered === "left"
-                ? "linear-gradient(135deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.02) 100%)"
-                : "linear-gradient(135deg, rgba(0,0,0,0.38) 0%, rgba(0,0,0,0.24) 100%)",
+                ? "linear-gradient(135deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.0) 100%)"
+                : "linear-gradient(135deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.06) 100%)",
             }}
           />
 
@@ -274,8 +274,8 @@ export default function LandingPage() {
             className="absolute inset-0 transition-all duration-700 hidden md:block"
             style={{
               background: hovered === "right"
-                ? "linear-gradient(225deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.02) 100%)"
-                : "linear-gradient(225deg, rgba(0,0,0,0.38) 0%, rgba(0,0,0,0.24) 100%)",
+                ? "linear-gradient(225deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.0) 100%)"
+                : "linear-gradient(225deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.06) 100%)",
             }}
           />
 

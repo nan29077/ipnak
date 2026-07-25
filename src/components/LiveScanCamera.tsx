@@ -439,6 +439,11 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     onConfirm(result);
   }, [cleanupStream, onConfirm, onClose]);
 
+  // effectiveLandscape: 실제로 가로 UI를 표시할지 여부
+  const effectiveLandscape = isLandscape || browserIsLandscape;
+  // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우
+  const needsCssRotation = effectiveLandscape && !browserIsLandscape;
+
   /* ── "직접 측정" / 권한 거부: 현재 프레임 캡처 후 스트림 종료 → 부모로 ── */
   const switchToManual = useCallback(() => {
     // 현재 비디오 프레임을 캡처해서 부모에 전달 (수동 탭 모드에서 바로 사용)
@@ -447,17 +452,32 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       const v = videoRef.current;
       if (v && v.readyState >= 2 && v.videoWidth > 0) {
         const s = Math.min(1, SCAN_MAX_PX / Math.max(v.videoWidth, v.videoHeight));
-        frame = document.createElement("canvas");
-        frame.width = Math.max(1, Math.round(v.videoWidth * s));
-        frame.height = Math.max(1, Math.round(v.videoHeight * s));
-        frame.getContext("2d")!.drawImage(v, 0, 0, frame.width, frame.height);
+        const src = document.createElement("canvas");
+        src.width = Math.max(1, Math.round(v.videoWidth * s));
+        src.height = Math.max(1, Math.round(v.videoHeight * s));
+        src.getContext("2d")!.drawImage(v, 0, 0, src.width, src.height);
+
+        // CSS 회전 모드(가로 UI지만 스트림은 세로): 사용자가 본 화면과 동일하게
+        // 캔버스를 90° 반시계방향 회전해서 전달해야 직접 측정 페이지에서 올바르게 표시됨
+        if (needsCssRotation) {
+          const rot = document.createElement("canvas");
+          rot.width = src.height;
+          rot.height = src.width;
+          const ctx = rot.getContext("2d")!;
+          ctx.translate(rot.width / 2, rot.height / 2);
+          ctx.rotate(-Math.PI / 2);
+          ctx.drawImage(src, -src.width / 2, -src.height / 2);
+          frame = rot;
+        } else {
+          frame = src;
+        }
       }
     } catch {
       frame = null;
     }
     cleanupStream();
     onSwitchToManual(frame);
-  }, [cleanupStream, onSwitchToManual]);
+  }, [cleanupStream, onSwitchToManual, needsCssRotation]);
 
   const canConfirm = !!det;
 
@@ -507,15 +527,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       직접 측정
     </button>
   );
-
-  // effectiveLandscape: 실제로 가로 UI를 표시할지 여부
-  //   = 사용자가 "가로로" 클릭 OR 기기가 실제로 가로 방향
-  const effectiveLandscape = isLandscape || browserIsLandscape;
-
-  // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우
-  //   = 가로 UI를 원하지만 브라우저는 아직 세로 방향일 때 (자동회전 OFF 상태)
-  //   브라우저가 이미 가로(자동회전 ON)이면 CSS 회전 불필요 — 브라우저가 이미 돌려줌
-  const needsCssRotation = effectiveLandscape && !browserIsLandscape;
 
   // CSS 회전 트릭 필요 시 컨테이너 스타일
   // 100dvh = iOS Safari 주소창/하단 네비게이션 제외한 실제 보이는 뷰포트 높이

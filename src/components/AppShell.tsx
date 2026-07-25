@@ -30,7 +30,7 @@ function commerceItem(shopEnabled: boolean): NavItemDef {
 // 모바일 하단 4탭 (+ 중앙 물고기기록 FAB): 홈 / 데이터피싱 / [●+] / 중고피싱 / 마이
 function buildMobileNav(shopEnabled: boolean): NavItemDef[] {
   return [
-    { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/post") || p.startsWith("/log") || p.startsWith("/profile") },
+    { href: "/home", label: "홈", icon: IconHome, match: (p) => p === "/home" || p === "/" },
     { href: "/map", label: "데이터피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
     commerceItem(shopEnabled),
     { href: "/me", label: "마이", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },
@@ -40,7 +40,7 @@ function buildMobileNav(shopEnabled: boolean): NavItemDef[] {
 // PC 우측 세로 메뉴: 전체 메뉴 나열 (물고기기록 FAB는 slice(2) 앞에 삽입)
 function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): NavItemDef[] {
   return [
-    { href: "/", label: "홈", icon: IconHome, match: (p) => p === "/" || p.startsWith("/post") || p.startsWith("/profile") },
+    { href: "/home", label: "홈", icon: IconHome, match: (p) => p === "/" || p === "/home" || p.startsWith("/post") || p.startsWith("/profile") },
     { href: "/map", label: "데이터피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
     // ↑ 여기(인덱스 2 앞)에 물고기기록(측정) FAB 삽입
     { href: "/diary", label: "계측일지", icon: IconFish, match: (p) => p.startsWith("/diary") },

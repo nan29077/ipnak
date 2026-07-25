@@ -20,15 +20,20 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   // tripId로 직접 연결된 피쉬 기록
   let fishPoints = trip.fishingPoints;
 
-  // tripId 연결이 없는 경우(기존 데이터 호환): 세션 시간 범위 내 유저 catch 조회로 보완
-  if (fishPoints.length === 0 && trip.startedAt && (trip.endedAt || trip.durationSec > 0)) {
-    const sessionEnd = trip.endedAt ?? new Date(trip.startedAt.getTime() + trip.durationSec * 1000 + 60000);
+  // tripId 연결이 없는 경우: 세션 시간 범위 ±30분 내 유저 catch 조회로 보완
+  if (fishPoints.length === 0 && trip.startedAt) {
+    const baseEnd = trip.endedAt
+      ?? new Date(trip.startedAt.getTime() + Math.max(trip.durationSec, 0) * 1000);
+    // 종료 시각으로부터 30분 후까지 잡은 물고기도 포함 (기록 종료 직후 제출 케이스 대응)
+    const sessionEnd = new Date(baseEnd.getTime() + 30 * 60 * 1000);
+    // 시작 2분 전부터 탐색 (앱 시작 직후 바로 기록하는 케이스)
+    const sessionStart = new Date(trip.startedAt.getTime() - 2 * 60 * 1000);
     try {
       fishPoints = await prisma.fishingPoint.findMany({
         where: {
           userId: user.id,
           tripId: null,
-          createdAt: { gte: trip.startedAt, lte: sessionEnd },
+          createdAt: { gte: sessionStart, lte: sessionEnd },
         },
         orderBy: { createdAt: "asc" },
       });
@@ -54,7 +59,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       distanceM: trip.distanceM,
       durationSec: trip.durationSec,
       region: trip.region,
-      catchCount: trip.catchCount,
+      catchCount: Math.max(trip.catchCount, fishPoints.length),
       startedAt: trip.startedAt.toISOString(),
       endedAt: trip.endedAt?.toISOString() ?? null,
       createdAt: trip.startedAt.toISOString(),

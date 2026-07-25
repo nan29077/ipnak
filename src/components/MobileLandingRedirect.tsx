@@ -13,9 +13,9 @@ export function MobileLandingRedirect() {
       // PC 세션 플래그가 있으면 홈 유지 (DevTools 모바일 시뮬레이션 오작동 방지)
       if (pcEntered) return;
 
-      // 모바일 재방문 → AI측정
+      // 모바일 재방문 → 홈
       if (mobileEntered) {
-        window.location.replace("/measure");
+        window.location.replace("/home");
         return;
       }
 

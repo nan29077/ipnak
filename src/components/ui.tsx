@@ -75,15 +75,21 @@ export function Sheet({ open, onClose, title, children, stickyContent, footer, s
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // 모바일 키보드 감지 — visualViewport 높이가 줄면 시트 컨테이너를 키보드 위로 올림
+  // 모바일 키보드 감지 — visualViewport 높이 추적
+  // kbOffset: 시트 컨테이너 bottom 오프셋 (키보드 높이)
+  // vvHeight: 실제 보이는 뷰포트 높이 → 시트 패널 max-height 제한에 사용
   const [kbOffset, setKbOffset] = useState(0);
+  const [vvHeight, setVvHeight] = useState(0);
   useEffect(() => {
     if (!open || !mounted) return;
     const vv = (typeof window !== "undefined") ? window.visualViewport : null;
     if (!vv) return;
     const update = () => {
-      const offset = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop ?? 0));
+      const h = vv.height;
+      const offsetTop = vv.offsetTop ?? 0;
+      const offset = Math.max(0, window.innerHeight - h - offsetTop);
       setKbOffset(offset);
+      setVvHeight(h);
     };
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
@@ -92,6 +98,7 @@ export function Sheet({ open, onClose, title, children, stickyContent, footer, s
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
       setKbOffset(0);
+      setVvHeight(0);
     };
   }, [open, mounted]);
 
@@ -135,6 +142,11 @@ export function Sheet({ open, onClose, title, children, stickyContent, footer, s
   if (!open || !mounted) return null;
 
   const maxH = size === "md" ? "max-h-[52vh]" : size === "diary" ? "max-h-[67vh]" : "max-h-[88vh]";
+  // 키보드가 올라온 경우 실제 보이는 뷰포트 높이를 기준으로 패널 max-height 제한
+  // (88vh는 레이아웃 뷰포트 기준이라 키보드를 고려하지 않으므로 px로 덮어씀)
+  const panelMaxHStyle = kbOffset > 0 && vvHeight > 0
+    ? { maxHeight: `${vvHeight - 12}px` }
+    : {};
 
   return createPortal(
     <div
@@ -146,8 +158,8 @@ export function Sheet({ open, onClose, title, children, stickyContent, footer, s
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" onClick={onClose} />
       {/* 시트 패널 — 헤더는 고정, 콘텐츠만 스크롤 */}
       <div
-        className={`animate-sheet relative flex ${maxH} w-full max-w-[640px] flex-col rounded-t-[20px] border border-white/[0.08] bg-[#162538] shadow-sheet`}
-        style={{ transform: dragY > 0 ? `translateY(${dragY}px)` : undefined, transition: dragY > 0 ? "none" : "transform 0.2s ease" }}
+        className={`animate-sheet relative flex ${kbOffset > 0 ? '' : maxH} w-full max-w-[640px] flex-col rounded-t-[20px] border border-white/[0.08] bg-[#162538] shadow-sheet`}
+        style={{ transform: dragY > 0 ? `translateY(${dragY}px)` : undefined, transition: dragY > 0 ? "none" : "transform 0.2s ease", ...panelMaxHStyle }}
       >
         {/* 고정 헤더 영역 — 여기서 스와이프하면 시트 닫힘 */}
         <div

@@ -16,7 +16,7 @@ import { estimateWeightKg, formatWeight } from "@/lib/fishData";
 export default function NewCatchPage() {
   const router = useRouter();
   const toast = useToast();
-  const { status, addCatchToRecording, sessionId, lastPoint } = useRecording();
+  const { status, addCatchToRecording, sessionId, lastSessionId, lastPoint } = useRecording();
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [rulerOpen, setRulerOpen] = useState(false);
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
@@ -102,7 +102,8 @@ export default function NewCatchPage() {
             calibrationLengthCm: ruler.calibrationLengthCm, fishHeadPoint: ruler.fishHeadPoint,
             fishTailPoint: ruler.fishTailPoint, measuredLengthCm: ruler.measuredLengthCm, confidence: ruler.confidence,
           } : {}),
-          ...(status !== "idle" && sessionId ? { tripId: sessionId } : {}),
+          // 기록 중이면 현재 세션 ID, 종료 직후(30분 내)면 직전 세션 ID를 tripId로 연결
+          ...(sessionId ? { tripId: sessionId } : lastSessionId ? { tripId: lastSessionId } : {}),
         }),
       });
       const data = await res.json();

@@ -34,6 +34,13 @@ export async function POST(req: Request) {
       visibility: b.pointVisibility || "EXACT",
     },
   });
+  // tripId가 있으면 출조 기록의 catchCount 자동 증가 (기록 종료 후 물고기 저장 케이스 대응)
+  if (b.tripId) {
+    prisma.fishingTrip.update({
+      where: { id: String(b.tripId), userId: user.id },
+      data: { catchCount: { increment: 1 } },
+    }).catch(() => {});
+  }
   const cr = await prisma.catchRecord.create({
     data: {
       userId: user.id, fishingPointId: point.id, speciesName: b.speciesName || "미상",
