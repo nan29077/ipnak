@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rateLimit";
 import { prisma } from "@/lib/prisma";
 import { distanceMeters } from "@/lib/map";
 import { getAiCredentials } from "@/lib/aiCredentials";
@@ -97,6 +98,12 @@ function topSigunguByPosts(pool: PoolItem[], posts: AnyPost[], n: number): PoolI
 }
 
 export async function POST(req: Request) {
+  // IP당 분당 3회 제한 — 네이버/OpenAI API 비용 절감
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!rateLimit(`recommend:${ip}`, 3, 60_000)) {
+    return NextResponse.json({ error: "rate-limited" }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const sidoName: string | null = body.sido && body.sido !== "전체" ? String(body.sido) : null;
   const sgName: string | null = body.sigungu && body.sigungu !== "전체" ? String(body.sigungu) : null;
@@ -226,9 +233,11 @@ export async function POST(req: Request) {
   }
   if (totalMatched === 0) basis = "아직 이 지역 회원 조황 데이터가 적어요. 그럴듯한 명소 위주로 추천했어요.";
 
-  // 웹 조황 검색 (네이버 블로그) — 비동기 병렬
-  const webResults = await fetchNaverBlogReports(sidoName, sgName, species, month, day);
-  const { openai } = await getAiCredentials();
+  // 웹 조황 검색 (네이버 블로그) — AI 키 조회와 실제 병렬 실행 (순차 대기 제거)
+  const [webResults, { openai }] = await Promise.all([
+    fetchNaverBlogReports(sidoName, sgName, species, month, day),
+    getAiCredentials(),
+  ]);
   const aiBasis = await makeOpenAiBasis(openai, points, webResults);
 
   return NextResponse.json({

@@ -209,6 +209,17 @@ export async function POST(req: Request) {
       case "SPECIES_CREATE":
         await prisma.fishSpecies.create({ data: { slug: `sp-${b.label}-${Date.now()}`, label: b.label, water: b.water || "SEA" } });
         await log("SPECIES_CREATE", undefined, b.label); break;
+      case "MARKET_STATUS":
+        if (!["SELLING", "RESERVED", "SOLD"].includes(b.status)) return NextResponse.json({ error: "유효하지 않은 상태" }, { status: 400 });
+        await prisma.marketListing.update({ where: { id: b.id }, data: { status: b.status } });
+        await log("MARKET_STATUS", b.id, b.status); break;
+      case "MARKET_DELETE":
+        await prisma.marketMessage.deleteMany({ where: { chat: { listingId: b.id } } });
+        await prisma.marketChat.deleteMany({ where: { listingId: b.id } });
+        await prisma.marketFavorite.deleteMany({ where: { listingId: b.id } });
+        await prisma.marketImage.deleteMany({ where: { listingId: b.id } });
+        await prisma.marketListing.delete({ where: { id: b.id } });
+        await log("MARKET_DELETE", b.id); break;
       default:
         return NextResponse.json({ error: "알 수 없는 액션" }, { status: 400 });
     }

@@ -3,10 +3,12 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Users, MapPin, Fish, Settings, UserPlus, Loader2, CheckCircle, Clock, Crown, Heart, MessageCircle, Image as ImageIcon, Send, X, Lock, Navigation, Plus, Route } from "lucide-react";
+import { ArrowLeft, Users, MapPin, Fish, Settings, UserPlus, Loader2, CheckCircle, Clock, Crown, Heart, MessageCircle, Image as ImageIcon, Send, X, Lock, Navigation, Plus, Route, BookOpen, Search } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { TripDetailSheet, type TripDetail } from "@/components/TripDetailSheet";
+import type { MapCenter } from "@/components/GroupPointsMap";
+// MyLogRecord API는 조행기용으로 별도 보관 (현재 미사용)
 
 const GroupPointsMapDynamic = dynamic(
   () => import("@/components/GroupPointsMap").then((m) => m.GroupPointsMap),
@@ -29,6 +31,7 @@ type GroupPost = {
 type GroupComment = {
   id: string; postId: string; authorId: string; authorNickname: string;
   authorAvatar: string | null; content: string; createdAt: string;
+  parentId?: string | null;
 };
 
 type GroupMemberItem = {
@@ -131,7 +134,7 @@ export default function GroupDetailPage() {
 
       {/* 탭 */}
       <div className="flex border-b border-navy-100/20">
-        {([["home", "홈"], ["community", "커뮤니티"], ["points", "포인트 공유"], ["members", "회원"]] as [TabKey, string][]).map(([key, label]) => (
+        {([["home", "홈"], ["community", "커뮤니티"], ["points", "포인트공유정보"], ["members", "회원"]] as [TabKey, string][]).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 py-3 text-[13px] font-bold transition-colors ${
               tab === key ? "border-b-2 border-orange-500 text-orange-400" : "text-navy-400 hover:text-navy-600"
@@ -378,6 +381,10 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
   const [commentInput, setCommentInput] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [liking, setLiking] = useState(false);
+  const [replyTo, setReplyTo] = useState<{ parentId: string; nickname: string } | null>(null);
+  const [replyInput, setReplyInput] = useState("");
+  const [replySubmitting, setReplySubmitting] = useState(false);
+  const replyInputRef = useRef<HTMLInputElement>(null);
 
   async function toggleLike() {
     if (liking) return;
@@ -416,6 +423,35 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
       onUpdate({ ...post, commentCount: post.commentCount + 1 });
     }
   }
+
+  function startReply(c: GroupComment) {
+    const parentId = c.parentId ?? c.id;
+    const nickname = c.authorNickname;
+    setReplyTo({ parentId, nickname });
+    setReplyInput(`@${nickname} `);
+    setTimeout(() => replyInputRef.current?.focus(), 50);
+  }
+
+  async function submitReply() {
+    if (!replyTo || !replyInput.trim() || replySubmitting) return;
+    setReplySubmitting(true);
+    const res = await fetch(`/api/groups/${groupId}/posts/${post.id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: replyInput.trim(), parentId: replyTo.parentId }),
+    });
+    const data = await res.json();
+    setReplySubmitting(false);
+    if (res.ok) {
+      setComments((prev) => [...prev, data.comment]);
+      setReplyTo(null);
+      setReplyInput("");
+      onUpdate({ ...post, commentCount: post.commentCount + 1 });
+    }
+  }
+
+  const topComments = comments.filter((c) => !c.parentId);
+  const replies = (parentId: string) => comments.filter((c) => c.parentId === parentId);
 
   return (
     <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-3.5">
@@ -466,18 +502,71 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
           ) : comments.length === 0 ? (
             <p className="py-1 text-center text-[12px] text-navy-400">첫 댓글을 남겨보세요.</p>
           ) : (
-            comments.map((c) => (
-              <div key={c.id} className="flex items-start gap-2">
-                <Avatar name={c.authorNickname} url={getAvatarUrl(c.authorId, c.authorAvatar)} size={7} />
-                <div className="min-w-0 flex-1 rounded-xl bg-navy-50/10 px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-[12px] font-bold text-navy-700">{c.authorNickname}</p>
-                    <p className="shrink-0 text-[10px] text-navy-400">{timeAgo(c.createdAt)}</p>
+            topComments.map((c) => (
+              <div key={c.id}>
+                {/* 최상위 댓글 */}
+                <div className="flex items-start gap-2">
+                  <Avatar name={c.authorNickname} url={getAvatarUrl(c.authorId, c.authorAvatar)} size={7} />
+                  <div className="min-w-0 flex-1 rounded-xl bg-navy-50/10 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-[12px] font-bold text-navy-700">{c.authorNickname}</p>
+                      <p className="shrink-0 text-[10px] text-navy-400">{timeAgo(c.createdAt)}</p>
+                    </div>
+                    <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed text-navy-600">{c.content}</p>
+                    <button
+                      onClick={() => startReply(c)}
+                      className="mt-1 text-[11px] text-navy-400 hover:text-orange-400">
+                      답글 달기
+                    </button>
                   </div>
-                  <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed text-navy-600">{c.content}</p>
                 </div>
+                {/* 대댓글 */}
+                {replies(c.id).map((r) => (
+                  <div key={r.id} className="ml-9 mt-1.5 flex items-start gap-2">
+                    <Avatar name={r.authorNickname} url={getAvatarUrl(r.authorId, r.authorAvatar)} size={6} />
+                    <div className="min-w-0 flex-1 rounded-xl bg-navy-50/5 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-[11px] font-bold text-navy-700">{r.authorNickname}</p>
+                        <p className="shrink-0 text-[10px] text-navy-400">{timeAgo(r.createdAt)}</p>
+                      </div>
+                      <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed text-navy-600">{r.content}</p>
+                      <button
+                        onClick={() => startReply(r)}
+                        className="mt-1 text-[11px] text-navy-400 hover:text-orange-400">
+                        답글 달기
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))
+          )}
+
+          {/* 대댓글 입력창 */}
+          {replyTo && (
+            <div className="flex items-center gap-2 rounded-xl border border-orange-500/30 bg-navy-50/5 px-2 py-1.5">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-orange-400">@{replyTo.nickname}에게 답글</span>
+                  <button onClick={() => { setReplyTo(null); setReplyInput(""); }}
+                    className="text-[11px] text-navy-400">취소</button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={replyInputRef}
+                    value={replyInput}
+                    onChange={(e) => setReplyInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submitReply(); }}
+                    placeholder="답글을 입력하세요..."
+                    className="min-w-0 flex-1 rounded-full bg-navy-50/10 px-3 py-1.5 text-[16px] text-navy-800 outline-none placeholder:text-navy-400"
+                  />
+                  <button onClick={submitReply} disabled={replySubmitting || !replyInput.trim()}
+                    className="rounded-full bg-orange-500 p-1.5 text-white disabled:opacity-50">
+                    <Send size={13} strokeWidth={1.5} />
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* 댓글 입력 */}
@@ -487,7 +576,7 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
               onChange={(e) => setCommentInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submitComment(); }}
               placeholder="댓글을 입력하세요..."
-              className="min-w-0 flex-1 rounded-full bg-navy-50/10 px-3.5 py-2 text-[12px] text-navy-800 outline-none placeholder:text-navy-400"
+              className="min-w-0 flex-1 rounded-full bg-navy-50/10 px-3.5 py-2 text-[16px] text-navy-800 outline-none placeholder:text-navy-400"
             />
             <button onClick={submitComment} disabled={commentSubmitting || !commentInput.trim()}
               className="rounded-full bg-orange-500 p-2 text-white disabled:opacity-50">
@@ -554,7 +643,7 @@ function PointsTab({ groupId }: { groupId: string }) {
         </div>
         <button onClick={() => setShowAdd(true)}
           className="flex items-center gap-1.5 rounded-full bg-orange-500 px-4 py-2 text-[13px] font-bold text-white shadow-soft">
-          <Plus size={15} /> 포인트 추가
+          <Plus size={15} /> 포인트공유추가
         </button>
       </div>
 
@@ -652,10 +741,57 @@ function AddPointModal({ groupId, onClose, onAdded }: {
   const [trips, setTrips] = useState<MyFishingTrip[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
   const [tripId, setTripId] = useState<string | null>(null);
+  // 주소 검색 (지도에서 찾기 단계)
+  const [addressQuery, setAddressQuery] = useState("");
+  const [addressSearching, setAddressSearching] = useState(false);
+  const [mapCenter, setMapCenter] = useState<MapCenter | null>(null);
+  // 내기록(데이터피싱)에서 선택한 경우 뒤로가기 추적
+  const [fromTrips, setFromTrips] = useState(false);
+  // 스와이프 다운으로 닫기
+  const swipeStartYRef = useRef<number | null>(null);
+  const [swipeDragY, setSwipeDragY] = useState(0);
 
   const handlePickOnMap = useCallback((la: number, lo: number) => {
     setLat(la); setLng(lo);
   }, []);
+
+  // 지도 단계 진입 시 항상 초기화 (재진입 시 이전 상태 제거)
+  function goToMapStep() {
+    setAddressQuery("");
+    setMapCenter(null);
+    setLat(null);
+    setLng(null);
+    setError("");
+    setStep("map");
+  }
+
+  // X 버튼: 단계별 뒤로 이동 (method 단계에서만 완전 닫기)
+  function handleClose() {
+    if (step === "method") { onClose(); return; }
+    if (step === "map") { setAddressQuery(""); setMapCenter(null); setLat(null); setLng(null); setStep("method"); return; }
+    if (step === "trips") { setStep("method"); return; }
+    if (step === "form") {
+      if (fromTrips) { setStep("trips"); return; }
+      setStep("method");
+    }
+  }
+
+  // 스와이프 다운 핸들러 (헤더 영역 드래그)
+  function onSwipeTouchStart(e: React.TouchEvent) {
+    swipeStartYRef.current = e.touches[0].clientY;
+  }
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    if (swipeStartYRef.current === null) return;
+    const dy = e.touches[0].clientY - swipeStartYRef.current;
+    if (dy > 0) setSwipeDragY(dy);
+  }
+  function onSwipeTouchEnd(e: React.TouchEvent) {
+    if (swipeStartYRef.current === null) return;
+    const dy = e.changedTouches[0].clientY - swipeStartYRef.current;
+    swipeStartYRef.current = null;
+    setSwipeDragY(0);
+    if (dy > 80) { onClose(); }
+  }
 
   async function useCurrentLocation() {
     if (!navigator.geolocation) { setError("이 브라우저는 GPS를 지원하지 않습니다."); return; }
@@ -665,6 +801,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
         setLat(pos.coords.latitude);
         setLng(pos.coords.longitude);
         setGpsLoading(false);
+        setFromTrips(false);
         setStep("form");
       },
       () => { setError("위치를 가져오지 못했습니다. 브라우저 위치 권한을 확인하세요."); setGpsLoading(false); },
@@ -672,23 +809,43 @@ function AddPointModal({ groupId, onClose, onAdded }: {
     );
   }
 
-  async function showMyFishingTrips() {
+  async function showMyTrips() {
     setStep("trips");
     if (trips.length > 0) return;
     setTripsLoading(true); setError("");
     try {
       const res = await fetch("/api/trips", { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(data.error || "내 데이터피싱 기록을 불러오지 못했습니다."); return; }
+      if (!res.ok) { setError(data.error || "내기록을 불러오지 못했습니다."); return; }
       setTrips(data.trips || []);
     } finally { setTripsLoading(false); }
   }
 
   function selectTrip(trip: MyFishingTrip) {
     setTripId(trip.id);
-    setTitle(trip.title || `${new Date(trip.createdAt).toLocaleDateString("ko-KR")} 데이터피싱`);
+    setTitle(trip.title || `${new Date(trip.createdAt).toLocaleDateString("ko-KR")} 내기록`);
     setDescription(`${trip.region ? `${trip.region} · ` : ""}이동 ${(trip.distanceM / 1000).toFixed(1)}km · 조과 ${trip.catchCount}마리`);
+    setFromTrips(true);
     setStep("form");
+  }
+
+  async function searchAddress() {
+    const q = addressQuery.trim();
+    if (!q || addressSearching) return;
+    setAddressSearching(true); setError("");
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      const data = await res.json().catch(() => []);
+      if (Array.isArray(data) && data[0]) {
+        setMapCenter({ lat: Number(data[0].lat), lng: Number(data[0].lon), zoom: 15 });
+      } else {
+        setError("주소를 찾을 수 없습니다. 더 구체적으로 입력해 보세요.");
+      }
+    } catch {
+      setError("주소 검색 중 오류가 발생했습니다.");
+    } finally {
+      setAddressSearching(false);
+    }
   }
 
   async function submit() {
@@ -713,13 +870,29 @@ function AddPointModal({ groupId, onClose, onAdded }: {
   return (
     <div className="fixed inset-0 z-[9999] flex items-end justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-[1px]" onClick={onClose} />
-      <div className="relative w-full max-w-[640px] rounded-t-[20px] border border-navy-100/20 bg-[#162538] px-4 pt-3"
-        style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
-        {/* 헤더 */}
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-navy-200" />
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[16px] font-bold text-navy-900">포인트 추가</h2>
-          <button onClick={onClose} className="rounded-full p-1 text-navy-300 hover:bg-navy-50/10"><X size={20} /></button>
+      <div
+        className="relative w-full max-w-[640px] rounded-t-[20px] border border-navy-100/20 bg-[#162538] px-4 pt-3"
+        style={{
+          paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))",
+          transform: swipeDragY > 0 ? `translateY(${swipeDragY}px)` : undefined,
+          transition: swipeDragY > 0 ? "none" : "transform 0.2s ease",
+        }}
+      >
+        {/* 헤더 — 스와이프 다운 감지 영역 */}
+        <div
+          className="mx-auto mb-3 h-1 w-10 rounded-full bg-navy-200 cursor-grab"
+          onTouchStart={onSwipeTouchStart}
+          onTouchMove={onSwipeTouchMove}
+          onTouchEnd={onSwipeTouchEnd}
+        />
+        <div
+          className="mb-4 flex items-center justify-between"
+          onTouchStart={onSwipeTouchStart}
+          onTouchMove={onSwipeTouchMove}
+          onTouchEnd={onSwipeTouchEnd}
+        >
+          <h2 className="text-[16px] font-bold text-navy-900">포인트공유추가</h2>
+          <button onClick={handleClose} className="rounded-full p-1 text-navy-300 hover:bg-navy-50/10"><X size={20} /></button>
         </div>
 
         {error && (
@@ -740,29 +913,30 @@ function AddPointModal({ groupId, onClose, onAdded }: {
                 <p className="text-[12px] text-navy-400">GPS로 지금 있는 위치를 자동으로 설정</p>
               </div>
             </button>
-            <button onClick={() => setStep("map")}
+            <button onClick={goToMapStep}
               className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#1c2c3e] p-4 text-left transition-colors hover:border-orange-500/40">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15">
                 <MapPin size={18} className="text-orange-400" strokeWidth={1.5} />
               </span>
               <div>
                 <p className="text-[14px] font-bold text-navy-900">지도에서 찾기</p>
-                <p className="text-[12px] text-navy-400">지도를 탭해서 포인트 위치를 직접 선택</p>
+                <p className="text-[12px] text-navy-400">주소 검색 또는 지도를 탭해서 위치 선택</p>
               </div>
             </button>
-            <button onClick={showMyFishingTrips}
+            <button onClick={showMyTrips}
               className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#1c2c3e] p-4 text-left transition-colors hover:border-orange-500/40">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15">
-                <Route size={18} className="text-orange-400" strokeWidth={1.5} />
+                <BookOpen size={18} className="text-orange-400" strokeWidth={1.5} />
               </span>
               <div>
-                <p className="text-[14px] font-bold text-navy-900">내 데이터피싱</p>
-                <p className="text-[12px] text-navy-400">내가 기록한 이동 동선과 조과를 내시단에 공유</p>
+                <p className="text-[14px] font-bold text-navy-900">내기록추가</p>
+                <p className="text-[12px] text-navy-400">내가 작성한 조행기를 낚시단에 공유</p>
               </div>
             </button>
           </div>
         )}
 
+        {/* 내기록(데이터피싱) 목록 */}
         {step === "trips" && (
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pb-2">
             <button type="button" onClick={() => setStep("method")} className="mb-1 text-[12px] font-semibold text-orange-400">← 다른 방법 선택</button>
@@ -771,7 +945,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
             ) : trips.length === 0 ? (
               <div className="rounded-2xl bg-white/[0.04] px-4 py-8 text-center">
                 <Route size={26} className="mx-auto text-navy-400" />
-                <p className="mt-2 text-[13px] font-semibold text-navy-600">공유할 데이터피싱 기록이 없어요</p>
+                <p className="mt-2 text-[13px] font-semibold text-navy-600">공유할 내기록이 없어요</p>
                 <p className="mt-1 text-[11px] text-navy-400">데이터피싱을 종료한 뒤 다시 확인해 주세요.</p>
               </div>
             ) : trips.map((trip) => (
@@ -779,24 +953,42 @@ function AddPointModal({ groupId, onClose, onAdded }: {
                 className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#1c2c3e] p-3.5 text-left transition-colors hover:border-orange-500/40">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15"><Route size={18} className="text-orange-400" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-bold text-navy-900">{trip.title || "데이터피싱 기록"}</span>
-                  <span className="mt-0.5 block text-[11px] text-navy-400">{new Date(trip.createdAt).toLocaleDateString("ko-KR")} · {(trip.distanceM / 1000).toFixed(1)}km · 조과 {trip.catchCount}마리</span>
+                  <span className="block truncate text-[13px] font-bold text-navy-900">{trip.title || "내기록"}</span>
+                  <span className="mt-0.5 block text-[11px] text-navy-400">
+                    {new Date(trip.createdAt).toLocaleDateString("ko-KR")} · {(trip.distanceM / 1000).toFixed(1)}km · 조과 {trip.catchCount}마리
+                  </span>
                 </span>
               </button>
             ))}
           </div>
         )}
 
-        {/* Step 2: 지도에서 위치 선택 */}
+        {/* 지도에서 위치 선택 (주소 검색 포함) */}
         {step === "map" && (
           <div className="space-y-3 pb-2">
+            {/* 주소 검색 */}
+            <div className="flex gap-2">
+              <input
+                value={addressQuery}
+                onChange={(e) => setAddressQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") searchAddress(); }}
+                placeholder="주소 또는 장소명 검색..."
+                className="min-w-0 flex-1 rounded-xl bg-[#2a2a2a] px-3.5 py-2.5 text-[16px] text-navy-800 outline-none placeholder:text-navy-500 ring-1 ring-navy-100/20 focus:ring-orange-500/50"
+              />
+              <button onClick={searchAddress} disabled={addressSearching || !addressQuery.trim()}
+                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50">
+                {addressSearching ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+                검색
+              </button>
+            </div>
             <p className="text-[12px] text-navy-400">지도를 탭해서 포인트 위치를 선택하세요 (빨간 핀)</p>
             <div className="overflow-hidden rounded-xl ring-1 ring-navy-100/20">
               <GroupPointsMapDynamic
                 points={[]}
                 pickMode
                 onPick={handlePickOnMap}
-                height={280}
+                height={240}
+                centerTo={mapCenter}
               />
             </div>
             {lat && lng && (
@@ -804,14 +996,14 @@ function AddPointModal({ groupId, onClose, onAdded }: {
                 선택 위치: {lat.toFixed(5)}, {lng.toFixed(5)}
               </p>
             )}
-            <button onClick={() => setStep("form")} disabled={!lat || !lng}
+            <button onClick={() => { setFromTrips(false); setError(""); setStep("form"); }} disabled={!lat || !lng}
               className="w-full rounded-2xl bg-orange-500 py-3 text-[14px] font-bold text-white disabled:opacity-40">
               이 위치로 선택
             </button>
           </div>
         )}
 
-        {/* Step 3: 제목·설명 입력 */}
+        {/* 제목·설명 입력 */}
         {step === "form" && (
           <div className="space-y-3 pb-2">
             {lat && lng && (
@@ -828,7 +1020,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="예) 한강 광나루 배스 포인트"
-                className="w-full rounded-xl bg-[#2a2a2a] px-3.5 py-3 text-[13px] text-navy-800 outline-none placeholder:text-navy-500 ring-1 ring-navy-100/20 focus:ring-orange-500/50"
+                className="w-full rounded-xl bg-[#2a2a2a] px-3.5 py-3 text-[16px] text-navy-800 outline-none placeholder:text-navy-500 ring-1 ring-navy-100/20 focus:ring-orange-500/50"
               />
             </div>
             <div>
@@ -838,7 +1030,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="포인트에 대한 간단한 설명을 적어주세요..."
                 rows={3}
-                className="w-full resize-none rounded-xl bg-[#2a2a2a] px-3.5 py-3 text-[13px] text-navy-800 outline-none placeholder:text-navy-500 ring-1 ring-navy-100/20 focus:ring-orange-500/50"
+                className="w-full resize-none rounded-xl bg-[#2a2a2a] px-3.5 py-3 text-[16px] text-navy-800 outline-none placeholder:text-navy-500 ring-1 ring-navy-100/20 focus:ring-orange-500/50"
               />
             </div>
             <button onClick={submit} disabled={submitting || !title.trim() || (!tripId && (!lat || !lng))}

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, FileImage, MessageCircle, Flag, Trophy, ClipboardCheck,
   Anchor, CalendarDays, ShoppingBag, Fish, SlidersHorizontal, Settings, Shield,
-  LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins, Package,
+  LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins, Package, Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -48,6 +48,7 @@ const GROUPS: MenuGroup[] = [
   {
     title: "마켓 · 예약",
     items: [
+      { href: "/admin/market", label: "중고피싱 관리", icon: Store },
       { href: "/admin/listings", label: "예약 상품 관리", icon: Anchor },
       { href: "/admin/bookings", label: "예약 내역", icon: CalendarDays },
       { href: "/admin/products", label: "상품 태그", icon: ShoppingBag },

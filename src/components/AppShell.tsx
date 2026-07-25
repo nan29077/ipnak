@@ -27,10 +27,10 @@ function commerceItem(shopEnabled: boolean): NavItemDef {
     : { href: "/market", label: "중고피싱", icon: IconTackleBox, match: (p) => p.startsWith("/market") };
 }
 
-// 모바일 하단 4탭 (+ 중앙 물고기기록 FAB): 홈 / 데이터피싱 / [●+] / 중고피싱 / 마이
+// 모바일 하단 4탭 (+ 중앙 물고기기록 FAB): 커뮤니티 / 데이터피싱 / [●+] / 중고피싱 / 마이
 function buildMobileNav(shopEnabled: boolean): NavItemDef[] {
   return [
-    { href: "/home", label: "홈", icon: IconHome, match: (p) => p === "/home" || p === "/" },
+    { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/groups") || p.startsWith("/explore") },
     { href: "/map", label: "데이터피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
     commerceItem(shopEnabled),
     { href: "/me", label: "마이", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },

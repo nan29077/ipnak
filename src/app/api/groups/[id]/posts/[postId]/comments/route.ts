@@ -41,6 +41,7 @@ export async function POST(req: Request, { params }: { params: { id: string; pos
   const body = await req.json().catch(() => ({}));
   const content = typeof body.content === "string" ? body.content.trim() : "";
   if (!content) return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
+  const parentId = typeof body.parentId === "string" ? body.parentId : null;
 
   const comment: StoredGroupComment = {
     id: newId(),
@@ -50,6 +51,7 @@ export async function POST(req: Request, { params }: { params: { id: string; pos
     authorAvatar: user.avatarUrl ?? null,
     content,
     createdAt: new Date().toISOString(),
+    parentId: parentId || null,
   };
 
   const comments = readGroupComments();

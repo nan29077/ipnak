@@ -106,7 +106,8 @@ function FixedBgManager() {
         }
       });
       if (best) {
-        setter(Number((best.target as HTMLElement).dataset[attr] ?? 0));
+        // TS는 콜백 내부 할당을 추적하지 못해 best를 never로 좁힘 → 명시적 캐스트
+        setter(Number(((best as IntersectionObserverEntry).target as HTMLElement).dataset[attr] ?? 0));
       }
     };
 
@@ -307,9 +308,9 @@ export default function AboutPage() {
             className="h-20 drop-shadow-[0_4px_24px_rgba(234,179,8,0.7)]"
           />
           <h1 className="text-5xl font-black leading-tight tracking-tight text-white lg:text-6xl">
-            낚시인의 모든 순간을
+            낚시인의 모든
             <br />
-            <span className="text-orange-400">기록</span>하다
+            순간을&nbsp;<span className="text-orange-400">기록</span>하다
           </h1>
           <p className="text-lg text-white/60 lg:text-xl">
             스마트 AI 계측부터 데이터피싱, 조행기, 피싱포인트, 낚시 커뮤니티까지

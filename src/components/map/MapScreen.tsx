@@ -157,14 +157,18 @@ export function MapScreen({ userId }: { userId?: string }) {
   }, [myPointsDropOpen]);
 
   // 검색어 → Nominatim 지오코딩 (한국 지역 검색)
+  // AbortController로 이전 요청 취소 — 늦게 도착한 응답이 최신 검색 결과를 덮어쓰는 race 방지
   useEffect(() => {
     if (searchQuery.trim().length < 2) { setGeoResults([]); return; }
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=4&countrycodes=kr&accept-language=ko`
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=4&countrycodes=kr&accept-language=ko`,
+          { signal: controller.signal }
         );
         const data = await res.json();
+        if (controller.signal.aborted) return;
         setGeoResults(
           (data as any[]).slice(0, 4).map((d) => ({
             name: d.display_name.split(",")[0].trim(),
@@ -173,10 +177,10 @@ export function MapScreen({ userId }: { userId?: string }) {
           }))
         );
       } catch {
-        setGeoResults([]);
+        if (!controller.signal.aborted) setGeoResults([]);
       }
     }, 500);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [searchQuery]);
 
   // GPS idle 상태 추적 (기록 전에도 현재 위치 마커 표시)
@@ -212,7 +216,14 @@ export function MapScreen({ userId }: { userId?: string }) {
 
   // 내 피싱 포인트만 로드 (다른 사용자 포인트는 지도에 표시 안 함)
   useEffect(() => {
-    fetch("/api/points/mine").then((r) => r.json()).then((d) => setMyPoints(d.points || [])).catch(() => {});
+    let cancelled = false;
+    fetch("/api/points/mine").then((r) => r.json()).then((d) => { if (!cancelled) setMyPoints(d.points || []); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // 수동 이동 타이머 언마운트 정리 (타이머 누수 방지)
+  useEffect(() => () => {
+    if (userMovedTimerRef.current) clearTimeout(userMovedTimerRef.current);
   }, []);
 
   // idle 상태: GPS 현재 위치 실시간 추적 (기록 중에는 RecordingProvider가 담당)

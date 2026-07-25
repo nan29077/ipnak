@@ -36,6 +36,7 @@ export type StoredGroupComment = {
   authorAvatar: string | null;
   content: string;
   createdAt: string;
+  parentId?: string | null;
 };
 
 function ensureDir() {

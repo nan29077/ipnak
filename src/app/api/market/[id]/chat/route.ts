@@ -4,6 +4,16 @@ import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+// 기존 채팅방 조회 (구매자 기준) — prefetch용
+export async function GET(_: Request, { params }: { params: { id: string } }) {
+  let user; try { user = await requireUser(); } catch { return NextResponse.json({ chatId: null }); }
+  const chat = await prisma.marketChat.findUnique({
+    where: { listingId_buyerId: { listingId: params.id, buyerId: user.id } },
+    select: { id: true },
+  });
+  return NextResponse.json({ chatId: chat?.id ?? null });
+}
+
 // 판매자와의 채팅방 생성 또는 조회 (구매자 기준)
 export async function POST(_: Request, { params }: { params: { id: string } }) {
   let user; try { user = await requireUser(); } catch { return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }); }

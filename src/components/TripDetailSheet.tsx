@@ -90,6 +90,7 @@ export function TripDetailSheet({
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     // 초기 데이터가 있으면 즉시 표시 (로컬 catches 포함)
     if (initial) setData(initial);
     // 서버 ID가 있으면 API에서 완전한 피쉬 데이터로 보완 (initial 유무 무관)
@@ -97,10 +98,11 @@ export function TripDetailSheet({
       if (!initial) setLoading(true);
       fetch(`/api/trips/${tripId}`)
         .then((r) => r.json())
-        .then((d) => { if (d?.trip) setData(d.trip); })
+        .then((d) => { if (!cancelled && d?.trip) setData(d.trip); })
         .catch(() => {})
-        .finally(() => setLoading(false));
+        .finally(() => { if (!cancelled) setLoading(false); });
     }
+    return () => { cancelled = true; };
   }, [open, tripId, initial]);
 
   // 날씨 조회 (Open-Meteo, 클라이언트)
@@ -118,9 +120,11 @@ export function TripDetailSheet({
         ? "https://archive-api.open-meteo.com/v1/archive"
         : "https://api.open-meteo.com/v1/forecast";
     const url = `${base}?latitude=${firstPt.lat.toFixed(4)}&longitude=${firstPt.lng.toFixed(4)}&start_date=${tripDate}&end_date=${tripDate}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max&timezone=Asia%2FSeoul&wind_speed_unit=ms`;
+    let cancelled = false;
     fetch(url)
       .then((r) => r.json())
       .then((d) => {
+        if (cancelled) return;
         const wd = d?.daily;
         const wCode: number | null = wd?.weathercode?.[0] ?? null;
         const { label, Icon } = weatherInfo(wCode);
@@ -134,6 +138,7 @@ export function TripDetailSheet({
         });
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [open, data]);
 
   // 시트 닫힐 때 상태 초기화

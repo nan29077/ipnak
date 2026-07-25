@@ -61,7 +61,7 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false }: { price
   const field = (key: keyof typeof form, label: string, required = false, type = "text") => (
     <label className="block">
       <span className="mb-1 block text-[12px] font-semibold text-white/60">{label}{required && " *"}</span>
-      <input type={type} required={required} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-full rounded-xl border border-white/10 bg-white/[.05] px-3 py-2.5 text-sm text-white outline-none focus:border-aqua-400" />
+      <input type={type} required={required} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-full rounded-xl border border-white/10 bg-white/[.05] px-3 py-2.5 text-[16px] text-white outline-none focus:border-aqua-400" />
     </label>
   );
 
@@ -105,7 +105,7 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false }: { price
                   </div>
                   <input required readOnly value={form.address} placeholder="주소 검색 버튼을 눌러 주세요" onClick={() => setAddressOpen(true)} className="mt-2 w-full cursor-pointer rounded-xl border border-white/10 bg-white/[.05] px-3 py-2.5 text-sm text-white outline-none focus:border-orange-400" />
                 </div>
-                <label className="block"><span className="mb-1 block text-[12px] font-semibold text-white/60">상세 주소</span><input ref={detailAddressRef} value={form.addressDetail} onChange={(e) => setForm({ ...form, addressDetail: e.target.value })} placeholder="동·호수 등 상세주소" className="w-full rounded-xl border border-white/10 bg-white/[.05] px-3 py-2.5 text-sm text-white outline-none focus:border-aqua-400" /></label>
+                <label className="block"><span className="mb-1 block text-[12px] font-semibold text-white/60">상세 주소</span><input ref={detailAddressRef} value={form.addressDetail} onChange={(e) => setForm({ ...form, addressDetail: e.target.value })} placeholder="동·호수 등 상세주소" className="w-full rounded-xl border border-white/10 bg-white/[.05] px-3 py-2.5 text-[16px] text-white outline-none focus:border-aqua-400" /></label>
                 {field("deliveryMemo", "배송 메모")}
               </div>
             </section>

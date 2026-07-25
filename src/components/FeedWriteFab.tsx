@@ -15,9 +15,33 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
   const [open, setOpen] = useState(false);
   const [loginModal, setLoginModal] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const loggedIn = !!currentUserId;
 
   useEffect(() => { setMounted(true); }, []);
+
+  // 입력창 포커스 시 FAB 숨기기 (채팅·댓글·글쓰기 등 모든 input/textarea 공통 적용)
+  useEffect(() => {
+    function isInputEl(el: EventTarget | null): boolean {
+      if (!el || !(el instanceof HTMLElement)) return false;
+      return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.contentEditable === "true";
+    }
+    function onFocusIn(e: FocusEvent) {
+      if (isInputEl(e.target)) setInputFocused(true);
+    }
+    function onFocusOut() {
+      // 짧은 딜레이로 다른 input으로 포커스 이동 시 깜빡임 방지
+      setTimeout(() => {
+        if (!isInputEl(document.activeElement)) setInputFocused(false);
+      }, 150);
+    }
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+    };
+  }, []);
 
   return (
     <>
@@ -25,13 +49,15 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
       {/* FAB 버튼 — 하단 메뉴 위에 떠 있는 글쓰기 원형 버튼 */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 top-0 z-40 mx-auto flex w-full max-w-[760px] justify-center">
         <div className="relative w-full max-w-[640px]">
-          <button
-            onClick={() => (loggedIn ? setOpen(true) : setLoginModal(true))}
-            aria-label="글쓰기"
-            className="pointer-events-auto absolute right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] flex h-14 w-14 items-center justify-center rounded-full bg-[#122030] text-orange-500 shadow-xl shadow-black/40 ring-1 ring-orange-500/40 transition-all hover:bg-[#232323] hover:ring-orange-500/70 active:scale-95 md:bottom-6"
-          >
-            <PenLine size={24} strokeWidth={2} />
-          </button>
+          {!inputFocused && (
+            <button
+              onClick={() => (loggedIn ? setOpen(true) : setLoginModal(true))}
+              aria-label="글쓰기"
+              className="pointer-events-auto absolute right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] flex h-14 w-14 items-center justify-center rounded-full bg-[#122030] text-orange-500 shadow-xl shadow-black/40 ring-1 ring-orange-500/40 transition-all hover:bg-[#232323] hover:ring-orange-500/70 active:scale-95 md:bottom-6"
+            >
+              <PenLine size={24} strokeWidth={2} />
+            </button>
+          )}
         </div>
         <div className="hidden w-[104px] shrink-0 md:block" aria-hidden />
       </div>

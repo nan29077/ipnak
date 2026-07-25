@@ -1,12 +1,12 @@
 "use client";
-import { memo, useCallback, useState, useRef, useMemo, useEffect, useContext } from "react";
+import { memo, useCallback, useState, useRef, useMemo, useEffect } from "react";
 import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
 import Link from "next/link";
 import {
-  Heart, MessageCircle, Share2, Bookmark, Tag, MapPin, Ruler, Fish, Send, Flag, ChevronLeft, ChevronRight,
+  Heart, MessageCircle, Share2, Bookmark, Tag, MapPin, Ruler, Fish, Send, ChevronLeft, ChevronRight,
   Navigation, Clock, Route, Lock, Loader2, Maximize2, X,
 } from "lucide-react";
 import { useToast } from "@/components/Toast";
@@ -162,9 +162,13 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
     setTimeout(() => setLikePop(false), 350);
     setLiked((v) => !v);
     setLikeCount((c) => c + (liked ? -1 : 1));
-    const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
-    if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
-    else router.refresh(); // Next.js 클라이언트 라우터 캐시 무효화 — 다른 페이지 갔다 돌아와도 최신 좋아요 상태 유지
+    try {
+      const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
+      if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
+      else router.refresh(); // Next.js 클라이언트 라우터 캐시 무효화 — 다른 페이지 갔다 돌아와도 최신 좋아요 상태 유지
+    } catch {
+      setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error");
+    }
   }
 
   async function likeFromDoubleTap() {
@@ -175,9 +179,13 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
     burstTimerRef.current = setTimeout(() => setShowBurst(false), 700);
     setLiked((v) => !v);
     setLikeCount((c) => c + (liked ? -1 : 1));
-    const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
-    if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
-    else router.refresh();
+    try {
+      const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
+      if (!res.ok) { setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error"); }
+      else router.refresh();
+    } catch {
+      setLiked(post.liked); setLikeCount(post.likeCount); toast("좋아요에 실패했습니다", "error");
+    }
   }
 
   function onImageTap() {
@@ -202,6 +210,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
 
   useEffect(() => () => {
     if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+    if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
   }, []);
 
   // 최신 idx / slides.length를 ref에 동기화 (non-passive touchmove 클로저에서 사용)
@@ -254,9 +263,13 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
   async function toggleSave() {
     if (!loggedIn) { setLoginModal(true); return; }
     setSaved((v) => !v);
-    const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
-    if (!res.ok) { setSaved(post.saved); toast("저장에 실패했습니다", "error"); }
-    else { toast(saved ? "저장을 취소했습니다" : "저장했습니다", "success"); router.refresh(); }
+    try {
+      const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
+      if (!res.ok) { setSaved(post.saved); toast("저장에 실패했습니다", "error"); }
+      else { toast(saved ? "저장을 취소했습니다" : "저장했습니다", "success"); router.refresh(); }
+    } catch {
+      setSaved(post.saved); toast("저장에 실패했습니다", "error");
+    }
   }
   const share = useCallback(async () => {
     const url = `${location.origin}/post/${post.id}`;
@@ -651,25 +664,41 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
   const [replyTo, setReplyTo] = useState<{ parentId: string; nickname: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function load() {
-    const res = await fetch(`/api/posts/${postId}/comments`);
-    const data = await res.json();
-    setComments(data.comments || []);
-    setLoaded(true);
-  }
-  if (open && !loaded) load();
+  // 시트가 열릴 때 댓글 로드 — 렌더 중 fetch 호출(사이드이펙트) 방지, 언마운트 후 setState 가드
+  useEffect(() => {
+    if (!open || loaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/posts/${postId}/comments`);
+        const data = await res.json();
+        if (cancelled) return;
+        setComments(data.comments || []);
+      } catch {
+        if (cancelled) return;
+        setComments([]);
+      }
+      setLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [open, loaded, postId]);
 
   async function postComment(body: string, parentId?: string) {
     if (!body.trim()) return false;
-    const res = await fetch(`/api/posts/${postId}/comments`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}) }),
-    });
-    const data = await res.json();
-    if (!res.ok) { toast(data.error || "오류", "error"); return false; }
-    setComments((c) => [...c, data.comment]);
-    onCommentAdded?.();
-    return true;
+    try {
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}) }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || "오류", "error"); return false; }
+      setComments((c) => [...c, data.comment]);
+      onCommentAdded?.();
+      return true;
+    } catch {
+      toast("댓글 등록에 실패했습니다", "error");
+      return false;
+    }
   }
 
   async function send() {

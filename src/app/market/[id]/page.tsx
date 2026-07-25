@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { MapPin, Heart, MessageCircle, Eye, ChevronRight } from "lucide-react";
+import { MapPin, Heart, MessageCircle, Eye, ChevronRight, Shield, Clock, Package } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { PostDetailClient } from "@/app/post/[id]/PostDetailClient";
 import { PageHeader, Badge, SectionTitle } from "@/components/ui";
 import { won, timeAgo } from "@/lib/utils";
 import { marketCategoryLabel, marketConditionLabel, marketStatusLabel } from "@/lib/taxonomy";
@@ -39,50 +40,155 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
 
   const images = l.images.length ? l.images.map((i) => i.url) : ["https://picsum.photos/seed/market/800/800"];
 
+  // 판매자의 다른 판매글 (최신 4개, 현재 상품 제외)
+  const otherListings = await prisma.marketListing.findMany({
+    where: { sellerId: l.sellerId, id: { not: l.id }, status: { not: "SOLD" } },
+    orderBy: { createdAt: "desc" },
+    take: 4,
+    include: { images: { take: 1, orderBy: { order: "asc" } } },
+  });
+
+  // 판매자 완료 거래 수
+  const sellerSoldCount = await prisma.marketListing.count({
+    where: { sellerId: l.sellerId, status: "SOLD" },
+  });
+
   return (
-    <div className="min-h-screen bg-[#162538] pb-28">
-      <PageHeader title="중고거래" back />
+    <PostDetailClient>
+    <div className="min-h-screen bg-[#0d1b2a] pb-28">
+      <PageHeader title="중고피싱" back />
 
       <MarketGallery images={images} dim={l.status === "SOLD"} statusLabel={l.status !== "SELLING" ? marketStatusLabel(l.status) : null} />
 
-      <div className="space-y-4 p-4">
-        {/* 판매자 */}
-        <Link href={`/profile/${l.seller.id}`} className="flex items-center gap-3 border-b border-navy-100 pb-3">
-          <img src={getAvatarUrl(l.seller.id, l.seller.avatarUrl)} alt="" className="h-11 w-11 rounded-full object-cover ring-1 ring-navy-100" />
+      <div className="bg-[#0d1b2a]">
+        {/* 판매자 정보 */}
+        <Link href={`/profile/${l.seller.id}`} className="flex items-center gap-3 border-b border-navy-100/20 px-4 py-3.5 transition-colors active:bg-navy-50/5">
+          <img src={getAvatarUrl(l.seller.id, l.seller.avatarUrl)} alt="" className="h-12 w-12 rounded-full object-cover ring-2 ring-navy-100/20" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-bold text-navy-900">{l.seller.nickname}</p>
-            {(l.seller.region || l.region) && (
-              <p className="inline-flex items-center gap-1 text-[12px] text-navy-300"><MapPin size={11} />{l.region || l.seller.region}</p>
-            )}
+            <div className="mt-0.5 flex items-center gap-2 text-[12px] text-navy-400">
+              {(l.seller.region || l.region) && (
+                <span className="inline-flex items-center gap-0.5"><MapPin size={11} />{l.region || l.seller.region}</span>
+              )}
+              {sellerSoldCount > 0 && (
+                <span className="inline-flex items-center gap-0.5"><Package size={11} /> 거래 {sellerSoldCount}회</span>
+              )}
+            </div>
           </div>
-          <ChevronRight size={18} className="text-navy-300" />
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1 rounded-full bg-orange-500/15 px-2.5 py-1">
+              <Shield size={11} className="text-orange-400" />
+              <span className="text-[11px] font-semibold text-orange-400">신뢰 판매자</span>
+            </div>
+            <ChevronRight size={16} className="text-navy-300" />
+          </div>
         </Link>
 
-        <div>
+        {/* 상품 정보 */}
+        <div className="space-y-3 px-4 py-4">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge tone={STATUS_TONE[l.status]}>{marketStatusLabel(l.status)}</Badge>
             <Badge tone="navy">{marketCategoryLabel(l.category)}</Badge>
             <Badge tone={l.condition === "NEW" ? "aqua" : "gray"}>{marketConditionLabel(l.condition)}</Badge>
           </div>
-          <h1 className="mt-2 text-[19px] font-bold leading-snug text-navy-900">{l.title}</h1>
-          <p className="mt-1 text-[13px] text-navy-300">{timeAgo(l.createdAt)}</p>
-          <p className="mt-2 text-[24px] font-extrabold text-navy-900">{won(l.price)}</p>
+          <h1 className="text-[20px] font-bold leading-snug text-navy-900">{l.title}</h1>
+          <div className="flex items-end justify-between">
+            <p className="text-[26px] font-extrabold text-navy-900">{won(l.price)}</p>
+            <p className="flex items-center gap-1 text-[12px] text-navy-400">
+              <Clock size={12} /> {timeAgo(l.createdAt)}
+            </p>
+          </div>
         </div>
 
-        {l.description && (
-          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-navy-700">{l.description}</p>
-        )}
+        {/* 구분선 */}
+        <div className="h-2 bg-[#0a1220]" />
 
-        <div className="flex items-center gap-4 border-t border-navy-100 pt-3 text-[12px] text-navy-300">
-          <span className="inline-flex items-center gap-1"><Heart size={13} /> 찜 {l._count.favorites}</span>
-          <span className="inline-flex items-center gap-1"><MessageCircle size={13} /> 채팅 {l._count.chats}</span>
-          <span className="inline-flex items-center gap-1"><Eye size={13} /> 조회 {l.viewCount}</span>
+        {/* 상품 설명 */}
+        <div className="px-4 py-4">
+          <h2 className="mb-2 text-[14px] font-bold text-navy-700">상품 설명</h2>
+          {l.description ? (
+            <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-navy-700">{l.description}</p>
+          ) : (
+            <p className="text-[14px] text-navy-400">등록된 설명이 없습니다.</p>
+          )}
+        </div>
+
+        {/* 거래 정보 */}
+        <div className="mx-4 mb-4 rounded-2xl bg-navy-50/10 p-3.5">
+          <h2 className="mb-2.5 text-[13px] font-bold text-navy-600">거래 정보</h2>
+          <div className="grid grid-cols-2 gap-2.5 text-[13px]">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[11px] text-navy-400">거래 지역</span>
+              <span className="font-semibold text-navy-700">{l.region || "전국"}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[11px] text-navy-400">배송 방법</span>
+              <span className="font-semibold text-navy-700">직거래 · 택배</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[11px] text-navy-400">카테고리</span>
+              <span className="font-semibold text-navy-700">{marketCategoryLabel(l.category)}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[11px] text-navy-400">상품 상태</span>
+              <span className="font-semibold text-navy-700">{marketConditionLabel(l.condition)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 구분선 */}
+        <div className="h-2 bg-[#0a1220]" />
+
+        {/* 통계 */}
+        <div className="grid grid-cols-3 divide-x divide-navy-100/20 border-b border-navy-100/20">
+          <div className="flex flex-col items-center gap-1 py-3.5">
+            <Heart size={20} className="text-red-400" />
+            <p className="text-[16px] font-bold text-navy-800">{l._count.favorites}</p>
+            <p className="text-[11px] text-navy-400">관심</p>
+          </div>
+          <div className="flex flex-col items-center gap-1 py-3.5">
+            <MessageCircle size={20} className="text-aqua-400" />
+            <p className="text-[16px] font-bold text-navy-800">{l._count.chats}</p>
+            <p className="text-[11px] text-navy-400">채팅</p>
+          </div>
+          <div className="flex flex-col items-center gap-1 py-3.5">
+            <Eye size={20} className="text-navy-400" />
+            <p className="text-[16px] font-bold text-navy-800">{l.viewCount}</p>
+            <p className="text-[11px] text-navy-400">조회</p>
+          </div>
         </div>
 
         {!user && (
-          <div className="rounded-2xl bg-navy-50 p-4 text-center text-[13px] text-navy-500">
-            <Link href="/login" className="font-semibold text-aqua-600 underline">로그인</Link> 후 찜하기와 채팅을 이용할 수 있어요.
+          <div className="mx-4 my-4 rounded-2xl bg-navy-50/10 p-4 text-center text-[13px] text-navy-500">
+            <Link href="/login" className="font-semibold text-orange-400 underline">로그인</Link>하면 찜하기와 채팅을 이용할 수 있어요.
           </div>
+        )}
+
+        {/* 판매자의 다른 상품 */}
+        {otherListings.length > 0 && (
+          <>
+            <div className="h-2 bg-[#0a1220]" />
+            <div className="px-4 py-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-[15px] font-bold text-navy-800">{l.seller.nickname}님의 다른 판매글</h2>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {otherListings.map((ol) => (
+                  <Link key={ol.id} href={`/market/${ol.id}`} className="flex flex-col gap-1">
+                    <div className="aspect-square overflow-hidden rounded-xl bg-navy-100/20">
+                      {ol.images[0] ? (
+                        <img src={ol.images[0].url} alt={ol.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-navy-300"><Package size={16} /></div>
+                      )}
+                    </div>
+                    <p className="line-clamp-1 text-[11px] font-medium text-navy-700">{ol.title}</p>
+                    <p className="text-[12px] font-bold text-navy-900">{won(ol.price)}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -91,7 +197,7 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
       ) : user ? (
         <MarketDetailActions listingId={l.id} price={l.price} status={l.status} favorited={favorited} favoriteCount={l._count.favorites} />
       ) : (
-        <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative">
+        <div className="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-navy-100/20 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative">
           <div className="mx-auto max-w-[640px]">
             <Link href="/login" className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft">
               로그인하고 거래하기
@@ -100,5 +206,6 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
         </div>
       )}
     </div>
+    </PostDetailClient>
   );
 }

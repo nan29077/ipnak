@@ -48,7 +48,7 @@ export function MarketOwnerActions({ listingId, initialStatus }: { listingId: st
   }
 
   return (
-    <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
+    <div className="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-navy-100 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
       <div className="mx-auto max-w-[640px]">
         <p className="mb-1.5 text-[11px] font-semibold text-navy-400">판매 상태</p>
         <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 /**
@@ -15,6 +15,12 @@ export function PostDetailClient({ children }: { children: React.ReactNode }) {
   const [isExiting, setIsExiting] = useState(false);
   const isDraggingRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 언마운트 시 종료 애니메이션 타이머 정리 — 다른 경로로 이동한 뒤 router.back() 중복 실행 방지
+  useEffect(() => () => {
+    if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+  }, []);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (isExiting) return;
@@ -68,7 +74,7 @@ export function PostDetailClient({ children }: { children: React.ReactNode }) {
       // 슬라이드 다운 종료 애니메이션 후 뒤로가기
       setDragY(0);
       setIsExiting(true);
-      setTimeout(() => router.back(), 320);
+      exitTimerRef.current = setTimeout(() => router.back(), 320);
     } else {
       setDragY(0);
     }

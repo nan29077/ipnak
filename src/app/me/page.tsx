@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { MapPin, CalendarDays, Pencil, Tag, ChevronRight, Users, Fish, Navigation, Clock, Route, Coins } from "lucide-react";
+import { MapPin, CalendarDays, Pencil, Tag, ChevronRight, Users, Fish, Navigation, Clock, Route, Coins, ShoppingBag, Heart, MessageCircle, Plus } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getProfileData } from "@/lib/profile";
 import { getWalkingFeedPosts } from "@/lib/queries";
@@ -61,6 +61,13 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
   });
 
   const myWalkingPosts = await getWalkingFeedPosts(user.id, { authorId: user.id }, 6);
+
+  const [marketSellCount, marketBuyCount, marketFavCount, marketChatCount] = await Promise.all([
+    prisma.marketListing.count({ where: { sellerId: user.id } }),
+    prisma.marketChat.count({ where: { buyerId: user.id } }),
+    prisma.marketFavorite.count({ where: { userId: user.id } }),
+    prisma.marketChat.count({ where: { OR: [{ buyerId: user.id }, { listing: { sellerId: user.id } }] } }),
+  ]);
 
   const myGroupMembers = await prisma.$queryRawUnsafe<any[]>(
     `SELECT m.role, g.id, g.name, g.category, g.region, g.fishSpecies,
@@ -164,6 +171,56 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
           <div className="pt-2">
             <Link href={`/profile/${user.id}`}><Button variant="outline" full>내낚시방</Button></Link>
           </div>
+        </div>
+
+        {/* 중고피싱 관리 */}
+        <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[14px] font-bold text-navy-800">중고피싱</p>
+            <Link href="/market" className="text-[12px] text-orange-400">마켓 바로가기 →</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Link href="/market/mine" className="flex items-center gap-2.5 rounded-xl border border-navy-100/20 bg-[#0d1b2a] p-3 transition-colors active:bg-navy-50/5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-500/15">
+                <Tag size={16} className="text-orange-400" />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-navy-800">판매내역</p>
+                <p className="text-[11px] text-navy-400">{marketSellCount}개</p>
+              </div>
+            </Link>
+            <Link href="/market/purchases" className="flex items-center gap-2.5 rounded-xl border border-navy-100/20 bg-[#0d1b2a] p-3 transition-colors active:bg-navy-50/5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-aqua-400/15">
+                <ShoppingBag size={16} className="text-aqua-400" />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-navy-800">구매내역</p>
+                <p className="text-[11px] text-navy-400">{marketBuyCount}개</p>
+              </div>
+            </Link>
+            <Link href="/market/favorites" className="flex items-center gap-2.5 rounded-xl border border-navy-100/20 bg-[#0d1b2a] p-3 transition-colors active:bg-navy-50/5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/15">
+                <Heart size={16} className="text-red-400" />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-navy-800">관심목록</p>
+                <p className="text-[11px] text-navy-400">{marketFavCount}개</p>
+              </div>
+            </Link>
+            <Link href="/market/chats" className="flex items-center gap-2.5 rounded-xl border border-navy-100/20 bg-[#0d1b2a] p-3 transition-colors active:bg-navy-50/5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-navy-300/15">
+                <MessageCircle size={16} className="text-navy-400" />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-navy-800">채팅</p>
+                <p className="text-[11px] text-navy-400">{marketChatCount}개</p>
+              </div>
+            </Link>
+          </div>
+          <Link href="/market/new" className="mt-2.5 flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-2.5 text-[14px] font-semibold text-white transition-colors active:bg-orange-600">
+            <Plus size={16} />
+            판매하기
+          </Link>
         </div>
 
         {/* 데이터피싱 최근 기록 */}

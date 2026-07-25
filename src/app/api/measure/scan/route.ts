@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { getAiCredentials } from "@/lib/aiCredentials";
+import { rateLimit } from "@/lib/rateLimit";
 
 /**
  * AI 자동 스캔 계측
@@ -53,6 +54,12 @@ function pt(o: any): { x: number; y: number } | null {
 }
 
 export async function POST(req: Request) {
+  // IP당 분당 5회 제한 — OpenAI 비용 절감
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!rateLimit(`scan:${ip}`, 5, 60_000)) {
+    return NextResponse.json({ ok: false, reason: "rate-limited" }, { status: 429 });
+  }
+
   let body: any;
   try {
     body = await req.json();

@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, MapPin, Heart, SlidersHorizontal } from "lucide-react";
+import { Search, MapPin, Heart, SlidersHorizontal, MessageCircle } from "lucide-react";
 import { won, timeAgo, cn } from "@/lib/utils";
 import { Badge, EmptyState, Select } from "@/components/ui";
 import {
@@ -95,47 +95,69 @@ export function MarketList({ items }: { items: MarketItem[] }) {
       {visible.length === 0 ? (
         <EmptyState title="조건에 맞는 상품이 없습니다" desc="검색어나 필터를 바꿔보세요" />
       ) : (
-        <div className="grid grid-cols-2 gap-3 px-3 pb-10 md:grid-cols-3">
+        <div className="divide-y divide-navy-100/20 pb-10">
           {visible.map((it) => {
             const sold = it.status === "SOLD";
             return (
               <Link
                 key={it.id}
                 href={`/market/${it.id}`}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-[#2a2a2a] bg-[#122030] shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-cardhover"
+                className="group flex items-start gap-3.5 px-3.5 py-4 transition-colors active:bg-navy-50/10"
               >
-                <div className="relative aspect-square w-full overflow-hidden bg-navy-50">
-                  {it.thumbnail && (
+                {/* 썸네일 */}
+                <div className="relative h-[110px] w-[110px] shrink-0 overflow-hidden rounded-2xl bg-navy-100/20">
+                  {it.thumbnail ? (
                     <img
                       src={it.thumbnail}
                       alt={it.title}
                       loading="lazy"
                       decoding="async"
-                      className={cn("h-full w-full object-cover transition-transform duration-300 group-hover:scale-105", sold && "opacity-60")}
+                      className={cn("h-full w-full object-cover transition-transform duration-300 group-hover:scale-105", sold && "opacity-50 grayscale")}
                     />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-navy-300">
+                      <SlidersHorizontal size={28} />
+                    </div>
                   )}
                   {it.status !== "SELLING" && (
-                    <span className="absolute left-2 top-2">
-                      <Badge tone={STATUS_TONE[it.status]} className="bg-black/80 text-white">{marketStatusLabel(it.status)}</Badge>
-                    </span>
-                  )}
-                  {it.favoriteCount > 0 && (
-                    <span className="absolute bottom-2 right-2 inline-flex items-center gap-0.5 rounded-full bg-black/45 px-1.5 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
-                      <Heart size={11} className="fill-white" /> {it.favoriteCount}
-                    </span>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+                      <span className="rounded-lg bg-black/70 px-2 py-1 text-[12px] font-bold text-white">
+                        {marketStatusLabel(it.status)}
+                      </span>
+                    </div>
                   )}
                 </div>
-                <div className="flex flex-1 flex-col gap-0.5 p-2.5">
-                  <div className="flex items-center gap-1">
-                    <Badge tone="navy" className="px-1.5 py-0.5 text-[10px]">{marketCategoryLabel(it.category)}</Badge>
-                    {it.condition === "NEW" && <Badge tone="aqua" className="px-1.5 py-0.5 text-[10px]">{marketConditionLabel("NEW")}</Badge>}
+
+                {/* 내용 */}
+                <div className="min-w-0 flex-1 py-0.5">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    {it.condition === "NEW" && (
+                      <span className="rounded-md bg-aqua-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-aqua-400">새상품</span>
+                    )}
+                    <span className="rounded-md bg-navy-50/20 px-1.5 py-0.5 text-[10px] font-medium text-navy-400">{marketCategoryLabel(it.category)}</span>
                   </div>
-                  <h3 className="mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug text-navy-800">{it.title}</h3>
-                  <p className="mt-auto pt-1 text-[15px] font-extrabold text-navy-900">{won(it.price)}</p>
-                  <p className="flex items-center gap-1 text-[11px] text-navy-300">
-                    {it.region && <span className="inline-flex items-center gap-0.5"><MapPin size={10} />{it.region}</span>}
-                    <span>· {timeAgo(it.createdAt)}</span>
+                  <h3 className={cn("line-clamp-2 text-[15px] font-medium leading-snug text-navy-800", sold && "text-navy-400")}>{it.title}</h3>
+                  <p className="mt-1 flex items-center gap-1 text-[12px] text-navy-400">
+                    {it.region && <><span>{it.region}</span><span>·</span></>}
+                    <span>{timeAgo(it.createdAt)}</span>
                   </p>
+                  <p className={cn("mt-1.5 text-[17px] font-extrabold", sold ? "text-navy-300 line-through" : "text-navy-900")}>{won(it.price)}</p>
+
+                  {/* 하단 정보 */}
+                  {(it.favoriteCount > 0 || it.chatCount > 0) && (
+                    <div className="mt-1.5 flex items-center gap-3 text-[12px] text-navy-400">
+                      {it.chatCount > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <MessageCircle size={12} /> 채팅 {it.chatCount}
+                        </span>
+                      )}
+                      {it.favoriteCount > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <Heart size={12} /> 관심 {it.favoriteCount}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </Link>
             );

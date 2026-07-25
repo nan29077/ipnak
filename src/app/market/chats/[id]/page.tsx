@@ -7,6 +7,7 @@ import { PageHeader, Badge } from "@/components/ui";
 import { won } from "@/lib/utils";
 import { marketStatusLabel } from "@/lib/taxonomy";
 import { MarketChatRoom } from "@/components/market/MarketChatRoom";
+import { MarketChatLayout } from "@/components/market/MarketChatLayout";
 
 export const dynamic = "force-dynamic";
 
@@ -32,23 +33,43 @@ export default async function MarketChatRoomPage({ params }: { params: { id: str
   const other = amSeller ? chat.buyer : chat.listing.seller;
 
   return (
-    <div className="bg-[#162538]">
+    // MarketChatLayout: visualViewport API로 키보드 등장 시 높이를 동적 조정 → 하단 입력창 항상 키보드 바로 위
+    <MarketChatLayout>
+      {/* 상단 헤더 — 항상 고정 */}
       <PageHeader title={other.nickname} back sub={amSeller ? "구매 희망자" : "판매자"} />
 
-      {/* 거래 상품 요약 */}
-      <Link href={`/market/${chat.listing.id}`} className="flex items-center gap-3 border-b border-navy-100 bg-navy-50/40 px-3.5 py-2.5">
-        {chat.listing.images[0] && <img src={chat.listing.images[0].url} alt={chat.listing.title} className="h-11 w-11 rounded-lg object-cover" />}
+      {/* 거래 상품 요약 카드 — 헤더 바로 아래 고정 */}
+      <Link
+        href={`/market/${chat.listing.id}`}
+        className="flex shrink-0 items-center gap-3 border-b border-navy-100/20 bg-[#0d2236] px-3.5 py-3 transition-colors active:bg-navy-50/5"
+      >
+        {chat.listing.images[0] ? (
+          <img
+            src={chat.listing.images[0].url}
+            alt={chat.listing.title}
+            className="h-14 w-14 rounded-xl object-cover shadow-md"
+          />
+        ) : (
+          <div className="h-14 w-14 rounded-xl bg-navy-50/20 shadow-md" />
+        )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <Badge tone={STATUS_TONE[chat.listing.status]} className="px-1.5 py-0 text-[10px]">{marketStatusLabel(chat.listing.status)}</Badge>
-            <p className="truncate text-[13px] font-semibold text-navy-800">{chat.listing.title}</p>
+          <p className="truncate text-[14px] font-bold text-navy-800">{chat.listing.title}</p>
+          <div className="mt-1 flex items-center gap-2">
+            <Badge tone={STATUS_TONE[chat.listing.status]}>{marketStatusLabel(chat.listing.status)}</Badge>
+            <p className="text-[15px] font-extrabold text-navy-900">{won(chat.listing.price)}</p>
           </div>
-          <p className="text-[14px] font-extrabold text-navy-900">{won(chat.listing.price)}</p>
         </div>
-        <ChevronRight size={18} className="text-navy-300" />
+        <ChevronRight size={18} className="shrink-0 text-navy-300" />
       </Link>
 
-      <MarketChatRoom chatId={chat.id} me={user.id} />
-    </div>
+      {/* 채팅룸 — flex-1 min-h-0로 남은 공간 전체 차지, 내부에서만 스크롤 */}
+      <MarketChatRoom
+        chatId={chat.id}
+        me={user.id}
+        isOwner={amSeller}
+        listingId={chat.listingId}
+        initialStatus={chat.listing.status}
+      />
+    </MarketChatLayout>
   );
 }

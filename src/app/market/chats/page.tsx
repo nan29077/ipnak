@@ -21,15 +21,21 @@ export default async function MarketChatsPage() {
     where: { OR: [{ buyerId: user.id }, { listing: { sellerId: user.id } }] },
     orderBy: { updatedAt: "desc" },
     include: {
-      listing: { include: { images: { orderBy: { order: "asc" }, take: 1 }, seller: { select: { id: true, nickname: true, avatarUrl: true } } } },
+      listing: {
+        include: {
+          images: { orderBy: { order: "asc" }, take: 1 },
+          seller: { select: { id: true, nickname: true, avatarUrl: true } },
+        },
+      },
       buyer: { select: { id: true, nickname: true, avatarUrl: true } },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
 
   return (
-    <div className="min-h-screen bg-surface pb-24">
-      <PageHeader title="중고거래 채팅" back />
+    <div className="min-h-screen bg-[#0d1b2a] pb-24">
+      <PageHeader title="채팅" back sub={chats.length > 0 ? `${chats.length}개` : undefined} />
+
       {chats.length === 0 ? (
         <EmptyState
           title="진행 중인 채팅이 없습니다"
@@ -37,28 +43,65 @@ export default async function MarketChatsPage() {
           action={<LinkButton href="/market">중고피싱 둘러보기</LinkButton>}
         />
       ) : (
-        <div className="divide-y divide-navy-50">
+        <div className="divide-y divide-navy-100/10">
           {chats.map((c) => {
             const amSeller = c.listing.seller.id === user.id;
             const other = amSeller ? c.buyer : c.listing.seller;
             const last = c.messages[0];
+            const isSystem = last?.body.startsWith("[시스템]");
+            const displayMsg = isSystem
+              ? last.body.replace("[시스템] ", "")
+              : last?.body;
+
             return (
-              <Link key={c.id} href={`/market/chats/${c.id}`} className="flex items-center gap-3 bg-[#162538] px-3.5 py-3 transition-colors hover:bg-navy-50/50">
-                <img src={getAvatarUrl(other.id, other.avatarUrl)} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-navy-100" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="truncate text-[14px] font-semibold text-navy-900">{other.nickname}</p>
-                    <Badge tone={amSeller ? "navy" : "aqua"} className="px-1.5 py-0 text-[10px]">{amSeller ? "구매희망" : "판매자"}</Badge>
-                  </div>
-                  <p className="truncate text-[13px] text-navy-400">{last ? last.body : "대화를 시작해보세요"}</p>
+              <Link
+                key={c.id}
+                href={`/market/chats/${c.id}`}
+                className="flex items-center gap-3 bg-[#162538] px-3.5 py-3.5 transition-colors active:bg-navy-50/5"
+              >
+                {/* 상대방 아바타 */}
+                <div className="relative shrink-0">
+                  <img
+                    src={getAvatarUrl(other.id, other.avatarUrl)}
+                    alt={other.nickname}
+                    className="h-14 w-14 rounded-full object-cover ring-1 ring-navy-100/20"
+                  />
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {c.listing.images[0] && <img src={c.listing.images[0].url} alt={c.listing.title} className="h-11 w-11 rounded-lg object-cover" />}
-                  <div className="text-right">
-                    <Badge tone={STATUS_TONE[c.listing.status]} className="px-1.5 py-0 text-[10px]">{marketStatusLabel(c.listing.status)}</Badge>
-                    <p className="mt-0.5 text-[11px] font-semibold text-navy-700">{won(c.listing.price)}</p>
-                    {last && <p className="text-[10px] text-navy-300">{timeAgo(last.createdAt)}</p>}
+
+                {/* 채팅 내용 */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <p className="text-[14px] font-semibold text-navy-900 truncate">{other.nickname}</p>
+                    <span className={`shrink-0 rounded-full px-1.5 py-0 text-[10px] font-semibold ${amSeller ? "bg-navy-50/30 text-navy-400" : "bg-aqua-400/15 text-aqua-400"}`}>
+                      {amSeller ? "구매희망" : "판매자"}
+                    </span>
                   </div>
+                  <p className="text-[13px] text-navy-800 truncate">{c.listing.title}</p>
+                  <p className={`text-[12px] truncate mt-0.5 ${isSystem ? "italic text-navy-300" : "text-navy-400"}`}>
+                    {displayMsg ?? "대화를 시작해보세요"}
+                  </p>
+                </div>
+
+                {/* 상품 썸네일 + 상태 + 가격 + 시간 */}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {last && (
+                    <p className="text-[10px] text-navy-300 mb-0.5">{timeAgo(last.createdAt)}</p>
+                  )}
+                  {c.listing.images[0] ? (
+                    <div className="relative">
+                      <img
+                        src={c.listing.images[0].url}
+                        alt={c.listing.title}
+                        className="h-14 w-14 rounded-xl object-cover"
+                      />
+                      <div className="absolute -top-1.5 -right-1.5">
+                        <Badge tone={STATUS_TONE[c.listing.status]}>{marketStatusLabel(c.listing.status)}</Badge>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-14 w-14 rounded-xl bg-navy-50/20" />
+                  )}
+                  <p className="text-[12px] font-bold text-navy-800">{won(c.listing.price)}</p>
                 </div>
               </Link>
             );

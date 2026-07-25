@@ -76,14 +76,16 @@ async function computeWalkingLocks(posts: any[], userId?: string): Promise<Map<s
   return map;
 }
 
-const feedInclude = {
+// likes/bookmarks는 "현재 열람자가 눌렀는지" 판별에만 쓰이므로 열람자 것만 조회
+// (전체 좋아요 수는 _count로 별도 집계 — 게시글당 전체 좋아요 행을 로드하지 않아 쿼리 페이로드 대폭 절감)
+const feedInclude = (userId?: string) => ({
   author: { select: { id: true, nickname: true, avatarUrl: true, role: true } },
   images: { orderBy: { order: "asc" as const } },
   productTags: { include: { product: true } },
-  likes: { select: { userId: true } },
-  bookmarks: { select: { userId: true } },
+  likes: { where: { userId: userId ?? "" }, select: { userId: true } },
+  bookmarks: { where: { userId: userId ?? "" }, select: { userId: true } },
   _count: { select: { likes: true, comments: true } },
-};
+});
 
 export async function getFeedPosts(userId?: string, opts?: { authorId?: string; postType?: string; savedBy?: string; kind?: string | null }) {
   const baseWhere: any = { hidden: false };
@@ -117,11 +119,11 @@ export async function getFeedPosts(userId?: string, opts?: { authorId?: string; 
   const useKind = opts?.kind !== null;
   const where = useKind ? { ...baseWhere, kind: opts?.kind ?? "FEED" } : baseWhere;
   try {
-    const posts = await prisma.post.findMany({ where, include: feedInclude, orderBy: { createdAt: "desc" }, take: 60 });
+    const posts = await prisma.post.findMany({ where, include: feedInclude(userId), orderBy: { createdAt: "desc" }, take: 60 });
     return Promise.all(posts.map((p) => toFeedPost(p, userId)));
   } catch (e) {
     if (!useKind) throw e;
-    const posts = await prisma.post.findMany({ where: baseWhere, include: feedInclude, orderBy: { createdAt: "desc" }, take: 60 });
+    const posts = await prisma.post.findMany({ where: baseWhere, include: feedInclude(userId), orderBy: { createdAt: "desc" }, take: 60 });
     return Promise.all(posts.map((p) => toFeedPost(p, userId)));
   }
 }
@@ -161,7 +163,7 @@ export async function getPersonalizedFeedPosts(
         visibility: { in: ["PUBLIC", "BLURRED"] },
         OR: orConditions,
       },
-      include: feedInclude,
+      include: feedInclude(userId),
       orderBy: [{ likes: { _count: "desc" } }, { createdAt: "desc" }],
       take: 20,
     });
@@ -172,7 +174,7 @@ export async function getPersonalizedFeedPosts(
 }
 
 export async function getPost(id: string, userId?: string) {
-  const p = await prisma.post.findUnique({ where: { id }, include: feedInclude });
+  const p = await prisma.post.findUnique({ where: { id }, include: feedInclude(userId) });
   if (!p) return null;
   const locks = await computeWalkingLocks([p], userId);
   return toFeedPost(p, userId, locks.get(p.id) ?? false);
@@ -183,7 +185,7 @@ export async function getWalkingFeedPosts(userId?: string, opts?: { authorId?: s
   try {
     const posts = await prisma.post.findMany({
       where: { hidden: false, postType: "WALKING_FEED", ...(opts?.authorId ? { authorId: opts.authorId } : {}) },
-      include: feedInclude,
+      include: feedInclude(userId),
       orderBy: { createdAt: "desc" },
       take: limit,
     });
@@ -247,7 +249,7 @@ export async function getLogPost(id: string, userId?: string): Promise<FeedPost 
     const exists = await prisma.post.findUnique({ where: { id }, select: { id: true } });
     if (!exists) return null;
     await prisma.post.update({ where: { id }, data: ({ viewCount: { increment: 1 } } as any) }).catch(() => {});
-    const p = await prisma.post.findUnique({ where: { id }, include: feedInclude });
+    const p = await prisma.post.findUnique({ where: { id }, include: feedInclude(userId) });
     if (!p) return null;
     return toFeedPost(p, userId);
   } catch {

@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
+export type MapCenter = { lat: number; lng: number; zoom?: number };
+
 export type GroupPointItem = {
   id: string;
   lat: number;
@@ -46,15 +48,18 @@ interface Props {
   /** 선택된 위치 콜백 */
   onPick?: (lat: number, lng: number) => void;
   height?: number;
+  /** 외부에서 지도 중심 이동 (주소 검색 결과) */
+  centerTo?: MapCenter | null;
 }
 
-export function GroupPointsMap({ points, pickMode = false, onPick, height = 240 }: Props) {
+export function GroupPointsMap({ points, pickMode = false, onPick, height = 240, centerTo }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const pickMarkerRef = useRef<L.Marker | null>(null);
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;
+  const prevCenterKeyRef = useRef<string | null>(null);
 
   // 지도 초기화
   useEffect(() => {
@@ -98,6 +103,16 @@ export function GroupPointsMap({ points, pickMode = false, onPick, height = 240 
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     }
   }, [points]);
+
+  // 외부에서 지도 중심 이동 (주소 검색 결과)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !centerTo) return;
+    const key = `${centerTo.lat},${centerTo.lng}`;
+    if (prevCenterKeyRef.current === key) return;
+    prevCenterKeyRef.current = key;
+    map.setView([centerTo.lat, centerTo.lng], centerTo.zoom ?? 14);
+  }, [centerTo]);
 
   // 픽 모드 토글
   useEffect(() => {

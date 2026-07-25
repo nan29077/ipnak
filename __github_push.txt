@@ -1,15 +1,3 @@
-error: cannot lock ref 'refs/heads/master': Unable to create 'E:/프로젝트/입낚/.git/HEAD.lock': File exists.
-
-Another git process seems to be running in this repository, or the lock file may be stale
-error: unable to delete old refs/heads/master
-fatal: branch rename failed
-remote: 
-remote: Create a pull request for 'main' on GitHub by visiting:        
-remote:      https://github.com/nan29077/ipnak/pull/new/main        
-remote: 
 To https://github.com/nan29077/ipnak.git
- * [new branch]      main -> main
-branch 'main' set up to track 'origin/main'.
-533c75a 주황색→노랑색 변경 전 체크포인트 (세로 버전 복원 상태)
-34e37b6 AI 스캐너: 가로 하단 컨트롤 + 안내 깜빡임 + 직접측정 갤러리 연결
-c872efd AI 스캐너: 풀스크린 카메라 + 가로 모드 + 수동 전환 개선
+   61a6ad9..2170eef  main -> main
+^C
