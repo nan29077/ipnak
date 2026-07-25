@@ -77,8 +77,9 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
   const [det, setDet] = useState<Detection | null>(null);
   // 브라우저 권한 요청 전 커스텀 안내 팝업 (LiveMeasureCamera 와 동일 UX)
   const [consented, setConsented] = useState(false);
-  // 가로/세로 방향 + '가로로 촬영하기' 안내 토스트
+  // 가로/세로 방향
   const [isLandscape, setIsLandscape] = useState(false);
+  const [showRightPanel, setShowRightPanel] = useState(false); // 기본값: 세로 모드
   const [showRotateHint, setShowRotateHint] = useState(false);
   const rotateHintRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -110,7 +111,10 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
   /* ── 화면 방향 감지 (가로/세로 레이아웃 전환) ── */
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const check = () => setIsLandscape(window.innerWidth > window.innerHeight);
+    const check = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+      // 방향 변경 시 우측 패널 상태는 유지 — 사용자가 명시적으로 세로 전환 시에만 변경
+    };
     check();
     window.addEventListener("resize", check);
     window.addEventListener("orientationchange", check);
@@ -443,7 +447,7 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     onSwitchToManual();
   }, [cleanupStream, onSwitchToManual]);
 
-  /* ── "가로로 촬영하기": 화면 회전 유도 안내 (2초 후 자동 사라짐) ── */
+  /* ── "가로로 촬영하기" 힌트 토스트 ── */
   const triggerRotateHint = useCallback(() => {
     setShowRotateHint(true);
     if (rotateHintRef.current) clearTimeout(rotateHintRef.current);
@@ -515,7 +519,7 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
       />
 
-      {/* ── 상단 바 (가로 모드에서 축소) ── */}
+      {/* ── 상단 바 ── */}
       <div
         className={
           "pt-safe absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent " +
@@ -585,43 +589,64 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       )}
 
       {/* ── 하단(세로) 컨트롤 ── */}
-      {camStatus !== "error" && !isLandscape && (
+      {camStatus !== "error" && !isLandscape && !showRightPanel && (
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
           <div className="mb-3">{guidance}</div>
           {measureButton}
-          {/* 가로로 촬영하기 */}
-          <button
-            type="button"
-            onClick={triggerRotateHint}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-white/10 py-3 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/15"
-          >
-            <RotateCw size={15} strokeWidth={2} />
-            가로로 촬영하기
-          </button>
           <div className="mt-2">{manualButton}</div>
         </div>
       )}
 
-      {/* ── 하단(가로) 컨트롤 — 버튼을 한 줄로 나란히 배치해 세로 공간 절약 ── */}
-      {camStatus !== "error" && isLandscape && (
+      {/* ── 안내 오버레이 — 우측 패널 활성 시 카메라 긴쪽 중앙에 표시 ── */}
+      {camStatus !== "error" && (isLandscape || showRightPanel) && (
         <div
-          className="pb-safe absolute inset-x-0 bottom-0 left-0 right-0 z-30 px-4 pb-3 pt-2.5"
-          style={{ background: "rgba(0,0,0,0.65)" }}
+          className="pointer-events-none absolute inset-y-0 left-0 z-20 flex flex-col items-center justify-center"
+          style={{ right: "88px" }}
         >
-          <div className="mb-2">{guidance}</div>
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">{measureButton}</div>
-            {/* 세로로 촬영하기 */}
-            <button
-              type="button"
-              onClick={triggerRotateHint}
-              className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-white/10 px-4 py-3 text-[13px] font-semibold text-white/85 transition-colors hover:bg-white/15"
-            >
-              <RotateCw size={15} strokeWidth={2} />
-              세로로 촬영하기
-            </button>
-            <div className="min-w-0 max-w-[130px] flex-1">{manualButton}</div>
-          </div>
+          {guidance}
+        </div>
+      )}
+
+      {/* ── 우측 컨트롤 패널 — 기본값 (가로 구도, 짧은쪽) ── */}
+      {camStatus !== "error" && (isLandscape || showRightPanel) && (
+        <div
+          className="pb-safe absolute inset-y-0 right-0 z-30 flex flex-col items-center"
+          style={{ background: "rgba(0,0,0,0.75)", width: "88px" }}
+        >
+          {/* 상단 여백 (헤더 높이) */}
+          <div className="h-14 shrink-0" />
+
+          {/* 상단 여백 — 측정하기를 중앙 위쪽에 배치 */}
+          <div className="flex-1" />
+
+          {/* 측정하기 (원형 버튼) */}
+          <button
+            type="button"
+            onClick={confirm}
+            disabled={!canConfirm}
+            className={
+              "flex h-[60px] w-[60px] flex-col items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-all active:scale-[0.94] " +
+              (canConfirm
+                ? "bg-orange-500 text-white shadow-lg shadow-orange-500/40"
+                : "bg-white/10 text-white/35")
+            }
+          >
+            <ScanLine size={19} strokeWidth={2} />
+            <span>측정하기</span>
+          </button>
+
+          {/* 중간 여백 — 직접측정을 하단으로 밀어냄 */}
+          <div className="flex-[2]" />
+
+          {/* 직접측정 (원형 버튼, 짧은쪽 하단) */}
+          <button
+            type="button"
+            onClick={switchToManual}
+            className="mb-6 flex h-[48px] w-[48px] flex-col items-center justify-center gap-0.5 rounded-full bg-white/10 text-[9px] font-semibold text-white/65 transition-colors hover:bg-white/20 hover:text-white/90 active:scale-[0.93]"
+          >
+            <Ruler size={15} strokeWidth={1.9} />
+            <span>직접측정</span>
+          </button>
         </div>
       )}
 

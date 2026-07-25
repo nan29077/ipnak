@@ -12,7 +12,7 @@ import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { useUser } from "@/lib/userContext";
 import {
   Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
-  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, Ruler, ChevronRight,
+  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, Ruler, ChevronRight, FolderOpen, X,
 } from "lucide-react";
 import { PageHeader, Button, Chip } from "@/components/ui";
 import { useToast } from "@/components/Toast";
@@ -395,6 +395,15 @@ export default function MeasurePage() {
       setHead(p);
       setPhase("MANUAL_TAIL");
     } else if (phase === "MANUAL_TAIL") {
+      // 이미 찍힌 빨간 점(head) 근처 탭 → head 재설정 (파란 점처럼 자유롭게 수정)
+      if (head) {
+        const threshold = canvas.width * 0.12; // 캔버스 너비 12% 이내면 head 재선택
+        const dHead = Math.hypot(p.x - head.x, p.y - head.y);
+        if (dHead < threshold) {
+          setHead(p);
+          return; // MANUAL_TAIL 페이즈 유지 — 꼬리 탭 대기
+        }
+      }
       setTail(p);
       setPhase("RESULT");
     } else if (phase === "RESULT" && head && tail) {
@@ -476,15 +485,35 @@ export default function MeasurePage() {
     }
   }
 
-  /* ── 공유 이미지 다운로드 ── */
+  /* ── 이미지 저장 — iOS·Android 사진첩 / 데스크톱 다운로드 ── */
   async function handleDownload() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const blob = await engines().overlay.getShareImage(canvas);
     if (!blob) return;
+    const fileName = `입낚측정_${result?.lengthCm ?? ""}cm_${new Date().toISOString().slice(0, 10)}.png`;
+
+    // iOS·Android: Web Share API(files) 지원 시 공유 시트로 사진첩 저장
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      const file = new File([blob], fileName, { type: "image/png" });
+      const canShare = typeof navigator.canShare === "function"
+        ? navigator.canShare({ files: [file] })
+        : true; // canShare 미지원 브라우저는 share 시도
+      if (canShare) {
+        try {
+          await navigator.share({ files: [file], title: "입낚 측정 결과" });
+          return;
+        } catch (e: any) {
+          if (e?.name === "AbortError") return; // 사용자가 공유 시트 취소
+          // 기타 오류 → 앵커 다운로드로 fallback
+        }
+      }
+    }
+
+    // Fallback: 앵커 다운로드 (데스크톱 / Web Share 미지원 환경)
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `입낚측정_${result?.lengthCm ?? ""}cm_${new Date().toISOString().slice(0, 10)}.png`;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -540,6 +569,22 @@ export default function MeasurePage() {
     if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
   }, []);
 
+  /* ── 자동 스캔 취소 → CHOICE 복귀 ── */
+  function cancelScan() {
+    scanAbortRef.current?.abort();
+    scanAbortRef.current = null;
+    if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null; }
+    setScanFailMsg(null);
+    setPhase("CHOICE");
+  }
+
+  /* ── 수동 측정 취소 → CHOICE 복귀 ── */
+  function cancelManual() {
+    setHead(null);
+    setTail(null);
+    setPhase("CHOICE");
+  }
+
   /* ── 재촬영: 실시간 AI 스캐너 재시작 ── */
   const retake = useCallback(() => {
     reset();
@@ -569,6 +614,7 @@ export default function MeasurePage() {
   }, []);
 
   const [diaryOpen, setDiaryOpen] = useState(false);
+  const [showGallerySheet, setShowGallerySheet] = useState(false); // 갤러리 선택 커스텀 바텀시트
 
   const showCanvas = hasImage && phase !== "IDLE";
   const busy = phase === "ANALYZING" || phase === "SCANNING" || phase === "SAVING";
@@ -587,7 +633,7 @@ export default function MeasurePage() {
           <button
             type="button"
             onClick={() => setDiaryOpen(true)}
-            className="flex items-center gap-1.5 rounded-full bg-navy-50 px-3 py-1.5 text-[12px] font-semibold text-navy-600 transition-colors hover:bg-navy-100"
+            className="mr-1 flex items-center gap-1.5 rounded-full bg-navy-50 px-3 py-1.5 text-[12px] font-semibold text-navy-600 transition-colors hover:bg-navy-100"
           >
             <BookOpen size={15} strokeWidth={1.9} />
             계측일지
@@ -637,7 +683,7 @@ export default function MeasurePage() {
               </button>
               <button
                 type="button"
-                onClick={() => { if (!loggedIn) { setLoginModal(true); return; } galleryInputRef.current?.click(); }}
+                onClick={() => { if (!loggedIn) { setLoginModal(true); return; } setShowGallerySheet(true); }}
                 className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-6 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
               >
                 <Images size={26} strokeWidth={1.7} />
@@ -668,6 +714,18 @@ export default function MeasurePage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── 자동 스캔 취소 버튼 ── */}
+        {phase === "SCANNING" && (
+          <button
+            type="button"
+            onClick={cancelScan}
+            className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-navy-200 py-3 text-[13px] font-semibold text-navy-400 transition-colors hover:border-navy-300 hover:text-navy-500 active:scale-[0.98]"
+          >
+            <X size={15} strokeWidth={2} />
+            취소
+          </button>
         )}
 
         {/* ── 측정 방식 선택 (자동 스캔 / 수동 점찍기) ── */}
@@ -709,6 +767,17 @@ export default function MeasurePage() {
               </span>
               <ChevronRight size={18} className="ml-auto shrink-0 text-navy-300" />
             </button>
+
+            <div className="flex justify-center py-2">
+              <button
+                type="button"
+                onClick={reset}
+                aria-label="닫기"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-50/60 text-navy-400 transition-all hover:bg-navy-100/80 hover:text-navy-600 active:scale-[0.93]"
+              >
+                <X size={20} strokeWidth={2.2} />
+              </button>
+            </div>
           </div>
         )}
 
@@ -720,15 +789,25 @@ export default function MeasurePage() {
           </div>
         )}
 
-        {/* ── 수동 탭 안내 ── */}
+        {/* ── 수동 탭 안내 + 취소 ── */}
         {(phase === "MANUAL_HEAD" || phase === "MANUAL_TAIL") && (
-          <div className="flex items-center gap-2 rounded-2xl border border-aqua-500/30 bg-aqua-500/10 px-3 py-2">
-            <Fish size={16} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
-            <p className="text-[13px] font-medium text-aqua-300">
-              {phase === "MANUAL_HEAD"
-                ? "물고기 머리(입) 끝을 탭해 주세요"
-                : "이번엔 꼬리 끝을 탭해 주세요"}
-            </p>
+          <div className="flex items-center gap-2">
+            <div className="flex flex-1 items-center gap-2 rounded-2xl border border-aqua-500/30 bg-aqua-500/10 px-3 py-2">
+              <Fish size={16} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
+              <p className="text-[13px] font-medium text-aqua-300">
+                {phase === "MANUAL_HEAD"
+                  ? "물고기 머리(입) 끝을 탭해 주세요"
+                  : "이번엔 꼬리 끝을 탭해 주세요"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={cancelManual}
+              className="flex shrink-0 items-center gap-1 rounded-2xl border border-navy-200 px-3 py-2 text-[12px] font-semibold text-navy-400 transition-colors hover:border-navy-300 hover:text-navy-500 active:scale-[0.98]"
+            >
+              <X size={13} strokeWidth={2} />
+              취소
+            </button>
           </div>
         )}
 
@@ -812,6 +891,16 @@ export default function MeasurePage() {
               <Button variant="outline" size="sm" onClick={handleDownload} leftIcon={<Download size={15} />}>이미지</Button>
               <Button size="sm" onClick={handleSave} leftIcon={<Save size={15} />}>저장</Button>
             </div>
+            <div className="flex justify-center py-2">
+              <button
+                type="button"
+                onClick={reset}
+                aria-label="닫기"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-50/60 text-navy-400 transition-all hover:bg-navy-100/80 hover:text-navy-600 active:scale-[0.93]"
+              >
+                <X size={20} strokeWidth={2.2} />
+              </button>
+            </div>
           </>
         )}
 
@@ -866,6 +955,16 @@ export default function MeasurePage() {
                 데이터피싱으로 돌아가기
               </Link>
             )}
+            <div className="flex justify-center py-2">
+              <button
+                type="button"
+                onClick={reset}
+                aria-label="닫기"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-50/60 text-navy-400 transition-all hover:bg-navy-100/80 hover:text-navy-600 active:scale-[0.93]"
+              >
+                <X size={20} strokeWidth={2.2} />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -945,6 +1044,81 @@ export default function MeasurePage() {
           onSwitchToManual={handleLiveScanSwitchToManual}
           onClose={() => setLiveScanOpen(false)}
         />
+      )}
+
+      {/* ── 갤러리 선택 커스텀 바텀시트 (네이티브 iOS 팝업 대체) ── */}
+      {showGallerySheet && createPortal(
+        <div
+          className="fixed inset-0 z-[9000] flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+          onClick={() => setShowGallerySheet(false)}
+        >
+          <div
+            className="w-full max-w-[480px] overflow-hidden rounded-t-[28px] shadow-2xl ring-1 ring-white/[0.08]"
+            style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#132233 60%,#1a2a3a 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 상단 오렌지 라인 */}
+            <div className="h-[2.5px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400/90 to-orange-700/30" />
+            {/* 드래그 핸들 */}
+            <div className="mx-auto mt-3.5 h-1 w-10 rounded-full bg-white/[0.14]" />
+
+            {/* 헤더 */}
+            <div className="px-6 pb-4 pt-5">
+              <p className="text-[18px] font-extrabold tracking-tight text-white">사진 가져오기</p>
+              <p className="mt-1 text-[12px] text-white/40">측정할 물고기 사진을 선택해 주세요</p>
+            </div>
+
+            {/* 옵션 */}
+            <div className="space-y-2 px-4 pb-4">
+              {/* 사진 라이브러리 */}
+              <button
+                type="button"
+                onClick={() => { galleryInputRef.current?.click(); setShowGallerySheet(false); }}
+                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left ring-1 ring-white/[0.09] transition-colors active:bg-white/[0.09]"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15">
+                  <Images size={20} strokeWidth={1.8} className="text-orange-400" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold text-white">사진 라이브러리</span>
+                  <span className="block text-[11px] text-white/40">갤러리에서 사진 선택</span>
+                </span>
+                <ChevronRight size={16} strokeWidth={2} className="ml-auto shrink-0 text-white/25" />
+              </button>
+
+              {/* 파일에서 선택 */}
+              <button
+                type="button"
+                onClick={() => { galleryInputRef.current?.click(); setShowGallerySheet(false); }}
+                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left ring-1 ring-white/[0.09] transition-colors active:bg-white/[0.09]"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
+                  <FolderOpen size={20} strokeWidth={1.8} className="text-white/60" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold text-white">파일에서 선택</span>
+                  <span className="block text-[11px] text-white/40">Google Drive, iCloud 등</span>
+                </span>
+                <ChevronRight size={16} strokeWidth={2} className="ml-auto shrink-0 text-white/25" />
+              </button>
+            </div>
+
+            {/* 취소 */}
+            <div className="px-4 pb-10 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowGallerySheet(false)}
+                className="w-full rounded-2xl py-3 text-[14px] font-semibold text-white/35 transition-colors active:text-white/65"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* ── 계측일지 바텀시트 ── */}
