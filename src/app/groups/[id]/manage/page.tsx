@@ -164,7 +164,7 @@ export default function GroupManagePage() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-[#161616] pb-20">
+    <div className="min-h-screen bg-[#0d1b2a] pb-20">
       <div className="flex items-center gap-3 border-b border-navy-100/20 px-3.5 py-3">
         <Link href={`/groups/${id}`}><ArrowLeft size={20} className="text-navy-400" /></Link>
         <div>
@@ -183,7 +183,7 @@ export default function GroupManagePage() {
       ) : (
         <>
           {/* 탭 */}
-          <div className="sticky top-0 z-20 flex gap-1.5 overflow-x-auto border-b border-navy-100/20 bg-[#161616]/95 px-3.5 py-2.5 backdrop-blur-md no-scrollbar">
+          <div className="sticky top-0 z-20 flex gap-1.5 overflow-x-auto border-b border-navy-100/20 bg-[#0d1b2a]/95 px-3.5 py-2.5 backdrop-blur-md no-scrollbar">
             {TABS.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-semibold transition-all",
@@ -214,14 +214,14 @@ export default function GroupManagePage() {
                   )}
                 </div>
                 {pending.length === 0 ? (
-                  <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] py-8 text-center text-[13px] text-navy-400">
+                  <div className="rounded-2xl border border-navy-100/20 bg-[#162538] py-8 text-center text-[13px] text-navy-400">
                     <UserCheck size={22} className="mx-auto mb-2 text-navy-300" strokeWidth={1.5} />
                     대기 중인 신청이 없습니다
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {pending.map(m => (
-                      <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-orange-500/20 bg-[#1e1e1e] p-3">
+                      <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-orange-500/20 bg-[#162538] p-3">
                         <Avatar m={m} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] font-semibold text-navy-800">{m.nickname}</p>
@@ -253,14 +253,14 @@ export default function GroupManagePage() {
               <section className="space-y-3">
                 <p className="text-[13px] font-bold text-navy-800">현재 회원 ({active.length}명)</p>
                 {active.length === 0 ? (
-                  <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] py-8 text-center text-[13px] text-navy-400">
+                  <div className="rounded-2xl border border-navy-100/20 bg-[#162538] py-8 text-center text-[13px] text-navy-400">
                     <Users size={22} className="mx-auto mb-2 text-navy-300" strokeWidth={1.5} />
                     회원이 없습니다
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {active.map(m => (
-                      <div key={m.id} className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-3">
+                      <div key={m.id} className="rounded-2xl border border-navy-100/20 bg-[#162538] p-3">
                         <div className="flex items-center gap-3">
                           <Avatar m={m} />
                           <div className="min-w-0 flex-1">
@@ -376,7 +376,7 @@ export default function GroupManagePage() {
                     border-radius: 12px; padding: 10px 14px; font-size: 14px; color: #e8eaf6; outline: none;
                   }
                   .manage-input:focus { border-color: rgba(245,124,0,0.5); }
-                  .manage-input option { background: #1e1e1e; color: #e8eaf6; }
+                  .manage-input option { background: #162538; color: #e8eaf6; }
                 `}</style>
               </section>
             )}
@@ -390,7 +390,7 @@ export default function GroupManagePage() {
                   <StatCard icon={<Shield size={16} className="text-blue-400" strokeWidth={1.5} />} label="부단장" value={subLeaders.length} />
                 </div>
 
-                <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-4">
+                <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-4">
                   <p className="mb-3 text-[13px] font-bold text-navy-800">최근 가입 회원</p>
                   {recentJoined.length === 0 ? (
                     <p className="py-4 text-center text-[13px] text-navy-400">아직 가입한 회원이 없습니다</p>
@@ -531,7 +531,7 @@ function RoleBadge({ role }: { role: string }) {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-3 text-center">
+    <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-3 text-center">
       <div className="mx-auto mb-1.5 flex h-8 w-8 items-center justify-center rounded-lg bg-navy-50/10">{icon}</div>
       <p className="text-[18px] font-extrabold text-navy-900">{value}</p>
       <p className="text-[11px] text-navy-400">{label}</p>
@@ -551,7 +551,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-5" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-5" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-sm rounded-2xl border border-navy-100/20 bg-[#162538] p-5" onClick={e => e.stopPropagation()}>
         {children}
       </div>
     </div>

@@ -15,7 +15,7 @@ export function LogBoard({ posts, counts, currentUserId }: { posts: LogListItem[
   return (
     <div className="min-h-screen">
       {/* 상단: 커뮤니티 세그먼트 + 소개 */}
-      <div className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#161616]/85 backdrop-blur-md">
+      <div className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#0d1b2a]/85 backdrop-blur-md">
         <CommunityTabs />
         <div className="flex gap-1.5 overflow-x-auto px-3 pb-2.5 no-scrollbar">
           <Chip className="shrink-0" active={cat === "ALL"} onClick={() => setCat("ALL")}>
@@ -57,7 +57,7 @@ export function LogBoard({ posts, counts, currentUserId }: { posts: LogListItem[
 
 function LogRow({ post }: { post: LogListItem }) {
   return (
-    <li className="overflow-hidden rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] shadow-card">
+    <li className="overflow-hidden rounded-2xl border border-[#2a2a2a] bg-[#122030] shadow-card">
       <Link href={`/log/${post.id}`} className="flex gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03]">
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-center gap-1.5">

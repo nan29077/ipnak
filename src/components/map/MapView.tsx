@@ -7,7 +7,7 @@ const MapCanvas = dynamic(() => import("./MapCanvas"), {
   ssr: false,
   loading: () => (
     <div className="flex h-full w-full items-center justify-center bg-navy-50">
-      <span className="inline-flex items-center gap-2 rounded-xl bg-[#161616]/90 px-3.5 py-2 text-sm font-medium text-navy-500 shadow-card">
+      <span className="inline-flex items-center gap-2 rounded-xl bg-[#0d1b2a]/90 px-3.5 py-2 text-sm font-medium text-navy-500 shadow-card">
         <Loader2 size={16} className="animate-spin text-aqua-500" /> 지도를 불러오는 중...
       </span>
     </div>

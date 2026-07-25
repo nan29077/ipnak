@@ -53,7 +53,7 @@ export function LoginRequiredModal({ open, onClose, feature }: LoginRequiredModa
         className="
           relative z-10 w-full max-w-sm overflow-hidden
           rounded-t-[28px] md:rounded-[28px]
-          border border-[#2e2e2e]
+          border border-[#253848]
           bg-[#181818]
           shadow-[0_-8px_60px_rgba(0,0,0,0.6)]
         "
@@ -102,7 +102,7 @@ export function LoginRequiredModal({ open, onClose, feature }: LoginRequiredModa
               className="
                 w-full rounded-xl py-3.5 text-[15px] font-bold
                 bg-orange-500 text-white
-                shadow-[0_4px_20px_rgba(249,115,22,0.35)]
+                shadow-[0_4px_20px_rgba(234,179,8,0.35)]
                 active:scale-[0.98] transition-all
                 hover:bg-orange-400
               "
@@ -141,13 +141,13 @@ function FishHookSvg() {
   return (
     <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* 낚싯대 라인 */}
-      <line x1="18" y1="2" x2="18" y2="16" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
+      <line x1="18" y1="2" x2="18" y2="16" stroke="#eab308" strokeWidth="2" strokeLinecap="round" />
       {/* 낚싯줄 */}
-      <line x1="18" y1="16" x2="22" y2="16" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="18" y1="16" x2="22" y2="16" stroke="#eab308" strokeWidth="1.5" strokeLinecap="round" />
       {/* 훅 */}
       <path
         d="M22 16 C22 16, 28 16, 28 22 C28 28, 22 28, 22 26"
-        stroke="#f97316"
+        stroke="#eab308"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -156,15 +156,15 @@ function FishHookSvg() {
       {/* 훅 포인트 */}
       <path
         d="M22 26 L19 24"
-        stroke="#f97316"
+        stroke="#eab308"
         strokeWidth="2"
         strokeLinecap="round"
         fill="none"
       />
       {/* 작은 물고기 */}
-      <ellipse cx="12" cy="28" rx="5" ry="3" stroke="#f97316" strokeWidth="1.5" fill="none" />
-      <path d="M7 28 L5 25 L5 31 Z" stroke="#f97316" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
-      <circle cx="14" cy="27.5" r="0.8" fill="#f97316" />
+      <ellipse cx="12" cy="28" rx="5" ry="3" stroke="#eab308" strokeWidth="1.5" fill="none" />
+      <path d="M7 28 L5 25 L5 31 Z" stroke="#eab308" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+      <circle cx="14" cy="27.5" r="0.8" fill="#eab308" />
     </svg>
   );
 }

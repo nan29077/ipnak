@@ -28,7 +28,7 @@ export function MarketDetailActions({
   }
 
   return (
-    <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#161616]/95 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#1e1e1e]">
+    <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
       <div className="mx-auto flex max-w-[640px] items-center gap-3">
         <FavoriteButton listingId={listingId} initialFavorited={favorited} initialCount={favoriteCount} variant="bar" />
         <div className="min-w-0 flex-1">

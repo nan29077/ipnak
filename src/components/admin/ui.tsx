@@ -19,7 +19,7 @@ export function Card({ children, className = "" }: { children: React.ReactNode; 
 
 export function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card">
+    <div className="overflow-x-auto rounded-2xl border border-navy-100 bg-[#162538] shadow-card">
       <table className="w-full min-w-[600px] border-collapse text-left text-sm">
         <thead className="sticky top-0 z-10 bg-navy-50/70 text-[12px] font-semibold uppercase tracking-wide text-navy-400 backdrop-blur">
           <tr className="border-b border-navy-100">

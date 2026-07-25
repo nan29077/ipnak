@@ -211,7 +211,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
   const multi = slides.length > 1;
 
   return (
-    <article className="border-b border-[#2a2a2a] bg-[#1a1a1a] md:mb-3 md:rounded-2xl md:border md:border-[#2a2a2a] md:shadow-card">
+    <article className="border-b border-[#2a2a2a] bg-[#122030] md:mb-3 md:rounded-2xl md:border md:border-[#2a2a2a] md:shadow-card">
       {/* 헤더 */}
       <div className="flex items-center gap-2.5 px-3.5 py-3">
         <Link href={`/profile/${post.author.id}`}>
@@ -323,7 +323,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
         {/* 피싱태그 핀 */}
         {showTags && post.productTags.map((t) => (
           <Link key={t.id} href={`/shop/${t.product.id}`}
-            className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full bg-[#161616]/95 px-2 py-1 text-[11px] font-semibold text-navy-800 shadow"
+            className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full bg-[#0d1b2a]/95 px-2 py-1 text-[11px] font-semibold text-navy-800 shadow"
             style={{ left: `${t.posX * 100}%`, top: `${t.posY * 100}%` }}>
             <Tag size={12} /> {t.product.name}
           </Link>
@@ -364,7 +364,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
         {/* 피싱태그 토글 */}
         {post.productTags.length > 0 && (
           <button onClick={() => setShowTags((v) => !v)} aria-label="피싱태그 보기"
-            className="badge absolute bottom-2.5 right-2.5 bg-[#161616]/90 text-navy-700 shadow-soft backdrop-blur-sm btn-press">
+            className="badge absolute bottom-2.5 right-2.5 bg-[#0d1b2a]/90 text-navy-700 shadow-soft backdrop-blur-sm btn-press">
             <Tag size={13} /> 피싱태그 {post.productTags.length}
           </button>
         )}
@@ -403,7 +403,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
                 <p className="text-[14px] font-bold text-white">워킹 피드 잠금</p>
                 <p className="mt-1 text-[12px] leading-relaxed text-white/55">포인트를 사용하면 동선·조황을<br />확인할 수 있어요</p>
               </div>
-              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-4 py-2 text-[13px] font-extrabold text-[#161616] shadow-lg shadow-amber-400/20">
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-4 py-2 text-[13px] font-extrabold text-[#0d1b2a] shadow-lg shadow-amber-400/20">
                 <Lock size={13} strokeWidth={2.4} /> 200P로 열기
               </span>
             </div>
@@ -540,7 +540,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
           <button
             onClick={() => setMapFullOpen(false)}
             aria-label="지도 크게 보기 닫기"
-            className="absolute right-4 z-[9991] inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#161616]/95 text-navy-800 shadow-card ring-1 ring-white/15 backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+            className="absolute right-4 z-[9991] inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#0d1b2a]/95 text-navy-800 shadow-card ring-1 ring-white/15 backdrop-blur btn-press transition-colors hover:bg-[#162538]"
             style={{ top: "max(1rem, env(safe-area-inset-top, 0px))" }}
           >
             <X size={20} />
@@ -654,7 +654,7 @@ function ReplyInput({ nickname, disabled, onCancel, onSubmit }: { nickname: stri
         ref={ref} value={text} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") onSubmit(text); if (e.key === "Escape") onCancel(); }}
         placeholder={disabled ? "로그인 후 답글을 달 수 있어요" : "답글 달기..."}
-        className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-3.5 py-2 text-[13px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#1e1e1e]"
+        className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-3.5 py-2 text-[13px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#162538]"
       />
       <button onClick={() => onSubmit(text)} aria-label="답글 전송" className="rounded-full bg-orange-500 p-2 text-white btn-press transition-colors hover:bg-orange-600"><Send size={14} /></button>
       <button onClick={onCancel} aria-label="답글 취소" className="rounded-full p-1.5 text-navy-300 transition-colors hover:bg-navy-50 hover:text-navy-500"><X size={16} /></button>
@@ -667,7 +667,7 @@ const CommentRow = memo(function CommentRow({ c, onReply }: { c: any; onReply?: 
     <div className="flex items-start gap-2">
       <img src={getAvatarUrl(c.author.id, c.author.avatarUrl)} alt="" loading="lazy" decoding="async" className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-navy-100" />
       <div className="min-w-0 flex-1">
-        <div className="rounded-2xl bg-[#1e1e1e] px-3 py-2">
+        <div className="rounded-2xl bg-[#162538] px-3 py-2">
           <p className="text-[13px] font-semibold text-navy-800">{c.author.nickname}</p>
           <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-navy-600">{c.body}</p>
         </div>

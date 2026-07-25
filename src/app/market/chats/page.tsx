@@ -43,7 +43,7 @@ export default async function MarketChatsPage() {
             const other = amSeller ? c.buyer : c.listing.seller;
             const last = c.messages[0];
             return (
-              <Link key={c.id} href={`/market/chats/${c.id}`} className="flex items-center gap-3 bg-[#1e1e1e] px-3.5 py-3 transition-colors hover:bg-navy-50/50">
+              <Link key={c.id} href={`/market/chats/${c.id}`} className="flex items-center gap-3 bg-[#162538] px-3.5 py-3 transition-colors hover:bg-navy-50/50">
                 <img src={getAvatarUrl(other.id, other.avatarUrl)} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-navy-100" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">

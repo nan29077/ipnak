@@ -23,7 +23,7 @@ export function ProductTagPicker({ selected, onChange }: { selected: string[]; o
   return (
     <div>
       <button type="button" onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-between rounded-xl border border-navy-100 bg-[#1e1e1e] px-3.5 py-3 text-sm text-navy-700 shadow-card transition-colors hover:bg-navy-50/40 btn-press">
+        className="flex w-full items-center justify-between rounded-xl border border-navy-100 bg-[#162538] px-3.5 py-3 text-sm text-navy-700 shadow-card transition-colors hover:bg-navy-50/40 btn-press">
         <span className="flex items-center gap-2 font-semibold"><ShoppingBag size={18} className="text-aqua-500" /> 피싱태그 추가</span>
         {selected.length > 0 ? <Badge tone="navy">{selected.length}개 선택</Badge> : <span className="text-navy-300">선택</span>}
       </button>

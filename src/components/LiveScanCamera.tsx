@@ -13,7 +13,7 @@
  * ⚠️ 오버레이 정렬을 위해 video / overlay 모두 object-cover 사용 (동일 크롭 → 좌표 일치)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, Camera, Loader2, RefreshCw, ScanLine, RotateCw, Check, Ruler } from "lucide-react";
+import { X, Camera, Loader2, RefreshCw, ScanLine, Check, Ruler, RotateCw } from "lucide-react";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 
 type Point = { x: number; y: number };
@@ -39,7 +39,7 @@ export type LiveScanResult = {
 
 type Props = {
   onConfirm: (result: LiveScanResult) => void; // "측정하기" — 결과 화면으로
-  onSwitchToManual: () => void;                 // "직접 측정" / 권한 거부 — 수동 점찍기 모드로 전환
+  onSwitchToManual: (frame?: HTMLCanvasElement | null) => void; // "직접 측정" / 권한 거부 — 현재 프레임 함께 전달
   onClose: () => void;                          // X — 닫기
 };
 
@@ -77,11 +77,12 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
   const [det, setDet] = useState<Detection | null>(null);
   // 브라우저 권한 요청 전 커스텀 안내 팝업 (LiveMeasureCamera 와 동일 UX)
   const [consented, setConsented] = useState(false);
-  // 가로/세로 방향
-  const [isLandscape, setIsLandscape] = useState(false);
-  const [showRightPanel, setShowRightPanel] = useState(false); // 기본값: 세로 모드
-  const [showRotateHint, setShowRotateHint] = useState(false);
-  const rotateHintRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 사용자가 선택한 촬영 방향 (false=세로, true=가로) — 기기 자동회전과 무관
+  const [isLandscape, setIsLandscape] = useState(true); // 기본 가로 모드로 열림
+  // 브라우저/기기가 실제로 가로 방향인지 (자동회전 ON 상태에서 폰을 돌렸을 때)
+  const [browserIsLandscape, setBrowserIsLandscape] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(orientation: landscape)").matches
+  );
 
   /* ── 스트림/폴링 정리 (재사용) ── */
   const cleanupStream = useCallback(() => {
@@ -92,6 +93,20 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     isScanningRef.current = false;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+  }, []);
+
+  /* ── 기기 방향 감지: 자동회전 ON 상태에서 가로/세로 전환 시 UI 자동 동기화 ── */
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: landscape)");
+    const handler = (e: MediaQueryListEvent) => {
+      setBrowserIsLandscape(e.matches);
+      // 기기 방향에 따라 UI 방향도 자동 맞춤
+      setIsLandscape(e.matches);
+    };
+    mq.addEventListener("change", handler);
+    // 초기 상태도 동기화
+    if (mq.matches) setIsLandscape(true);
+    return () => mq.removeEventListener("change", handler);
   }, []);
 
   /* ── 마운트 시 권한 상태 확인 → 이미 허용된 경우 커스텀 모달 스킵 ── */
@@ -106,22 +121,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     } else {
       setConsented(true);
     }
-  }, []);
-
-  /* ── 화면 방향 감지 (가로/세로 레이아웃 전환) ── */
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const check = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
-      // 방향 변경 시 우측 패널 상태는 유지 — 사용자가 명시적으로 세로 전환 시에만 변경
-    };
-    check();
-    window.addEventListener("resize", check);
-    window.addEventListener("orientationchange", check);
-    return () => {
-      window.removeEventListener("resize", check);
-      window.removeEventListener("orientationchange", check);
-    };
   }, []);
 
   /* ── 카메라 시작 (LiveMeasureCamera 검증 로직 기반, iOS Safari 대응) ── */
@@ -268,7 +267,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     return () => {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       if (firstScanRef.current) { clearTimeout(firstScanRef.current); firstScanRef.current = null; }
-      if (rotateHintRef.current) { clearTimeout(rotateHintRef.current); rotateHintRef.current = null; }
       abortRef.current?.abort();
     };
   }, []);
@@ -303,8 +301,8 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     ctx.lineTo(tx, ty);
     ctx.stroke();
 
-    // 입낚볼 원 (오렌지)
-    ctx.strokeStyle = "#f97316";
+    // 입낚볼 원 (진한 노랑)
+    ctx.strokeStyle = "#eab308";
     ctx.lineWidth = Math.max(3, br * 0.08);
     ctx.beginPath();
     ctx.arc(bx, by, br, 0, Math.PI * 2);
@@ -441,18 +439,25 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     onConfirm(result);
   }, [cleanupStream, onConfirm, onClose]);
 
-  /* ── "직접 측정" / 권한 거부: 스트림 종료 후 부모의 수동 점찍기 모드로 ── */
+  /* ── "직접 측정" / 권한 거부: 현재 프레임 캡처 후 스트림 종료 → 부모로 ── */
   const switchToManual = useCallback(() => {
+    // 현재 비디오 프레임을 캡처해서 부모에 전달 (수동 탭 모드에서 바로 사용)
+    let frame: HTMLCanvasElement | null = null;
+    try {
+      const v = videoRef.current;
+      if (v && v.readyState >= 2 && v.videoWidth > 0) {
+        const s = Math.min(1, SCAN_MAX_PX / Math.max(v.videoWidth, v.videoHeight));
+        frame = document.createElement("canvas");
+        frame.width = Math.max(1, Math.round(v.videoWidth * s));
+        frame.height = Math.max(1, Math.round(v.videoHeight * s));
+        frame.getContext("2d")!.drawImage(v, 0, 0, frame.width, frame.height);
+      }
+    } catch {
+      frame = null;
+    }
     cleanupStream();
-    onSwitchToManual();
+    onSwitchToManual(frame);
   }, [cleanupStream, onSwitchToManual]);
-
-  /* ── "가로로 촬영하기" 힌트 토스트 ── */
-  const triggerRotateHint = useCallback(() => {
-    setShowRotateHint(true);
-    if (rotateHintRef.current) clearTimeout(rotateHintRef.current);
-    rotateHintRef.current = setTimeout(() => setShowRotateHint(false), 2000);
-  }, []);
 
   const canConfirm = !!det;
 
@@ -471,42 +476,75 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     </div>
   );
 
-  /* ── 측정하기 버튼 (세로/가로 공용) ── */
+  /* ── 측정하기 버튼 (세로 모드 — 원형, 노란색 반투명) ── */
   const measureButton = (
-    <button
-      type="button"
-      onClick={confirm}
-      disabled={!canConfirm}
-      className={
-        "flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-bold transition-all active:scale-[0.98] " +
-        (canConfirm
-          ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30 hover:bg-orange-600"
-          : "bg-white/10 text-white/35")
-      }
-    >
-      <ScanLine size={18} strokeWidth={2} />
-      측정하기
-    </button>
+    <div className="flex justify-center">
+      <button
+        type="button"
+        onClick={confirm}
+        disabled={!canConfirm}
+        className={
+          "flex h-[72px] w-[72px] flex-col items-center justify-center gap-1 rounded-full text-[11px] font-bold transition-all active:scale-[0.94] " +
+          (canConfirm
+            ? "bg-yellow-400/80 text-white shadow-lg shadow-yellow-400/40"
+            : "bg-yellow-400/15 text-yellow-100/35")
+        }
+      >
+        <ScanLine size={22} strokeWidth={2} />
+        <span>측정하기</span>
+      </button>
+    </div>
   );
 
-  /* ── 직접 측정 버튼 (세로/가로 공용) ── */
+  /* ── 직접 측정 버튼 (세로 모드 — 노란색 반투명) ── */
   const manualButton = (
     <button
       type="button"
       onClick={switchToManual}
-      className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-[13px] font-semibold text-white/70 transition-colors hover:text-white/95"
+      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-yellow-400/30 py-3 text-[13px] font-semibold text-yellow-100/90 transition-colors hover:bg-yellow-400/45 hover:text-yellow-50"
     >
       <Ruler size={15} strokeWidth={1.9} />
       직접 측정
     </button>
   );
 
-  return (
-    <div className="fixed inset-0 z-[400] overflow-hidden bg-black">
-      {/* 안내 텍스트 느린 깜빡임 keyframe */}
-      <style>{`@keyframes slowBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+  // effectiveLandscape: 실제로 가로 UI를 표시할지 여부
+  //   = 사용자가 "가로로" 클릭 OR 기기가 실제로 가로 방향
+  const effectiveLandscape = isLandscape || browserIsLandscape;
 
-      {/* ── 카메라 프리뷰 + 오버레이 (진짜 풀스크린, object-cover) ── */}
+  // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우
+  //   = 가로 UI를 원하지만 브라우저는 아직 세로 방향일 때 (자동회전 OFF 상태)
+  //   브라우저가 이미 가로(자동회전 ON)이면 CSS 회전 불필요 — 브라우저가 이미 돌려줌
+  const needsCssRotation = effectiveLandscape && !browserIsLandscape;
+
+  // CSS 회전 트릭 필요 시 컨테이너 스타일
+  // 100dvh = iOS Safari 주소창/하단 네비게이션 제외한 실제 보이는 뷰포트 높이
+  const outerStyle: React.CSSProperties = needsCssRotation
+    ? {
+        position: "fixed",
+        width: "100dvh",
+        height: "100vw",
+        top: "calc(50dvh - 50vw)",
+        left: "calc(50vw - 50dvh)",
+        transform: "rotate(90deg)",
+        zIndex: 400,
+        overflow: "hidden",
+        backgroundColor: "black",
+      }
+    : {};
+
+  return (
+  <>
+    {/* 안내 텍스트 느린 깜빡임 keyframe */}
+    <style>{`@keyframes slowBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+
+    {/* ── video/canvas는 항상 z-399 portrait fixed 레이어에 단일 배치 ──
+        이유: needsCssRotation이 바뀔 때 조건부 렌더링 시 video 엘리먼트가 unmount/remount되어
+              srcObject(MediaStream)가 새 엘리먼트에 전달되지 않아 검은 화면 발생.
+              video를 항상 동일한 DOM 위치에 두면 ref와 srcObject가 유지되어 검은 화면 없음.
+              CSS 회전 모드: portrait 스트림을 portrait fixed에 표시 → 왜곡 없음.
+              네이티브 가로 / 세로: 동일 레이어 그대로 사용.  */}
+    <div className="fixed inset-0 z-[399] overflow-hidden bg-black">
       <video
         ref={videoRef}
         playsInline
@@ -516,32 +554,57 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       />
       <canvas
         ref={overlayRef}
-        style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
+        style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
       />
+    </div>
+
+    {/* ── UI 오버레이 컨테이너 (z-400, 투명 배경) — CSS 회전 모드일 때 rotate(90deg) 적용 ── */}
+    <div
+      className={!needsCssRotation ? "fixed inset-0 z-[400] overflow-hidden" : undefined}
+      style={needsCssRotation ? { ...outerStyle, backgroundColor: "transparent" } : undefined}
+    >
 
       {/* ── 상단 바 ── */}
       <div
         className={
-          "pt-safe absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent " +
-          (isLandscape ? "px-3 py-1.5" : "px-4 py-3")
+          "absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent py-3 " +
+          (!effectiveLandscape ? "pt-safe px-4" : "pr-4")
         }
+        style={effectiveLandscape ? {
+          right: "calc(88px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
+          // CSS 회전 모드: LOCAL left = 노치 방향 → safe-area-inset-top
+          // 네이티브 가로 모드: 왼쪽 = 노치 방향 → safe-area-inset-left
+          // 둘 다 max()로 대응
+          paddingLeft: "max(20px, env(safe-area-inset-top), env(safe-area-inset-left))",
+        } : undefined}
       >
         <div className="flex items-center gap-2">
-          <ScanLine size={isLandscape ? 15 : 17} strokeWidth={1.9} className="text-orange-400" />
-          <span className={"font-bold text-white " + (isLandscape ? "text-[12px]" : "text-[14px]")}>AI 실시간 스캐너</span>
-          {!isLandscape && (
-            <span className="animate-pulse rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold text-orange-400 ring-1 ring-orange-500/30">
-              입낚 AI 측정 중
-            </span>
-          )}
+          <ScanLine size={17} strokeWidth={1.9} className="text-orange-400" />
+          <span className="text-[14px] font-bold text-white">AI 실시간 스캐너</span>
+          <span className="animate-pulse rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold text-orange-400 ring-1 ring-orange-500/30">
+            입낚 AI 측정 중
+          </span>
         </div>
-        <button
-          onClick={onClose}
-          aria-label="닫기"
-          className={"rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 " + (isLandscape ? "p-1.5" : "p-2")}
-        >
-          <X size={isLandscape ? 17 : 19} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 세로/가로 전환 버튼 — 기기가 자동회전 중이면 숨김 (기기 방향이 자동으로 제어) */}
+          {!browserIsLandscape && (
+            <button
+              type="button"
+              onClick={() => setIsLandscape((v) => !v)}
+              className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/20"
+            >
+              <RotateCw size={12} strokeWidth={2} />
+              {effectiveLandscape ? "세로로" : "가로로"}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            aria-label="닫기"
+            className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+          >
+            <X size={19} />
+          </button>
+        </div>
       </div>
 
       {/* 감지 시 상단 배지 */}
@@ -588,8 +651,8 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         </div>
       )}
 
-      {/* ── 하단(세로) 컨트롤 ── */}
-      {camStatus !== "error" && !isLandscape && !showRightPanel && (
+      {/* ── 하단 컨트롤 (세로 모드) ── */}
+      {camStatus !== "error" && !effectiveLandscape && (
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
           <div className="mb-3">{guidance}</div>
           {measureButton}
@@ -597,29 +660,35 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         </div>
       )}
 
-      {/* ── 안내 오버레이 — 우측 패널 활성 시 카메라 긴쪽 중앙에 표시 ── */}
-      {camStatus !== "error" && (isLandscape || showRightPanel) && (
+      {/* ── 안내 오버레이 — 가로 모드 시 카메라 왼쪽 영역 중앙 ── */}
+      {camStatus !== "error" && effectiveLandscape && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-20 flex flex-col items-center justify-center"
-          style={{ right: "88px" }}
+          style={{
+            // CSS 회전: safe-area-inset-bottom(=landscape right)
+            // 네이티브 가로: safe-area-inset-right(=landscape right)
+            right: "calc(88px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
+          }}
         >
           {guidance}
         </div>
       )}
 
-      {/* ── 우측 컨트롤 패널 — 기본값 (가로 구도, 짧은쪽) ── */}
-      {camStatus !== "error" && (isLandscape || showRightPanel) && (
+      {/* ── 우측 컨트롤 패널 (가로 모드) ── */}
+      {/* CSS 회전 모드: LOCAL right = 가로화면 오른쪽 = 홈인디케이터(safe-area-inset-bottom) */}
+      {/* 네이티브 가로 모드: 오른쪽 = 홈인디케이터(safe-area-inset-right) */}
+      {camStatus !== "error" && effectiveLandscape && (
         <div
-          className="pb-safe absolute inset-y-0 right-0 z-30 flex flex-col items-center"
-          style={{ background: "rgba(0,0,0,0.75)", width: "88px" }}
+          className="absolute inset-y-0 right-0 z-30 flex flex-col items-center"
+          style={{
+            background: "rgba(0,0,0,0.75)",
+            width: "calc(88px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
+            paddingRight: "max(4px, env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px))",
+          }}
         >
-          {/* 상단 여백 (헤더 높이) */}
           <div className="h-14 shrink-0" />
-
-          {/* 상단 여백 — 측정하기를 중앙 위쪽에 배치 */}
           <div className="flex-1" />
-
-          {/* 측정하기 (원형 버튼) */}
+          {/* 측정하기 (원형, 노란색 반투명) */}
           <button
             type="button"
             onClick={confirm}
@@ -627,22 +696,19 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
             className={
               "flex h-[60px] w-[60px] flex-col items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-all active:scale-[0.94] " +
               (canConfirm
-                ? "bg-orange-500 text-white shadow-lg shadow-orange-500/40"
-                : "bg-white/10 text-white/35")
+                ? "bg-yellow-400/80 text-white shadow-lg shadow-yellow-400/40"
+                : "bg-yellow-400/15 text-yellow-100/35")
             }
           >
             <ScanLine size={19} strokeWidth={2} />
             <span>측정하기</span>
           </button>
-
-          {/* 중간 여백 — 직접측정을 하단으로 밀어냄 */}
           <div className="flex-[2]" />
-
-          {/* 직접측정 (원형 버튼, 짧은쪽 하단) */}
+          {/* 직접측정 (원형, 노란색 반투명) */}
           <button
             type="button"
             onClick={switchToManual}
-            className="mb-6 flex h-[48px] w-[48px] flex-col items-center justify-center gap-0.5 rounded-full bg-white/10 text-[9px] font-semibold text-white/65 transition-colors hover:bg-white/20 hover:text-white/90 active:scale-[0.93]"
+            className="mb-6 flex h-[48px] w-[48px] flex-col items-center justify-center gap-0.5 rounded-full bg-yellow-400/30 text-[9px] font-semibold text-yellow-100/85 transition-colors hover:bg-yellow-400/45 hover:text-yellow-50 active:scale-[0.93]"
           >
             <Ruler size={15} strokeWidth={1.9} />
             <span>직접측정</span>
@@ -650,67 +716,60 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         </div>
       )}
 
-      {/* ── '가로로 촬영하기' 안내 토스트 (2초 후 자동 사라짐) ── */}
-      {showRotateHint && (
-        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-8">
-          <div className="flex items-center gap-2 rounded-2xl bg-black/80 px-5 py-3 text-[14px] font-semibold text-white shadow-xl ring-1 ring-white/10">
-            <RotateCw size={18} className="text-orange-400" />
-            {isLandscape ? "기기를 세로로 돌려주세요" : "기기를 가로로 돌려주세요"}
-          </div>
-        </div>
-      )}
-
-      {/* ── 권한 사전 안내 오버레이 (컨테이너 내부 절대위치 — iOS portal 터치 버그 회피) ── */}
-      {!consented && (
-        <div
-          className="absolute inset-0 z-50 flex items-end justify-center"
-          style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }}
-        >
-          <div
-            className="w-full max-w-[430px] overflow-hidden rounded-t-[32px] shadow-2xl ring-1 ring-white/[0.1]"
-            style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#162434 60%,#1a2a3a 100%)" }}
-          >
-            <div className="h-[3px] w-full bg-gradient-to-r from-aqua-700/30 via-orange-400/90 to-aqua-700/30" />
-            <div className="mx-auto mt-3.5 h-1 w-10 rounded-full bg-white/[0.14]" />
-
-            <div className="flex flex-col items-center px-6 pb-4 pt-5">
-              <div className="relative mb-4">
-                <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-orange-500 shadow-lg shadow-orange-500/30">
-                  <Camera size={33} strokeWidth={1.6} className="text-white" />
-                </div>
-                <span className="absolute -right-1.5 -top-1.5 flex h-[26px] w-[26px] items-center justify-center rounded-full bg-aqua-500 ring-2 ring-[#0b1e2e]">
-                  <ScanLine size={13} strokeWidth={2.2} className="text-white" />
-                </span>
-              </div>
-              <p className="text-[19px] font-extrabold tracking-tight text-white">카메라 접근</p>
-              <p className="mt-1.5 text-center text-[13px] leading-relaxed text-white/45">
-                실시간 물고기 측정을 위해<br />카메라 권한이 필요합니다
-              </p>
-            </div>
-
-            <p className="px-6 py-3 text-center text-[12px] leading-relaxed text-white/32">
-              다음 화면의 권한 팝업에서 <span className="font-semibold text-white/55">허용</span>을 눌러 주세요
-            </p>
-
-            <div className="space-y-2 px-4 pb-8 pt-1">
-              <button
-                type="button"
-                onClick={() => { setCameraConsent(); setConsented(true); }}
-                className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
-              >
-                카메라 허용하기
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full rounded-2xl py-2.5 text-[13px] font-medium text-white/28 transition-colors active:text-white/55"
-              >
-                나중에 하기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
+
+    {/* ── 권한 사전 안내 오버레이 ──
+        회전된 카메라 컨테이너 밖에 fixed로 배치 → 항상 세로(portrait) 방향으로 표시 */}
+    {!consented && (
+      <div
+        className="fixed inset-0 z-[450] flex items-end justify-center"
+        style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }}
+      >
+        <div
+          className="w-full max-w-[430px] overflow-hidden rounded-t-[32px] shadow-2xl ring-1 ring-white/[0.1]"
+          style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#162434 60%,#1a2a3a 100%)" }}
+        >
+          <div className="h-[3px] w-full bg-gradient-to-r from-aqua-700/30 via-orange-400/90 to-aqua-700/30" />
+          <div className="mx-auto mt-3.5 h-1 w-10 rounded-full bg-white/[0.14]" />
+
+          <div className="flex flex-col items-center px-6 pb-4 pt-5">
+            <div className="relative mb-4">
+              <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-orange-500 shadow-lg shadow-orange-500/30">
+                <Camera size={33} strokeWidth={1.6} className="text-white" />
+              </div>
+              <span className="absolute -right-1.5 -top-1.5 flex h-[26px] w-[26px] items-center justify-center rounded-full bg-aqua-500 ring-2 ring-[#0b1e2e]">
+                <ScanLine size={13} strokeWidth={2.2} className="text-white" />
+              </span>
+            </div>
+            <p className="text-[19px] font-extrabold tracking-tight text-white">카메라 접근</p>
+            <p className="mt-1.5 text-center text-[13px] leading-relaxed text-white/45">
+              실시간 물고기 측정을 위해<br />카메라 권한이 필요합니다
+            </p>
+          </div>
+
+          <p className="px-6 py-3 text-center text-[12px] leading-relaxed text-white/32">
+            다음 화면의 권한 팝업에서 <span className="font-semibold text-white/55">허용</span>을 눌러 주세요
+          </p>
+
+          <div className="space-y-2 px-4 pb-8 pt-1">
+            <button
+              type="button"
+              onClick={() => { setCameraConsent(); setConsented(true); }}
+              className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+            >
+              카메라 허용하기
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-2xl py-2.5 text-[13px] font-medium text-white/28 transition-colors active:text-white/55"
+            >
+              나중에 하기
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }

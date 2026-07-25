@@ -62,6 +62,8 @@ export default function MeasurePage() {
 
   const [phase, setPhase] = useState<Phase>("IDLE");
   const [liveScanOpen, setLiveScanOpen] = useState(false); // 실시간 AI 스캐너 열림 여부
+  // 브라우저가 가로 방향일 때 measure 페이지는 세로로 고정 표시
+  const [browserLandscape, setBrowserLandscape] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
   const [scanFailMsg, setScanFailMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -88,6 +90,15 @@ export default function MeasurePage() {
       const q = new URLSearchParams(window.location.search);
       if (q.get("from") === "fishing") setFromFishing(true);
     } catch { /* noop */ }
+  }, []);
+
+  // 브라우저 방향 감지 — 가로 시 페이지를 세로로 고정 표시 (스캔 화면 제외)
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: landscape)");
+    setBrowserLandscape(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setBrowserLandscape(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
   }, []);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -292,15 +303,28 @@ export default function MeasurePage() {
     setPhase("RESULT");
   }
 
-  /* ── 실시간 스캐너 "직접 측정"/권한 거부: 스캐너 종료 → 갤러리 선택 → CHOICE → 수동 점찍기 ──
-     스캐너 상태에는 이미지가 없어 startManual()이 IDLE로 빠지므로,
-     갤러리에서 사진을 고르게 한 뒤 handleFile → CHOICE 흐름을 태운다. ── */
-  function handleLiveScanSwitchToManual() {
+  /* ── 실시간 스캐너 "직접 측정"/권한 거부: 현재 프레임 있으면 바로 수동 탭 모드, 없으면 갤러리 ── */
+  function handleLiveScanSwitchToManual(frame?: HTMLCanvasElement | null) {
     setLiveScanOpen(false);
-    // 스캐너 unmount 완료 후 갤러리 열기
-    setTimeout(() => {
-      galleryInputRef.current?.click();
-    }, 150);
+    if (frame && frame.width > 0 && frame.height > 0) {
+      // 현재 카메라 프레임으로 바로 수동 점찍기 모드 진입
+      workCanvasRef.current = frame;
+      setHasImage(true);
+      setErrorMsg(null);
+      setScanFailMsg(null);
+      setBall(null);
+      setHead(null);
+      setTail(null);
+      setResult(null);
+      setIsMockFish(true); // 볼 감지 없이 진행
+      setProceedWithoutBall(true);
+      setPhase("MANUAL_HEAD");
+    } else {
+      // 프레임 없음 → 갤러리에서 사진 선택 (기존 폴백)
+      setTimeout(() => {
+        galleryInputRef.current?.click();
+      }, 150);
+    }
   }
 
   async function analyze(_work: HTMLCanvasElement) {
@@ -323,7 +347,7 @@ export default function MeasurePage() {
     // cvReady = false: init() 일절 호출하지 않고 즉시 팝업으로 이동
 
     if (reference?.found) {
-      // 실물 입낚볼과 A4 인쇄물의 주황색 원형 로고는 모두 지름 40mm 기준으로 계산한다.
+      // 실물 입낚볼과 A4 인쇄물의 진한 노랑색 원형 로고는 모두 지름 40mm 기준으로 계산한다.
       setBall(reference);
       setIsMockFish(false);
       setPhase("MANUAL_HEAD");
@@ -606,9 +630,24 @@ export default function MeasurePage() {
   }, [loggedIn]);
 
   // autoCamera 모드: 페이지 마운트 즉시 카메라 열기 (대회 제출 플로우에서 단계 줄이기)
+  // 또는 일반 진입 시에도 모바일이면 자동 카메라 열기
   useEffect(() => {
-    if (!autoCamera) return;
-    const t = setTimeout(() => setLiveScanOpen(true), 200);
+    const t = setTimeout(() => {
+      // autoCamera 파라미터가 있으면 무조건 열기 (대회 모드)
+      if (autoCamera) { setLiveScanOpen(true); return; }
+      // 모바일 진입 시 자동으로 AI 카메라 열기 (비로그인이면 IDLE에서 클릭 유도)
+      if (!loggedIn) return;
+      const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+      if (!isMobile) return;
+      try {
+        if (!localStorage.getItem(TUTORIAL_KEY)) {
+          setTutorialStep(0);
+          setTutorialOpen(true);
+          return;
+        }
+      } catch { /* noop */ }
+      setLiveScanOpen(true);
+    }, 300);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -620,6 +659,22 @@ export default function MeasurePage() {
   const busy = phase === "ANALYZING" || phase === "SCANNING" || phase === "SAVING";
 
   return (
+    <>
+    {/* ── 세로 고정 wrapper: 브라우저 가로 시 -90deg 반대 회전으로 항상 세로 표시 ── */}
+    <div
+      style={browserLandscape ? {
+        position: "fixed",
+        width: "100dvh",
+        height: "100vw",
+        top: "calc(50dvh - 50vw)",
+        left: "calc(50vw - 50dvh)",
+        transform: "rotate(-90deg)",
+        zIndex: 1,
+        overflowY: "auto",
+        overflowX: "hidden",
+        backgroundColor: "#0d1b2a",
+      } : {}}
+    >
     <div className={showCanvas ? "pb-2" : "pb-10"}>
       <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="AI 측정 기능" />
       <PageHeader
@@ -975,7 +1030,7 @@ export default function MeasurePage() {
           className="fixed inset-0 z-[9000] flex items-end justify-center px-4 pb-12 sm:items-center sm:pb-0"
           style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(4px)" }}
         >
-          <div className="w-full max-w-[360px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#1a1a1a] shadow-2xl">
+          <div className="w-full max-w-[360px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#122030] shadow-2xl">
             <div className="h-[2px] bg-gradient-to-r from-orange-700/30 via-orange-400 to-orange-700/30" />
             <div className="px-6 pb-7 pt-8 text-center">
               {/* 아이콘 */}
@@ -1037,14 +1092,7 @@ export default function MeasurePage() {
         />
       )}
 
-      {/* ── 실시간 AI 스캐너 (전체화면) ── */}
-      {liveScanOpen && (
-        <LiveScanCamera
-          onConfirm={handleLiveScanConfirm}
-          onSwitchToManual={handleLiveScanSwitchToManual}
-          onClose={() => setLiveScanOpen(false)}
-        />
-      )}
+      {/* LiveScanCamera는 아래 portal로 이동 (세로 고정 wrapper 밖에서 독립 렌더) */}
 
       {/* ── 갤러리 선택 커스텀 바텀시트 (네이티브 iOS 팝업 대체) ── */}
       {showGallerySheet && createPortal(
@@ -1058,7 +1106,7 @@ export default function MeasurePage() {
             style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#132233 60%,#1a2a3a 100%)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 상단 오렌지 라인 */}
+            {/* 상단 노랑 라인 */}
             <div className="h-[2.5px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400/90 to-orange-700/30" />
             {/* 드래그 핸들 */}
             <div className="mx-auto mt-3.5 h-1 w-10 rounded-full bg-white/[0.14]" />
@@ -1124,6 +1172,18 @@ export default function MeasurePage() {
       {/* ── 계측일지 바텀시트 ── */}
       <DiarySheet open={diaryOpen} onClose={() => setDiaryOpen(false)} />
     </div>
+    </div>{/* /portrait-lock wrapper */}
+
+    {/* ── 실시간 AI 스캐너: 세로 고정 wrapper 밖으로 portal (진짜 풀스크린 보장) ── */}
+    {liveScanOpen && typeof window !== "undefined" && createPortal(
+      <LiveScanCamera
+        onConfirm={handleLiveScanConfirm}
+        onSwitchToManual={handleLiveScanSwitchToManual}
+        onClose={() => setLiveScanOpen(false)}
+      />,
+      document.body
+    )}
+    </>
   );
 }
 

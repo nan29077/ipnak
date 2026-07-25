@@ -52,7 +52,7 @@ export function ScrollRail({ children, className, scrollAmount = 300 }: ScrollRa
         className={[
           "hidden md:flex absolute left-1 top-1/2 -translate-y-1/2 z-10",
           "h-9 w-9 items-center justify-center rounded-full",
-          "bg-[#1e1e1e]/90 border border-navy-100 shadow-lg",
+          "bg-[#162538]/90 border border-navy-100 shadow-lg",
           "text-navy-600 hover:text-orange-400 hover:border-orange-400/40",
           "transition-all duration-200",
           canLeft ? "opacity-100" : "opacity-0 pointer-events-none",
@@ -73,7 +73,7 @@ export function ScrollRail({ children, className, scrollAmount = 300 }: ScrollRa
         className={[
           "hidden md:flex absolute right-1 top-1/2 -translate-y-1/2 z-10",
           "h-9 w-9 items-center justify-center rounded-full",
-          "bg-[#1e1e1e]/90 border border-navy-100 shadow-lg",
+          "bg-[#162538]/90 border border-navy-100 shadow-lg",
           "text-navy-600 hover:text-orange-400 hover:border-orange-400/40",
           "transition-all duration-200",
           canRight ? "opacity-100" : "opacity-0 pointer-events-none",

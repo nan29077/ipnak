@@ -146,7 +146,7 @@ export function BallLinkSection() {
       <button
         type="button"
         onClick={() => setLinkGuideOpen(true)}
-        className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#1e1e1e] py-2.5 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2.5 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
       >
         <CircleHelp size={15} strokeWidth={2} />
         입낚볼 연동방법 보기
@@ -190,7 +190,7 @@ export function BallLinkSection() {
 
           <div className="rounded-2xl border border-orange-500/25 bg-orange-500/10 p-3.5">
             <p className="text-[13px] font-bold text-orange-300">40mm 인쇄 기준물 사용 안내</p>
-            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">인쇄할 때는 크기 조정 없이 100%로 출력해 주세요. A4 한 장에 40mm 주황색 입낚 로고가 9개 배열됩니다. 인쇄물은 평평한 종이라 카메라와 같은 높이에 놓아야 해요.</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">인쇄할 때는 크기 조정 없이 100%로 출력해 주세요. A4 한 장에 40mm 진한 노랑색 입낚 로고가 9개 배열됩니다. 인쇄물은 평평한 종이라 카메라와 같은 높이에 놓아야 해요.</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -285,9 +285,9 @@ function LogoPrintMarker({ className }: { className?: string }) {
   return (
     <span className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-orange-400 bg-orange-500/20 opacity-60 ${className || ""}`}>
       <svg viewBox="60 32 96 132" className="h-7 w-7" fill="none">
-        <path d="M92 52V118C92 150 138 150 138 116C138 98 118 96 110 110" stroke="#fb923c" strokeWidth="13" strokeLinecap="round" />
-        <path d="M74 62L92 46L110 62" stroke="#fb923c" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="92" cy="46" r="5" fill="#fb923c" />
+        <path d="M92 52V118C92 150 138 150 138 116C138 98 118 96 110 110" stroke="#facc15" strokeWidth="13" strokeLinecap="round" />
+        <path d="M74 62L92 46L110 62" stroke="#facc15" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="92" cy="46" r="5" fill="#facc15" />
       </svg>
     </span>
   );

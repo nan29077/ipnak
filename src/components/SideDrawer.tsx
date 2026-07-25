@@ -89,7 +89,7 @@ export function SideDrawer({
         aria-label="전체 메뉴"
         className={cn(
           "absolute inset-y-0 left-0 z-10 flex w-[75vw] max-w-[320px] flex-col overflow-hidden",
-          "bg-[#161616] shadow-2xl shadow-black/60 transition-transform duration-300 ease-in-out",
+          "bg-[#0d1b2a] shadow-2xl shadow-black/60 transition-transform duration-300 ease-in-out",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >

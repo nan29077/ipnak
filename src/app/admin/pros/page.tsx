@@ -44,7 +44,7 @@ export default async function AdminProsPage() {
         ) : (
           <ul className="space-y-2">
             {pros.map((p: any) => (
-              <li key={p.id} className={`rounded-xl border border-navy-100 bg-[#1e1e1e] p-3 ${!p.visible ? "opacity-50" : ""}`}>
+              <li key={p.id} className={`rounded-xl border border-navy-100 bg-[#162538] p-3 ${!p.visible ? "opacity-50" : ""}`}>
                 {/* 상단: 아바타 + 이름/배지 */}
                 <div className="flex items-center gap-3 mb-2.5">
                   <span className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-navy-50">

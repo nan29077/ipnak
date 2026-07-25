@@ -115,7 +115,7 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
           </div>
         </div>
         <Link href="/" className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-white"><ExternalLink size={14} /> 앱으로 이동</Link>
-        <button onClick={logout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/10"><LogOut size={14} /> 로그아웃</button>
+        <button onClick={logout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/10"><LogOut size={14} /> 로그아웃</button>
       </div>
     </>
   );
@@ -172,7 +172,7 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
       {/* 본문 영역 */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* 모바일 상단 바: 햄버거 버튼만 (슬라이드 메뉴 제거) */}
-        <header className="pt-safe sticky top-0 z-30 border-b border-navy-100 bg-[#161616]/90 backdrop-blur-md md:hidden">
+        <header className="pt-safe sticky top-0 z-30 border-b border-navy-100 bg-[#0d1b2a]/90 backdrop-blur-md md:hidden">
           <div className="flex h-14 items-center gap-2 px-4">
             <button
               type="button"
@@ -186,7 +186,7 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
               <Shield size={16} />
             </span>
             <span className="font-extrabold tracking-tight text-navy-800">입낚 관리자</span>
-            <button onClick={logout} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-red-500 btn-press"><LogOut size={13} /> 로그아웃</button>
+            <button onClick={logout} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-orange-400 btn-press"><LogOut size={13} /> 로그아웃</button>
           </div>
         </header>
         <main className="admin-content min-w-0 flex-1 p-4 md:p-6">{children}</main>

@@ -40,15 +40,15 @@ export function PointsBadge({ initial, initialEnabled }: { initial: number; init
       title="포인트 관리로 이동"
       className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1.5 transition-transform hover:scale-[1.03] active:scale-95"
       style={{
-        backgroundColor: "rgba(249, 115, 22, 0.14)",
-        boxShadow: "inset 0 0 0 1px rgba(249, 115, 22, 0.28)",
+        backgroundColor: "rgba(234, 179, 8, 0.14)",
+        boxShadow: "inset 0 0 0 1px rgba(234, 179, 8, 0.28)",
       }}
     >
-      <Coins size={15} strokeWidth={2} style={{ color: "#fb8b3c" }} />
-      <span className="text-[13px] font-extrabold tabular-nums leading-none" style={{ color: "#fb8b3c" }}>
+      <Coins size={15} strokeWidth={2} style={{ color: "#eab308" }} />
+      <span className="text-[13px] font-extrabold tabular-nums leading-none" style={{ color: "#eab308" }}>
         {points.toLocaleString()}
       </span>
-      <span className="text-[11px] font-bold leading-none" style={{ color: "rgba(251, 139, 60, 0.75)" }}>
+      <span className="text-[11px] font-bold leading-none" style={{ color: "rgba(234, 179, 8, 0.85)" }}>
         P
       </span>
     </Link>

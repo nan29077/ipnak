@@ -1,11 +1,12 @@
 import "server-only";
 import { prisma } from "./prisma";
 
-export const PC_MARGIN_BG_DEFAULT = "/pc-bg-bass-angler.png";
+export const PC_MARGIN_BG_DEFAULT = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지.png";
 
 const LEGACY_PC_MARGIN_BG_DEFAULTS = new Set([
   "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1920&q=80",
   "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1920&q=80",
+  "/pc-bg-bass-angler.png",
 ]);
 
 function normalizeSettingValue(key: string, value: string): string {

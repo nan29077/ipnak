@@ -95,13 +95,13 @@ export default function GroupDetailPage() {
   }
 
   if (loading) return (
-    <div className="flex min-h-screen items-center justify-center bg-[#161616]">
+    <div className="flex min-h-screen items-center justify-center bg-[#0d1b2a]">
       <Loader2 size={24} className="animate-spin text-orange-500" />
     </div>
   );
 
   if (!group) return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#161616]">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0d1b2a]">
       <p className="text-navy-400">낚시단을 찾을 수 없습니다.</p>
       <Link href="/groups" className="text-orange-500 underline text-sm">목록으로</Link>
     </div>
@@ -110,7 +110,7 @@ export default function GroupDetailPage() {
   const member = isApproved(group.myRole);
 
   return (
-    <div className="min-h-screen bg-[#161616] pb-20">
+    <div className="min-h-screen bg-[#0d1b2a] pb-20">
       {/* 헤더 */}
       <div className="flex items-center gap-3 border-b border-navy-100/20 px-3.5 py-3">
         <Link href="/groups"><ArrowLeft size={20} className="text-navy-400" /></Link>
@@ -144,7 +144,7 @@ export default function GroupDetailPage() {
       {tab === "home" && (
         <div className="p-4 space-y-4">
           {/* 기본 정보 */}
-          <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-4">
+          <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[18px] font-extrabold text-navy-900">{group.name}</p>
@@ -175,7 +175,7 @@ export default function GroupDetailPage() {
           </div>
 
           {/* 단장 정보 */}
-          <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-4">
+          <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-4">
             <p className="mb-2 text-[12px] font-bold text-navy-400">낚시단 단장</p>
             <div className="flex items-center gap-2.5">
               <img
@@ -318,7 +318,7 @@ function CommunityTab({ groupId }: { groupId: string }) {
   return (
     <div className="p-4 space-y-3">
       {/* 글쓰기 박스 */}
-      <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-3">
+      <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-3">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -418,7 +418,7 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
   }
 
   return (
-    <div className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-3.5">
+    <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-3.5">
       {/* 작성자 */}
       <div className="flex items-center gap-2.5">
         <Avatar name={post.authorNickname} url={getAvatarUrl(post.authorId, post.authorAvatar)} />
@@ -584,7 +584,7 @@ function PointsTab({ groupId }: { groupId: string }) {
       ) : (
         <div className="space-y-2.5">
           {points.map((p) => (
-            <div key={p.id} className="rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-3.5">
+            <div key={p.id} className="rounded-2xl border border-navy-100/20 bg-[#162538] p-3.5">
               <div className="flex items-start gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500/15">
                   <MapPin size={18} className="text-orange-400" strokeWidth={1.5} />
@@ -713,7 +713,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
   return (
     <div className="fixed inset-0 z-[9999] flex items-end justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-[1px]" onClick={onClose} />
-      <div className="relative w-full max-w-[640px] rounded-t-[20px] border border-navy-100/20 bg-[#1e1e1e] px-4 pt-3"
+      <div className="relative w-full max-w-[640px] rounded-t-[20px] border border-navy-100/20 bg-[#162538] px-4 pt-3"
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
         {/* 헤더 */}
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-navy-200" />
@@ -731,7 +731,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
           <div className="space-y-3 pb-2">
             <p className="text-[13px] text-navy-400">위치를 어떻게 설정할까요?</p>
             <button onClick={useCurrentLocation} disabled={gpsLoading}
-              className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#242424] p-4 text-left transition-colors hover:border-orange-500/40">
+              className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#1c2c3e] p-4 text-left transition-colors hover:border-orange-500/40">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-aqua-500/15">
                 {gpsLoading ? <Loader2 size={18} className="animate-spin text-aqua-400" /> : <Navigation size={18} className="text-aqua-400" strokeWidth={1.5} />}
               </span>
@@ -741,7 +741,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
               </div>
             </button>
             <button onClick={() => setStep("map")}
-              className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#242424] p-4 text-left transition-colors hover:border-orange-500/40">
+              className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#1c2c3e] p-4 text-left transition-colors hover:border-orange-500/40">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15">
                 <MapPin size={18} className="text-orange-400" strokeWidth={1.5} />
               </span>
@@ -751,7 +751,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
               </div>
             </button>
             <button onClick={showMyFishingTrips}
-              className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#242424] p-4 text-left transition-colors hover:border-orange-500/40">
+              className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#1c2c3e] p-4 text-left transition-colors hover:border-orange-500/40">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15">
                 <Route size={18} className="text-orange-400" strokeWidth={1.5} />
               </span>
@@ -776,7 +776,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
               </div>
             ) : trips.map((trip) => (
               <button key={trip.id} type="button" onClick={() => selectTrip(trip)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#242424] p-3.5 text-left transition-colors hover:border-orange-500/40">
+                className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#1c2c3e] p-3.5 text-left transition-colors hover:border-orange-500/40">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15"><Route size={18} className="text-orange-400" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] font-bold text-navy-900">{trip.title || "데이터피싱 기록"}</span>
@@ -888,7 +888,7 @@ function MembersTab({ groupId, isLeader }: { groupId: string; isLeader: boolean 
   return (
     <div className="p-4 space-y-2">
       {members.map((m) => (
-        <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#1e1e1e] px-3.5 py-3">
+        <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#162538] px-3.5 py-3">
           <Avatar name={m.nickname} url={getAvatarUrl(m.userId, m.avatarUrl)} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">

@@ -29,7 +29,7 @@ export default function MeLoading() {
       {/* 리스트 */}
       <div className="mt-5 space-y-2 px-3 md:px-4">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 rounded-2xl bg-[#1e1e1e] p-3.5">
+          <div key={i} className="flex items-center gap-3 rounded-2xl bg-[#162538] p-3.5">
             <Skeleton className="h-9 w-9 shrink-0 rounded-xl" />
             <Skeleton className="h-4 w-1/3" />
             <Skeleton className="ml-auto h-4 w-4 rounded-full" />

@@ -75,13 +75,13 @@ export function MarketChatRoom({ chatId, me }: { chatId: string; me: string }) {
         <div ref={endRef} />
       </div>
 
-      <div className="pb-safe sticky bottom-0 flex items-center gap-2 border-t border-navy-100 bg-[#161616]/95 px-3 py-2.5 backdrop-blur">
+      <div className="pb-safe sticky bottom-0 flex items-center gap-2 border-t border-navy-100 bg-[#0d1b2a]/95 px-3 py-2.5 backdrop-blur">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="메시지 입력..."
-          className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#1e1e1e] focus:ring-2 focus:ring-aqua-100"
+          className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#162538] focus:ring-2 focus:ring-aqua-100"
         />
         <button
           onClick={send}

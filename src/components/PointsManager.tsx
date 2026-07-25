@@ -57,7 +57,7 @@ export function PointsManager({
   return (
     <div className="px-4 pb-10">
       {/* 잔액 카드 */}
-      <div className="mt-3 overflow-hidden rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.12] via-[#1a1712] to-[#161616] p-5">
+      <div className="mt-3 overflow-hidden rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.12] via-[#1a1712] to-[#0d1b2a] p-5">
         <p className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-300/80">
           <Coins size={14} /> 보유 포인트
         </p>
@@ -74,7 +74,7 @@ export function PointsManager({
           <button
             onClick={() => setChargeOpen(true)}
             disabled={!enabled}
-            className="flex items-center justify-center gap-1.5 rounded-2xl bg-amber-400 py-3 text-[14px] font-extrabold text-[#161616] shadow-soft transition-transform active:scale-95 disabled:opacity-40"
+            className="flex items-center justify-center gap-1.5 rounded-2xl bg-amber-400 py-3 text-[14px] font-extrabold text-[#0d1b2a] shadow-soft transition-transform active:scale-95 disabled:opacity-40"
           >
             <CreditCard size={16} strokeWidth={2.2} /> 충전하기
           </button>
@@ -89,7 +89,7 @@ export function PointsManager({
       </div>
 
       {/* 적립/사용 안내 */}
-      <div className="mt-4 rounded-2xl border border-navy-100/20 bg-[#1a1a1a] p-4">
+      <div className="mt-4 rounded-2xl border border-navy-100/20 bg-[#122030] p-4">
         <p className="text-[13px] font-bold text-navy-800">포인트 적립·사용 안내</p>
         <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-navy-400">
           <li>• 신용카드 등으로 충전 (10,000원 = 10,000P)</li>
@@ -118,11 +118,11 @@ export function PointsManager({
         </div>
 
         {txs.length === 0 ? (
-          <div className="rounded-2xl border border-navy-100/20 bg-[#1a1a1a] py-10 text-center text-[13px] text-navy-300">
+          <div className="rounded-2xl border border-navy-100/20 bg-[#122030] py-10 text-center text-[13px] text-navy-300">
             포인트 내역이 없습니다
           </div>
         ) : (
-          <ul className="divide-y divide-white/[0.05] overflow-hidden rounded-2xl border border-navy-100/20 bg-[#1a1a1a]">
+          <ul className="divide-y divide-white/[0.05] overflow-hidden rounded-2xl border border-navy-100/20 bg-[#122030]">
             {txs.map((t) => {
               const meta = TYPE_META[t.type] ?? { label: t.type, tone: t.amount >= 0 ? "earn" : "spend" };
               const positive = t.amount >= 0;

@@ -451,7 +451,7 @@ export function LiveMeasureCamera({ detector, onCapture, onClose }: Props) {
       const arm = Math.min(W, H) * 0.08;
       const lw = Math.max(2.5, W * 0.006);
 
-      ctx.strokeStyle = "rgba(249,115,22,0.85)";
+      ctx.strokeStyle = "rgba(234,179,8,0.85)";
       ctx.lineWidth = lw;
       ctx.lineCap = "round";
       ctx.setLineDash([]);
@@ -470,7 +470,7 @@ export function LiveMeasureCamera({ detector, onCapture, onClose }: Props) {
 
       // 중심 크로스헤어 (작은)
       const ch = Math.min(W, H) * 0.025;
-      ctx.strokeStyle = "rgba(249,115,22,0.4)";
+      ctx.strokeStyle = "rgba(234,179,8,0.4)";
       ctx.lineWidth = Math.max(1.5, lw * 0.6);
       ctx.beginPath();
       ctx.moveTo(W / 2 - ch, H / 2); ctx.lineTo(W / 2 + ch, H / 2);

@@ -37,7 +37,7 @@ function makeFishIcon(count: number): L.DivIcon {
 
   return L.divIcon({
     html: `<div style="position:relative;width:28px;height:28px;">
-      <div style="background:#f97316;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.45);">
+      <div style="background:#eab308;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.45);">
         ${FISH_SVG}
       </div>
       ${badge}
@@ -123,7 +123,7 @@ export default function MiniRouteMapCanvas({
         <CircleMarker
           center={[end.lat, end.lng]}
           radius={7}
-          pathOptions={{ color: "#fff", weight: 2, fillColor: "#f97316", fillOpacity: 1 }}
+          pathOptions={{ color: "#fff", weight: 2, fillColor: "#eab308", fillOpacity: 1 }}
         />
       )}
 

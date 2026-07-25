@@ -10,7 +10,7 @@ export function FeedList({ posts, currentUserId, banners }: { posts: FeedPost[];
   const visible = posts;
 
   return (
-    <div className="bg-[#161616]">
+    <div className="bg-[#0d1b2a]">
       <CommunityTabs />
       <AiPointRecommend />
       {banners && banners.length > 0 && (

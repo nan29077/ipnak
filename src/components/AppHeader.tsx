@@ -15,7 +15,7 @@ export function AppHeader({
   const [drawerOpen, setDrawerOpen] = useState(false);
   return (
     <>
-    <header className="pt-safe sticky top-0 z-40 border-b border-navy-100 bg-[#161616]/90 backdrop-blur-md">
+    <header className="pt-safe sticky top-0 z-40 border-b border-navy-100 bg-[#0d1b2a]/90 backdrop-blur-md">
       <div className="flex h-[52px] items-center gap-1.5 px-3.5">
         {/* 햄버거: 좌측 전체 메뉴 드로어 (모바일 전용 — PC는 우측 사이드바 사용) */}
         <button

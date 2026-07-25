@@ -30,7 +30,7 @@ export default function RulerPage() {
               측정 데이터 (JSON) {showJson ? "숨기기" : "보기"}
             </button>
             {showJson && (
-              <div className="rounded-xl bg-[#1a1a1a] p-3">
+              <div className="rounded-xl bg-[#122030] p-3">
                 <pre className="overflow-x-auto text-[11px] leading-relaxed text-navy-100">{JSON.stringify(result, null, 2)}</pre>
               </div>
             )}

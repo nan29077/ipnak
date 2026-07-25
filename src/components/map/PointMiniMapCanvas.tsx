@@ -20,7 +20,7 @@ export default function PointMiniMapCanvas({
       <CircleMarker
         center={[lat, lng]}
         radius={9}
-        pathOptions={{ color: "#fff", weight: 2, fillColor: "#f97316", fillOpacity: 1 }}
+        pathOptions={{ color: "#fff", weight: 2, fillColor: "#eab308", fillOpacity: 1 }}
       >
         {label && <Tooltip direction="top">{label}</Tooltip>}
       </CircleMarker>

@@ -26,7 +26,7 @@ export default async function ShopPage() {
             <Link
               key={p.id}
               href={`/shop/${p.id}`}
-              className="group flex flex-col overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-cardhover"
+              className="group flex flex-col overflow-hidden rounded-2xl border border-navy-100 bg-[#162538] shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-cardhover"
             >
               <div className="aspect-square w-full overflow-hidden bg-navy-50">
                 <img

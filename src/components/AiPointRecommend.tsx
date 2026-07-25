@@ -99,7 +99,7 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
         <button
           onClick={openRecommendation}
           aria-label="AI 포인트 추천"
-          className="mx-3 mt-3 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/15 to-[#161616] px-4 py-3.5 text-left shadow-card btn-press transition-colors hover:from-orange-500/25"
+          className="mx-3 mt-3 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/15 to-[#0d1b2a] px-4 py-3.5 text-left shadow-card btn-press transition-colors hover:from-orange-500/25"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-soft">
             <Sparkles size={20} />

@@ -23,7 +23,7 @@ export function InsufficientPointsDialog({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 px-5 backdrop-blur-[3px]">
       <div
         className="w-full max-w-[320px] overflow-hidden rounded-[24px] shadow-2xl ring-1 ring-amber-400/25"
-        style={{ background: "linear-gradient(160deg,#1e1608 0%,#161616 100%)" }}
+        style={{ background: "linear-gradient(160deg,#1e1608 0%,#0d1b2a 100%)" }}
       >
         {/* 상단 웨이브 스트라이프 */}
         <div className="h-[3px] w-full bg-gradient-to-r from-amber-700/40 via-amber-400 to-orange-500/50" />

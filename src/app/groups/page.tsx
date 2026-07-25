@@ -41,8 +41,8 @@ export default function GroupsPage() {
   const filtered = cat === "전체" ? groups : groups.filter(g => g.category === cat);
 
   return (
-    <div className="min-h-screen bg-[#161616] pb-24">
-      <div className="sticky top-0 z-20 border-b border-navy-100/20 bg-[#161616]/95 backdrop-blur-md">
+    <div className="min-h-screen bg-[#0d1b2a] pb-24">
+      <div className="sticky top-0 z-20 border-b border-navy-100/20 bg-[#0d1b2a]/95 backdrop-blur-md">
         <div className="flex items-center gap-2 px-3.5 py-3">
           <h1 className="text-lg font-extrabold text-navy-900">낚시단</h1>
           <Link href="/groups/new" className="ml-auto flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-[13px] font-bold text-white shadow-soft">
@@ -111,7 +111,7 @@ export default function GroupsPage() {
 function GroupCard({ g }: { g: Group }) {
   return (
     <Link href={`/groups/${g.id}`}
-      className="flex items-start gap-3 rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-3.5 transition-all hover:border-orange-500/40 hover:bg-[#222]">
+      className="flex items-start gap-3 rounded-2xl border border-navy-100/20 bg-[#162538] p-3.5 transition-all hover:border-orange-500/40 hover:bg-[#222]">
       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500/20 to-aqua-500/20 text-2xl">
         {g.imageUrl ? (
           <img src={g.imageUrl} alt={g.name} className="h-full w-full rounded-xl object-cover" />

@@ -67,14 +67,14 @@ export function NotificationBell() {
       >
         <Bell size={21} strokeWidth={1.9} />
         {unread > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-[#161616]">
+          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-[#0d1b2a]">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
       </button>
 
       {open && typeof document !== "undefined" && createPortal(
-        <div className="animate-scalein fixed z-[10000] w-[320px] max-w-[88vw] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#1e1e1e] shadow-sheet" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem)", right: "max(0.75rem, calc((100vw - 640px) / 2 + 0.75rem))" }}>
+        <div className="animate-scalein fixed z-[10000] w-[320px] max-w-[88vw] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#162538] shadow-sheet" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem)", right: "max(0.75rem, calc((100vw - 640px) / 2 + 0.75rem))" }}>
           {/* 상단 aqua 액센트 라인 */}
           <div className="h-[2px] bg-gradient-to-r from-aqua-600 via-aqua-500 to-aqua-700" />
 

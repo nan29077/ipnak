@@ -183,7 +183,7 @@ export default function SignupPage() {
   return (
     /* 외부 div: 배경만 담당. min-h-screen은 화면 짧을 때 배경 채우기용.
        overflow는 기본값(visible)이므로 콘텐츠가 길면 자연스럽게 스크롤됨. */
-    <div className="min-h-screen bg-gradient-to-b from-[#0d1626] via-[#161616] to-[#243a63]">
+    <div className="min-h-screen bg-gradient-to-b from-[#0d1626] via-[#0d1b2a] to-[#243a63]">
       <div className="mx-auto w-full max-w-md px-6 pt-10 pb-16">
 
         {/* 헤더 */}

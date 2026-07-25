@@ -27,14 +27,14 @@ export default async function ShopProductPage({ params }: { params: { id: string
         </div>
 
         {p.description && (
-          <div className="rounded-2xl border border-navy-100 bg-[#1e1e1e] p-4 shadow-card">
+          <div className="rounded-2xl border border-navy-100 bg-[#162538] p-4 shadow-card">
             <SectionTitle className="mb-1.5">상품 설명</SectionTitle>
             <p className="text-sm leading-relaxed text-navy-600">{p.description}</p>
           </div>
         )}
 
         {p.seller && (
-          <Link href={`/profile/${p.seller.id}`} className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-[#1e1e1e] p-3 shadow-card transition-shadow hover:shadow-cardhover">
+          <Link href={`/profile/${p.seller.id}`} className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-[#162538] p-3 shadow-card transition-shadow hover:shadow-cardhover">
             <img src={getAvatarUrl(p.seller.id, p.seller.avatarUrl)} alt="" className="h-10 w-10 rounded-full object-cover ring-1 ring-navy-100" />
             <div className="min-w-0 flex-1">
               <p className="text-xs text-navy-400">판매자</p>
@@ -46,7 +46,7 @@ export default async function ShopProductPage({ params }: { params: { id: string
         <p className="text-xs text-navy-300">※ 판매수수료 {p.feeRate}% · 결제는 추후 커머스/제휴 API 연동 예정입니다.</p>
       </div>
 
-      <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#161616]/90 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#1e1e1e]">
+      <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/90 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
         <div className="mx-auto flex max-w-[640px] gap-2">
           <a href={p.buyUrl && p.buyUrl !== "#" ? p.buyUrl : undefined} target="_blank" rel="noreferrer"
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft btn-press transition-colors outline-none hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-aqua-300 focus-visible:ring-offset-1">

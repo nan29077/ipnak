@@ -37,7 +37,7 @@ export function MeActions({ isAdmin }: { isAdmin: boolean }) {
         variant="outline"
         full
         leftIcon={<LogOut size={18} />}
-        className="justify-start border-red-100 text-red-500"
+        className="justify-start border-orange-200/40 text-orange-400"
         onClick={logout}
       >
         로그아웃

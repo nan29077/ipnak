@@ -45,7 +45,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: SP }
       <PageHeader title={title} back sub={species ? `${species} · ${posts.length}건` : `${posts.length}건`} />
 
       {/* 필터 */}
-      <div className="sticky top-[6.5rem] z-20 space-y-2 border-b border-navy-100 bg-[#161616]/85 px-3 py-2.5 backdrop-blur-md">
+      <div className="sticky top-[6.5rem] z-20 space-y-2 border-b border-navy-100 bg-[#0d1b2a]/85 px-3 py-2.5 backdrop-blur-md">
         <ChipRow label="기간" chips={periodChips} active={period ?? "all"} hrefFor={(k) => qs(searchParams, { period: k === "all" ? null : k })} />
         <ChipRow label="정렬" chips={sortChips} active={sort ?? "best"} hrefFor={(k) => qs(searchParams, { sort: k })} />
         <ChipRow label="종류" chips={kindChips} active={kind ?? "all"} hrefFor={(k) => qs(searchParams, { kind: k === "all" ? null : k })} />

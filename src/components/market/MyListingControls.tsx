@@ -49,7 +49,7 @@ export function MyListingControls({ listingId, initialStatus }: { listingId: str
         onClick={() => setConfirmOpen(true)}
         disabled={busy}
         aria-label="삭제"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-100 bg-[#1e1e1e] text-red-500 transition-colors hover:bg-red-50 disabled:opacity-50"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-100 bg-[#162538] text-red-500 transition-colors hover:bg-red-50 disabled:opacity-50"
       >
         <Trash2 size={16} />
       </button>

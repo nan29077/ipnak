@@ -83,7 +83,7 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
       <div className="flex items-center gap-4 px-5 py-6">
         <Link href="/me/edit" className="relative shrink-0">
           <img src={getAvatarUrl(user.id, user.avatarUrl)} alt={user.nickname} className="h-[72px] w-[72px] rounded-full object-cover shadow-aqua" />
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white ring-2 ring-[#161616]">
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white ring-2 ring-[#0d1b2a]">
             <Pencil size={11} />
           </span>
         </Link>
@@ -143,8 +143,8 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
 
         {/* 포인트 관리 — 포인트 기능 활성화 시 노출 */}
         {pEnabled && (
-          <Link href="/me/points" className="flex items-center gap-3 rounded-2xl border border-amber-400/25 bg-gradient-to-r from-amber-400/[0.12] to-[#161616] px-4 py-3.5 transition-colors hover:from-amber-400/20">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#161616] shadow-soft"><Coins size={19} /></span>
+          <Link href="/me/points" className="flex items-center gap-3 rounded-2xl border border-amber-400/25 bg-gradient-to-r from-amber-400/[0.12] to-[#0d1b2a] px-4 py-3.5 transition-colors hover:from-amber-400/20">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#0d1b2a] shadow-soft"><Coins size={19} /></span>
             <span className="min-w-0 flex-1">
               <span className="block text-[14px] font-bold text-navy-900">포인트 관리</span>
               <span className="block truncate text-[12px] text-navy-400">적립·사용 내역, 충전, 친구에게 선물</span>
@@ -183,7 +183,7 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
                   : `${Math.floor(t.durationSec / 60)}분`;
                 return (
                   <Link key={t.id} href={`/trip/${t.id}`}
-                    className="flex items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#1e1e1e] p-3 transition-colors hover:border-orange-500/30">
+                    className="flex items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#162538] p-3 transition-colors hover:border-orange-500/30">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-aqua-500/15">
                       <Fish size={18} className="text-aqua-400" strokeWidth={1.6} />
                     </div>
@@ -214,7 +214,7 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
 
         {/* 쇼핑 메뉴 OFF 시 피싱태그 수익 숨김 */}
         {shopEnabled && (
-          <Link href="/referral" className="flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/15 to-[#161616] px-4 py-3.5 transition-colors hover:from-orange-500/25">
+          <Link href="/referral" className="flex items-center gap-3 rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/15 to-[#0d1b2a] px-4 py-3.5 transition-colors hover:from-orange-500/25">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-soft"><Tag size={19} /></span>
             <span className="min-w-0 flex-1">
               <span className="block text-[14px] font-bold text-navy-900">피싱태그 수익</span>

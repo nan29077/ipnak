@@ -86,7 +86,7 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
       {/* 중앙 앱 프레임 + (PC) 우측에 붙는 세로 메뉴를 한 덩어리로 가운데 정렬 */}
       <div className="mx-auto flex min-h-screen w-full max-w-[760px] justify-center">
         {/* 본문 (중앙 앱 프레임) — 본문 컬럼은 솔리드 배경으로 패턴을 가려 가독성 유지 */}
-        <main className="min-h-screen w-full min-w-0 max-w-[640px] flex-1 pb-24 md:bg-[#161616] md:pb-0 lg:shadow-2xl lg:shadow-black/40">
+        <main className="min-h-screen w-full min-w-0 max-w-[640px] flex-1 pb-24 md:bg-[#0d1b2a] md:pb-0 lg:shadow-2xl lg:shadow-black/40">
           <AppHeader loggedIn={!!user} user={user} shopEnabled={shopEnabled} reservationEnabled={reservationEnabled} pointsEnabled={pointsEnabled} points={user?.points ?? 0} />
           <RecordingBanner />
           {children}
@@ -110,16 +110,16 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
 // 데스크톱(≥1024px) 전용: 앱 프레임 바깥 여백에 실제 바다/낚시 사진을 배경으로 깐다.
 // 관리자 설정 이미지(pcMarginBgImage)가 있으면 그것을, 없으면 로컬 배스 앵글러 이미지를
 // 기본값으로 사용한다. 사진은 opacity를 낮춰 오버레이처럼 적용해 본문 가독성을 해치지 않고,
-// 본문 컬럼은 솔리드 다크(#161616)라 텍스트 가독성에 영향 없다. 모바일/태블릿(<1024px) 미표시.
-const PC_BG_DEFAULT = "/pc-bg-bass-angler.png";
+// 본문 컬럼은 솔리드 다크(#0d1b2a)라 텍스트 가독성에 영향 없다. 모바일/태블릿(<1024px) 미표시.
+const PC_BG_DEFAULT = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지.png";
 
 function DesktopPatternBg({ image }: { image?: string }) {
   const src = image && image.trim() ? image : PC_BG_DEFAULT;
   return (
     <div
       className="pointer-events-none fixed inset-0 -z-10 hidden overflow-hidden lg:block"
-      // 다크 바탕 — 낮은 opacity의 사진 아래에 깔려 앱 프레임(#161616)과 자연스럽게 이어진다
-      style={{ backgroundColor: "#10151c" }}
+      // 다크 바탕 — 낮은 opacity의 사진 아래에 깔려 앱 프레임(#0d1b2a)과 자연스럽게 이어진다
+      style={{ backgroundColor: "#08121e" }}
       aria-hidden
     >
       {/* (1) 사진 레이어: 바다/낚시 사진을 cover로 채우고 opacity를 낮춰 오버레이처럼 적용 */}
@@ -130,7 +130,7 @@ function DesktopPatternBg({ image }: { image?: string }) {
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
-          opacity: 0.38,
+          opacity: 0.72,
         }}
       />
       {/* (2) 옅은 다크 베일 — 사진 톤을 한 단계 가라앉혀 여백이 본문보다 튀지 않게 */}
@@ -138,7 +138,7 @@ function DesktopPatternBg({ image }: { image?: string }) {
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(90deg, rgba(8,12,18,0.30) 0%, rgba(8,12,18,0.12) 34%, rgba(8,12,18,0.22) 66%, rgba(8,12,18,0.38) 100%)",
+            "linear-gradient(90deg, rgba(8,12,18,0.10) 0%, rgba(8,12,18,0.04) 34%, rgba(8,12,18,0.08) 66%, rgba(8,12,18,0.15) 100%)",
         }}
       />
     </div>
@@ -150,7 +150,7 @@ function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[
   const measureActive = pathname.startsWith("/measure") || pathname.startsWith("/diary");
   return (
     <nav
-      className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#161616]/95 backdrop-blur md:hidden"
+      className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/95 backdrop-blur md:hidden"
       aria-label="하단 메뉴"
     >
       <div className="mx-auto flex max-w-[640px] items-center px-1 pt-1.5">
@@ -169,7 +169,7 @@ function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[
             aria-current={measureActive ? "page" : undefined}
             className={cn(
               "-mt-5 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-orange-500 text-white shadow-lg shadow-orange-500/30 ring-[3px] transition-all active:scale-95",
-              measureActive ? "ring-orange-300/70 shadow-orange-500/50" : "ring-[#161616]"
+              measureActive ? "ring-orange-300/70 shadow-orange-500/50" : "ring-[#0d1b2a]"
             )}
             aria-label="AI 측정"
           >
@@ -227,7 +227,7 @@ function DesktopRightNav({ pathname, user, nav }: { pathname: string; user: Sess
   return (
     <aside className="sticky top-0 hidden h-screen w-[104px] shrink-0 py-4 pl-2 md:flex" aria-label="PC 메뉴">
       {/* 앱 우측에 떠 있는 둥근 다크 패널 */}
-      <div className="flex w-full flex-col items-center rounded-[28px] bg-[#1a1a1a] py-4 text-white shadow-xl shadow-black/40 ring-1 ring-white/10">
+      <div className="flex w-full flex-col items-center rounded-[28px] bg-[#122030] py-4 text-white shadow-xl shadow-black/40 ring-1 ring-white/10">
         {/* 메뉴 (항목이 많아도 잘리지 않도록 세로 스크롤 허용) */}
         <nav className="no-scrollbar flex w-full flex-1 flex-col items-center gap-0.5 overflow-y-auto px-2" aria-label="메뉴">
           {NAV.slice(0, 2).map((n) => (

@@ -47,7 +47,7 @@ export function FishingTagCards({ postId, tags, compact = false }: { postId: str
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
         {tags.map((t) => (
           <button key={t.id} type="button" onClick={() => go(t)} disabled={busy === t.id}
-            className="flex w-[210px] shrink-0 items-center gap-2.5 rounded-xl border border-navy-100 bg-[#242424] p-2 pr-3 text-left transition-colors hover:border-orange-500/50 active:scale-[0.99] disabled:opacity-60">
+            className="flex w-[210px] shrink-0 items-center gap-2.5 rounded-xl border border-navy-100 bg-[#1c2c3e] p-2 pr-3 text-left transition-colors hover:border-orange-500/50 active:scale-[0.99] disabled:opacity-60">
             <img src={t.product.imageUrl || ""} alt={t.product.name} loading="lazy" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[12.5px] font-semibold text-navy-900">{t.product.name}</span>

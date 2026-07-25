@@ -159,13 +159,13 @@ export function TripDetailSheet({
         <div className="space-y-3">
 
           {/* ── 출조 시간 ── */}
-          <div className="rounded-2xl border border-navy-100 bg-[#161616] p-4">
+          <div className="rounded-2xl border border-navy-100 bg-[#0d1b2a] p-4">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-navy-400">출조 시간</p>
             <div className="flex gap-3">
               <div className="flex flex-col items-center pt-1">
                 <div className="h-2.5 w-2.5 rounded-full bg-orange-500" />
                 <div className="my-1 w-px flex-1 bg-navy-100/40" />
-                <div className="h-2.5 w-2.5 rounded-full border-2 border-orange-500 bg-[#161616]" />
+                <div className="h-2.5 w-2.5 rounded-full border-2 border-orange-500 bg-[#0d1b2a]" />
               </div>
               <div className="flex-1 space-y-3">
                 <div>
@@ -190,12 +190,12 @@ export function TripDetailSheet({
 
           {/* ── 통계 ── */}
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-2xl border border-navy-100 bg-[#161616] p-3 text-center">
+            <div className="rounded-2xl border border-navy-100 bg-[#0d1b2a] p-3 text-center">
               <Navigation size={18} className="mx-auto mb-1 text-aqua-400" strokeWidth={1.7} />
               <p className="text-[17px] font-extrabold text-navy-800">{formatDist(data.distanceM)}</p>
               <p className="text-[10px] text-navy-400">이동거리</p>
             </div>
-            <div className="rounded-2xl border border-navy-100 bg-[#161616] p-3 text-center">
+            <div className="rounded-2xl border border-navy-100 bg-[#0d1b2a] p-3 text-center">
               <Fish size={18} className="mx-auto mb-1 text-green-400" strokeWidth={1.7} />
               <p className="text-[17px] font-extrabold text-navy-800">{catchDisplayCount}</p>
               <p className="text-[10px] text-navy-400">피쉬 기록</p>
@@ -203,7 +203,7 @@ export function TripDetailSheet({
           </div>
 
           {/* ── 날씨 정보 ── */}
-          <div className="rounded-2xl border border-navy-100 bg-[#161616] p-4">
+          <div className="rounded-2xl border border-navy-100 bg-[#0d1b2a] p-4">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-navy-400">
               날씨 정보 {tripDate ? `(${tripDate})` : ""}
             </p>
@@ -219,28 +219,28 @@ export function TripDetailSheet({
                 </div>
                 {(weather.tempMax != null || weather.tempMin != null || weather.precip != null || weather.windSpeed != null) && (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2 rounded-xl bg-[#1e1e1e] px-3 py-2.5">
+                    <div className="flex items-center gap-2 rounded-xl bg-[#162538] px-3 py-2.5">
                       <Thermometer size={15} className="shrink-0 text-red-400" />
                       <div>
                         <p className="text-[10px] text-navy-400">최고기온</p>
                         <p className="text-[15px] font-bold text-navy-800">{weather.tempMax != null ? `${weather.tempMax}°C` : "—"}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 rounded-xl bg-[#1e1e1e] px-3 py-2.5">
+                    <div className="flex items-center gap-2 rounded-xl bg-[#162538] px-3 py-2.5">
                       <Thermometer size={15} className="shrink-0 text-blue-400" />
                       <div>
                         <p className="text-[10px] text-navy-400">최저기온</p>
                         <p className="text-[15px] font-bold text-navy-800">{weather.tempMin != null ? `${weather.tempMin}°C` : "—"}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 rounded-xl bg-[#1e1e1e] px-3 py-2.5">
+                    <div className="flex items-center gap-2 rounded-xl bg-[#162538] px-3 py-2.5">
                       <CloudRain size={15} className="shrink-0 text-aqua-400" />
                       <div>
                         <p className="text-[10px] text-navy-400">강수량</p>
                         <p className="text-[15px] font-bold text-navy-800">{weather.precip != null ? `${weather.precip}mm` : "—"}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 rounded-xl bg-[#1e1e1e] px-3 py-2.5">
+                    <div className="flex items-center gap-2 rounded-xl bg-[#162538] px-3 py-2.5">
                       <Wind size={15} className="shrink-0 text-navy-400" />
                       <div>
                         <p className="text-[10px] text-navy-400">최대풍속</p>
@@ -272,14 +272,14 @@ export function TripDetailSheet({
               피쉬 기록 {catchDisplayCount}건
             </p>
             {data.catches.length === 0 ? (
-              <div className="rounded-2xl border border-navy-100 bg-[#161616] py-8 text-center">
+              <div className="rounded-2xl border border-navy-100 bg-[#0d1b2a] py-8 text-center">
                 <Fish size={28} className="mx-auto mb-2 text-navy-300" strokeWidth={1.5} />
                 <p className="text-[13px] text-navy-400">이 출조에 등록된 피쉬 기록이 없습니다</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {data.catches.map((c, i) => (
-                  <div key={c.id ?? i} className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-[#161616] p-3">
+                  <div key={c.id ?? i} className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-[#0d1b2a] p-3">
                     {c.photoUrl ? (
                       <img src={c.photoUrl} alt={c.speciesName || "피쉬"} className="h-14 w-14 shrink-0 rounded-xl object-cover" />
                     ) : (

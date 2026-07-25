@@ -12,7 +12,7 @@ export function MiniRoute({ points }: { points: { lat: number; lng: number }[] }
   const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.lng).toFixed(1)},${sy(p.lat).toFixed(1)}`).join(" ");
   const last = points[points.length - 1];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full bg-gradient-to-br from-aqua-500/10 to-[#242424]">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full bg-gradient-to-br from-aqua-500/10 to-[#1c2c3e]">
       <path d={d} fill="none" stroke="#16b8a6" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.35} transform="translate(0,1)" />
       <path d={d} fill="none" stroke="#16b8a6" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
       <circle cx={sx(points[0].lng)} cy={sy(points[0].lat)} r={3} fill="#243a63" />

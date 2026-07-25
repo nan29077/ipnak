@@ -9,6 +9,6 @@
                 <path data-dc-tpl="1021" d="M50 12 Q62 20 52 28" fill="none" stroke="#1A1512" stroke-width="5" stroke-linecap="round" data-om-id="b6b460de:1026"/>
                 <circle data-dc-tpl="1022" cx="20" cy="14" r="6" fill="#FFC38C" opacity=".7" data-om-id="b6b460de:1027"/>
               </g>
-              <text data-dc-tpl="1023" x="150" y="244" font-family="Pretendard,sans-serif" font-weight="800" font-size="13" letter-spacing="4" fill="#FF6B1A" text-anchor="middle" data-om-id="b6b460de:1028">IPNAK</text>
+              <text data-dc-tpl="1023" x="150" y="244" font-family="Pretendard,sans-serif" font-weight="800" font-size="13" letter-spacing="4" fill="#EAB308" text-anchor="middle" data-om-id="b6b460de:1028">IPNAK</text>
               <text data-dc-tpl="1024" x="150" y="270" font-family="Pretendard,sans-serif" font-weight="900" font-size="25" letter-spacing="-.5" fill="#1A1512" text-anchor="middle" data-om-id="b6b460de:1029">No Image</text>
             </svg>

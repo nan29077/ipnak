@@ -53,7 +53,7 @@ export function MarketList({ items }: { items: MarketItem[] }) {
     <div>
       {/* 검색 */}
       <div className="px-3 pb-2">
-        <div className="flex items-center gap-2 rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2.5 shadow-soft focus-within:border-aqua-400 focus-within:ring-2 focus-within:ring-aqua-100">
+        <div className="flex items-center gap-2 rounded-2xl border border-[#2a2a2a] bg-[#122030] px-3 py-2.5 shadow-soft focus-within:border-aqua-400 focus-within:ring-2 focus-within:ring-aqua-100">
           <Search size={18} className="shrink-0 text-navy-300" />
           <input
             value={q}
@@ -102,7 +102,7 @@ export function MarketList({ items }: { items: MarketItem[] }) {
               <Link
                 key={it.id}
                 href={`/market/${it.id}`}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-[#2a2a2a] bg-[#1a1a1a] shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-cardhover"
+                className="group flex flex-col overflow-hidden rounded-2xl border border-[#2a2a2a] bg-[#122030] shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-cardhover"
               >
                 <div className="relative aspect-square w-full overflow-hidden bg-navy-50">
                   {it.thumbnail && (

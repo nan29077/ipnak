@@ -11,7 +11,7 @@ export function PageHeader({
 }: { title: string; back?: boolean; onBack?: () => void; right?: React.ReactNode; sub?: string }) {
   const router = useRouter();
   return (
-    <header className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#161616]/85 backdrop-blur-md">
+    <header className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#0d1b2a]/85 backdrop-blur-md">
       <div className="flex h-14 items-center gap-2 px-3">
         {back && (
           <button onClick={onBack ?? (() => router.back())} aria-label="뒤로" className="-ml-1 rounded-full p-1.5 text-navy-700 transition-colors hover:bg-navy-50 active:bg-navy-100">
@@ -146,7 +146,7 @@ export function Sheet({ open, onClose, title, children, stickyContent, footer, s
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" onClick={onClose} />
       {/* 시트 패널 — 헤더는 고정, 콘텐츠만 스크롤 */}
       <div
-        className={`animate-sheet relative flex ${maxH} w-full max-w-[640px] flex-col rounded-t-[20px] border border-white/[0.08] bg-[#1e1e1e] shadow-sheet`}
+        className={`animate-sheet relative flex ${maxH} w-full max-w-[640px] flex-col rounded-t-[20px] border border-white/[0.08] bg-[#162538] shadow-sheet`}
         style={{ transform: dragY > 0 ? `translateY(${dragY}px)` : undefined, transition: dragY > 0 ? "none" : "transform 0.2s ease" }}
       >
         {/* 고정 헤더 영역 — 여기서 스와이프하면 시트 닫힘 */}
@@ -195,7 +195,7 @@ const buttonVariants: Record<ButtonVariant, string> = {
   secondary: "bg-aqua-500 text-white shadow-soft hover:bg-aqua-600 focus-visible:ring-aqua-300",
   ghost: "bg-transparent text-navy-700 hover:bg-navy-50",
   danger: "bg-red-500 text-white hover:bg-red-600 focus-visible:ring-red-300",
-  outline: "border border-navy-100 bg-[#1e1e1e] text-navy-700 hover:bg-navy-50",
+  outline: "border border-navy-100 bg-[#162538] text-navy-700 hover:bg-navy-50",
 };
 
 const buttonSizes: Record<ButtonSize, string> = {
@@ -217,7 +217,7 @@ export function Button({
     <button
       {...rest}
       className={cn(
-        "inline-flex items-center justify-center gap-2 font-semibold transition-all outline-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-[#161616]",
+        "inline-flex items-center justify-center gap-2 font-semibold transition-all outline-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-[#0d1b2a]",
         buttonVariants[variant],
         buttonSizes[size],
         full && "w-full",
@@ -241,7 +241,7 @@ export function PrimaryButton({ children, className, ...rest }: React.ButtonHTML
 
 export function LinkButton({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
   return (
-    <Link href={href} className={cn("inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft transition-all outline-none active:scale-[0.97] hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-1 focus-visible:ring-offset-[#161616]", className)}>
+    <Link href={href} className={cn("inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft transition-all outline-none active:scale-[0.97] hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-1 focus-visible:ring-offset-[#0d1b2a]", className)}>
       {children}
     </Link>
   );

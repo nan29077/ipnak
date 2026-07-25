@@ -42,7 +42,7 @@ export function BookingForm({ listingId, price, maxPeople, slots, loggedIn }: {
 
   return (
     <>
-      <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#1e1e1e] p-3 md:relative md:border-0 md:p-0">
+      <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#162538] p-3 md:relative md:border-0 md:p-0">
         <div className="mx-auto flex max-w-[640px] items-center gap-3">
           <div className="md:hidden"><p className="text-[11px] text-navy-400">1인</p><p className="text-base font-extrabold text-navy-800">{won(price)}</p></div>
           <Button size="lg" className="ml-auto flex-1 md:flex-none md:px-8"

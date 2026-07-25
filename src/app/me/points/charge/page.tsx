@@ -17,8 +17,8 @@ export default async function ChargePage() {
       <PageHeader title="포인트 충전" back />
       <div className="px-4">
         {/* 현재 보유 */}
-        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-amber-400/20 bg-gradient-to-r from-amber-400/[0.12] to-[#161616] px-4 py-3.5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#161616] shadow-soft"><Coins size={19} /></span>
+        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-amber-400/20 bg-gradient-to-r from-amber-400/[0.12] to-[#0d1b2a] px-4 py-3.5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#0d1b2a] shadow-soft"><Coins size={19} /></span>
           <div className="min-w-0 flex-1">
             <p className="text-[12px] text-navy-400">현재 보유 포인트</p>
             <p className="text-[20px] font-extrabold tabular-nums text-amber-300">{balance.toLocaleString()}<span className="text-[13px] text-amber-300/70">P</span></p>

@@ -26,7 +26,7 @@ export default async function ReferralPage() {
       <div className="space-y-4 p-4">
         {/* 적립 요약 */}
         <Card className="overflow-hidden p-0">
-          <div className="bg-gradient-to-br from-orange-500/25 to-[#161616] px-5 py-5">
+          <div className="bg-gradient-to-br from-orange-500/25 to-[#0d1b2a] px-5 py-5">
             <p className="flex items-center gap-1.5 text-[12px] font-semibold text-orange-300"><Wallet size={14} /> 총 적립 리퍼럴 수익</p>
             <p className="mt-1 text-[30px] font-extrabold tracking-tight text-navy-900">{won(data.totalReward)}</p>
             <p className="mt-0.5 text-[12px] text-navy-400">전환 매출 {won(data.totalSales)} 기준</p>
@@ -52,7 +52,7 @@ export default async function ReferralPage() {
           ) : (
             <ul className="space-y-2">
               {data.events.map((e) => (
-                <li key={e.id} className="flex items-center gap-3 rounded-xl border border-navy-100 bg-[#1e1e1e] p-2.5">
+                <li key={e.id} className="flex items-center gap-3 rounded-xl border border-navy-100 bg-[#162538] p-2.5">
                   <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-navy-50">
                     {e.product?.imageUrl && <img src={e.product.imageUrl} alt="" className="h-full w-full object-cover" />}
                   </span>

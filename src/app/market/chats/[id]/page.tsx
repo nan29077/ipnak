@@ -32,7 +32,7 @@ export default async function MarketChatRoomPage({ params }: { params: { id: str
   const other = amSeller ? chat.buyer : chat.listing.seller;
 
   return (
-    <div className="bg-[#1e1e1e]">
+    <div className="bg-[#162538]">
       <PageHeader title={other.nickname} back sub={amSeller ? "구매 희망자" : "판매자"} />
 
       {/* 거래 상품 요약 */}

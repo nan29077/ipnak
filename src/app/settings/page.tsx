@@ -14,7 +14,7 @@ export default async function SettingsPage() {
   if (!user) redirect("/login");
 
   return (
-    <div className="min-h-screen bg-[#161616] pb-24">
+    <div className="min-h-screen bg-[#0d1b2a] pb-24">
       <PageHeader title="설정" />
 
       <div className="mx-auto max-w-[640px] space-y-5 px-4 py-4">
@@ -33,7 +33,7 @@ export default async function SettingsPage() {
           <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wider text-white/40">
             알림
           </p>
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e]">
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#162538]">
             <SettingsRow icon={<Bell size={18} />} label="푸시 알림" hint="기기 설정에서 관리" />
           </div>
         </section>
@@ -43,7 +43,7 @@ export default async function SettingsPage() {
           <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wider text-white/40">
             계정
           </p>
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e]">
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#162538]">
             <div className="flex items-center gap-3.5 px-4 py-3.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/60">
                 <Shield size={16} strokeWidth={1.8} />

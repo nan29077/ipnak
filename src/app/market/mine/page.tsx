@@ -44,7 +44,7 @@ export default async function MyMarketPage() {
       ) : (
         <div className="space-y-2.5 p-3.5">
           {listings.map((l) => (
-            <div key={l.id} className="rounded-2xl border border-navy-100 bg-[#1e1e1e] p-2.5 shadow-card">
+            <div key={l.id} className="rounded-2xl border border-navy-100 bg-[#162538] p-2.5 shadow-card">
               <div className="flex gap-3">
                 <Link href={`/market/${l.id}`} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-navy-50">
                   {l.images[0] && <img src={l.images[0].url} alt={l.title} className="h-full w-full object-cover" />}

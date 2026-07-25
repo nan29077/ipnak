@@ -20,22 +20,22 @@ const config: Config = {
           50: "#ecfdfa", 100: "#cffbf1", 200: "#9ef5e4", 300: "#5fe8d2",
           400: "#2dd4bf", 500: "#16b8a6", 600: "#0d9488", 700: "#0f766e",
         },
-        // ── Orange brand accent (primary) — from the design system ──
+        // ── Yellow brand accent (primary) — 꿀벌 테마 진한 노랑색 ──
         orange: {
-          50: "#fff4ec", 100: "#ffe6d5", 200: "#feccaa", 300: "#fdac74",
-          400: "#fb8b3c", 500: "#f97316", 600: "#ea580c", 700: "#c2410c",
-          800: "#9a3412", 900: "#7c2d12",
+          50: "#fefce8", 100: "#fef9c3", 200: "#fef08a", 300: "#fde047",
+          400: "#facc15", 500: "#eab308", 600: "#ca8a04", 700: "#a16207",
+          800: "#854d0e", 900: "#713f12",
         },
-        // 기존 amber/yellow 유틸리티도 브랜드 주황색으로 표시한다.
+        // amber/yellow도 동일한 꿀벌 노랑으로 통일
         amber: {
-          50: "#fff4ec", 100: "#ffe6d5", 200: "#feccaa", 300: "#fdac74",
-          400: "#fb8b3c", 500: "#f97316", 600: "#ea580c", 700: "#c2410c",
-          800: "#9a3412", 900: "#7c2d12",
+          50: "#fefce8", 100: "#fef9c3", 200: "#fef08a", 300: "#fde047",
+          400: "#facc15", 500: "#eab308", 600: "#ca8a04", 700: "#a16207",
+          800: "#854d0e", 900: "#713f12",
         },
         yellow: {
-          50: "#fff4ec", 100: "#ffe6d5", 200: "#feccaa", 300: "#fdac74",
-          400: "#fb8b3c", 500: "#f97316", 600: "#ea580c", 700: "#c2410c",
-          800: "#9a3412", 900: "#7c2d12",
+          50: "#fefce8", 100: "#fef9c3", 200: "#fef08a", 300: "#fde047",
+          400: "#facc15", 500: "#eab308", 600: "#ca8a04", 700: "#a16207",
+          800: "#854d0e", 900: "#713f12",
         },
         // ── Dark surface scale (explicit elevation) ──
         surface: {

@@ -18,19 +18,19 @@
   --aqua-400:#2dd4bf;--aqua-500:#16b8a6;--aqua-600:#0d9488;--aqua-700:#0f766e;
 
   /* Orange brand accent (입낚 design system) */
-  --orange-400:#fb8b3c;--orange-500:#f97316;--orange-600:#ea580c;
-  --orange-dim:rgba(249,115,22,0.15);
+  --orange-400:#facc15;--orange-500:#eab308;--orange-600:#ca8a04;
+  --orange-dim:rgba(234,179,8,0.15);
 
   /* Dark surface elevations */
-  --surface-0:#161616;--surface-1:#1a1a1a;--surface-2:#1e1e1e;
-  --surface-3:#242424;--surface-4:#272727;--surface-5:#2e2e2e;
+  --surface-0:#0d1b2a;--surface-1:#122030;--surface-2:#162538;
+  --surface-3:#1c2c3e;--surface-4:#1e3046;--surface-5:#253848;
 
   /* Semantic — dark theme */
-  --color-bg:#161616;
-  --color-surface:#1e1e1e;
+  --color-bg:#0d1b2a;
+  --color-surface:#162538;
   --color-border:rgba(255,255,255,0.08);
-  --color-brand:#f97316;
-  --color-accent:#f97316;
+  --color-brand:#eab308;
+  --color-accent:#eab308;
   --color-text-primary:#ffffff;
   --color-text-secondary:rgba(255,255,255,0.55);
   --color-text-tertiary:rgba(255,255,255,0.30);
@@ -39,7 +39,7 @@
   --shadow-soft:0 1px 3px rgba(0,0,0,0.45);
   --shadow-card:0 1px 2px rgba(0,0,0,0.40),0 4px 14px rgba(0,0,0,0.35);
   --shadow-cardhover:0 8px 24px rgba(0,0,0,0.55);
-  --shadow-fab:0 8px 22px rgba(249,115,22,0.40);
+  --shadow-fab:0 8px 22px rgba(234,179,8,0.40);
   --shadow-sheet:0 -8px 30px rgba(0,0,0,0.55);
   --shadow-aqua:0 4px 16px rgba(22,184,166,0.30);
 
@@ -82,16 +82,16 @@ input, textarea, select {
 /* 입낚볼 구매 시트: PC 스크롤바를 브랜드 주황색으로 통일 */
 .ipnak-ball-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: var(--orange-500) #25282d;
+  scrollbar-color: var(--orange-500) #0f1e30;
 }
 .ipnak-ball-scrollbar::-webkit-scrollbar { width: 10px; }
 .ipnak-ball-scrollbar::-webkit-scrollbar-track {
-  background: #25282d;
+  background: #0f1e30;
   border-radius: 9999px;
 }
 .ipnak-ball-scrollbar::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, var(--orange-400), var(--orange-600));
-  border: 2px solid #25282d;
+  border: 2px solid #0f1e30;
   border-radius: 9999px;
 }
 .ipnak-ball-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--orange-400); }
@@ -244,11 +244,11 @@ html { scroll-behavior: smooth; }
   color: #edeff2;
 }
 .admin-content .card {
-  background: #1e1e1e;
+  background: #162538;
   border-color: rgba(255, 255, 255, 0.12);
 }
 .admin-content .bg-white:not(.rounded-full) {
-  background-color: #1e1e1e !important;
+  background-color: #162538 !important;
 }
 .admin-content .text-black {
   color: #f5f6f7 !important;

@@ -125,7 +125,7 @@ export function MemberPointTopup({ userId, nickname, points }: { userId: string;
                 <input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="메모(선택)"
                   className="mt-2 w-full rounded-lg border border-navy-100 bg-white px-3 py-2 text-[13px] text-navy-800 placeholder:text-navy-300 outline-none focus:border-amber-400" />
                 <button onClick={submit} disabled={loading}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 py-2.5 text-[14px] font-extrabold text-[#161616] disabled:opacity-60">
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 py-2.5 text-[14px] font-extrabold text-[#0d1b2a] disabled:opacity-60">
                   {loading ? <Loader2 size={15} className="animate-spin" /> : <><Coins size={14} /> {amount.toLocaleString()}P {amount < 0 ? "차감" : "지급"}</>}
                 </button>
               </div>

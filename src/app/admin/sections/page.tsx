@@ -61,7 +61,7 @@ export default async function AdminSectionsPage() {
         </div>
         <ul className="space-y-2">
           {sections.map((s, i) => (
-            <li key={s.key} className={`rounded-xl border border-navy-100 bg-[#1e1e1e] p-3 ${!s.visible ? "opacity-50" : ""}`}>
+            <li key={s.key} className={`rounded-xl border border-navy-100 bg-[#162538] p-3 ${!s.visible ? "opacity-50" : ""}`}>
               {/* 상단: 번호 + 제목/배지 */}
               <div className="flex items-start gap-2 mb-2.5">
                 <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-[12px] font-bold text-orange-400">{i + 1}</span>

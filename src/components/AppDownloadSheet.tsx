@@ -92,7 +92,7 @@ export function AppDownloadSheet() {
 
       {/* 시트 카드 — 아래에서 올라옴 */}
       <div
-        className={`relative z-10 w-full max-w-[640px] overflow-hidden rounded-t-[28px] border border-[#2e2e2e] bg-[#181818] shadow-[0_-8px_60px_rgba(0,0,0,0.6)] transition-transform duration-[240ms] ease-out ${
+        className={`relative z-10 w-full max-w-[640px] overflow-hidden rounded-t-[28px] border border-[#253848] bg-[#181818] shadow-[0_-8px_60px_rgba(0,0,0,0.6)] transition-transform duration-[240ms] ease-out ${
           shown ? "translate-y-0" : "translate-y-full"
         }`}
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
@@ -133,7 +133,7 @@ export function AppDownloadSheet() {
           <div className="flex w-full flex-col gap-3">
             <button
               onClick={handleDownload}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_20px_rgba(249,115,22,0.35)] transition-all hover:bg-orange-400 active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_20px_rgba(234,179,8,0.35)] transition-all hover:bg-orange-400 active:scale-[0.98]"
             >
               <Download size={18} strokeWidth={2.1} />
               앱 다운로드 받으러 가기

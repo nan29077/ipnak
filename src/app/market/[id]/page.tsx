@@ -40,7 +40,7 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
   const images = l.images.length ? l.images.map((i) => i.url) : ["https://picsum.photos/seed/market/800/800"];
 
   return (
-    <div className="min-h-screen bg-[#1e1e1e] pb-28">
+    <div className="min-h-screen bg-[#162538] pb-28">
       <PageHeader title="중고거래" back />
 
       <MarketGallery images={images} dim={l.status === "SOLD"} statusLabel={l.status !== "SELLING" ? marketStatusLabel(l.status) : null} />
@@ -91,7 +91,7 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
       ) : user ? (
         <MarketDetailActions listingId={l.id} price={l.price} status={l.status} favorited={favorited} favoriteCount={l._count.favorites} />
       ) : (
-        <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#161616]/95 p-3 backdrop-blur-md md:relative">
+        <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative">
           <div className="mx-auto max-w-[640px]">
             <Link href="/login" className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft">
               로그인하고 거래하기

@@ -60,7 +60,7 @@ export default async function AdminCurationPage({ searchParams }: { searchParams
           ) : (
             <ul className="space-y-2">
               {featured.map((p, i) => (
-                <li key={p.featureId} className={cn("flex items-center gap-2.5 rounded-xl border border-navy-100 bg-[#1e1e1e] p-2", !p.visible && "opacity-50")}>
+                <li key={p.featureId} className={cn("flex items-center gap-2.5 rounded-xl border border-navy-100 bg-[#162538] p-2", !p.visible && "opacity-50")}>
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-[12px] font-bold text-orange-400">{i + 1}</span>
                   <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-navy-50">
                     {p.thumbnail && <img src={p.thumbnail} alt="" className="h-full w-full object-cover" />}
@@ -92,7 +92,7 @@ export default async function AdminCurationPage({ searchParams }: { searchParams
           ) : (
             <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
               {candidates.map((p) => (
-                <li key={p.id} className="flex items-center gap-2.5 rounded-xl border border-navy-100 bg-[#1e1e1e] p-2">
+                <li key={p.id} className="flex items-center gap-2.5 rounded-xl border border-navy-100 bg-[#162538] p-2">
                   <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-navy-50">
                     {p.thumbnail && <img src={p.thumbnail} alt="" className="h-full w-full object-cover" />}
                   </span>

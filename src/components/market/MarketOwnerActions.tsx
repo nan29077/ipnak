@@ -48,7 +48,7 @@ export function MarketOwnerActions({ listingId, initialStatus }: { listingId: st
   }
 
   return (
-    <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#161616]/95 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#1e1e1e]">
+    <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
       <div className="mx-auto max-w-[640px]">
         <p className="mb-1.5 text-[11px] font-semibold text-navy-400">판매 상태</p>
         <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ export function MarketOwnerActions({ listingId, initialStatus }: { listingId: st
                 onClick={() => changeStatus(s.key)}
                 className={cn(
                   "flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-[13px] font-semibold transition-all",
-                  status === s.key ? "bg-orange-500 text-white shadow-soft" : "text-navy-500 hover:bg-[#1e1e1e]"
+                  status === s.key ? "bg-orange-500 text-white shadow-soft" : "text-navy-500 hover:bg-[#162538]"
                 )}
               >
                 {status === s.key && <Check size={13} />}{s.label}
@@ -70,7 +70,7 @@ export function MarketOwnerActions({ listingId, initialStatus }: { listingId: st
             onClick={() => setConfirmOpen(true)}
             disabled={busy}
             aria-label="삭제"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-500/30 bg-[#1e1e1e] text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-500/30 bg-[#162538] text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
           >
             {busy ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
           </button>

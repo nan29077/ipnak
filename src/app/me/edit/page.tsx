@@ -138,7 +138,7 @@ export default function EditProfilePage() {
             onChange={(e) => setNickname(e.target.value)}
             maxLength={20}
             placeholder="닉네임 (2~20자)"
-            className="w-full rounded-xl border border-navy-100 bg-[#1e1e1e] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
+            className="w-full rounded-xl border border-navy-100 bg-[#162538] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
           />
           <p className="mt-1 text-right text-[11px] text-navy-400">{nickname.length}/20</p>
         </div>
@@ -154,7 +154,7 @@ export default function EditProfilePage() {
             maxLength={200}
             rows={3}
             placeholder="나를 소개해 보세요 (선택, 최대 200자)"
-            className="w-full resize-none rounded-xl border border-navy-100 bg-[#1e1e1e] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
+            className="w-full resize-none rounded-xl border border-navy-100 bg-[#162538] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
           />
           <p className="mt-1 text-right text-[11px] text-navy-400">{bio.length}/200</p>
         </div>
@@ -169,7 +169,7 @@ export default function EditProfilePage() {
             onChange={(e) => setRegion(e.target.value)}
             maxLength={30}
             placeholder="예: 서울, 경기, 부산 등"
-            className="w-full rounded-xl border border-navy-100 bg-[#1e1e1e] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
+            className="w-full rounded-xl border border-navy-100 bg-[#162538] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
           />
         </div>
 

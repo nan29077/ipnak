@@ -443,12 +443,12 @@ export function MapScreen({ userId }: { userId?: string }) {
             aria-label="GPS 안내 닫기"
             onClick={() => setGpsGuideOpen(false)}
           />
-          <div className="animate-scalein relative w-full max-w-[360px] overflow-hidden rounded-[28px] border border-white/10 bg-[#1e1e1e] shadow-2xl shadow-black/60">
+          <div className="animate-scalein relative w-full max-w-[360px] overflow-hidden rounded-[28px] border border-white/10 bg-[#162538] shadow-2xl shadow-black/60">
             <div className="h-1 w-full bg-gradient-to-r from-orange-700 via-orange-400 to-aqua-400" />
             <div className="px-6 pb-6 pt-7 text-center">
               <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-orange-500/15 ring-1 ring-orange-500/30">
                 <LocateFixed size={30} className="text-orange-400" strokeWidth={1.8} />
-                <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-aqua-500 text-white ring-4 ring-[#1e1e1e]">
+                <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-aqua-500 text-white ring-4 ring-[#162538]">
                   <ShieldCheck size={13} strokeWidth={2.2} />
                 </span>
               </div>
@@ -502,7 +502,7 @@ export function MapScreen({ userId }: { userId?: string }) {
           data-tutorial-step="7"
           onClick={() => { if (!loggedIn) { router.push('/login'); return; } setRecordsOpen(true); }}
           aria-label="내 데이터피싱 기록"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#0d1b2a]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#162538]"
         >
           <ClipboardList size={15} className="text-orange-500" />
           내 기록
@@ -511,12 +511,12 @@ export function MapScreen({ userId }: { userId?: string }) {
         <button
           onClick={() => setMapDetailMode(true)}
           aria-label="지도 전체화면"
-          className="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-2xl bg-[#161616]/95 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+          className="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-2xl bg-[#0d1b2a]/95 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#162538]"
         >
           <Expand size={15} className="text-aqua-400" />
         </button>
         {/* 2행 Col1: 검색 (현위치 버튼 내장) */}
-        <div data-tutorial-step="1" className="relative flex min-w-0 items-center gap-2.5 rounded-2xl bg-[#161616]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
+        <div data-tutorial-step="1" className="relative flex min-w-0 items-center gap-2.5 rounded-2xl bg-[#0d1b2a]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
           <Search size={15} className="shrink-0 text-navy-300" />
           <input
             ref={searchInputRef}
@@ -544,7 +544,7 @@ export function MapScreen({ userId }: { userId?: string }) {
           </button>
           {/* 드롭다운 결과 */}
           {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || geoResults.length > 0 || searchQuery.length >= 2) && (
-            <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card">
+            <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#162538] shadow-card">
               {spotResults.length > 0 && (
                 <>
                   <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400">주요 지역</p>
@@ -604,14 +604,14 @@ export function MapScreen({ userId }: { userId?: string }) {
           <button
             data-tutorial-step="3"
             onClick={() => setMyPointsDropOpen((v) => !v)}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#161616]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#0d1b2a]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#162538]"
           >
             <MapPin size={14} className="text-aqua-400" />
             내 포인트
             <ChevronDown size={12} className={`transition-transform duration-200${myPointsDropOpen ? " rotate-180" : ""}`} />
           </button>
           {myPointsDropOpen && (
-            <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e] shadow-card">
+            <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#162538] shadow-card">
               {myRegions.length === 0 ? (
                 <p className="px-4 py-4 text-center text-[12px] text-navy-400">기록된 포인트가 없습니다</p>
               ) : (
@@ -639,7 +639,7 @@ export function MapScreen({ userId }: { userId?: string }) {
 
       {/* 통계 + 컨트롤 — 모바일: fixed(nav 위), PC: absolute(지도 하단) */}
       <div data-tutorial-step="4" className="map-controls-bar">
-        <div className="mx-auto max-w-[640px] rounded-2xl bg-[#161616]/95 p-3 shadow-card backdrop-blur">
+        <div className="mx-auto max-w-[640px] rounded-2xl bg-[#0d1b2a]/95 p-3 shadow-card backdrop-blur">
           {/* GPS 꺼짐 경고 */}
           {status === "idle" && gpsAvail === false && (
             <div className="mb-2 overflow-hidden rounded-2xl ring-1 ring-orange-500/30" style={{ background: "linear-gradient(135deg,#1a1000 0%,#1e1200 100%)" }}>
@@ -956,7 +956,7 @@ export function MapScreen({ userId }: { userId?: string }) {
           <button
             onClick={() => setMapDetailMode(false)}
             aria-label="지도 전체화면 닫기"
-            className="absolute right-4 z-[9991] inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#161616]/95 text-navy-800 shadow-card ring-1 ring-white/15 backdrop-blur btn-press transition-colors hover:bg-[#1e1e1e]"
+            className="absolute right-4 z-[9991] inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#0d1b2a]/95 text-navy-800 shadow-card ring-1 ring-white/15 backdrop-blur btn-press transition-colors hover:bg-[#162538]"
             style={{ top: "max(1rem, env(safe-area-inset-top, 0px))" }}
           >
             <X size={20} />
@@ -1202,12 +1202,12 @@ function DataFishingTutorial({
       <style>{`
         @keyframes tutorialBorderPulse {
           0%, 100% {
-            border-color: rgba(249,115,22,0.85);
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.82), 0 0 0 0 rgba(249,115,22,0);
+            border-color: rgba(234,179,8,0.85);
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.82), 0 0 0 0 rgba(234,179,8,0);
           }
           50% {
             border-color: rgba(251,146,60,1);
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.82), 0 0 0 6px rgba(249,115,22,0.38), 0 0 22px 4px rgba(249,115,22,0.45);
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.82), 0 0 0 6px rgba(234,179,8,0.38), 0 0 22px 4px rgba(234,179,8,0.45);
           }
         }
         @keyframes tutorialShimmerSweep {
@@ -1234,7 +1234,7 @@ function DataFishingTutorial({
                 width: spotRect.width + pad * 2,
                 height: spotRect.height + pad * 2,
                 borderRadius: radius,
-                border: "2px solid #f97316",
+                border: "2px solid #eab308",
                 animation: "tutorialBorderPulse 1.8s ease-in-out infinite",
                 transition: "left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease",
                 zIndex: 9981,

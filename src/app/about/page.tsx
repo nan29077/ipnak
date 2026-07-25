@@ -8,18 +8,17 @@ import {
 } from "lucide-react";
 
 /* ── PC 배경 이미지 3장 (각 1번씩 등장) ── */
-// A: 호수 보트 일출  B: 바다 보트 선셋  C: 배스 점프 선셋
-const IMG_A = "/낚시%20배경%20사진/배경%20이미지A.png";
-const IMG_B = "/낚시%20배경%20사진/배경%20이미지B.png";
-const IMG_C = "/낚시%20배경%20사진/배경%20이미지C.png";
+const IMG_A = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지3.png";
+const IMG_B = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지2.png";
+const IMG_C = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지6.png";
 
 // 8섹션 ÷ 3이미지 = 2.667 → A:섹션0~2, B:섹션3~5, C:섹션6~7
 // FeatureSection의 bgIdx = Math.floor((featIdx + 1) * 3 / 8)
 // feat0=0, feat1=0, feat2=1, feat3=1, feat4=1, feat5=2
 
 /* ── 모바일 배경 이미지 2장 (각 1번씩 등장) ── */
-const MOBILE_IMG_3 = "/낚시%20배경%20사진/모바일%20배경이미지3.png";
-const MOBILE_IMG_4 = "/낚시%20배경%20사진/모바일%20배경이미지4.png";
+const MOBILE_IMG_3 = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 배경이미지2.png";
+const MOBILE_IMG_4 = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 배경이미지1.png";
 
 // 8섹션 ÷ 2이미지 = 4 → 3: 섹션0~3, 4: 섹션4~7
 // FeatureSection의 mobileBgIdx = Math.floor((featIdx + 1) / 4)
@@ -33,16 +32,16 @@ const FEATURES = [
     sub: "스마트폰으로 물고기 길이를 정밀 측정",
     body: "입낚볼 또는 인쇄 기준물을 물고기 옆에 두고 촬영하면 AI가 자동으로 길이를 계산합니다. 갤러리 사진도 측정 가능하며, 측정 기록은 자동으로 조행기와 연동됩니다.",
     color: "from-orange-500/80 to-orange-700/80",
-    accent: "#f97316",
+    accent: "#eab308",
     features: ["실시간 AI 카메라 측정", "갤러리 사진 측정", "머리·꼬리 수동 지정", "측정 기록 자동 저장"],
   },
   {
     icon: CircleDot,
     title: "입낚볼",
     sub: "NFC 기술로 정밀 측정의 기준이 되는 스마트 볼",
-    body: "40mm 오렌지 구체에 NFC 칩이 내장된 입낚 전용 계측 기준물입니다. 물고기 옆에 두고 촬영하면 AI가 볼의 크기를 기준으로 정확한 길이를 산출합니다. 입낚볼 없이도 인쇄 기준물이나 머리·꼬리 지정으로 측정이 가능합니다.",
+    body: "40mm 진한 노랑 구체에 NFC 칩이 내장된 입낚 전용 계측 기준물입니다. 물고기 옆에 두고 촬영하면 AI가 볼의 크기를 기준으로 정확한 길이를 산출합니다. 입낚볼 없이도 인쇄 기준물이나 머리·꼬리 지정으로 측정이 가능합니다.",
     color: "from-amber-500/80 to-orange-600/80",
-    accent: "#f59e0b",
+    accent: "#eab308",
     features: ["NFC 태그로 볼 ID 연동", "AI 기준점 자동 인식", "A4 인쇄 기준물 제공", "볼 없이도 AI 측정 가능"],
   },
   {
@@ -305,7 +304,7 @@ export default function AboutPage() {
           <img
             src="/logo-ipnak-dark.png"
             alt="입낚"
-            className="h-20 drop-shadow-[0_4px_24px_rgba(249,115,22,0.7)]"
+            className="h-20 drop-shadow-[0_4px_24px_rgba(234,179,8,0.7)]"
           />
           <h1 className="text-5xl font-black leading-tight tracking-tight text-white lg:text-6xl">
             낚시인의 모든 순간을

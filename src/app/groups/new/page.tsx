@@ -35,7 +35,7 @@ export default function NewGroupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#161616] pb-20">
+    <div className="min-h-screen bg-[#0d1b2a] pb-20">
       <div className="flex items-center gap-3 border-b border-navy-100/20 px-3.5 py-3">
         <Link href="/groups"><ArrowLeft size={20} className="text-navy-400" /></Link>
         <h1 className="text-[16px] font-extrabold text-navy-900">낚시단 만들기</h1>
@@ -115,7 +115,7 @@ export default function NewGroupPage() {
           border-radius: 12px; padding: 10px 14px; font-size: 14px; color: #e8eaf6; outline: none;
         }
         .input-base:focus { border-color: rgba(245,124,0,0.5); }
-        .input-base option { background: #1e1e1e; color: #e8eaf6; }
+        .input-base option { background: #162538; color: #e8eaf6; }
       `}</style>
     </div>
   );

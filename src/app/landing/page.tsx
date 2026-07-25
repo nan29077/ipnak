@@ -21,10 +21,14 @@ export default function LandingPage() {
   const enterApp = useCallback(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       sessionStorage.setItem("ipnak_mobile_entered", "1");
+      // 쿠키 세팅: 미들웨어에서 재방문 시 /measure 로 직행
+      document.cookie = "ipnak_entered=mobile; path=/; max-age=86400";
       router.push("/measure");
     } else {
       sessionStorage.setItem("ipnak_pc_entered", "1");
-      router.push("/");
+      // 쿠키 세팅: 미들웨어에서 재방문 시 홈 유지
+      document.cookie = "ipnak_entered=pc; path=/; max-age=86400";
+      router.push("/home");
     }
   }, [router]);
 
@@ -64,7 +68,7 @@ export default function LandingPage() {
           width: 60px;
           height: 60px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(249,115,22,0.55) 0%, rgba(249,115,22,0.12) 55%, transparent 100%);
+          background: radial-gradient(circle, rgba(234,179,8,0.55) 0%, rgba(234,179,8,0.12) 55%, transparent 100%);
           animation: ipnakRipple 0.8s ease-out forwards;
           pointer-events: none;
           z-index: 30;
@@ -91,7 +95,7 @@ export default function LandingPage() {
         <div
           className="absolute inset-0 md:hidden"
           style={{
-            backgroundImage: "url('/낚시%20배경%20사진/배경%20이미지7.png')",
+            backgroundImage: "url('/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 배경이미지4.png')",
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
@@ -103,7 +107,7 @@ export default function LandingPage() {
         <div
           className="absolute inset-0 hidden md:block"
           style={{
-            backgroundImage: "url('/pc-bg-bass-angler.png')",
+            backgroundImage: "url('/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지.png')",
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
@@ -131,7 +135,7 @@ export default function LandingPage() {
             className={`absolute inset-0 transition-all duration-500${isTopActive ? " ipnak-active-glow" : ""}`}
             style={{
               background: isTopActive
-                ? "radial-gradient(ellipse at center, rgba(249,115,22,0.18) 0%, transparent 70%)"
+                ? "radial-gradient(ellipse at center, rgba(234,179,8,0.18) 0%, transparent 70%)"
                 : "transparent",
             }}
           />
@@ -153,7 +157,7 @@ export default function LandingPage() {
               md:bottom-auto md:right-0 md:top-0 md:h-full md:w-[2px] md:left-auto${isTopActive ? " ipnak-active-border" : ""}`}
             style={{
               background: isTopActive
-                ? "linear-gradient(to right, transparent, rgba(249,115,22,0.85), transparent)"
+                ? "linear-gradient(to right, transparent, rgba(234,179,8,0.85), transparent)"
                 : "transparent",
             }}
           />
@@ -177,7 +181,7 @@ export default function LandingPage() {
               className="h-10 transition-all duration-500 md:h-12"
               style={{
                 filter: isTopActive
-                  ? "drop-shadow(0 0 20px rgba(249,115,22,0.9))"
+                  ? "drop-shadow(0 0 20px rgba(234,179,8,0.9))"
                   : "drop-shadow(0 2px 12px rgba(0,0,0,0.6))",
               }}
             />
@@ -185,14 +189,14 @@ export default function LandingPage() {
               className="text-3xl font-black leading-tight tracking-tight text-white md:text-4xl xl:text-5xl"
               style={{
                 textShadow: isTopActive
-                  ? "0 0 40px rgba(249,115,22,0.4), 0 2px 20px rgba(0,0,0,0.8)"
+                  ? "0 0 40px rgba(234,179,8,0.4), 0 2px 20px rgba(0,0,0,0.8)"
                   : "0 2px 20px rgba(0,0,0,0.8)",
                 transition: "text-shadow 0.5s",
               }}
             >
               낚시인의 모든 순간을
               <br />
-              <span style={{ color: isTopActive ? "#fb923c" : "#f97316", transition: "color 0.4s" }}>
+              <span style={{ color: isTopActive ? "#facc15" : "#eab308", transition: "color 0.4s" }}>
                 기록
               </span>
               하다
@@ -203,10 +207,10 @@ export default function LandingPage() {
             <span
               className="mt-1 inline-block rounded-full px-6 py-2 text-sm font-bold transition-all duration-400 md:mt-2 md:px-7 md:py-2.5"
               style={{
-                border: isTopActive ? "2px solid #f97316" : "2px solid rgba(249,115,22,0.6)",
-                background: isTopActive ? "rgba(249,115,22,0.18)" : "transparent",
-                color: isTopActive ? "#fb923c" : "rgba(255,255,255,0.7)",
-                boxShadow: isTopActive ? "0 0 24px rgba(249,115,22,0.3)" : "none",
+                border: isTopActive ? "2px solid #eab308" : "2px solid rgba(234,179,8,0.6)",
+                background: isTopActive ? "rgba(234,179,8,0.18)" : "transparent",
+                color: isTopActive ? "#facc15" : "rgba(255,255,255,0.7)",
+                boxShadow: isTopActive ? "0 0 24px rgba(234,179,8,0.3)" : "none",
               }}
             >
               입낚 소개 보기 →
@@ -220,22 +224,22 @@ export default function LandingPage() {
         <div className="relative z-20 flex flex-shrink-0 items-center justify-center gap-3 flex-row px-8 md:flex-col md:px-0 md:py-8">
           <div
             className="flex-1 transition-all duration-500 h-[1.5px] md:h-auto md:w-[1.5px]"
-            style={{ background: anyActive ? "rgba(249,115,22,0.6)" : "rgba(255,255,255,0.38)" }}
+            style={{ background: anyActive ? "rgba(234,179,8,0.6)" : "rgba(255,255,255,0.38)" }}
           />
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[10px] font-black tracking-widest transition-all duration-500"
             style={{
-              background: anyActive ? "rgba(249,115,22,0.18)" : "rgba(255,255,255,0.10)",
-              border: anyActive ? "1.5px solid rgba(249,115,22,0.7)" : "1.5px solid rgba(255,255,255,0.45)",
-              color: anyActive ? "#fb923c" : "rgba(255,255,255,0.7)",
-              boxShadow: anyActive ? "0 0 16px rgba(249,115,22,0.35)" : "none",
+              background: anyActive ? "rgba(234,179,8,0.18)" : "rgba(255,255,255,0.10)",
+              border: anyActive ? "1.5px solid rgba(234,179,8,0.7)" : "1.5px solid rgba(255,255,255,0.45)",
+              color: anyActive ? "#facc15" : "rgba(255,255,255,0.7)",
+              boxShadow: anyActive ? "0 0 16px rgba(234,179,8,0.35)" : "none",
             }}
           >
             OR
           </span>
           <div
             className="flex-1 transition-all duration-500 h-[1.5px] md:h-auto md:w-[1.5px]"
-            style={{ background: anyActive ? "rgba(249,115,22,0.6)" : "rgba(255,255,255,0.38)" }}
+            style={{ background: anyActive ? "rgba(234,179,8,0.6)" : "rgba(255,255,255,0.38)" }}
           />
         </div>
 
@@ -260,7 +264,7 @@ export default function LandingPage() {
             className={`absolute inset-0 transition-all duration-500${isBottomActive ? " ipnak-active-glow" : ""}`}
             style={{
               background: isBottomActive
-                ? "radial-gradient(ellipse at center, rgba(249,115,22,0.18) 0%, transparent 70%)"
+                ? "radial-gradient(ellipse at center, rgba(234,179,8,0.18) 0%, transparent 70%)"
                 : "transparent",
             }}
           />
@@ -282,7 +286,7 @@ export default function LandingPage() {
               md:top-0 md:left-0 md:right-auto md:h-full md:w-[2px]${isBottomActive ? " ipnak-active-border" : ""}`}
             style={{
               background: isBottomActive
-                ? "linear-gradient(to right, transparent, rgba(249,115,22,0.85), transparent)"
+                ? "linear-gradient(to right, transparent, rgba(234,179,8,0.85), transparent)"
                 : "transparent",
             }}
           />
@@ -304,36 +308,36 @@ export default function LandingPage() {
             <div
               className="flex items-center gap-2 rounded-full px-4 py-1.5 transition-all duration-400"
               style={{
-                background: isBottomActive ? "rgba(249,115,22,0.15)" : "rgba(255,255,255,0.08)",
-                border: isBottomActive ? "1px solid rgba(249,115,22,0.4)" : "1px solid rgba(255,255,255,0.15)",
+                background: isBottomActive ? "rgba(234,179,8,0.15)" : "rgba(255,255,255,0.08)",
+                border: isBottomActive ? "1px solid rgba(234,179,8,0.4)" : "1px solid rgba(255,255,255,0.15)",
               }}
             >
               {/* 모바일: 스마트폰 아이콘 */}
-              <svg className="h-4 w-4 md:hidden" style={{ color: isBottomActive ? "#fb923c" : "rgba(255,255,255,0.5)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="h-4 w-4 md:hidden" style={{ color: isBottomActive ? "#facc15" : "rgba(255,255,255,0.5)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <rect x="5" y="2" width="14" height="20" rx="2" />
                 <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
               </svg>
               {/* PC: 모니터 아이콘 */}
-              <svg className="hidden h-4 w-4 md:block" style={{ color: isBottomActive ? "#fb923c" : "rgba(255,255,255,0.5)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg className="hidden h-4 w-4 md:block" style={{ color: isBottomActive ? "#facc15" : "rgba(255,255,255,0.5)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <rect x="2" y="3" width="20" height="14" rx="2" />
                 <path d="M8 21h8M12 17v4" />
               </svg>
-              <span className="text-xs font-bold tracking-wide md:hidden" style={{ color: isBottomActive ? "#fb923c" : "rgba(255,255,255,0.45)" }}>모바일 버전</span>
-              <span className="hidden text-xs font-bold tracking-wide md:inline" style={{ color: isBottomActive ? "#fb923c" : "rgba(255,255,255,0.45)" }}>PC 버전</span>
+              <span className="text-xs font-bold tracking-wide md:hidden" style={{ color: isBottomActive ? "#facc15" : "rgba(255,255,255,0.45)" }}>모바일 버전</span>
+              <span className="hidden text-xs font-bold tracking-wide md:inline" style={{ color: isBottomActive ? "#facc15" : "rgba(255,255,255,0.45)" }}>PC 버전</span>
             </div>
 
             <h2
               className="text-3xl font-black leading-tight tracking-tight text-white md:text-4xl xl:text-5xl"
               style={{
                 textShadow: isBottomActive
-                  ? "0 0 40px rgba(249,115,22,0.4), 0 2px 20px rgba(0,0,0,0.8)"
+                  ? "0 0 40px rgba(234,179,8,0.4), 0 2px 20px rgba(0,0,0,0.8)"
                   : "0 2px 20px rgba(0,0,0,0.8)",
                 transition: "text-shadow 0.5s",
               }}
             >
               <span className="md:hidden">손 안에서 더 깊게<br />즐기는{" "}</span>
               <span className="hidden md:inline">PC에서 더 넓게<br />즐기는{" "}</span>
-              <span style={{ color: isBottomActive ? "#fb923c" : "#f97316", transition: "color 0.4s" }}>
+              <span style={{ color: isBottomActive ? "#facc15" : "#eab308", transition: "color 0.4s" }}>
                 입낚
               </span>
             </h2>
@@ -348,10 +352,10 @@ export default function LandingPage() {
               className="mt-1 rounded-full px-7 py-2 text-sm font-bold text-white transition-all duration-400 md:mt-2 md:px-8 md:py-2.5"
               style={{
                 background: isBottomActive
-                  ? "linear-gradient(135deg, #f97316, #ea580c)"
-                  : "rgba(249,115,22,0.75)",
+                  ? "linear-gradient(135deg, #eab308, #ca8a04)"
+                  : "rgba(234,179,8,0.75)",
                 boxShadow: isBottomActive
-                  ? "0 0 32px rgba(249,115,22,0.5), 0 4px 16px rgba(0,0,0,0.4)"
+                  ? "0 0 32px rgba(234,179,8,0.5), 0 4px 16px rgba(0,0,0,0.4)"
                   : "0 2px 12px rgba(0,0,0,0.4)",
                 transform: isBottomActive ? "translateY(-1px)" : "translateY(0)",
               }}

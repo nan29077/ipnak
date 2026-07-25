@@ -84,7 +84,7 @@ export function LogDetail({ post, currentUserId }: { post: FeedPost; currentUser
 
         {/* 피싱태그 */}
         {post.productTags.length > 0 && (
-          <div className="mt-5 rounded-2xl border border-navy-100 bg-[#1a1a1a] p-3">
+          <div className="mt-5 rounded-2xl border border-navy-100 bg-[#122030] p-3">
             <FishingTagCards postId={post.id} tags={post.productTags} />
           </div>
         )}
@@ -170,10 +170,10 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
           </div>
         ))}
       </div>
-      <div className="sticky bottom-0 mt-4 flex items-center gap-2 bg-[#161616] py-3">
+      <div className="sticky bottom-0 mt-4 flex items-center gap-2 bg-[#0d1b2a] py-3">
         <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
-          className="flex-1 rounded-full border border-navy-100 bg-[#1e1e1e] px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500" />
+          className="flex-1 rounded-full border border-navy-100 bg-[#162538] px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500" />
         <button onClick={send} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press hover:bg-orange-600"><Send size={16} /></button>
       </div>
     </section>
@@ -185,7 +185,7 @@ function LogCommentRow({ c, onReply }: { c: any; onReply?: () => void }) {
     <div className="flex items-start gap-2.5">
       <img src={getAvatarUrl(c.author.id, c.author.avatarUrl)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-navy-100" />
       <div className="min-w-0 flex-1">
-        <div className="rounded-2xl bg-[#1e1e1e] px-3.5 py-2.5">
+        <div className="rounded-2xl bg-[#162538] px-3.5 py-2.5">
           <p className="text-[13px] font-semibold text-navy-800">{c.author.nickname}</p>
           <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-navy-600">{c.body}</p>
         </div>
@@ -213,7 +213,7 @@ function LogReplyInput({ nickname, disabled, onCancel, onSubmit }: { nickname: s
         ref={ref} value={text} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") onSubmit(text); if (e.key === "Escape") onCancel(); }}
         placeholder={disabled ? "로그인 후 답글을 달 수 있어요" : "답글 달기..."}
-        className="flex-1 rounded-full border border-navy-100 bg-[#1e1e1e] px-3.5 py-2 text-[13px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500"
+        className="flex-1 rounded-full border border-navy-100 bg-[#162538] px-3.5 py-2 text-[13px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500"
       />
       <button onClick={() => onSubmit(text)} aria-label="답글 전송" className="rounded-full bg-orange-500 p-2 text-white btn-press hover:bg-orange-600"><Send size={14} /></button>
       <button onClick={onCancel} aria-label="답글 취소" className="rounded-full p-1.5 text-navy-300 transition-colors hover:bg-navy-50 hover:text-navy-500"><X size={16} /></button>

@@ -116,13 +116,13 @@ export default async function TripDetailPage({ params }: { params: { id: string 
       <div className="space-y-3 p-4">
 
         {/* ── 출조 시간 ── */}
-        <div className="rounded-2xl border border-navy-100 bg-[#1e1e1e] p-4">
+        <div className="rounded-2xl border border-navy-100 bg-[#162538] p-4">
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-navy-400">출조 시간</p>
           <div className="flex gap-3">
             <div className="flex flex-col items-center pt-1">
               <div className="h-2.5 w-2.5 rounded-full bg-orange-500" />
               <div className="my-1 w-px flex-1 bg-navy-100/40" />
-              <div className="h-2.5 w-2.5 rounded-full border-2 border-orange-500 bg-[#1e1e1e]" />
+              <div className="h-2.5 w-2.5 rounded-full border-2 border-orange-500 bg-[#162538]" />
             </div>
             <div className="flex-1 space-y-3">
               <div>
@@ -143,12 +143,12 @@ export default async function TripDetailPage({ params }: { params: { id: string 
 
         {/* ── 통계 ── */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-2xl border border-navy-100 bg-[#1e1e1e] p-3 text-center">
+          <div className="rounded-2xl border border-navy-100 bg-[#162538] p-3 text-center">
             <Navigation size={18} className="mx-auto mb-1 text-aqua-400" strokeWidth={1.7} />
             <p className="text-[17px] font-extrabold text-navy-800">{formatDist(trip.distanceM)}</p>
             <p className="text-[10px] text-navy-400">이동거리</p>
           </div>
-          <div className="rounded-2xl border border-navy-100 bg-[#1e1e1e] p-3 text-center">
+          <div className="rounded-2xl border border-navy-100 bg-[#162538] p-3 text-center">
             <Fish size={18} className="mx-auto mb-1 text-green-400" strokeWidth={1.7} />
             <p className="text-[17px] font-extrabold text-navy-800">{catches.length > 0 ? catches.length : trip.catchCount}</p>
             <p className="text-[10px] text-navy-400">피쉬 기록</p>
@@ -156,7 +156,7 @@ export default async function TripDetailPage({ params }: { params: { id: string 
         </div>
 
         {/* ── 날씨 정보 ── */}
-        <div className="rounded-2xl border border-navy-100 bg-[#1e1e1e] p-4">
+        <div className="rounded-2xl border border-navy-100 bg-[#162538] p-4">
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-navy-400">
             날씨 정보 ({tripDate})
           </p>
@@ -221,14 +221,14 @@ export default async function TripDetailPage({ params }: { params: { id: string 
             피쉬 기록 {catches.length}건
           </p>
           {catches.length === 0 ? (
-            <div className="rounded-2xl border border-navy-100 bg-[#1e1e1e] py-8 text-center">
+            <div className="rounded-2xl border border-navy-100 bg-[#162538] py-8 text-center">
               <Fish size={28} className="mx-auto mb-2 text-navy-300" strokeWidth={1.5} />
               <p className="text-[13px] text-navy-400">이 출조에 등록된 피쉬 기록이 없습니다</p>
             </div>
           ) : (
             <div className="space-y-2">
               {catches.map((c) => (
-                <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-[#1e1e1e] p-3">
+                <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-[#162538] p-3">
                   {c.photoUrl ? (
                     <img
                       src={c.photoUrl}

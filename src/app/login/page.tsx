@@ -40,7 +40,7 @@ export default function LoginPage() {
 
   return (
     /* 외부 컨테이너: 배경만 담당, 스크롤 허용 */
-    <div className="min-h-screen bg-gradient-to-b from-[#0d1626] via-[#161616] to-[#243a63]">
+    <div className="min-h-screen bg-gradient-to-b from-[#0d1626] via-[#0d1b2a] to-[#243a63]">
       {/* 내용 컨테이너: 위쪽 30% 여백 → 시각적으로 중앙보다 약간 아래에 배치 */}
       <div className="mx-auto w-full max-w-md px-6 pt-[22vh] pb-12">
 

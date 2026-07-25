@@ -74,13 +74,13 @@ export function CurationHome({
       {/* 히어로 큐레이션 — 실제 바다 낚시 사진 배너 + 그라디언트 오버레이로 텍스트 가독성 확보 */}
       <section className="relative overflow-hidden pb-5 pt-6">
         <img
-          src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1200&q=80"
+          src="/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지1.png"
           alt=""
           aria-hidden
           className="absolute inset-0 h-full w-full object-cover"
         />
-        {/* 반투명 오버레이: 위는 살짝, 아래로 갈수록 페이지 배경(#161616)과 자연스럽게 이어진다 */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#161616]/60 via-[#161616]/75 to-[#161616]" aria-hidden />
+        {/* 반투명 오버레이: 위는 살짝, 아래로 갈수록 페이지 배경(#0d1b2a)과 자연스럽게 이어진다 */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0d1b2a]/60 via-[#0d1b2a]/75 to-[#0d1b2a]" aria-hidden />
         <div className="relative px-4">
           <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-orange-400">IPNAK CURATION</p>
           <h1 className="mt-1.5 text-[24px] font-extrabold leading-[1.25] tracking-tight text-navy-900 drop-shadow-sm">
@@ -155,7 +155,7 @@ export function CurationHome({
               const endLabel = t.endDate ? new Date(t.endDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }) : "";
               return (
                 <Link key={t.id} href={`/tournaments/${t.id}`} className="block w-[260px] shrink-0 snap-start">
-                  <div className="rounded-2xl border border-navy-100 bg-gradient-to-br from-[#1a2a1a] to-[#1e1e1e] p-4">
+                  <div className="rounded-2xl border border-navy-100 bg-gradient-to-br from-[#1a2a1a] to-[#162538] p-4">
                     <div className="mb-2 flex items-center gap-1.5">
                       <span className="rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold text-orange-400">{TYPE_LABEL[t.type] ?? t.type}</span>
                       <span className="rounded-full bg-aqua-500/15 px-2 py-0.5 text-[10px] font-semibold text-aqua-400">진행중</span>
@@ -189,7 +189,7 @@ export function CurationHome({
 
       {/* 조행기 더 보기 */}
       <div className="mt-6 px-4">
-        <Link href="/log" className="flex items-center justify-between rounded-2xl border border-navy-100 bg-[#1a1a1a] px-4 py-3.5 transition-colors hover:bg-[#1e1e1e]">
+        <Link href="/log" className="flex items-center justify-between rounded-2xl border border-navy-100 bg-[#122030] px-4 py-3.5 transition-colors hover:bg-[#162538]">
           <span className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-aqua-500/15 text-aqua-300"><IconBook size={18} /></span>
             <span>
@@ -292,7 +292,7 @@ function FeedRailCard({ post }: { post: FeedPost }) {
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#242424] to-[#161616]">
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1c2c3e] to-[#0d1b2a]">
             <IconFish size={30} className="text-navy-300" />
           </div>
         )}
@@ -345,11 +345,11 @@ function RankBadge({ rank }: { rank: number }) {
 
 function CurationCard({ post, rank }: { post: CurationCardPost; rank?: number }) {
   return (
-    <Link href={post.href} className="block w-[250px] shrink-0 overflow-hidden rounded-2xl border border-navy-100 bg-[#1e1e1e] shadow-card transition-colors hover:border-orange-500/40">
+    <Link href={post.href} className="block w-[250px] shrink-0 overflow-hidden rounded-2xl border border-navy-100 bg-[#162538] shadow-card transition-colors hover:border-orange-500/40">
       <div className="relative h-32 w-full bg-navy-50">
         {post.thumbnail
           ? <img src={post.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
-          : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#242424] to-[#161616] text-navy-300"><IconFish size={26} /></div>}
+          : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1c2c3e] to-[#0d1b2a] text-navy-300"><IconFish size={26} /></div>}
         {rank != null && <RankBadge rank={rank} />}
         {post.boardLabel
           ? <span className="absolute right-2.5 top-2.5 inline-flex items-center rounded-md bg-aqua-500/90 px-2 py-0.5 text-[11px] font-bold text-white shadow">{post.boardLabel}</span>
@@ -423,7 +423,7 @@ function WalkingRailCard({ post }: { post: FeedPost }) {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/[0.06] ring-1 ring-white/10">
               <Lock size={20} className="text-amber-300" strokeWidth={1.8} />
             </div>
-            <span className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-extrabold text-[#161616]">200P로 열기</span>
+            <span className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-extrabold text-[#0d1b2a]">200P로 열기</span>
           </div>
         ) : routePoints.length >= 1 ? (
           <MiniRouteMap points={routePoints} catchPoints={catchMarkers.length > 0 ? catchMarkers : undefined} />

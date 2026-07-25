@@ -43,7 +43,7 @@ const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 const CAL_COLOR = "#2dd4bf"; // aqua / cyan
-const FISH_COLOR = "#f97316"; // brand orange
+const FISH_COLOR = "#eab308"; // brand orange
 
 // 어종 목록 (fishData 에서)
 const ALL_SPECIES_NAMES = Object.keys(SPECIES_AVG_CM);
@@ -396,7 +396,7 @@ function SmartRulerImpl({
         onPointerUp={onCanvasPointerUp}
         onPointerCancel={onCanvasPointerUp}
         onWheel={onWheel}
-        className="relative w-full select-none overflow-hidden rounded-xl bg-[#1a1a1a]"
+        className="relative w-full select-none overflow-hidden rounded-xl bg-[#122030]"
         style={{ aspectRatio: "1 / 1", cursor: zoom > 1 ? "grab" : "crosshair", touchAction: "none" }}
       >
         <div
@@ -584,7 +584,7 @@ function ToolBtn({ onClick, label, children, disabled }: { onClick: () => void; 
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="flex items-center gap-1 rounded-lg border border-navy-100 bg-[#1e1e1e] px-2.5 py-1.5 text-xs font-medium text-navy-700 disabled:opacity-40"
+      className="flex items-center gap-1 rounded-lg border border-navy-100 bg-[#162538] px-2.5 py-1.5 text-xs font-medium text-navy-700 disabled:opacity-40"
     >
       {children}
     </button>
