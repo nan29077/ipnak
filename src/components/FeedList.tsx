@@ -1,12 +1,37 @@
 "use client";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { LayoutList, LayoutGrid, Ruler, Fish } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
 import { EmptyState, LinkButton } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import type { FeedPost } from "@/lib/queries";
 
+const STICKERS = [
+  "/입낚_NoImage_물고기.svg",
+  "/입낚_NoImage_바늘.svg",
+  "/입낚_NoImage_찌.svg",
+] as const;
+
+export function useViewMode(key: string): ["list" | "card", (m: "list" | "card") => void] {
+  const [mode, setMode] = useState<"list" | "card">("list");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved === "card") setMode("card");
+    } catch {}
+  }, [key]);
+  const update = (m: "list" | "card") => {
+    setMode(m);
+    try { localStorage.setItem(key, m); } catch {}
+  };
+  return [mode, update];
+}
+
 export function FeedList({ posts, currentUserId, banners }: { posts: FeedPost[]; currentUserId?: string; banners?: { title: string; imageUrl: string | null; linkUrl?: string | null }[] }) {
+  const [viewMode, setViewMode] = useViewMode("ipnak_view_feed");
   const visible = posts;
 
   return (
@@ -33,8 +58,39 @@ export function FeedList({ posts, currentUserId, banners }: { posts: FeedPost[];
           })}
         </div>
       )}
+
+      {/* 보기 모드 토글 */}
+      <div className="flex justify-end px-3 pb-2 pt-1">
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
+      </div>
+
       {visible.length === 0 ? (
         <EmptyState title="피싱 피드가 없습니다" desc="첫 조황 사진을 올려보세요" action={<LinkButton href="/post/new">피싱 피드 올리기</LinkButton>} />
+      ) : viewMode === "card" ? (
+        <div className="grid grid-cols-3 gap-0.5">
+          {visible.map((p) => {
+            const thumb = p.images[0]?.url ?? null;
+            return (
+              <Link key={p.id} href={`/post/${p.id}`} className="relative aspect-square overflow-hidden bg-[#1b2b3a]">
+                {thumb ? (
+                  <img src={thumb} alt={p.speciesName || "피드"} loading="lazy" className="h-full w-full object-cover" />
+                ) : (
+                  <img src={STICKERS[p.id.charCodeAt(0) % 3]} alt="" className="h-full w-full object-contain p-6 opacity-30" />
+                )}
+                {p.sizeCm != null && (
+                  <span className="absolute bottom-1 left-1 flex items-center gap-0.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    <Ruler size={9} />{p.sizeCm}cm
+                  </span>
+                )}
+                {p.speciesName && (
+                  <span className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-aqua-500/85 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    <Fish size={9} />{p.speciesName}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
       ) : (
         <div className="md:py-3">
           {visible.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
@@ -43,3 +99,34 @@ export function FeedList({ posts, currentUserId, banners }: { posts: FeedPost[];
     </div>
   );
 }
+
+function ViewToggle({ mode, onChange }: { mode: "list" | "card"; onChange: (m: "list" | "card") => void }) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-xl bg-navy-50/20 p-0.5">
+      <button
+        type="button"
+        onClick={() => onChange("list")}
+        aria-label="리스트로 보기"
+        className={cn(
+          "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition-all",
+          mode === "list" ? "bg-[#162538] text-navy-800 shadow-sm" : "text-navy-400"
+        )}
+      >
+        <LayoutList size={15} /> 리스트
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("card")}
+        aria-label="카드로 보기"
+        className={cn(
+          "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold transition-all",
+          mode === "card" ? "bg-[#162538] text-navy-800 shadow-sm" : "text-navy-400"
+        )}
+      >
+        <LayoutGrid size={15} /> 카드
+      </button>
+    </div>
+  );
+}
+
+export { ViewToggle };

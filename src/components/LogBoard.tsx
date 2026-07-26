@@ -4,12 +4,14 @@ import Link from "next/link";
 import { MessageSquare, Eye, ImageIcon, PenLine, BookOpen } from "lucide-react";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { Chip, EmptyState, LinkButton } from "@/components/ui";
+import { ViewToggle, useViewMode } from "@/components/FeedList";
 import { LOG_CATEGORIES } from "@/lib/taxonomy";
 import { timeAgo } from "@/lib/utils";
 import type { LogListItem } from "@/lib/queries";
 
 export function LogBoard({ posts, counts, currentUserId }: { posts: LogListItem[]; counts: Record<string, number>; currentUserId?: string }) {
   const [cat, setCat] = useState("ALL");
+  const [viewMode, setViewMode] = useViewMode("ipnak_view_log");
   const visible = useMemo(() => (cat === "ALL" ? posts : posts.filter((p) => (p.boardCategory ?? "WALKING") === cat)), [posts, cat]);
 
   return (
@@ -37,14 +39,35 @@ export function LogBoard({ posts, counts, currentUserId }: { posts: LogListItem[
           </h1>
           <p className="mt-0.5 text-[12px] text-navy-400">출조 후기와 조행 정보를 글로 나눠요</p>
         </div>
-        <Link href={currentUserId ? "/log/new" : "/login"}
-          className="inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-3.5 py-2 text-[13px] font-semibold text-white shadow-soft transition-colors hover:bg-orange-600 active:scale-[0.97]">
-          <PenLine size={15} /> 글쓰기
-        </Link>
+        <div className="flex items-center gap-2">
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+          <Link href={currentUserId ? "/log/new" : "/login"}
+            className="inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-3.5 py-2 text-[13px] font-semibold text-white shadow-soft transition-colors hover:bg-orange-600 active:scale-[0.97]">
+            <PenLine size={15} /> 글쓰기
+          </Link>
+        </div>
       </div>
 
       {visible.length === 0 ? (
         <EmptyState title="아직 조행기가 없어요" desc="첫 조행기를 남겨보세요" action={<LinkButton href={currentUserId ? "/log/new" : "/login"}>조행기 쓰기</LinkButton>} />
+      ) : viewMode === "card" ? (
+        <div className="mt-2 grid grid-cols-3 gap-0.5 px-0.5">
+          {visible.map((p) => (
+            <Link key={p.id} href={`/log/${p.id}`} className="relative aspect-square overflow-hidden rounded-sm bg-[#122030]">
+              {p.thumbnail ? (
+                <img src={p.thumbnail} alt={p.title} loading="lazy" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-[#1a2d3e]">
+                  <BookOpen size={20} className="text-navy-400" strokeWidth={1.3} />
+                </div>
+              )}
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-2">
+                <p className="line-clamp-2 text-[10px] font-semibold leading-tight text-white">{p.title}</p>
+              </div>
+              <span className="absolute left-1.5 top-1.5 rounded bg-orange-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">{p.boardLabel}</span>
+            </Link>
+          ))}
+        </div>
       ) : (
         <ul className="mt-2 flex flex-col gap-2.5 px-3 pb-10">
           {visible.map((p) => <LogRow key={p.id} post={p} />)}

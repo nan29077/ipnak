@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye, LocateFixed, ShieldCheck, Map as MapIcon2 } from "lucide-react";
+import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, ChevronLeft, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye, LocateFixed, ShieldCheck, Map as MapIcon2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { MapView } from "@/components/map/MapView";
@@ -45,7 +45,7 @@ export function MapScreen({ userId }: { userId?: string }) {
   const [myPointsDropOpen, setMyPointsDropOpen] = useState(false);
   const myPointsDropRef = useRef<HTMLDivElement>(null);
 
-  // ---- 데이터피싱 튜토리얼 ----
+  // ---- 스마트피싱 튜토리얼 ----
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
 
@@ -121,10 +121,10 @@ export function MapScreen({ userId }: { userId?: string }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bgMode]);
 
-  // 데이터피싱 종료 시 배경 모드 자동 해제
+  // 스마트피싱 종료 시 배경 모드 자동 해제
   useEffect(() => { if (status === "idle") setBgMode(false); }, [status]);
 
-  // 데이터피싱 튜토리얼 — 회원별 최초 1회
+  // 스마트피싱 튜토리얼 — 회원별 최초 1회
   useEffect(() => {
     try {
       const key = userId ? `${MAP_TUTORIAL_KEY}:${userId}` : MAP_TUTORIAL_KEY;
@@ -458,7 +458,7 @@ export function MapScreen({ userId }: { userId?: string }) {
 
   return (
     <div className="relative h-[calc(100dvh-7.75rem)] max-h-[calc(100dvh-7.75rem)] w-full overflow-hidden overscroll-none md:h-[calc(100dvh-3.25rem)] md:max-h-[calc(100dvh-3.25rem)]">
-      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="데이터피싱 기록 기능" />
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="스마트피싱 기록 기능" />
       {gpsGuideOpen && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center px-5" role="dialog" aria-modal="true" aria-labelledby="gps-guide-title">
           <button
@@ -482,7 +482,7 @@ export function MapScreen({ userId }: { userId?: string }) {
               </p>
               <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-aqua-500/10 px-3.5 py-3 text-left ring-1 ring-aqua-500/20">
                 <ShieldCheck size={17} className="mt-0.5 shrink-0 text-aqua-400" />
-                <p className="text-[12px] leading-5 text-navy-500">위치 정보는 데이터피싱 기록을 만드는 데만 사용해요.</p>
+                <p className="text-[12px] leading-5 text-navy-500">위치 정보는 스마트피싱 기록을 만드는 데만 사용해요.</p>
               </div>
               <div className="mt-6 grid grid-cols-2 gap-2.5">
                 <button
@@ -525,7 +525,7 @@ export function MapScreen({ userId }: { userId?: string }) {
         <button
           data-tutorial-step="7"
           onClick={() => { if (!loggedIn) { router.push('/login'); return; } setRecordsOpen(true); }}
-          aria-label="내 데이터피싱 기록"
+          aria-label="내 스마트피싱 기록"
           className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#0d1b2a]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#162538]"
         >
           <ClipboardList size={15} className="text-orange-500" />
@@ -798,8 +798,8 @@ export function MapScreen({ userId }: { userId?: string }) {
         </div>
       </div>
 
-      {/* 내 데이터피싱 기록 시트 */}
-      <Sheet open={recordsOpen} onClose={() => setRecordsOpen(false)} title="내 데이터피싱 기록" size="md">
+      {/* 내 스마트피싱 기록 시트 */}
+      <Sheet open={recordsOpen} onClose={() => setRecordsOpen(false)} title="내 스마트피싱 기록" size="md">
         {savedTrips.length === 0 ? (
           <p className="py-12 text-center text-sm text-navy-300">
             아직 저장된 기록이 없습니다.<br />“기록 시작”으로 동선을 기록해보세요.
@@ -867,7 +867,7 @@ export function MapScreen({ userId }: { userId?: string }) {
         )}
       </Sheet>
 
-      {/* 데이터피싱 기록 상세 시트 */}
+      {/* 스마트피싱 기록 상세 시트 */}
       <TripDetailSheet
         open={!!detailTrip}
         onClose={() => setDetailTrip(null)}
@@ -888,7 +888,7 @@ export function MapScreen({ userId }: { userId?: string }) {
               <p className="text-[15px] font-semibold tracking-wide" style={{ color: "rgba(251,146,60,0.7)" }}>탭하여 화면 켜기</p>
             </div>
           ) : (
-            /* 화면 켜짐 — 데이터피싱 풀스크린 UI */
+            /* 화면 켜짐 — 스마트피싱 풀스크린 UI */
             <div className="flex h-full flex-col items-center justify-between px-5 pb-14 pt-16">
               {/* 시계 */}
               <div className="flex flex-col items-center">
@@ -905,7 +905,7 @@ export function MapScreen({ userId }: { userId?: string }) {
                 {/* 통계 카드 */}
                 <div className="overflow-hidden rounded-[24px] ring-1 ring-white/8" style={{ background: "rgba(255,255,255,0.05)" }}>
                   <div className="px-4 pb-1 pt-3">
-                    <p className="text-[11px] font-semibold text-white/30">데이터피싱 진행 중</p>
+                    <p className="text-[11px] font-semibold text-white/30">스마트피싱 진행 중</p>
                   </div>
                   <div className="grid grid-cols-3 divide-x divide-white/8 pb-4 pt-1 text-center">
                     {[
@@ -1008,7 +1008,7 @@ export function MapScreen({ userId }: { userId?: string }) {
               </div>
               <p className="mt-4 text-center text-[16px] font-bold text-white">피쉬 기록이 없습니다</p>
               <p className="mt-2 text-center text-[13px] leading-relaxed text-white/48">
-                워킹 피드를 올리려면 데이터피싱<br />기록 중 물고기를 등록하세요.
+                워킹 피드를 올리려면 스마트피싱<br />기록 중 물고기를 등록하세요.
               </p>
             </div>
 
@@ -1029,7 +1029,7 @@ export function MapScreen({ userId }: { userId?: string }) {
       <ConfirmDialog
         open={!!deleteTarget}
         title="이 기록을 삭제할까요?"
-        message="삭제한 데이터피싱 기록은 복구할 수 없습니다."
+        message="삭제한 스마트피싱 기록은 복구할 수 없습니다."
         confirmLabel="삭제"
         cancelLabel="취소"
         danger
@@ -1037,7 +1037,7 @@ export function MapScreen({ userId }: { userId?: string }) {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      {/* ── 데이터피싱 튜토리얼 ── */}
+      {/* ── 스마트피싱 튜토리얼 ── */}
       {tutorialOpen && typeof document !== "undefined" && (
         <DataFishingTutorial
           step={tutorialStep}
@@ -1045,6 +1045,7 @@ export function MapScreen({ userId }: { userId?: string }) {
             if (tutorialStep < MAP_TUTORIAL_STEPS.length - 1) setTutorialStep((s) => s + 1);
             else completeTutorial();
           }}
+          onBack={() => setTutorialStep((s) => Math.max(0, s - 1))}
           onSkip={completeTutorial}
         />
       )}
@@ -1095,7 +1096,7 @@ function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; 
 }
 
 /* ─────────────────────────────────────────────────────
-   데이터피싱 튜토리얼 — DOM 실측 스포트라이트 오버레이
+   스마트피싱 튜토리얼 — DOM 실측 스포트라이트 오버레이
    getBoundingClientRect() 로 실제 버튼 위치를 측정해
    box-shadow 방식으로 픽셀 단위 정확하게 하이라이트
 ───────────────────────────────────────────────────── */
@@ -1169,7 +1170,7 @@ const MAP_TUTORIAL_STEPS: Array<{
   {
     icon: <Fish size={30} strokeWidth={1.6} className="text-aqua-400" />,
     title: "낚시 중 물고기를 바로 기록해요",
-    desc: "기록 중 하단 '피쉬' 버튼을 탭하면 AI 측정 화면으로 이동해 물고기 사진과 크기를 기록할 수 있어요. 측정 완료 후 데이터피싱 화면으로 자동 복귀해요.",
+    desc: "기록 중 하단 '피쉬' 버튼을 탭하면 AI 측정 화면으로 이동해 물고기 사진과 크기를 기록할 수 있어요. 측정 완료 후 스마트피싱 화면으로 자동 복귀해요.",
     hint: "기록 중 → 하단 피쉬 버튼",
     target: "4",  // 피쉬 버튼은 기록 중에만 표시 — 하단 컨트롤바 전체 하이라이트
     pad: 6,
@@ -1178,7 +1179,7 @@ const MAP_TUTORIAL_STEPS: Array<{
   {
     icon: <ClipboardList size={30} strokeWidth={1.6} className="text-orange-400" />,
     title: "내 기록을 언제든 확인해요",
-    desc: "상단 오른쪽 '내 기록' 버튼으로 이전 데이터피싱 기록을 모두 볼 수 있어요. 기록을 탭하면 이동 경로·어획 정보를 상세히 확인하고 워킹 피드에 공유할 수 있어요.",
+    desc: "상단 오른쪽 '내 기록' 버튼으로 이전 스마트피싱 기록을 모두 볼 수 있어요. 기록을 탭하면 이동 경로·어획 정보를 상세히 확인하고 워킹 피드에 공유할 수 있어요.",
     hint: "상단 첫 번째 줄 → 내 기록",
     target: "7",
     pad: 4,
@@ -1187,9 +1188,9 @@ const MAP_TUTORIAL_STEPS: Array<{
 ];
 
 function DataFishingTutorial({
-  step, onNext, onSkip,
+  step, onNext, onBack, onSkip,
 }: {
-  step: number; onNext: () => void; onSkip: () => void;
+  step: number; onNext: () => void; onBack: () => void; onSkip: () => void;
 }) {
   const s = MAP_TUTORIAL_STEPS[step];
   const isLast = step === MAP_TUTORIAL_STEPS.length - 1;
@@ -1334,13 +1335,24 @@ function DataFishingTutorial({
               </div>
 
               <div className="mt-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={onSkip}
-                  className="rounded-2xl px-4 py-2.5 text-[13px] font-medium text-white/30 transition-colors hover:text-white/55"
-                >
-                  건너뛰기
-                </button>
+                {step > 0 ? (
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="flex items-center gap-1 rounded-2xl px-4 py-2.5 text-[13px] font-medium text-white/40 transition-colors hover:text-white/70"
+                  >
+                    <ChevronLeft size={15} />
+                    뒤로
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onSkip}
+                    className="rounded-2xl px-4 py-2.5 text-[13px] font-medium text-white/30 transition-colors hover:text-white/55"
+                  >
+                    건너뛰기
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onNext}

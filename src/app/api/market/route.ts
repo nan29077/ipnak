@@ -11,11 +11,13 @@ export async function GET(req: Request) {
   const category = searchParams.get("category") || "";
   const region = searchParams.get("region") || "";
   const sort = searchParams.get("sort") || "recent";
+  const sellerId = searchParams.get("sellerId") || "";
 
   const where: any = {};
   if (category && category !== "ALL") where.category = category;
   if (region && region !== "ALL") where.region = region;
   if (q) where.title = { contains: q };
+  if (sellerId) where.sellerId = sellerId;
 
   const orderBy =
     sort === "price_asc" ? { price: "asc" as const }

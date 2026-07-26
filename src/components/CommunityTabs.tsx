@@ -25,6 +25,7 @@ export function CommunityTabs() {
           <Link
             key={t.href}
             href={t.href}
+            replace
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex flex-col items-center gap-1.5 rounded-2xl py-3 text-[12px] font-semibold transition-all active:scale-[0.96]",

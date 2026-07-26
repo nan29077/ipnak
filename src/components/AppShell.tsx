@@ -20,28 +20,23 @@ export type SessionUser = {
 
 type NavItemDef = { href: string; label: string; icon: any; match: (p: string) => boolean };
 
-// shopEnabled=false 이면 "쇼핑" 자리에 "중고피싱"을 노출한다.
-function commerceItem(shopEnabled: boolean): NavItemDef {
-  return shopEnabled
-    ? { href: "/shop", label: "쇼핑", icon: IconTackleBox, match: (p) => p.startsWith("/shop") }
-    : { href: "/market", label: "중고피싱", icon: IconTackleBox, match: (p) => p.startsWith("/market") };
-}
-
-// 모바일 하단 4탭 (+ 중앙 물고기기록 FAB): 커뮤니티 / 데이터피싱 / [●+] / 중고피싱 / 마이
-function buildMobileNav(shopEnabled: boolean): NavItemDef[] {
+// 모바일 하단 4탭 (+ 중앙 물고기기록 FAB): 커뮤니티 / 스마트피싱 / [●+] / 중고피싱 / 마이
+// 쇼핑 메뉴는 데스크톱 사이드 메뉴에만 추가됨 (모바일 하단은 항상 중고피싱 유지)
+function buildMobileNav(_shopEnabled: boolean): NavItemDef[] {
   return [
     { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/groups") || p.startsWith("/explore") },
-    { href: "/map", label: "데이터피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
-    commerceItem(shopEnabled),
+    { href: "/map", label: "스마트피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
+    { href: "/market", label: "중고피싱", icon: IconTackleBox, match: (p) => p.startsWith("/market") },
     { href: "/me", label: "마이", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },
   ];
 }
 
-// PC 우측 세로 메뉴: 전체 메뉴 나열 (물고기기록 FAB는 slice(2) 앞에 삽입)
+// PC 우측 세로 메뉴: 전체 메뉴 나열 (물고기기록 FAB는 index 2 앞에 삽입)
+// shopEnabled=true 면 중고피싱 + 쇼핑 모두 노출
 function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): NavItemDef[] {
   return [
     { href: "/home", label: "홈", icon: IconHome, match: (p) => p === "/" || p === "/home" || p.startsWith("/post") || p.startsWith("/profile") },
-    { href: "/map", label: "데이터피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
+    { href: "/map", label: "스마트피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
     // ↑ 여기(인덱스 2 앞)에 물고기기록(측정) FAB 삽입
     { href: "/diary", label: "계측일지", icon: IconFish, match: (p) => p.startsWith("/diary") },
     { href: "/log", label: "조황일지", icon: IconBook, match: (p) => p.startsWith("/log") },
@@ -50,7 +45,12 @@ function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): Nav
     ...(reservationEnabled
       ? [{ href: "/reservations", label: "예약", icon: IconCalendar, match: (p: string) => p.startsWith("/reservations") }]
       : []),
-    commerceItem(shopEnabled),
+    // 중고피싱은 항상 노출
+    { href: "/market", label: "중고피싱", icon: IconTackleBox, match: (p) => p.startsWith("/market") },
+    // 쇼핑 메뉴 켜져 있으면 중고피싱 아래에 추가
+    ...(shopEnabled
+      ? [{ href: "/shop", label: "쇼핑", icon: IconTackleBox, match: (p: string) => p.startsWith("/shop") }]
+      : []),
     { href: "/me", label: "마이페이지", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },
   ];
 }

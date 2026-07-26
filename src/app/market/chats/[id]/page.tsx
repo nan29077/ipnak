@@ -3,11 +3,12 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { PageHeader, Badge } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { won } from "@/lib/utils";
 import { marketStatusLabel } from "@/lib/taxonomy";
 import { MarketChatRoom } from "@/components/market/MarketChatRoom";
 import { MarketChatLayout } from "@/components/market/MarketChatLayout";
+import { ChatPageHeader } from "@/components/market/ChatPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +36,8 @@ export default async function MarketChatRoomPage({ params }: { params: { id: str
   return (
     // MarketChatLayout: visualViewport API로 키보드 등장 시 높이를 동적 조정 → 하단 입력창 항상 키보드 바로 위
     <MarketChatLayout>
-      {/* 상단 헤더 — 항상 고정 */}
-      <PageHeader title={other.nickname} back sub={amSeller ? "구매 희망자" : "판매자"} />
+      {/* 채팅 전용 헤더 — sticky 없는 순수 shrink-0 flex 아이템 (PageHeader의 sticky top-[52px]가 상품카드 위를 덮는 버그 방지) */}
+      <ChatPageHeader nickname={other.nickname} sub={amSeller ? "구매 희망자" : "판매자"} />
 
       {/* 거래 상품 요약 카드 — 헤더 바로 아래 고정 */}
       <Link

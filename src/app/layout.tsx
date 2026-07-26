@@ -60,8 +60,9 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  const [shopEnabled, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabledSetting] = await Promise.all([
+  const [shopEnabled, shopTagEnabled, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabledSetting] = await Promise.all([
     getBoolSetting("shop_menu_enabled"),
+    getBoolSetting("shop_tag_enabled"),
     getBoolSetting("bass_only_mode"),
     getBoolSetting("reservation_enabled"),
     getBoolSetting("walking_feed_enabled"),
@@ -82,7 +83,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="antialiased font-sans">
         <ToastProvider>
           <RecordingProvider>
-            <AppSettingsProvider value={{ bassOnlyMode, reservationEnabled, shopMenuEnabled: shopEnabled, walkingFeedEnabled, pointsEnabled: pointsEnabledSetting }}>
+            <AppSettingsProvider value={{ bassOnlyMode, reservationEnabled, shopMenuEnabled: shopEnabled, shopTagEnabled, walkingFeedEnabled, pointsEnabled: pointsEnabledSetting }}>
               <AppShell user={user} shopEnabled={shopEnabled} reservationEnabled={reservationEnabled} pointsEnabled={pointsEnabledSetting} pcMarginBg={pcMarginBg}>{children}</AppShell>
             </AppSettingsProvider>
           </RecordingProvider>

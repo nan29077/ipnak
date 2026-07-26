@@ -397,9 +397,26 @@ model Product {
   description    String?
   feeRate        Int              @default(10) // 리퍼럴 수수료율(%)
   affiliateCode  String? // 제휴/리퍼럴 코드 (실연동 시 사용)
+  shippingFee    Int              @default(0)   // 배송비(원), 0=무료배송
+  options        String?                        // JSON: [{"name":"색상","values":["블랙","화이트"]}]
   createdAt      DateTime         @default(now())
   postTags       PostProductTag[]
   referralEvents ReferralEvent[]
+  featuredSlots  FeaturedProduct[]
+}
+
+// 쇼핑 메뉴 노출 상품 (오늘의 상품 / 이번 주 추천 / 이번 달 추천 / 베스트)
+// section: TODAY | WEEKLY | MONTHLY | BEST
+model FeaturedProduct {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  section   String   // TODAY | WEEKLY | MONTHLY | BEST
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([productId, section])
+  @@index([section])
 }
 
 // 피싱 태그 리퍼럴 추적 — 클릭/전환(구매) 이벤트와 작성자 적립 수익

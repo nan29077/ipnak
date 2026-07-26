@@ -53,11 +53,14 @@ export default async function MarketChatsPage() {
               ? last.body.replace("[시스템] ", "")
               : last?.body;
 
+            // 답장 필요 여부: 상대방이 마지막 메시지를 보냈고 시스템 메시지가 아닌 경우
+            const needsReply = last && !isSystem && last.senderId !== user.id;
+
             return (
               <Link
                 key={c.id}
                 href={`/market/chats/${c.id}`}
-                className="flex items-center gap-3 bg-[#162538] px-3.5 py-3.5 transition-colors active:bg-navy-50/5"
+                className={`flex items-center gap-3 px-3.5 py-3.5 transition-colors active:bg-navy-50/5 ${needsReply ? "bg-[#1a2c40] border-l-2 border-amber-400" : "bg-[#162538]"}`}
               >
                 {/* 상대방 아바타 */}
                 <div className="relative shrink-0">
@@ -66,18 +69,21 @@ export default async function MarketChatsPage() {
                     alt={other.nickname}
                     className="h-14 w-14 rounded-full object-cover ring-1 ring-navy-100/20"
                   />
+                  {needsReply && (
+                    <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full bg-amber-400 ring-2 ring-[#1a2c40]" />
+                  )}
                 </div>
 
                 {/* 채팅 내용 */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <p className="text-[14px] font-semibold text-navy-900 truncate">{other.nickname}</p>
-                    <span className={`shrink-0 rounded-full px-1.5 py-0 text-[10px] font-semibold ${amSeller ? "bg-navy-50/30 text-navy-400" : "bg-aqua-400/15 text-aqua-400"}`}>
-                      {amSeller ? "구매희망" : "판매자"}
+                    <span className={`shrink-0 rounded-full px-1.5 py-0 text-[10px] font-semibold ${amSeller ? "bg-orange-500/15 text-orange-400" : "bg-aqua-400/15 text-aqua-400"}`}>
+                      {amSeller ? "판매 상품" : "구매 상품"}
                     </span>
                   </div>
                   <p className="text-[13px] text-navy-800 truncate">{c.listing.title}</p>
-                  <p className={`text-[12px] truncate mt-0.5 ${isSystem ? "italic text-navy-300" : "text-navy-400"}`}>
+                  <p className={`text-[12px] truncate mt-0.5 ${isSystem ? "italic text-navy-300" : needsReply ? "font-semibold text-amber-300" : "text-navy-400"}`}>
                     {displayMsg ?? "대화를 시작해보세요"}
                   </p>
                 </div>

@@ -13,7 +13,7 @@ export default async function PostDetailPage({ params }: { params: { id: string 
   if (!post) notFound();
   return (
     <PostDetailClient>
-      <div className="pb-10">
+      <div>
         <PageHeader title="게시글" back />
         <div className="mx-auto max-w-[640px] md:p-4">
           <FeedCard post={post} currentUserId={user?.id} />

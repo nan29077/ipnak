@@ -31,17 +31,27 @@ export function MarketDetailActions({
   async function startChat() {
     if (busy) return;
     setBusy(true);
-    // 이미 채팅방이 있으면 API 호출 없이 즉시 이동
+
+    // 기존 채팅방이 있으면 즉시 이동 (API 호출 없음)
     if (existingChatId) {
       router.push(`/market/chats/${existingChatId}`);
       return;
     }
-    const res = await fetch(`/api/market/${listingId}/chat`, { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      router.push(`/market/chats/${data.chatId}`);
-    } else {
-      toast(data.error || "채팅을 시작할 수 없습니다", "error");
+
+    // 첫 채팅: POST로 채팅방 생성 후 이동
+    // 스피너 없이 버튼 즉시 비활성화, loading.tsx가 스켈레톤 보여줌
+    try {
+      const res = await fetch(`/api/market/${listingId}/chat`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setExistingChatId(data.chatId); // 다음 클릭 때 즉시 이동
+        router.push(`/market/chats/${data.chatId}`);
+      } else {
+        toast(data.error || "채팅을 시작할 수 없습니다", "error");
+        setBusy(false);
+      }
+    } catch {
+      toast("오류가 발생했습니다", "error");
       setBusy(false);
     }
   }
@@ -69,8 +79,8 @@ export function MarketDetailActions({
         <button
           onClick={startChat}
           disabled={busy || isSold}
-          className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold text-white shadow-soft transition-all active:scale-[0.97] disabled:opacity-50"
-          style={{ background: isSold ? "#374151" : isReserved ? "#d97706" : "#f97316" }}
+          className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold shadow-soft transition-all active:scale-[0.97] disabled:opacity-50"
+          style={{ background: isSold ? "#374151" : "#eab308", color: isSold ? "#fff" : "#000" }}
         >
           {busy ? (
             <Loader2 size={18} className="animate-spin" />

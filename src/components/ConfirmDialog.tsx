@@ -1,6 +1,69 @@
 "use client";
+import { createContext, useCallback, useContext, useState } from "react";
 import { createPortal } from "react-dom";
 import { Fish, Trash2 } from "lucide-react";
+
+// ─── Context-based hook (window.confirm 대체) ────────────────────────────────
+
+type ConfirmHookOptions = {
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+};
+
+type ConfirmState = ConfirmHookOptions & { resolve: (v: boolean) => void };
+
+const ConfirmCtx = createContext<(opts: ConfirmHookOptions | string) => Promise<boolean>>(
+  () => Promise.resolve(false),
+);
+
+export function ConfirmProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<ConfirmState | null>(null);
+
+  const confirm = useCallback(
+    (opts: ConfirmHookOptions | string): Promise<boolean> => {
+      const options: ConfirmHookOptions =
+        typeof opts === "string" ? { title: opts } : opts;
+      return new Promise<boolean>((resolve) => {
+        setState({ ...options, resolve });
+      });
+    },
+    [],
+  );
+
+  function close(value: boolean) {
+    state?.resolve(value);
+    setState(null);
+  }
+
+  return (
+    <ConfirmCtx.Provider value={confirm}>
+      {children}
+      {state && (
+        <ConfirmDialog
+          open={true}
+          title={state.title}
+          message={state.message}
+          confirmLabel={state.confirmLabel}
+          cancelLabel={state.cancelLabel}
+          danger={state.danger}
+          onConfirm={() => close(true)}
+          onCancel={() => close(false)}
+        />
+      )}
+    </ConfirmCtx.Provider>
+  );
+}
+
+/** window.confirm 대신 사용. ConfirmProvider 하위에서만 동작. */
+export function useConfirm() {
+  return useContext(ConfirmCtx);
+}
+
+// ─── 기존 prop 기반 ConfirmDialog ────────────────────────────────────────────
+
 
 type Props = {
   open: boolean;

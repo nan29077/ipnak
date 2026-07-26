@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Plus, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { MarketList, type MarketItem } from "@/components/market/MarketList";
+import { MarketSellFab } from "@/components/market/MarketSellFab";
 
 export const dynamic = "force-dynamic";
 
@@ -31,19 +32,34 @@ export default async function MarketPage() {
     chatCount: l._count.chats,
   }));
 
+  // 답장 필요한 채팅 건수 (판매자 입장)
+  let needsReplyCount = 0;
+  if (user) {
+    const sellerChats = await prisma.marketChat.findMany({
+      where: { listing: { sellerId: user.id } },
+      include: { messages: { orderBy: { createdAt: "desc" }, take: 1 } },
+    });
+    needsReplyCount = sellerChats.filter(
+      (c) => c.messages.length > 0 && c.messages[0].senderId !== user.id && !c.messages[0].body.startsWith("[시스템]")
+    ).length;
+  }
+
   return (
     <div className="min-h-screen bg-surface pb-24">
       <header className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#0d1b2a]/85 backdrop-blur-md">
         <div className="flex h-14 items-center gap-2 px-3.5">
           <span className="mr-auto text-[19px] font-extrabold tracking-tight text-navy-900">중고피싱</span>
           {user && (
-            <Link href="/market/chats" aria-label="채팅" className="rounded-full p-2 text-navy-700 transition-colors hover:bg-navy-50 active:bg-navy-100">
-              <MessageSquare size={21} />
+            <Link href="/market/chats" className="relative flex items-center gap-1 rounded-full px-3 py-1.5 text-navy-600 transition-colors hover:bg-navy-50 active:bg-navy-100">
+              <MessageSquare size={18} />
+              <span className="text-[13px] font-semibold">채팅 목록</span>
+              {needsReplyCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-1 ring-[#0d1b2a]">
+                  {needsReplyCount > 9 ? "9+" : needsReplyCount}
+                </span>
+              )}
             </Link>
           )}
-          <Link href="/market/mine" className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-navy-600 transition-colors hover:bg-navy-50">
-            내 판매글
-          </Link>
         </div>
         <CommunityTabs />
       </header>
@@ -52,13 +68,8 @@ export default async function MarketPage() {
         <MarketList items={items} />
       </div>
 
-      {/* 글쓰기 FAB */}
-      <Link
-        href="/market/new"
-        className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-orange-500 px-5 py-3 text-[14px] font-semibold text-white shadow-fab transition-transform active:scale-95 md:bottom-8 md:left-auto md:right-8 md:translate-x-0"
-      >
-        <Plus size={18} strokeWidth={2.4} /> 판매하기
-      </Link>
+      {/* 판매하기 FAB — prefetch + 클릭 즉시 피드백 */}
+      <MarketSellFab />
     </div>
   );
 }

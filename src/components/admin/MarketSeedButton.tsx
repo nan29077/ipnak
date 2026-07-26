@@ -3,14 +3,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, DatabaseZap } from "lucide-react";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export function MarketSeedButton() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const toast = useToast();
+  const doConfirm = useConfirm();
 
   async function run() {
-    if (!window.confirm("기존 중고피싱 데이터를 모두 삭제하고 더미 데이터 20개를 새로 생성합니다. 계속하시겠습니까?")) return;
+    if (!await doConfirm({ title: "중고피싱 더미 데이터 재생성", message: "기존 중고피싱 데이터를 모두 삭제하고 더미 데이터 20개를 새로 생성합니다.", danger: true, confirmLabel: "계속" })) return;
     setLoading(true);
     try {
       const res = await fetch("/api/admin/seed-market", { method: "POST" });

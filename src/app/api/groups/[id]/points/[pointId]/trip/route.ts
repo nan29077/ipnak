@@ -8,7 +8,7 @@ function isApproved(role: string | null | undefined) {
   return role === "leader" || role === "sub_leader" || role === "member";
 }
 
-// 내시단에 공유된 데이터피싱은 단장을 포함한 승인 단원 모두 200P 차감 없이 열람한다.
+// 내시단에 공유된 스마트피싱은 단장을 포함한 승인 단원 모두 200P 차감 없이 열람한다.
 export async function GET(
   _req: Request,
   { params }: { params: { id: string; pointId: string } },
@@ -30,7 +30,7 @@ export async function GET(
     LIMIT 1
   `;
   const tripId = rows[0]?.tripId;
-  if (!tripId) return NextResponse.json({ error: "연결된 데이터피싱 기록이 없습니다." }, { status: 404 });
+  if (!tripId) return NextResponse.json({ error: "연결된 스마트피싱 기록이 없습니다." }, { status: 404 });
 
   const trip = await prisma.fishingTrip.findUnique({
     where: { id: tripId },
@@ -39,7 +39,7 @@ export async function GET(
       fishingPoints: { orderBy: { createdAt: "asc" } },
     },
   });
-  if (!trip) return NextResponse.json({ error: "데이터피싱 기록을 찾을 수 없습니다." }, { status: 404 });
+  if (!trip) return NextResponse.json({ error: "스마트피싱 기록을 찾을 수 없습니다." }, { status: 404 });
 
   return NextResponse.json({
     trip: {

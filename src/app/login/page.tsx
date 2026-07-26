@@ -7,12 +7,14 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { SocialButtons } from "@/components/SocialButtons";
 import { Button } from "@/components/ui";
+import { useAnglerLabel } from "@/lib/appSettingsContext";
 
 const FIELD_CLASS =
   "w-full rounded-[16px] px-3.5 py-3 text-[15px] bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/40 outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-400/30 transition-colors";
 
 export default function LoginPage() {
   const router = useRouter();
+  const anglerLabel = useAnglerLabel();
   const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,10 +41,9 @@ export default function LoginPage() {
   }
 
   return (
-    /* 외부 컨테이너: 배경만 담당, 스크롤 허용 */
-    <div className="min-h-screen bg-gradient-to-b from-[#0d1626] via-[#0d1b2a] to-[#243a63]">
-      {/* 내용 컨테이너: 위쪽 30% 여백 → 시각적으로 중앙보다 약간 아래에 배치 */}
-      <div className="mx-auto w-full max-w-md px-6 pt-[22vh] pb-12">
+    /* 뷰포트 전체 고정 — 스크롤 없이 항상 중앙 */
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-gradient-to-b from-[#0d1626] via-[#0d1b2a] to-[#243a63]">
+      <div className="mx-auto w-full max-w-md px-6 py-10">
 
         {/* 로고 */}
         <div className="mb-10 text-center">
@@ -97,7 +98,7 @@ export default function LoginPage() {
             disabled={loading}
             className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-all active:scale-[0.97] disabled:opacity-50"
           >
-            낚시꾼 테스트 로그인
+            {anglerLabel} 테스트 로그인
           </button>
         </div>
 

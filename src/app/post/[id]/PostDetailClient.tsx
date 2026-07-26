@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 
 /**
@@ -20,6 +20,18 @@ export function PostDetailClient({ children }: { children: React.ReactNode }) {
   // 언마운트 시 종료 애니메이션 타이머 정리 — 다른 경로로 이동한 뒤 router.back() 중복 실행 방지
   useEffect(() => () => {
     if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+  }, []);
+
+  // 상세 페이지에서 AppShell main의 min-h-screen / flex stretch를 해제해 하단 빈 공간 제거
+  useLayoutEffect(() => {
+    const main = document.querySelector("main");
+    if (!main) return;
+    (main as HTMLElement).style.minHeight = "0";
+    (main as HTMLElement).style.alignSelf = "flex-start";
+    return () => {
+      (main as HTMLElement).style.minHeight = "";
+      (main as HTMLElement).style.alignSelf = "";
+    };
   }, []);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -97,7 +109,7 @@ export function PostDetailClient({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={containerRef}
-      className="relative min-h-screen"
+      className="relative"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

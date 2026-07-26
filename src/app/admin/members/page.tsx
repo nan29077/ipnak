@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { AdminTitle, Table, StatusBadge } from "@/components/admin/ui";
+import { getBoolSetting } from "@/lib/settings";
 import { SearchBox } from "@/components/admin/SearchBox";
 import { SortSelect } from "@/components/admin/SortSelect";
 import { FilterChips } from "@/components/admin/FilterChips";
@@ -32,6 +33,8 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
     ...(role ? { role } : {}),
   };
 
+  const bassOnly = await getBoolSetting("bass_only_mode");
+  const anglerLabel = bassOnly ? "앵글러" : "낚시꾼";
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
     prisma.user.findMany({
@@ -51,7 +54,7 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <FilterChips param="role" defaultValue="" chips={[
           { value: "", label: "전체" },
-          { value: "ANGLER", label: "낚시꾼" },
+          { value: "ANGLER", label: anglerLabel },
           { value: "PARTNER", label: "파트너" },
           { value: "SUPER_ADMIN", label: "관리자" },
         ]} />
@@ -90,7 +93,7 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                       {u.role !== "PARTNER" ? (
                         <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "PARTNER" }} label="파트너 지정" successMsg="역할이 변경되었습니다" />
                       ) : (
-                        <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "ANGLER" }} label="낚시꾼으로" successMsg="역할이 변경되었습니다" />
+                        <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "ANGLER" }} label={`${anglerLabel}으로`} successMsg="역할이 변경되었습니다" />
                       )}
                     </>
                   )}

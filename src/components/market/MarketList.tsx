@@ -1,9 +1,10 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, MapPin, Heart, SlidersHorizontal, MessageCircle } from "lucide-react";
+import { Search, MapPin, Heart, SlidersHorizontal, MessageCircle, ShoppingBag } from "lucide-react";
 import { won, timeAgo, cn } from "@/lib/utils";
 import { Badge, EmptyState, Select } from "@/components/ui";
+import { ViewToggle, useViewMode } from "@/components/FeedList";
 import {
   MARKET_CATEGORIES, MARKET_REGIONS, MARKET_SORTS,
   marketCategoryLabel, marketStatusLabel, marketConditionLabel,
@@ -33,6 +34,7 @@ export function MarketList({ items }: { items: MarketItem[] }) {
   const [region, setRegion] = useState("ALL");
   const [sort, setSort] = useState("recent");
   const [hideSold, setHideSold] = useState(false);
+  const [viewMode, setViewMode] = useViewMode("ipnak_view_market");
 
   const visible = useMemo(() => {
     let list = items.filter((it) =>
@@ -90,10 +92,44 @@ export function MarketList({ items }: { items: MarketItem[] }) {
         >
           <SlidersHorizontal size={13} /> 판매중만
         </button>
+        <div className="ml-auto">
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
       {visible.length === 0 ? (
         <EmptyState title="조건에 맞는 상품이 없습니다" desc="검색어나 필터를 바꿔보세요" />
+      ) : viewMode === "card" ? (
+        <div className="grid grid-cols-3 gap-0.5 pb-10">
+          {visible.map((it) => {
+            const sold = it.status === "SOLD";
+            return (
+              <Link key={it.id} href={`/market/${it.id}`} className="relative aspect-square overflow-hidden bg-[#1a2a38]">
+                {it.thumbnail ? (
+                  <img src={it.thumbnail} alt={it.title} loading="lazy"
+                    className={cn("h-full w-full object-cover", sold && "opacity-40 grayscale")} />
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <ShoppingBag size={22} className="text-navy-400" strokeWidth={1.3} />
+                  </div>
+                )}
+                {it.status !== "SELLING" && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                    <span className="rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      {marketStatusLabel(it.status)}
+                    </span>
+                  </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 py-2">
+                  <p className="line-clamp-1 text-[10px] font-semibold text-white">{it.title}</p>
+                  <p className={cn("text-[11px] font-extrabold", sold ? "text-navy-300 line-through" : "text-white")}>
+                    {won(it.price)}
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       ) : (
         <div className="divide-y divide-navy-100/20 pb-10">
           {visible.map((it) => {

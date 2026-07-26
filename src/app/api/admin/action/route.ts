@@ -178,7 +178,10 @@ export async function POST(req: Request) {
       case "PRODUCT_CREATE":
         await prisma.product.create({ data: {
           name: b.name, brand: b.brand || null, category: b.category || "ETC",
-          price: Number(b.price) || 0, imageUrl: b.imageUrl || `https://picsum.photos/seed/p${Date.now()}/600/600`,
+          price: Number(b.price) || 0,
+          shippingFee: Number(b.shippingFee) || 0,
+          options: b.options || null,
+          imageUrl: b.imageUrl || null,
           buyUrl: b.buyUrl || "#", description: b.description || null, feeRate: Number(b.feeRate) || 10,
         }});
         await log("PRODUCT_CREATE", undefined, b.name); break;

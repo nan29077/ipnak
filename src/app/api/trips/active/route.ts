@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 
-// 진행 중(중지 전) 데이터피싱 세션 = endedAt 이 null 인 FishingTrip 레코드.
+// 진행 중(중지 전) 스마트피싱 세션 = endedAt 이 null 인 FishingTrip 레코드.
 // 별도 스키마 변경 없이 "전역으로 유지되는 기록 세션"을 서버에 영속화한다.
 
 function activeSummary(t: { id: string; startedAt: Date; distanceM: number; durationSec: number; catchCount: number }) {
@@ -37,7 +37,7 @@ export async function POST() {
   });
   if (existing) return NextResponse.json({ active: activeSummary(existing) });
   const t = await prisma.fishingTrip.create({
-    data: { userId: user.id, title: "데이터피싱 기록", endedAt: null },
+    data: { userId: user.id, title: "스마트피싱 기록", endedAt: null },
   });
   return NextResponse.json({ active: activeSummary(t) });
 }
@@ -100,7 +100,7 @@ export async function PUT(req: Request) {
     const trip = await prisma.fishingTrip.create({
       data: {
         userId: user.id,
-        title: b.title || "데이터피싱 기록",
+        title: b.title || "스마트피싱 기록",
         distanceM,
         durationSec,
         catchCount: Number.isFinite(b.catchCount) ? Number(b.catchCount) : 0,

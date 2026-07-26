@@ -362,7 +362,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       catches: snapCatches,
     };
     setSavedTrips((s) => [rec, ...s]);
-    toast(`데이터피싱 기록 저장됨 — ${km(snapDistance)}, ${duration(durSec)}`, "success");
+    toast(`스마트피싱 기록 저장됨 — ${km(snapDistance)}, ${duration(durSec)}`, "success");
 
     // 진행 중 세션을 최종 통계/경로로 마감 (PUT)
     fetch("/api/trips/active", {

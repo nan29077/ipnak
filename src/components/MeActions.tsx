@@ -30,7 +30,7 @@ export function MeActions({ isAdmin }: { isAdmin: boolean }) {
           leftIcon={<Settings size={18} />}
           className="justify-start"
         >
-          설정
+          입낚볼관리/알림설정
         </Button>
       </Link>
       <Button

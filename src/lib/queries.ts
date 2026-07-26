@@ -180,7 +180,7 @@ export async function getPost(id: string, userId?: string) {
   return toFeedPost(p, userId, locks.get(p.id) ?? false);
 }
 
-/** 데이터피싱 기록에서 생성된 워킹 피드 포스트 (kind: "WALKING" / postType: "WALKING_FEED") */
+/** 스마트피싱 기록에서 생성된 워킹 피드 포스트 (kind: "WALKING" / postType: "WALKING_FEED") */
 export async function getWalkingFeedPosts(userId?: string, opts?: { authorId?: string }, limit = 12): Promise<FeedPost[]> {
   try {
     const posts = await prisma.post.findMany({

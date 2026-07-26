@@ -1,11 +1,26 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Loader2, Tag } from "lucide-react";
 import { PageHeader, Chip, Button, Card, SectionTitle, Input, Select, Textarea } from "@/components/ui";
-import { PhotoPicker, type PickedPhoto } from "@/components/PhotoPicker";
 import { useToast } from "@/components/Toast";
 import { MARKET_CATEGORIES, MARKET_REGIONS, MARKET_CONDITIONS } from "@/lib/taxonomy";
+import type { PickedPhoto } from "@/components/PhotoPicker";
+
+// PhotoPicker는 카메라/갤러리 접근이 필요해 무거움 — 코드 스플리팅으로 초기 번들에서 분리
+const PhotoPicker = dynamic(
+  () => import("@/components/PhotoPicker").then((m) => m.PhotoPicker),
+  {
+    loading: () => (
+      <div className="flex gap-2">
+        <div className="h-20 w-20 animate-pulse rounded-xl bg-navy-50/20" />
+        <div className="h-20 w-20 animate-pulse rounded-xl bg-navy-50/10" />
+      </div>
+    ),
+    ssr: false,
+  }
+);
 
 export default function NewMarketListingPage() {
   const router = useRouter();
@@ -22,6 +37,7 @@ export default function NewMarketListingPage() {
   async function submit() {
     if (!title.trim()) { toast("제목을 입력해주세요", "error"); return; }
     if (!category) { toast("카테고리를 선택해주세요", "error"); return; }
+    if (photos.some((p) => p.uploading)) { toast("사진 업로드 중입니다. 잠시 기다려주세요", "error"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/market", {

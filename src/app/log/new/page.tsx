@@ -7,12 +7,13 @@ import { PhotoPicker, type PickedPhoto } from "@/components/PhotoPicker";
 import { ProductTagPicker } from "@/components/ProductTagPicker";
 import { useToast } from "@/components/Toast";
 import { useAppSettings } from "@/lib/appSettingsContext";
-import { LOG_CATEGORIES, ALL_SPECIES, KOREA_SPOTS } from "@/lib/taxonomy";
+import { LOG_CATEGORIES, ALL_SPECIES, BASS_ONLY_SPECIES, KOREA_SPOTS } from "@/lib/taxonomy";
 
 export default function NewLogPage() {
   const router = useRouter();
   const toast = useToast();
-  const { shopMenuEnabled } = useAppSettings();
+  const { shopMenuEnabled, bassOnlyMode } = useAppSettings();
+  const speciesList = bassOnlyMode ? BASS_ONLY_SPECIES : ALL_SPECIES;
   const [boardCategory, setBoardCategory] = useState("WALKING");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -90,7 +91,7 @@ export default function NewLogPage() {
             <Field label="대상 어종">
               <Select value={species} onChange={(e) => setSpecies(e.target.value)}>
                 <option value="">선택</option>
-                {ALL_SPECIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {speciesList.map((s) => <option key={s} value={s}>{s}</option>)}
               </Select>
             </Field>
           </div>

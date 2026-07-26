@@ -37,8 +37,8 @@ export function ShopToggle({ initial }: { initial: boolean }) {
         <div>
           <h2 className="text-[15px] font-bold text-navy-800">쇼핑 메뉴 노출</h2>
           <p className="mt-1 text-[13px] leading-relaxed text-navy-400">
-            ON: 사용자 앱 네비게이션에 <b className="text-navy-600">쇼핑</b> 메뉴가 노출됩니다.<br />
-            OFF: 같은 자리에 <b className="text-navy-600">중고피싱</b> 메뉴가 대신 노출됩니다.
+            ON: <b className="text-navy-600">중고피싱</b> 메뉴를 유지하면서 <b className="text-navy-600">쇼핑</b> 메뉴가 추가됩니다.<br />
+            OFF: <b className="text-navy-600">쇼핑</b> 메뉴가 숨겨지고 중고피싱만 노출됩니다.
           </p>
         </div>
         <button
@@ -59,9 +59,9 @@ export function ShopToggle({ initial }: { initial: boolean }) {
         {loading ? (
           <><Loader2 size={16} className="animate-spin text-orange-500" /> 저장 중...</>
         ) : on ? (
-          <><ShoppingBag size={16} className="text-orange-500" /> 현재 노출 메뉴: <span className="text-orange-500">쇼핑</span></>
+          <><ShoppingBag size={16} className="text-orange-500" /> <span className="text-orange-500">쇼핑</span> 메뉴 추가됨 (중고피싱 유지)</>
         ) : (
-          <><Store size={16} className="text-aqua-500" /> 현재 노출 메뉴: <span className="text-aqua-500">중고피싱</span></>
+          <><Store size={16} className="text-aqua-500" /> 현재: <span className="text-aqua-500">중고피싱</span>만 노출</>
         )}
       </div>
     </div>

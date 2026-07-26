@@ -82,7 +82,7 @@ export default function MeasurePage() {
   // 첫 방문 튜토리얼
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
-  // 데이터피싱(기록 중) 화면에서 진입했는지 (?from=fishing) — 완료 후 복귀 안내
+  // 스마트피싱(기록 중) 화면에서 진입했는지 (?from=fishing) — 완료 후 복귀 안내
   const [fromFishing, setFromFishing] = useState(false);
 
   useEffect(() => {
@@ -473,7 +473,7 @@ export default function MeasurePage() {
       toast(MEASURE_ERRORS.SAVE_SUCCESS, "success");
       syncService.syncPendingMeasurements(); // 백그라운드 (서버 준비 전엔 스킵)
 
-      // 데이터피싱 기록 중이면 catches에 추가 (워킹 피드 공유 + 피쉬 숫자 표시용)
+      // 스마트피싱 기록 중이면 catches에 추가 (워킹 피드 공유 + 피쉬 숫자 표시용)
       if (recStatus === "tracking" || recStatus === "paused") {
         const catchLat = tags?.location?.latitude ?? lastPoint?.lat ?? null;
         const catchLng = tags?.location?.longitude ?? lastPoint?.lng ?? null;
@@ -707,11 +707,11 @@ export default function MeasurePage() {
         {/* ── IDLE: 안내 + 촬영 버튼 ── */}
         {phase === "IDLE" && (
           <>
-            {/* 데이터피싱(기록 중)에서 진입한 경우 복귀 안내 */}
+            {/* 스마트피싱(기록 중)에서 진입한 경우 복귀 안내 */}
             {fromFishing && (
               <div className="flex items-center gap-2 rounded-xl border border-aqua-500/30 bg-aqua-500/10 px-3 py-2">
                 <MapIcon size={15} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
-                <p className="text-[12px] font-medium text-aqua-300">데이터피싱 기록 중 — 측정 후 뒤로가면 기록 화면으로 돌아가요.</p>
+                <p className="text-[12px] font-medium text-aqua-300">스마트피싱 기록 중 — 측정 후 뒤로가면 기록 화면으로 돌아가요.</p>
               </div>
             )}
 
@@ -1000,14 +1000,14 @@ export default function MeasurePage() {
                 계측일지 보기
               </button>
             </div>
-            {/* 데이터피싱에서 진입한 경우: 기록 화면으로 복귀 */}
+            {/* 스마트피싱에서 진입한 경우: 기록 화면으로 복귀 */}
             {fromFishing && (
               <Link
                 href="/map"
                 className="flex items-center justify-center gap-2 rounded-[16px] bg-aqua-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all hover:bg-aqua-600 active:scale-[0.97]"
               >
                 <MapIcon size={16} strokeWidth={1.9} />
-                데이터피싱으로 돌아가기
+                스마트피싱으로 돌아가기
               </Link>
             )}
             <div className="flex justify-center py-2">

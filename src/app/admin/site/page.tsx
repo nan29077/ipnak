@@ -6,6 +6,7 @@ import { AdminTitle, Table } from "@/components/admin/ui";
 import { ActionButton } from "@/components/admin/ActionButton";
 import { CreateForm } from "@/components/admin/CreateForm";
 import { ShopToggle } from "@/components/admin/ShopToggle";
+import { ShopTagToggle } from "@/components/admin/ShopTagToggle";
 import { PcMarginBg } from "@/components/admin/PcMarginBg";
 import { BassOnlyToggle } from "@/components/admin/BassOnlyToggle";
 import { ReservationToggle } from "@/components/admin/ReservationToggle";
@@ -36,9 +37,10 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
       : searchParams.tab === "appmode"
       ? "appmode"
       : "banners";
-  const [banners, shopEnabled, pcMarginBg, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabled, groupPointsRequired, ballEnabled, aiConnection] = await Promise.all([
+  const [banners, shopEnabled, shopTagEnabled, pcMarginBg, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabled, groupPointsRequired, ballEnabled, aiConnection] = await Promise.all([
     prisma.banner.findMany({ orderBy: { order: "asc" } }),
     getBoolSetting("shop_menu_enabled"),
+    getBoolSetting("shop_tag_enabled"),
     getSetting("pcMarginBgImage"),
     getBoolSetting("bass_only_mode"),
     getBoolSetting("reservation_enabled"),
@@ -139,6 +141,7 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
           <PointsToggle initial={pointsEnabled} />
           <GroupPointsToggle initial={groupPointsRequired} />
           <ShopToggle initial={shopEnabled} />
+          <ShopTagToggle initial={shopTagEnabled} />
           <BassOnlyToggle initial={bassOnlyMode} />
           <ReservationToggle initial={reservationEnabled} />
           <WalkingFeedToggle initial={walkingFeedEnabled} />

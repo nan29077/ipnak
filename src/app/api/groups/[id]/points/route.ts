@@ -85,12 +85,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         where: { id: tripId, userId: user.id, endedAt: { not: null } },
         include: { routePoints: { orderBy: { order: "asc" } }, fishingPoints: { orderBy: { createdAt: "desc" }, take: 1 } },
       });
-      if (!trip) return NextResponse.json({ error: "선택한 데이터피싱 기록을 찾을 수 없습니다." }, { status: 404 });
+      if (!trip) return NextResponse.json({ error: "선택한 스마트피싱 기록을 찾을 수 없습니다." }, { status: 404 });
       const anchor = trip.fishingPoints[0] ?? trip.routePoints[trip.routePoints.length - 1] ?? trip.routePoints[0];
-      if (!anchor) return NextResponse.json({ error: "위치 기록이 있는 데이터피싱만 공유할 수 있습니다." }, { status: 400 });
+      if (!anchor) return NextResponse.json({ error: "위치 기록이 있는 스마트피싱만 공유할 수 있습니다." }, { status: 400 });
       lat = anchor.lat;
       lng = anchor.lng;
-      title = String(title || trip.title || "내 데이터피싱 기록");
+      title = String(title || trip.title || "내 스마트피싱 기록");
       description = description || `${trip.region ? `${trip.region} · ` : ""}이동 ${(trip.distanceM / 1000).toFixed(1)}km · 조과 ${trip.catchCount}마리`;
     }
 

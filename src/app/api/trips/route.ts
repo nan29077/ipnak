@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 
-// GET: 로그인 사용자의 데이터피싱(낚시) 기록 목록
+// GET: 로그인 사용자의 스마트피싱(낚시) 기록 목록
 export async function GET() {
   let user;
   try { user = await requireUser(); } catch { return NextResponse.json({ trips: [] }); }
@@ -26,7 +26,7 @@ export async function GET() {
   return NextResponse.json({ trips: data });
 }
 
-// POST: 데이터피싱 기록 저장 (옵션: 피드에도 게시)
+// POST: 스마트피싱 기록 저장 (옵션: 피드에도 게시)
 export async function POST(req: Request) {
   let user;
   try { user = await requireUser(); } catch { return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }); }
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   const distanceM = Number.isFinite(b.distanceM) ? Number(b.distanceM) : 0;
   const durationSec = Number.isFinite(b.durationSec) ? Math.round(Number(b.durationSec)) : 0;
   const region = b.region || null;
-  const title = b.title || "데이터피싱 기록";
+  const title = b.title || "스마트피싱 기록";
 
   const trip = await prisma.fishingTrip.create({
     data: {

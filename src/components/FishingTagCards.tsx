@@ -14,10 +14,10 @@ import type { FeedProductTag } from "@/lib/queries";
  */
 export function FishingTagCards({ postId, tags, compact = false }: { postId: string; tags: FeedProductTag[]; compact?: boolean }) {
   const toast = useToast();
-  const { shopMenuEnabled } = useAppSettings();
+  const { shopMenuEnabled, shopTagEnabled } = useAppSettings();
   const [busy, setBusy] = useState<string | null>(null);
-  // 쇼핑 메뉴 OFF 시 피싱태그 상품 카드 전체 숨김
-  if (!tags.length || !shopMenuEnabled) return null;
+  // 쇼핑 메뉴 OFF 또는 쇼핑 태그 OFF 시 피싱태그 상품 카드 전체 숨김
+  if (!tags.length || !shopMenuEnabled || !shopTagEnabled) return null;
 
   async function go(t: FeedProductTag) {
     setBusy(t.id);

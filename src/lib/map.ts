@@ -53,7 +53,7 @@ export function simplifyRoute(points: LatLng[], maxPts = 25): LatLng[] {
 
 /**
  * 이동 동선(경로)이 포함된 정적 지도 이미지 URL.
- * 피싱 피드 데이터피싱 게시물의 첫 번째 이미지로 사용.
+ * 피싱 피드 스마트피싱 게시물의 첫 번째 이미지로 사용.
  * 포인트가 2개 미만이면 null 반환.
  */
 export function buildRouteStaticMapUrl(points: LatLng[]): string | null {

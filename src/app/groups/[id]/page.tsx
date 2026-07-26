@@ -626,7 +626,7 @@ function PointsTab({ groupId }: { groupId: string }) {
     try {
       const res = await fetch(`/api/groups/${groupId}/points/${point.id}/trip`, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(data.error || "데이터피싱 기록을 불러오지 못했습니다."); return; }
+      if (!res.ok) { setError(data.error || "스마트피싱 기록을 불러오지 못했습니다."); return; }
       setTripDetail(data.trip);
     } finally {
       setTripLoadingId(null);
@@ -679,7 +679,7 @@ function PointsTab({ groupId }: { groupId: string }) {
                   <MapPin size={18} className="text-orange-400" strokeWidth={1.5} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-bold text-navy-900">{p.title}</p>
+                  <p className="text-[14px] font-bold text-navy-900">{(p.title || "").replace(/데이터피싱/g, "스마트피싱")}</p>
                   {p.description && (
                     <p className="mt-0.5 text-[12px] leading-relaxed text-navy-400">{p.description}</p>
                   )}
@@ -700,7 +700,7 @@ function PointsTab({ groupId }: { groupId: string }) {
                       className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-orange-500/15 px-3 py-2 text-[12px] font-bold text-orange-400 ring-1 ring-orange-500/25 transition-colors hover:bg-orange-500/25 disabled:opacity-60"
                     >
                       {tripLoadingId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Route size={14} />}
-                      데이터피싱 무료로 보기
+                      스마트피싱 무료로 보기
                     </button>
                   )}
                 </div>
@@ -745,7 +745,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
   const [addressQuery, setAddressQuery] = useState("");
   const [addressSearching, setAddressSearching] = useState(false);
   const [mapCenter, setMapCenter] = useState<MapCenter | null>(null);
-  // 내기록(데이터피싱)에서 선택한 경우 뒤로가기 추적
+  // 내기록(스마트피싱)에서 선택한 경우 뒤로가기 추적
   const [fromTrips, setFromTrips] = useState(false);
   // 스와이프 다운으로 닫기
   const swipeStartYRef = useRef<number | null>(null);
@@ -823,7 +823,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
 
   function selectTrip(trip: MyFishingTrip) {
     setTripId(trip.id);
-    setTitle(trip.title || `${new Date(trip.createdAt).toLocaleDateString("ko-KR")} 내기록`);
+    setTitle((trip.title || `${new Date(trip.createdAt).toLocaleDateString("ko-KR")} 내기록`).replace(/데이터피싱/g, "스마트피싱"));
     setDescription(`${trip.region ? `${trip.region} · ` : ""}이동 ${(trip.distanceM / 1000).toFixed(1)}km · 조과 ${trip.catchCount}마리`);
     setFromTrips(true);
     setStep("form");
@@ -936,7 +936,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
           </div>
         )}
 
-        {/* 내기록(데이터피싱) 목록 */}
+        {/* 내기록(스마트피싱) 목록 */}
         {step === "trips" && (
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pb-2">
             <button type="button" onClick={() => setStep("method")} className="mb-1 text-[12px] font-semibold text-orange-400">← 다른 방법 선택</button>
@@ -946,14 +946,14 @@ function AddPointModal({ groupId, onClose, onAdded }: {
               <div className="rounded-2xl bg-white/[0.04] px-4 py-8 text-center">
                 <Route size={26} className="mx-auto text-navy-400" />
                 <p className="mt-2 text-[13px] font-semibold text-navy-600">공유할 내기록이 없어요</p>
-                <p className="mt-1 text-[11px] text-navy-400">데이터피싱을 종료한 뒤 다시 확인해 주세요.</p>
+                <p className="mt-1 text-[11px] text-navy-400">스마트피싱을 종료한 뒤 다시 확인해 주세요.</p>
               </div>
             ) : trips.map((trip) => (
               <button key={trip.id} type="button" onClick={() => selectTrip(trip)}
                 className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#1c2c3e] p-3.5 text-left transition-colors hover:border-orange-500/40">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15"><Route size={18} className="text-orange-400" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-bold text-navy-900">{trip.title || "내기록"}</span>
+                  <span className="block truncate text-[13px] font-bold text-navy-900">{(trip.title || "내기록").replace(/데이터피싱/g, "스마트피싱")}</span>
                   <span className="mt-0.5 block text-[11px] text-navy-400">
                     {new Date(trip.createdAt).toLocaleDateString("ko-KR")} · {(trip.distanceM / 1000).toFixed(1)}km · 조과 {trip.catchCount}마리
                   </span>
@@ -1106,3 +1106,4 @@ function MembersTab({ groupId, isLeader }: { groupId: string; isLeader: boolean 
     </div>
   );
 }
+

@@ -95,7 +95,7 @@ function useBallLink() {
     }
   }, [supported, reading, toast, refresh]);
 
-  return { supported, balls, reading, tagAndRegister };
+  return { supported, balls, reading, tagAndRegister, refresh };
 }
 
 /* ── 측정 페이지: 입낚볼 연동 카드 ── */
@@ -319,10 +319,27 @@ function GuideStep({ icon, title, children }: { icon: React.ReactNode; title: st
 
 /* ── 마이페이지: 내 입낚볼 관리 ── */
 export function MyBallManager() {
-  const { supported, balls, reading, tagAndRegister } = useBallLink();
+  const { supported, balls, reading, tagAndRegister, refresh } = useBallLink();
+  const toast = useToast();
+  const [manualId, setManualId] = useState("");
+  const [registering, setRegistering] = useState(false);
 
-  function register() {
-    tagAndRegister();
+  async function registerManual() {
+    const trimmed = manualId.trim();
+    if (!trimmed) return;
+    setRegistering(true);
+    try {
+      const { ok, status } = await registerBallApi(trimmed);
+      if (ok) {
+        toast(`입낚볼(${trimmed}) 연동 완료`, "success");
+        setManualId("");
+        await refresh();
+      } else {
+        toast(status === 401 ? "로그인 후 이용할 수 있어요." : "볼 ID를 확인해 주세요.", "error");
+      }
+    } finally {
+      setRegistering(false);
+    }
   }
 
   return (
@@ -347,9 +364,7 @@ export function MyBallManager() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-bold text-navy-900">{b.ballId}</p>
-                <p className="text-[11px] text-navy-300">
-                  연동일 {String(b.linkedAt).slice(0, 10)}
-                </p>
+                <p className="text-[11px] text-navy-300">연동일 {String(b.linkedAt).slice(0, 10)}</p>
               </div>
               <Link
                 href={`/diary?ballId=${encodeURIComponent(b.ballId)}`}
@@ -363,29 +378,41 @@ export function MyBallManager() {
       ) : (
         <div className="rounded-2xl border border-dashed border-navy-200 px-4 py-5 text-center">
           <p className="text-[13px] font-semibold text-navy-500">연결된 입낚볼이 없어요</p>
-          <p className="mt-0.5 text-[11px] text-navy-300">아래 버튼을 누르고 입낚볼에 휴대폰을 태그해 주세요</p>
+          <p className="mt-0.5 text-[11px] text-navy-300">아래 버튼을 눌러 볼을 등록해 주세요</p>
         </div>
       )}
 
-      {/* 볼 등록: NFC 지원 기기에서만 활성화, 미지원 기기는 수동 입력 안내 */}
+      {/* 볼 등록 */}
       {supported === false ? (
-        <div className="mt-3">
-          <button
-            type="button"
-            disabled
-            className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-navy-50 py-2.5 text-[13px] font-semibold text-navy-300 opacity-60"
-          >
-            <Nfc size={16} strokeWidth={1.9} />
-            NFC 미지원 기기
-          </button>
-          <p className="mt-2 text-center text-[11px] text-navy-300">
-            iPhone 등 NFC 미지원 환경에서는 아래 "볼 ID 직접 입력"을 이용해 주세요.
+        /* iPhone 등 NFC 미지원 — ID 직접 입력 */
+        <div className="mt-3 space-y-2">
+          <p className="text-center text-[12px] text-navy-400">
+            iPhone 등 NFC 미지원 기기입니다. 볼 뒷면의 ID를 직접 입력하세요.
           </p>
+          <div className="flex gap-2">
+            <input
+              value={manualId}
+              onChange={(e) => setManualId(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && registerManual()}
+              placeholder="볼 ID 입력 (예: IPNK-XXXX)"
+              style={{ fontSize: "16px" }}
+              className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
+            />
+            <button
+              type="button"
+              onClick={registerManual}
+              disabled={!manualId.trim() || registering}
+              className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors active:bg-orange-600 disabled:opacity-50"
+            >
+              {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
+            </button>
+          </div>
         </div>
       ) : (
+        /* Android Chrome 등 NFC 지원 */
         <button
           type="button"
-          onClick={register}
+          onClick={tagAndRegister}
           disabled={supported === null || reading}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
         >

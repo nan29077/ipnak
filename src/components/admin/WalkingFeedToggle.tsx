@@ -6,7 +6,7 @@ import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 
 // 워킹 피드 노출 스위치
-// ON: 메인 페이지에 워킹 피드 섹션 표시 (데이터피싱 동선 기록)
+// ON: 메인 페이지에 워킹 피드 섹션 표시 (스마트피싱 동선 기록)
 // OFF: 워킹 피드 섹션 숨김
 export function WalkingFeedToggle({ initial }: { initial: boolean }) {
   const router = useRouter();
@@ -50,7 +50,7 @@ export function WalkingFeedToggle({ initial }: { initial: boolean }) {
           <h2 className="text-[15px] font-bold text-navy-800">워킹 피드 노출</h2>
           <p className="mt-1 text-[13px] leading-relaxed text-navy-400">
             ON: 메인 페이지에 <b className="text-navy-600">워킹 피드</b> 섹션을 표시합니다.<br />
-            데이터피싱 동선 기록(지도 썸네일)이 메인에 노출됩니다.<br />
+            스마트피싱 동선 기록(지도 썸네일)이 메인에 노출됩니다.<br />
             OFF: 워킹 피드 섹션이 메인 페이지에서 완전히 숨겨집니다.
           </p>
         </div>

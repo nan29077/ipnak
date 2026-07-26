@@ -111,6 +111,16 @@ export const ROLE_LABELS: Record<string, string> = {
   PARTNER: "파트너",
 };
 
+/** 배스낚시 전용 모드일 때 "낚시꾼" → "앵글러" */
+export function getAnglerLabel(bassOnly: boolean): string {
+  return bassOnly ? "앵글러" : "낚시꾼";
+}
+
+/** 배스낚시 전용 모드에서만 노출할 어종 (민물 배스 계열) */
+export const BASS_ONLY_SPECIES = [
+  "배스", "블루길", "쏘가리", "꺽지", "강준치", "가물치", "붕어", "잉어",
+];
+
 // 한국 주요 낚시 지역 (위경도)
 export const KOREA_SPOTS: { name: string; lat: number; lng: number }[] = [
   { name: "한강", lat: 37.5326, lng: 126.9905 },

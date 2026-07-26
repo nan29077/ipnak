@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   Camera, MapPin, BookOpen, Trophy,
   Users, ArrowLeft, Monitor,
-  Fish, Ruler, CircleDot, Route,
+  Fish, Ruler, CircleDot, Route, ShoppingBag,
 } from "lucide-react";
 
 /* ── PC 배경 이미지 3장 (각 1번씩 등장) ── */
@@ -46,7 +46,7 @@ const FEATURES = [
   },
   {
     icon: Route,
-    title: "데이터피싱",
+    title: "스마트피싱",
     sub: "내 발길이 곧 데이터가 되는 스마트 낚시",
     body: "낚시를 다니며 걸은 동선을 GPS로 실시간 기록하고, 어획 위치·시간·어종 데이터를 지도 위에 쌓아올립니다. 내가 만든 데이터로 명당 패턴을 파악하고, 워킹피드에서 다른 앵글러의 루트까지 확인하세요.",
     color: "from-teal-500/80 to-cyan-600/80",
@@ -79,6 +79,15 @@ const FEATURES = [
     color: "from-rose-500/80 to-red-600/80",
     accent: "#f43f5e",
     features: ["지도 기반 피싱포인트", "포인트 직접 등록 · 공유", "온라인 낚시 대회", "낚시터 예약 서비스"],
+  },
+  {
+    icon: ShoppingBag,
+    title: "중고피싱 마켓",
+    sub: "낚시 용품을 낚시인들과 직접 거래하다",
+    body: "사용하지 않는 낚시 용품을 다른 낚시인에게 판매하고, 원하는 장비를 합리적인 가격에 구매하세요. 채팅으로 판매자와 직접 소통하고 안전하게 거래할 수 있습니다. 루어, 릴, 낚싯대, 채비까지 모든 낚시 용품이 모이는 전문 중고 마켓입니다.",
+    color: "from-cyan-500/80 to-blue-600/80",
+    accent: "#06b6d4",
+    features: ["낚시 용품 전문 중고 거래", "채팅으로 판매자와 직접 소통", "사진 등록으로 간편한 상품 등록", "루어·릴·낚싯대·채비 전 카테고리"],
   },
 ];
 
@@ -313,7 +322,7 @@ export default function AboutPage() {
             순간을&nbsp;<span className="text-orange-400">기록</span>하다
           </h1>
           <p className="text-lg text-white/60 lg:text-xl">
-            스마트 AI 계측부터 데이터피싱, 조행기, 피싱포인트, 낚시 커뮤니티까지
+            스마트 AI 계측부터 스마트피싱, 조행기, 피싱포인트, 낚시 커뮤니티까지
             <br />
             입낚 하나로 경험하세요
           </p>

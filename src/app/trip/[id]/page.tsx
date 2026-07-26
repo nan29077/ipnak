@@ -108,7 +108,7 @@ export default async function TripDetailPage({ params }: { params: { id: string 
   return (
     <div className="pb-10">
       <PageHeader
-        title={trip.title || (trip.region ? `${trip.region} 출조` : "데이터피싱 상세")}
+        title={(trip.title || (trip.region ? `${trip.region} 출조` : "스마트피싱 상세")).replace(/데이터피싱/g, "스마트피싱")}
         back
         sub={`${tripDate} · ${trip.region ?? "위치 정보 없음"}`}
       />

@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { AdminTitle, Table } from "@/components/admin/ui";
 import { SearchBox } from "@/components/admin/SearchBox";
 import { ActionButton } from "@/components/admin/ActionButton";
-import { MarketSeedButton } from "@/components/admin/MarketSeedButton";
 import { Badge, EmptyState } from "@/components/ui";
 import { won, kstFormat } from "@/lib/utils";
 import { marketCategoryLabel, marketConditionLabel, marketStatusLabel } from "@/lib/taxonomy";
@@ -59,10 +58,7 @@ export default async function AdminMarketPage({ searchParams }: { searchParams: 
         title="중고피싱 관리"
         desc={`전체 ${total}개 · 판매중 ${selling} · 예약중 ${reserved} · 완료 ${sold}`}
         right={
-          <div className="flex items-center gap-2">
-            <MarketSeedButton />
-            <SearchBox placeholder="제목/판매자/지역 검색" />
-          </div>
+          <SearchBox placeholder="제목/판매자/지역 검색" />
         }
       />
 

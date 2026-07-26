@@ -21,7 +21,7 @@ export function TripCards({ trips }: { trips: TripDetail[] }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <p className="truncate text-sm font-bold text-navy-800">{t.title || (t.region ? `${t.region} 출조` : "데이터피싱 기록")}</p>
+              <p className="truncate text-sm font-bold text-navy-800">{(t.title || (t.region ? `${t.region} 출조` : "스마트피싱 기록")).replace(/데이터피싱/g, "스마트피싱")}</p>
               <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-navy-300">
                 {kstFormat(new Date(t.createdAt), "M.d")}<ChevronRight size={13} />
               </span>

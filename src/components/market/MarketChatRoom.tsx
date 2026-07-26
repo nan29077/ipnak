@@ -68,6 +68,12 @@ export function MarketChatRoom({
     if (!body || sending) return;
     setSending(true);
     setText("");
+
+    // Optimistic — 임시 메시지를 즉시 UI에 추가
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg: Msg = { id: tempId, senderId: me, body, createdAt: new Date().toISOString() };
+    setMessages((m) => [...m, tempMsg]);
+
     try {
       const res = await fetch(`/api/market/chats/${chatId}/messages`, {
         method: "POST",
@@ -76,15 +82,19 @@ export function MarketChatRoom({
       });
       if (res.ok) {
         const data = await res.json();
-        setMessages((m) => [...m, data.message]);
+        // 임시 메시지를 서버 메시지로 교체
+        setMessages((m) => m.map((msg) => msg.id === tempId ? data.message : msg));
         inputRef.current?.focus();
       } else {
-        toast("메시지를 보내지 못했습니다", "error");
+        // 실패 시 임시 메시지 제거, 입력창 복원
+        setMessages((m) => m.filter((msg) => msg.id !== tempId));
         setText(body);
+        toast("메시지를 보내지 못했습니다", "error");
       }
     } catch {
-      toast("메시지를 보내지 못했습니다", "error");
+      setMessages((m) => m.filter((msg) => msg.id !== tempId));
       setText(body);
+      toast("메시지를 보내지 못했습니다", "error");
     } finally {
       setSending(false);
     }
@@ -134,18 +144,29 @@ export function MarketChatRoom({
   async function requestReserve() {
     if (sending) return;
     setSending(true);
+    const body = "안녕하세요! 혹시 예약 가능할까요? 구매 희망합니다 🙋";
+
+    // Optimistic — 즉시 메시지 표시
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg: Msg = { id: tempId, senderId: me, body, createdAt: new Date().toISOString() };
+    setMessages((m) => [...m, tempMsg]);
+    toast("예약 요청 메시지를 보냈습니다", "success");
+
     try {
       const res = await fetch(`/api/market/chats/${chatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: "안녕하세요! 혹시 예약 가능할까요? 구매 희망합니다 🙋" }),
+        body: JSON.stringify({ body }),
       });
       if (res.ok) {
         const data = await res.json();
-        setMessages((m) => [...m, data.message]);
-        toast("예약 요청 메시지를 보냈습니다", "success");
+        setMessages((m) => m.map((msg) => msg.id === tempId ? data.message : msg));
+      } else {
+        setMessages((m) => m.filter((msg) => msg.id !== tempId));
+        toast("오류가 발생했습니다", "error");
       }
     } catch {
+      setMessages((m) => m.filter((msg) => msg.id !== tempId));
       toast("오류가 발생했습니다", "error");
     } finally {
       setSending(false);

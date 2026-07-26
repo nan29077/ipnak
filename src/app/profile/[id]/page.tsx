@@ -4,9 +4,11 @@ import { MapPin, Fish, Ruler } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getProfileData } from "@/lib/profile";
 import { ProfileView } from "@/components/ProfileView";
+import { ProfileMarketSection } from "@/components/ProfileMarketSection";
 import { FollowButton } from "@/components/FollowButton";
 import { PageHeader, Card, Badge, Chip, Button } from "@/components/ui";
 import { ROLE_LABELS } from "@/lib/taxonomy";
+import { getBoolSetting } from "@/lib/settings";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 
 export const dynamic = "force-dynamic";
@@ -17,17 +19,19 @@ export default async function ProfilePage({ params }: { params: { id: string } }
   if (!data) notFound();
   const { user, stats } = data;
   const isMe = viewer?.id === user.id;
+  const bassOnly = await getBoolSetting("bass_only_mode");
+  const roleLabel = user.role === "ANGLER" && bassOnly ? "앵글러" : ROLE_LABELS[user.role];
 
   return (
     <div className="pb-6">
-      <PageHeader title={user.nickname} back sub={ROLE_LABELS[user.role]} />
+      <PageHeader title={user.nickname} back sub={roleLabel} />
       <div className="space-y-4 p-4">
         <div className="flex items-center gap-4">
           <img src={getAvatarUrl(user.id, user.avatarUrl)} alt={user.nickname} className="h-20 w-20 rounded-full border border-navy-100 object-cover shadow-soft" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="truncate text-lg font-bold text-navy-800">{user.nickname}</p>
-              <Badge tone="navy">{ROLE_LABELS[user.role]}</Badge>
+              <Badge tone="navy">{roleLabel}</Badge>
             </div>
             {user.region && (
               <p className="mt-1 inline-flex items-center gap-1 text-xs text-navy-400">
@@ -60,10 +64,11 @@ export default async function ProfilePage({ params }: { params: { id: string } }
 
         <div>
           {isMe ? (
-            <a href="/me"><Button variant="outline" full>내 프로필 관리</Button></a>
+            <a href="/me"><Button variant="outline" full>마이페이지</Button></a>
           ) : (
             <FollowButton userId={user.id} initial={data.isFollowing} loggedIn={!!viewer} />
           )}
+          <ProfileMarketSection userId={user.id} />
         </div>
       </div>
 

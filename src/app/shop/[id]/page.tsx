@@ -9,15 +9,44 @@ import { getAvatarUrl } from "@/lib/avatarUtils";
 
 export const dynamic = "force-dynamic";
 
+function parseProductOptions(optionsJson: string | null) {
+  if (!optionsJson) return { extraImages: [] as string[] };
+  try {
+    const parsed = JSON.parse(optionsJson);
+    if (Array.isArray(parsed)) return { extraImages: [] as string[] };
+    return { extraImages: Array.isArray(parsed.extraImages) ? (parsed.extraImages as string[]) : [] as string[] };
+  } catch {
+    return { extraImages: [] as string[] };
+  }
+}
+
 export default async function ShopProductPage({ params }: { params: { id: string } }) {
   const p = await prisma.product.findUnique({ where: { id: params.id }, include: { seller: { select: { id: true, nickname: true, avatarUrl: true } } } });
   if (!p) notFound();
+
+  const { extraImages } = parseProductOptions(p.options ?? null);
+  const allImages = [p.imageUrl, ...extraImages].filter(Boolean) as string[];
+
   return (
     <div className="pb-28">
       <PageHeader title="상품" back />
+
+      {/* 대표 이미지 */}
       <div className="aspect-square w-full bg-navy-50">
         <img src={p.imageUrl || ""} alt={p.name} decoding="async" className="h-full w-full object-cover" />
       </div>
+
+      {/* 추가 이미지 갤러리 */}
+      {extraImages.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto px-4 py-3 scrollbar-none">
+          {allImages.map((url, i) => (
+            <div key={i} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 ${i === 0 ? "border-orange-400" : "border-navy-100"}`}>
+              <img src={url} alt="" className="h-full w-full object-cover" />
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-4 p-4">
         <div>
           <Badge tone="aqua"><Tag size={12} /> {productCategoryLabel(p.category)}</Badge>

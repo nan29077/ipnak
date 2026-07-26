@@ -10,12 +10,15 @@ import { ProductTagPlacer, type TagPosition } from "@/components/ProductTagPlace
 import { SmartRuler, type RulerResult } from "@/components/SmartRuler";
 import { useToast } from "@/components/Toast";
 import { useRecording } from "@/components/RecordingProvider";
-import { ALL_SPECIES, FISHING_METHODS, FRESH_ENVIRONMENTS, SEA_ENVIRONMENTS, POINT_VISIBILITY, VISIBILITY_OPTIONS, KOREA_SPOTS } from "@/lib/taxonomy";
+import { ALL_SPECIES, BASS_ONLY_SPECIES, FISHING_METHODS, FRESH_ENVIRONMENTS, SEA_ENVIRONMENTS, POINT_VISIBILITY, VISIBILITY_OPTIONS, KOREA_SPOTS } from "@/lib/taxonomy";
+import { useAppSettings } from "@/lib/appSettingsContext";
 import { estimateWeightKg, formatWeight } from "@/lib/fishData";
 
 export default function NewCatchPage() {
   const router = useRouter();
   const toast = useToast();
+  const { bassOnlyMode } = useAppSettings();
+  const speciesList = bassOnlyMode ? BASS_ONLY_SPECIES : ALL_SPECIES;
   const { status, addCatchToRecording, sessionId, lastSessionId, lastPoint } = useRecording();
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [rulerOpen, setRulerOpen] = useState(false);
@@ -108,7 +111,7 @@ export default function NewCatchPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "오류");
-      // 데이터피싱 기록 중 잡은 물고기 — 현재 세션에 등록해 공유 시 사진 + 마커 위치 포함
+      // 스마트피싱 기록 중 잡은 물고기 — 현재 세션에 등록해 공유 시 사진 + 마커 위치 포함
       if (status !== "idle") {
         // GPS 위치: 기기 좌표 우선, 실패 시 워킹 세션의 마지막 GPS 포인트로 폴백
         addCatchToRecording({ photoUrl: photo || null, speciesName: resolvedSpecies || null, lat: coords?.lat ?? lastPoint?.lat ?? null, lng: coords?.lng ?? lastPoint?.lng ?? null });
@@ -242,7 +245,7 @@ export default function NewCatchPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Select value={species} onChange={(e) => setSpecies(e.target.value)}>
-                <option value="">선택</option>{ALL_SPECIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                <option value="">선택</option>{speciesList.map((s) => <option key={s} value={s}>{s}</option>)}
                 <option value="기타">기타(직접입력)</option>
               </Select>
               {species === "기타" && (

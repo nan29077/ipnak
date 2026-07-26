@@ -42,7 +42,7 @@ export function LogDetail({ post, currentUserId }: { post: FeedPost; currentUser
   }
 
   return (
-    <article className="pb-10">
+    <article>
       {/* 제목 영역 */}
       <div className="border-b border-navy-100 px-4 pb-3.5 pt-4">
         <span className="inline-flex items-center rounded-md bg-orange-500/15 px-2 py-0.5 text-[12px] font-bold text-orange-400">

@@ -105,10 +105,10 @@ export function CurationHome({
         )}
       </section>
 
-      {/* 워킹 피드 섹션 — 데이터피싱 기록 (관리자 설정으로 on/off) */}
+      {/* 워킹 피드 섹션 — 스마트피싱 기록 (관리자 설정으로 on/off) */}
       {walkingFeedEnabled && (walkingPosts ?? []).length > 0 && (
         <section className="mt-6">
-          <SectionHead title="워킹 피드" desc="데이터피싱 동선 기록" icon={<Route size={16} className="text-aqua-300" />} />
+          <SectionHead title="워킹 피드" desc="스마트피싱 동선 기록" icon={<Route size={16} className="text-aqua-300" />} />
           <ScrollRail className="flex gap-3 overflow-x-auto px-4 pb-1 no-scrollbar" scrollAmount={320}>
             {(walkingPosts ?? []).slice(0, 12).map((p) => <WalkingRailCard key={p.id} post={p} />)}
           </ScrollRail>

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export function ActionButton({
   payload, label, variant = "default", confirm, successMsg,
@@ -13,10 +14,11 @@ export function ActionButton({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const doConfirm = useConfirm();
   const [loading, setLoading] = useState(false);
 
   async function run() {
-    if (confirm && !window.confirm(confirm)) return;
+    if (confirm && !await doConfirm({ title: confirm, danger: true })) return;
     setLoading(true);
     try {
       const res = await fetch("/api/admin/action", {

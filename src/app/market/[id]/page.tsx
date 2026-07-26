@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { MapPin, Heart, MessageCircle, Eye, ChevronRight, Shield, Clock, Package } from "lucide-react";
+import { MapPin, ChevronRight, Shield, Clock, Package } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { PostDetailClient } from "@/app/post/[id]/PostDetailClient";
@@ -10,6 +10,7 @@ import { marketCategoryLabel, marketConditionLabel, marketStatusLabel } from "@/
 import { MarketDetailActions } from "@/components/market/MarketDetailActions";
 import { MarketOwnerActions } from "@/components/market/MarketOwnerActions";
 import { MarketGallery } from "@/components/market/MarketGallery";
+import { MarketStats } from "@/components/market/MarketStats";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +31,13 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
   });
   if (!l) notFound();
 
-  // 조회수 증가 (best-effort)
-  await prisma.marketListing.update({ where: { id: l.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
+  // 조회수 증가 (best-effort) — 업데이트된 값으로 viewCount 갱신
+  const updated = await prisma.marketListing.update({
+    where: { id: l.id },
+    data: { viewCount: { increment: 1 } },
+    select: { viewCount: true },
+  }).catch(() => null);
+  const viewCount = updated?.viewCount ?? l.viewCount + 1;
 
   const isOwner = !!user && user.id === l.sellerId;
   const favorited = !!user && !isOwner
@@ -53,9 +59,21 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
     where: { sellerId: l.sellerId, status: "SOLD" },
   });
 
+  // 이 상품의 구매 희망자 채팅 목록 (판매자 전용)
+  const buyerChats = isOwner
+    ? await prisma.marketChat.findMany({
+        where: { listingId: l.id },
+        include: {
+          buyer: { select: { id: true, nickname: true, avatarUrl: true } },
+          messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+        orderBy: { updatedAt: "desc" },
+      })
+    : [];
+
   return (
     <PostDetailClient>
-    <div className="min-h-screen bg-[#0d1b2a] pb-28">
+    <div className="min-h-screen bg-[#0d1b2a] pb-20">
       <PageHeader title="중고피싱" back />
 
       <MarketGallery images={images} dim={l.status === "SOLD"} statusLabel={l.status !== "SELLING" ? marketStatusLabel(l.status) : null} />
@@ -139,29 +157,75 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
         {/* 구분선 */}
         <div className="h-2 bg-[#0a1220]" />
 
-        {/* 통계 */}
-        <div className="grid grid-cols-3 divide-x divide-navy-100/20 border-b border-navy-100/20">
-          <div className="flex flex-col items-center gap-1 py-3.5">
-            <Heart size={20} className="text-red-400" />
-            <p className="text-[16px] font-bold text-navy-800">{l._count.favorites}</p>
-            <p className="text-[11px] text-navy-400">관심</p>
-          </div>
-          <div className="flex flex-col items-center gap-1 py-3.5">
-            <MessageCircle size={20} className="text-aqua-400" />
-            <p className="text-[16px] font-bold text-navy-800">{l._count.chats}</p>
-            <p className="text-[11px] text-navy-400">채팅</p>
-          </div>
-          <div className="flex flex-col items-center gap-1 py-3.5">
-            <Eye size={20} className="text-navy-400" />
-            <p className="text-[16px] font-bold text-navy-800">{l.viewCount}</p>
-            <p className="text-[11px] text-navy-400">조회</p>
-          </div>
-        </div>
+        {/* 통계 — 관심 토글 시 실시간 반영, 마운트 후 최신값 fetch */}
+        <MarketStats
+          listingId={l.id}
+          initialFavoriteCount={l._count.favorites}
+          initialChatCount={l._count.chats}
+          initialViewCount={viewCount}
+        />
 
         {!user && (
           <div className="mx-4 my-4 rounded-2xl bg-navy-50/10 p-4 text-center text-[13px] text-navy-500">
             <Link href="/login" className="font-semibold text-orange-400 underline">로그인</Link>하면 찜하기와 채팅을 이용할 수 있어요.
           </div>
+        )}
+
+        {/* 판매자 전용: 구매 희망자 채팅 목록 */}
+        {isOwner && buyerChats.length > 0 && (
+          <>
+            <div className="h-2 bg-[#0a1220]" />
+            <div className="px-4 py-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-[15px] font-bold text-navy-800">구매 희망자 채팅</h2>
+                <span className="rounded-full bg-orange-500/15 px-2.5 py-0.5 text-[12px] font-semibold text-orange-400">
+                  {buyerChats.length}명
+                </span>
+              </div>
+              <div className="space-y-2.5">
+                {buyerChats.map((c) => {
+                  const lastMsg = c.messages[0];
+                  const isSystem = lastMsg?.body.startsWith("[시스템]");
+                  const needsReply = lastMsg && !isSystem && lastMsg.senderId !== user!.id;
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/market/chats/${c.id}`}
+                      className={`flex items-center gap-3 rounded-2xl border p-3 transition-colors active:opacity-80 ${
+                        needsReply
+                          ? "border-amber-400/40 bg-amber-400/10"
+                          : "border-navy-100/20 bg-navy-50/10"
+                      }`}
+                    >
+                      <div className="relative shrink-0">
+                        <img
+                          src={getAvatarUrl(c.buyer.id, c.buyer.avatarUrl)}
+                          alt={c.buyer.nickname}
+                          className="h-11 w-11 rounded-full object-cover ring-1 ring-navy-100/20"
+                        />
+                        {needsReply && (
+                          <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-amber-400 ring-2 ring-[#0d1b2a]" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-semibold text-navy-900">{c.buyer.nickname}</p>
+                        <p className={`mt-0.5 truncate text-[12px] ${needsReply ? "font-semibold text-amber-300" : "text-navy-400"}`}>
+                          {lastMsg
+                            ? isSystem
+                              ? lastMsg.body.replace("[시스템] ", "")
+                              : lastMsg.body
+                            : "대화를 시작해보세요"}
+                        </p>
+                      </div>
+                      <div className="shrink-0 rounded-xl px-3 py-1.5 text-[13px] font-semibold" style={{ background: needsReply ? "#eab308" : "#1e3a5f", color: needsReply ? "#000" : "#94a3b8" }}>
+                        {needsReply ? "답장하기" : "채팅보기"}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </>
         )}
 
         {/* 판매자의 다른 상품 */}
