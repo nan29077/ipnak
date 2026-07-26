@@ -210,7 +210,7 @@ export function ProductPurchaseBar({ product, shopTagEnabled }: { product: Produ
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId);
 
   const bottomBar = (
-    <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/90 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
+    <div className="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-navy-100 bg-[#0d1b2a]/90 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
       <div className="mx-auto flex max-w-[640px] gap-2">
         {/* 장바구니 버튼 */}
         <button
