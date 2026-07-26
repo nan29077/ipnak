@@ -44,6 +44,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
   const [price, setPrice] = useState("");
   const [shippingFee, setShippingFee] = useState("0");
   const [feeRate, setFeeRate] = useState("10");
+  const [stock, setStock] = useState("0");
 
   // Step 4: 설명 & 옵션
   const [description, setDescription] = useState("");
@@ -53,7 +54,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
     setStep(0);
     setImageUrl(""); setExtraImages([]);
     setName(""); setBrand(""); setCategory(PRODUCT_CATEGORIES[0]?.key ?? "ETC");
-    setPrice(""); setShippingFee("0"); setFeeRate("10");
+    setPrice(""); setShippingFee("0"); setFeeRate("10"); setStock("0");
     setDescription(""); setOptions([]);
   }
 
@@ -71,6 +72,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "업로드 실패");
       // API returns { url: "/uploads/..." }
+      console.log("[upload] response:", data);
       const resultUrl = data.url ?? data.imageUrl;
       if (!resultUrl) throw new Error("서버에서 URL을 반환하지 않았습니다");
       return resultUrl as string;
@@ -152,6 +154,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
           buyUrl: "#",
           description: description.trim() || undefined,
           feeRate: shopTagEnabled ? (Number(feeRate) || 10) : 0,
+          stock: Number(stock) || 0,
         }),
       });
       const data = await res.json();
@@ -393,8 +396,20 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
                 />
               </div>
             )}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-semibold text-white/50">재고 수량</label>
+              <input
+                type="number"
+                className={inputCls}
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                placeholder="0"
+                min={0}
+              />
+            </div>
           </div>
         )}
+
 
         {/* ─── Step 4: 설명 & 옵션 ─── */}
         {step === 3 && (

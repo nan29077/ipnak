@@ -343,6 +343,43 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
           </div>
         )}
 
+        {/* ── 쇼핑 ── */}
+        {shopEnabled && (
+          <div className="overflow-hidden rounded-2xl border border-navy-100/20 bg-[#162538]">
+            <div className="flex items-center gap-2 border-b border-navy-100/15 px-4 py-2.5">
+              <ShoppingBag size={14} className="text-orange-400" />
+              <p className="text-[13px] font-bold text-navy-700">쇼핑</p>
+              <Link href="/shop" className="ml-auto text-[11px] text-orange-400">쇼핑몰 바로가기 →</Link>
+            </div>
+            <div className="divide-y divide-navy-100/15 px-4">
+              <Link href="/me/cart" className="flex items-center gap-3 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500/15 text-orange-400"><ShoppingBag size={17} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-navy-900">장바구니</span>
+                  <span className="block text-[11px] text-navy-400">담아둔 상품 확인</span>
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-navy-300" />
+              </Link>
+              <Link href="/me/orders" className="flex items-center gap-3 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-aqua-400/15 text-aqua-400"><Tag size={17} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-navy-900">구매내역</span>
+                  <span className="block text-[11px] text-navy-400">주문·배송 현황 확인</span>
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-navy-300" />
+              </Link>
+              <Link href="/me/shipping" className="flex items-center gap-3 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy-300/15 text-navy-400"><MapPin size={17} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-navy-900">배송지 관리</span>
+                  <span className="block text-[11px] text-navy-400">배송지 추가·수정</span>
+                </span>
+                <ChevronRight size={16} className="shrink-0 text-navy-300" />
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* ── 내 낚시단 ── */}
         <div className="overflow-hidden rounded-2xl border border-navy-100/20 bg-[#162538]">
           <div className="flex items-center gap-2 border-b border-navy-100/15 px-4 py-2.5">

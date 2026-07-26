@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ShoppingBag, ExternalLink, Tag, ChevronRight } from "lucide-react";
+import { Tag, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Badge, SectionTitle } from "@/components/ui";
 import { won } from "@/lib/utils";
 import { productCategoryLabel } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { getBoolSetting } from "@/lib/settings";
+import { ProductImageSlider } from "@/components/shop/ProductImageSlider";
+import { ProductPurchaseBar } from "@/components/shop/ProductPurchaseBar";
 
 export const dynamic = "force-dynamic";
 
@@ -21,31 +24,32 @@ function parseProductOptions(optionsJson: string | null) {
 }
 
 export default async function ShopProductPage({ params }: { params: { id: string } }) {
-  const p = await prisma.product.findUnique({ where: { id: params.id }, include: { seller: { select: { id: true, nickname: true, avatarUrl: true } } } });
+  const [p, shopTagEnabled] = await Promise.all([
+    prisma.product.findUnique({ where: { id: params.id }, include: { seller: { select: { id: true, nickname: true, avatarUrl: true } } } }),
+    getBoolSetting("shop_tag_enabled"),
+  ]);
   if (!p) notFound();
 
   const { extraImages } = parseProductOptions(p.options ?? null);
   const allImages = [p.imageUrl, ...extraImages].filter(Boolean) as string[];
 
+  // Serialize product for client component (Date → string)
+  const productForClient = {
+    id: p.id,
+    name: p.name,
+    price: p.price,
+    options: p.options ?? null,
+    feeRate: p.feeRate,
+    shippingFee: p.shippingFee,
+    imageUrl: p.imageUrl ?? null,
+  };
+
   return (
     <div className="pb-28">
       <PageHeader title="상품" back />
 
-      {/* 대표 이미지 */}
-      <div className="aspect-square w-full bg-navy-50">
-        <img src={p.imageUrl || ""} alt={p.name} decoding="async" className="h-full w-full object-cover" />
-      </div>
-
-      {/* 추가 이미지 갤러리 */}
-      {extraImages.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto px-4 py-3 scrollbar-none">
-          {allImages.map((url, i) => (
-            <div key={i} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 ${i === 0 ? "border-orange-400" : "border-navy-100"}`}>
-              <img src={url} alt="" className="h-full w-full object-cover" />
-            </div>
-          ))}
-        </div>
-      )}
+      {/* 이미지 슬라이더 */}
+      <ProductImageSlider images={allImages} />
 
       <div className="space-y-4 p-4">
         <div>
@@ -53,6 +57,9 @@ export default async function ShopProductPage({ params }: { params: { id: string
           <h1 className="mt-2 text-xl font-bold leading-snug text-navy-800">{p.name}</h1>
           {p.brand && <p className="mt-0.5 text-sm text-navy-400">{p.brand}</p>}
           <p className="mt-2 text-2xl font-extrabold text-navy-800">{won(p.price)}</p>
+          {p.shippingFee === 0
+            ? <p className="mt-0.5 text-sm text-green-400">무료배송</p>
+            : <p className="mt-0.5 text-sm text-navy-400">배송비 {won(p.shippingFee)}</p>}
         </div>
 
         {p.description && (
@@ -72,18 +79,10 @@ export default async function ShopProductPage({ params }: { params: { id: string
             <ChevronRight size={18} className="text-navy-300" />
           </Link>
         )}
-        <p className="text-xs text-navy-300">※ 판매수수료 {p.feeRate}% · 결제는 추후 커머스/제휴 API 연동 예정입니다.</p>
       </div>
 
-      <div className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/90 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
-        <div className="mx-auto flex max-w-[640px] gap-2">
-          <a href={p.buyUrl && p.buyUrl !== "#" ? p.buyUrl : undefined} target="_blank" rel="noreferrer"
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft btn-press transition-colors outline-none hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-aqua-300 focus-visible:ring-offset-1">
-            <ShoppingBag size={18} /> 구매하기 <ExternalLink size={14} />
-          </a>
-        </div>
-      </div>
+      {/* 하단 구매 바 */}
+      <ProductPurchaseBar product={productForClient} shopTagEnabled={shopTagEnabled} />
     </div>
   );
 }
- 

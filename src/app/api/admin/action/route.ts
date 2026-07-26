@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { aiSettingKey, protectAiCredential } from "@/lib/aiCredentials";
@@ -176,14 +177,19 @@ export async function POST(req: Request) {
         await prisma.tournament.delete({ where: { id: b.id } });
         await log("TOURNAMENT_DELETE", b.id); break;
       case "PRODUCT_CREATE":
-        await prisma.product.create({ data: {
-          name: b.name, brand: b.brand || null, category: b.category || "ETC",
-          price: Number(b.price) || 0,
-          shippingFee: Number(b.shippingFee) || 0,
-          options: b.options || null,
-          imageUrl: b.imageUrl || null,
-          buyUrl: b.buyUrl || "#", description: b.description || null, feeRate: Number(b.feeRate) || 10,
-        }});
+        // stock 컬럼이 없을 수 있으므로 ALTER TABLE 후 raw SQL INSERT
+        try {
+          await prisma.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN "stock" INTEGER NOT NULL DEFAULT 0`);
+        } catch {}
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO "Product" ("id","sellerId","name","brand","category","price","shippingFee","options","imageUrl","buyUrl","description","feeRate","stock","createdAt")
+           VALUES (?,NULL,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
+          randomUUID(),
+          b.name, b.brand || null, b.category || "ETC",
+          Number(b.price) || 0, Number(b.shippingFee) || 0,
+          b.options || null, b.imageUrl || null, b.buyUrl || "#",
+          b.description || null, Number(b.feeRate) || 0, Number(b.stock) || 0,
+        );
         await log("PRODUCT_CREATE", undefined, b.name); break;
       case "PRODUCT_DELETE":
         await prisma.product.delete({ where: { id: b.id } });
