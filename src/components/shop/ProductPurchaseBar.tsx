@@ -14,6 +14,7 @@ interface ProductForPurchase {
   options: string | null;
   feeRate: number;
   shippingFee: number;
+  freeShippingThreshold?: number;
   imageUrl?: string | null;
 }
 
@@ -102,7 +103,11 @@ export function ProductPurchaseBar({ product, shopTagEnabled }: { product: Produ
 
   const parsedOptions = parseOptions(product.options);
 
-  const totalAmount = product.price * quantity + (product.shippingFee ?? 0);
+  // 조건부 무료배송: threshold 이상 주문 시 배송비 0원
+  const threshold = product.freeShippingThreshold ?? 0;
+  const effectiveShippingFee =
+    threshold > 0 && product.price * quantity >= threshold ? 0 : (product.shippingFee ?? 0);
+  const totalAmount = product.price * quantity + effectiveShippingFee;
 
   function handleAddToCart() {
     addToLocalCart({
@@ -254,7 +259,9 @@ export function ProductPurchaseBar({ product, shopTagEnabled }: { product: Produ
               <p className="text-[15px] font-extrabold text-orange-400 mt-0.5">{won(product.price)}</p>
               {product.shippingFee === 0
                 ? <p className="text-[11px] text-green-400">무료배송</p>
-                : <p className="text-[11px] text-navy-400">배송비 {won(product.shippingFee)}</p>}
+                : threshold > 0
+                  ? <p className="text-[11px] text-navy-400">{won(threshold)} 이상 무료 / 기본 {won(product.shippingFee)}</p>
+                  : <p className="text-[11px] text-navy-400">배송비 {won(product.shippingFee)}</p>}
             </div>
           </div>
 
@@ -333,7 +340,12 @@ export function ProductPurchaseBar({ product, shopTagEnabled }: { product: Produ
               <span>상품금액</span><span>{won(product.price * quantity)}</span>
             </div>
             <div className="flex justify-between text-[12px] text-white/50 mb-2">
-              <span>배송비</span><span>{product.shippingFee === 0 ? "무료" : won(product.shippingFee)}</span>
+              <span>배송비</span>
+              <span>
+                {effectiveShippingFee === 0
+                  ? <span className="text-green-400">무료</span>
+                  : won(effectiveShippingFee)}
+              </span>
             </div>
             <div className="flex justify-between border-t border-navy-100/15 pt-2">
               <span className="text-[13px] font-bold text-white">총 결제금액</span>

@@ -30,7 +30,13 @@ export default async function ShopProductPage({ params }: { params: { id: string
   ]);
   if (!p) notFound();
 
-  const { extraImages } = parseProductOptions(p.options ?? null);
+  // Prisma 클라이언트가 stale(재생성 전)할 수 있으므로 as any + ?? 기본값으로 안전하게 접근.
+  // `prisma generate` 실행 후에는 일반 필드 접근으로 교체 가능.
+  const shippingFee: number = (p as any).shippingFee ?? 0;
+  const productOptions: string | null = (p as any).options ?? null;
+  const freeShippingThreshold: number = (p as any).freeShippingThreshold ?? 0;
+
+  const { extraImages } = parseProductOptions(productOptions);
   const allImages = [p.imageUrl, ...extraImages].filter(Boolean) as string[];
 
   // Serialize product for client component (Date → string)
@@ -38,9 +44,10 @@ export default async function ShopProductPage({ params }: { params: { id: string
     id: p.id,
     name: p.name,
     price: p.price,
-    options: p.options ?? null,
+    options: productOptions,
     feeRate: p.feeRate,
-    shippingFee: p.shippingFee,
+    shippingFee,
+    freeShippingThreshold,
     imageUrl: p.imageUrl ?? null,
   };
 
@@ -57,9 +64,14 @@ export default async function ShopProductPage({ params }: { params: { id: string
           <h1 className="mt-2 text-xl font-bold leading-snug text-navy-800">{p.name}</h1>
           {p.brand && <p className="mt-0.5 text-sm text-navy-400">{p.brand}</p>}
           <p className="mt-2 text-2xl font-extrabold text-navy-800">{won(p.price)}</p>
-          {p.shippingFee === 0
+          {shippingFee === 0
             ? <p className="mt-0.5 text-sm text-green-400">무료배송</p>
-            : <p className="mt-0.5 text-sm text-navy-400">배송비 {won(p.shippingFee)}</p>}
+            : freeShippingThreshold > 0
+              ? <p className="mt-0.5 text-sm text-navy-400">
+                  <span className="text-green-400">{won(freeShippingThreshold)} 이상 무료배송</span>
+                  {" / "}기본 {won(shippingFee)}
+                </p>
+              : <p className="mt-0.5 text-sm text-navy-400">배송비 {won(shippingFee)}</p>}
         </div>
 
         {p.description && (

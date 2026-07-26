@@ -177,20 +177,30 @@ export async function POST(req: Request) {
         await prisma.tournament.delete({ where: { id: b.id } });
         await log("TOURNAMENT_DELETE", b.id); break;
       case "PRODUCT_CREATE":
-        // stock 컬럼이 없을 수 있으므로 ALTER TABLE 후 raw SQL INSERT
-        try {
-          await prisma.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN "stock" INTEGER NOT NULL DEFAULT 0`);
-        } catch {}
+        // 누락 컬럼 대비 ALTER TABLE (이미 있으면 무시)
+        try { await prisma.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN "stock" INTEGER NOT NULL DEFAULT 0`); } catch {}
+        try { await prisma.$executeRawUnsafe(`ALTER TABLE "Product" ADD COLUMN "freeShippingThreshold" INTEGER NOT NULL DEFAULT 0`); } catch {}
         await prisma.$executeRawUnsafe(
-          `INSERT INTO "Product" ("id","sellerId","name","brand","category","price","shippingFee","options","imageUrl","buyUrl","description","feeRate","stock","createdAt")
-           VALUES (?,NULL,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
+          `INSERT INTO "Product" ("id","sellerId","name","brand","category","price","shippingFee","freeShippingThreshold","options","imageUrl","buyUrl","description","feeRate","stock","createdAt")
+           VALUES (?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
           randomUUID(),
           b.name, b.brand || null, b.category || "ETC",
           Number(b.price) || 0, Number(b.shippingFee) || 0,
+          Number(b.freeShippingThreshold) || 0,
           b.options || null, b.imageUrl || null, b.buyUrl || "#",
           b.description || null, Number(b.feeRate) || 0, Number(b.stock) || 0,
         );
         await log("PRODUCT_CREATE", undefined, b.name); break;
+      case "PRODUCT_UPDATE": {
+        const { id, name, brand, category, price, feeRate, shippingFee, description, imageUrl, options, stock, freeShippingThreshold } = b;
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Product" SET name=?, brand=?, category=?, price=?, "feeRate"=?, "shippingFee"=?, description=?, "imageUrl"=?, options=?, stock=?, "freeShippingThreshold"=?, "updatedAt"=? WHERE id=?`,
+          name, brand ?? null, category || "ETC", Number(price) || 0, Number(feeRate) || 0,
+          Number(shippingFee) || 0, description ?? null, imageUrl ?? null, options ?? null,
+          Number(stock) || 0, Number(freeShippingThreshold) || 0, new Date().toISOString(), id,
+        );
+        await log("PRODUCT_UPDATE", id, name); break;
+      }
       case "PRODUCT_DELETE":
         await prisma.product.delete({ where: { id: b.id } });
         await log("PRODUCT_DELETE", b.id); break;

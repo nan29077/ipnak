@@ -397,7 +397,9 @@ model Product {
   description    String?
   feeRate        Int              @default(10) // 리퍼럴 수수료율(%)
   affiliateCode  String? // 제휴/리퍼럴 코드 (실연동 시 사용)
-  shippingFee    Int              @default(0)   // 배송비(원), 0=무료배송
+  shippingFee           Int      @default(0)   // 배송비(원), 0=무료배송
+  freeShippingThreshold Int      @default(0)   // 조건부 무료배송 기준금액(원), 0=미적용
+  stock                 Int      @default(0)   // 재고 수량
   options        String?                        // JSON: [{"name":"색상","values":["블랙","화이트"]}]
   createdAt      DateTime         @default(now())
   postTags       PostProductTag[]

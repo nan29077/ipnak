@@ -3,14 +3,29 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
-  Loader2, Plus, X, ChevronLeft, ChevronRight, ImagePlus,
-  Tag, DollarSign, FileText, Check, ShoppingBag,
+  Loader2, X, ChevronLeft, ChevronRight, ImagePlus,
+  Tag, DollarSign, FileText, Check, Pencil,
 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { PRODUCT_CATEGORIES } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 
 type OptionRow = { name: string; values: string };
+
+type ProductData = {
+  id: string;
+  name: string;
+  brand: string | null;
+  category: string;
+  price: number;
+  feeRate: number;
+  shippingFee: number;
+  description: string | null;
+  imageUrl: string | null;
+  options: string | null;
+  stock: number;
+  freeShippingThreshold: number;
+};
 
 const STEPS = [
   { label: "사진", icon: ImagePlus },
@@ -22,7 +37,38 @@ const STEPS = [
 const inputCls =
   "w-full rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-white outline-none focus:border-orange-400 placeholder:text-white/25 transition-colors";
 
-export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean }) {
+function parseOptions(raw: string | null): OptionRow[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    const opts = parsed?.options ?? [];
+    if (!Array.isArray(opts)) return [];
+    return opts.map((o: any) => ({
+      name: o.name ?? "",
+      values: Array.isArray(o.values) ? o.values.join(",") : String(o.values ?? ""),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function parseExtraImages(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.extraImages) ? parsed.extraImages : [];
+  } catch {
+    return [];
+  }
+}
+
+export function ProductEditForm({
+  product,
+  shopTagEnabled,
+}: {
+  product: ProductData;
+  shopTagEnabled: boolean;
+}) {
   const router = useRouter();
   const toast = useToast();
 
@@ -32,39 +78,48 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
   const [uploading, setUploading] = useState<string | null>(null);
 
   // Step 1: 사진
-  const [imageUrl, setImageUrl] = useState("");
-  const [extraImages, setExtraImages] = useState<string[]>([]);
+  const [imageUrl, setImageUrl] = useState(product.imageUrl ?? "");
+  const [extraImages, setExtraImages] = useState<string[]>(() => parseExtraImages(product.options));
 
   // Step 2: 기본 정보
-  const [name, setName] = useState("");
-  const [brand, setBrand] = useState("");
-  const [category, setCategory] = useState(PRODUCT_CATEGORIES[0]?.key ?? "ETC");
+  const [name, setName] = useState(product.name);
+  const [brand, setBrand] = useState(product.brand ?? "");
+  const [category, setCategory] = useState(product.category);
 
   // Step 3: 가격
-  const [price, setPrice] = useState("");
-  const [shippingFee, setShippingFee] = useState("0");
-  const [freeShippingEnabled, setFreeShippingEnabled] = useState(false);
-  const [freeShippingThreshold, setFreeShippingThreshold] = useState("");
-  const [feeRate, setFeeRate] = useState("10");
-  const [stock, setStock] = useState("0");
+  const [price, setPrice] = useState(String(product.price));
+  const [shippingFee, setShippingFee] = useState(String(product.shippingFee));
+  const [freeShippingEnabled, setFreeShippingEnabled] = useState(product.freeShippingThreshold > 0);
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState(
+    product.freeShippingThreshold > 0 ? String(product.freeShippingThreshold) : ""
+  );
+  const [feeRate, setFeeRate] = useState(String(product.feeRate));
+  const [stock, setStock] = useState(String(product.stock));
 
   // Step 4: 설명 & 옵션
-  const [description, setDescription] = useState("");
-  const [options, setOptions] = useState<OptionRow[]>([]);
+  const [description, setDescription] = useState(product.description ?? "");
+  const [options, setOptions] = useState<OptionRow[]>(() => parseOptions(product.options));
 
-  function resetForm() {
+  function resetToProduct() {
     setStep(0);
-    setImageUrl(""); setExtraImages([]);
-    setName(""); setBrand(""); setCategory(PRODUCT_CATEGORIES[0]?.key ?? "ETC");
-    setPrice(""); setShippingFee("0"); setFreeShippingEnabled(false); setFreeShippingThreshold(""); setFeeRate("10"); setStock("0");
-    setDescription(""); setOptions([]);
+    setImageUrl(product.imageUrl ?? "");
+    setExtraImages(parseExtraImages(product.options));
+    setName(product.name);
+    setBrand(product.brand ?? "");
+    setCategory(product.category);
+    setPrice(String(product.price));
+    setShippingFee(String(product.shippingFee));
+    setFreeShippingEnabled(product.freeShippingThreshold > 0);
+    setFreeShippingThreshold(product.freeShippingThreshold > 0 ? String(product.freeShippingThreshold) : "");
+    setFeeRate(String(product.feeRate));
+    setStock(String(product.stock));
+    setDescription(product.description ?? "");
+    setOptions(parseOptions(product.options));
   }
 
   function openModal() { setOpen(true); setStep(0); }
-  function closeModal() { setOpen(false); resetForm(); }
+  function closeModal() { setOpen(false); resetToProduct(); }
 
-  // ─── 이미지 업로드 ───
-  // API는 { url: string } 반환 (data.url)
   async function uploadImage(file: File, slot: string): Promise<string | null> {
     setUploading(slot);
     try {
@@ -73,8 +128,6 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "업로드 실패");
-      // API returns { url: "/uploads/..." }
-      console.log("[upload] response:", data);
       const resultUrl = data.url ?? data.imageUrl;
       if (!resultUrl) throw new Error("서버에서 URL을 반환하지 않았습니다");
       return resultUrl as string;
@@ -145,24 +198,27 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "PRODUCT_CREATE",
+          type: "PRODUCT_UPDATE",
+          id: product.id,
           name: name.trim(),
-          brand: brand.trim() || undefined,
+          brand: brand.trim() || null,
           category,
           price: Number(price),
           shippingFee: Number(shippingFee) || 0,
-          freeShippingThreshold: freeShippingEnabled && Number(freeShippingThreshold) > 0 ? Number(freeShippingThreshold) : 0,
-          options: optionsPayload,
-          imageUrl: imageUrl || undefined,
-          buyUrl: "#",
-          description: description.trim() || undefined,
-          feeRate: shopTagEnabled ? (Number(feeRate) || 10) : 0,
+          freeShippingThreshold:
+            freeShippingEnabled && Number(freeShippingThreshold) > 0
+              ? Number(freeShippingThreshold)
+              : 0,
+          options: optionsPayload ?? null,
+          imageUrl: imageUrl || null,
+          description: description.trim() || null,
+          feeRate: shopTagEnabled ? Number(feeRate) || 0 : product.feeRate,
           stock: Number(stock) || 0,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "등록 실패");
-      toast("상품이 등록되었습니다", "success");
+      if (!res.ok) throw new Error(data.error || "수정 실패");
+      toast("상품이 수정되었습니다", "success");
       closeModal();
       router.refresh();
     } catch (err: any) {
@@ -172,22 +228,19 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
     }
   }
 
-  // ─── 모달 콘텐츠 (공통) ───
   const modalContent = (
     <>
-      {/* 상단 헤더 */}
       <div className="h-[3px] w-full shrink-0 bg-gradient-to-r from-orange-700/40 via-orange-400 to-orange-700/40" />
-      {/* 모바일 드래그 핸들 */}
       <div className="flex shrink-0 justify-center pt-2 md:hidden">
         <div className="h-1 w-10 rounded-full bg-white/20" />
       </div>
       <div className="flex shrink-0 items-center justify-between px-5 py-3">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-orange-500/15 ring-1 ring-orange-500/25">
-            <ShoppingBag size={17} className="text-orange-400" strokeWidth={1.8} />
+            <Pencil size={17} className="text-orange-400" strokeWidth={1.8} />
           </div>
           <div>
-            <p className="text-[15px] font-bold text-white">상품 등록</p>
+            <p className="text-[15px] font-bold text-white">상품 수정</p>
             <p className="text-[11px] text-white/35">단계 {step + 1} / {STEPS.length}</p>
           </div>
         </div>
@@ -233,7 +286,6 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
         })}
       </div>
 
-      {/* 본문 — overscroll-contain으로 모바일 흔들림 방지 */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
         {/* ─── Step 1: 사진 ─── */}
         {step === 0 && (
@@ -280,7 +332,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
                   "inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-orange-400 hover:bg-orange-500/10",
                   !!uploading && "pointer-events-none opacity-50"
                 )}>
-                  <Plus size={12} /> 사진 추가
+                  + 사진 추가
                   <input type="file" accept="image/*" multiple className="hidden" onChange={handleExtraUpload} disabled={!!uploading} />
                 </label>
               </div>
@@ -383,7 +435,6 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
                   <span className="shrink-0 rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-400">무료</span>
                 )}
               </div>
-              {/* 조건부 무료배송 */}
               {Number(shippingFee) > 0 && (
                 <div className="mt-2.5 space-y-2">
                   <label className="flex cursor-pointer select-none items-center gap-2">
@@ -416,7 +467,6 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
                 </div>
               )}
             </div>
-            {/* 수수료: 쇼핑 스위치 ON일 때만 표시 */}
             {shopTagEnabled && (
               <div>
                 <label className="mb-1.5 block text-[12px] font-semibold text-white/50">수수료 (%)</label>
@@ -445,7 +495,6 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
           </div>
         )}
 
-
         {/* ─── Step 4: 설명 & 옵션 ─── */}
         {step === 3 && (
           <div className="space-y-4">
@@ -466,7 +515,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
                   onClick={addOption}
                   className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-orange-400 hover:bg-orange-500/10"
                 >
-                  <Plus size={12} /> 옵션 추가
+                  + 옵션 추가
                 </button>
               </div>
               {options.length > 0 ? (
@@ -502,9 +551,9 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
               )}
             </div>
 
-            {/* 등록 정보 요약 */}
+            {/* 수정 정보 요약 */}
             <div className="space-y-1.5 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-white/40">등록 정보 확인</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-white/40">수정 정보 확인</p>
               <p className="text-[13px] font-semibold text-white">{name || "—"}</p>
               {brand && <p className="text-[12px] text-white/40">{brand}</p>}
               <div className="flex items-center gap-3 text-[12px] text-white/50">
@@ -558,7 +607,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
               className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-3 text-[13px] font-bold text-white transition-all hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
             >
               {submitting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-              {submitting ? "등록 중..." : "상품 등록 완료"}
+              {submitting ? "수정 중..." : "수정 완료"}
             </button>
           )}
         </div>
@@ -566,18 +615,13 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
     </>
   );
 
-  // ─── 모달 렌더링 ───
-  // 모바일: 바텀시트 — fixed bottom-0으로 고정 (브라우저 주소창 변동에도 흔들림 없음)
-  // PC(md:): 중앙 팝업 — overlay 클릭으로 닫기
   const modal = open && typeof document !== "undefined" && createPortal(
     <>
-      {/* 딤 오버레이 */}
       <div
         className="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-[4px]"
         onClick={closeModal}
       />
-
-      {/* 모바일: 바텀시트 — fixed bottom-0 */}
+      {/* 모바일: 바텀시트 */}
       <div
         className="fixed inset-x-0 bottom-0 z-[9999] flex flex-col overflow-hidden rounded-t-[28px] md:hidden"
         style={{
@@ -588,8 +632,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
       >
         {modalContent}
       </div>
-
-      {/* PC: 중앙 팝업 다이얼로그 */}
+      {/* PC: 중앙 팝업 */}
       <div
         className="fixed inset-0 z-[9999] hidden items-center justify-center md:flex"
         onClick={closeModal}
@@ -614,9 +657,9 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
       <button
         type="button"
         onClick={openModal}
-        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-bold text-white shadow-soft transition-all hover:bg-orange-600 active:scale-[0.97]"
+        className="inline-flex items-center gap-1 rounded-lg border border-navy-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-navy-600 transition-all hover:bg-navy-50 active:scale-[0.97]"
       >
-        <Plus size={15} /> 상품 등록
+        <Pencil size={12} /> 수정
       </button>
       {modal}
     </>

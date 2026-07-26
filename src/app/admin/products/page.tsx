@@ -8,6 +8,7 @@ import { won, cn } from "@/lib/utils";
 import { FeaturedProductPanel } from "@/components/admin/FeaturedProductPanel";
 import { getBoolSetting } from "@/lib/settings";
 import { ProductCreateForm } from "@/components/admin/ProductCreateForm";
+import { ProductEditForm } from "@/components/admin/ProductEditForm";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,16 @@ export default async function AdminProducts({
     },
     orderBy: { createdAt: "desc" },
   });
+
+  // stock, freeShippingThreshold는 스키마 외 컬럼 → raw SQL
+  type RawStock = { id: string; stock: number | null; freeShippingThreshold: number | null };
+  let stockMap: Record<string, { stock: number; freeShippingThreshold: number }> = {};
+  try {
+    const rows = await prisma.$queryRaw<RawStock[]>`SELECT id, stock, "freeShippingThreshold" FROM "Product"`;
+    for (const r of rows) {
+      stockMap[r.id] = { stock: Number(r.stock) || 0, freeShippingThreshold: Number(r.freeShippingThreshold) || 0 };
+    }
+  } catch {}
 
   // prisma generate 전에도 동작하도록 raw SQL 사용
   type RawFeatured = { id: string; productId: string; section: string; order: number; createdAt: string };
@@ -95,13 +106,32 @@ export default async function AdminProducts({
                   <td className="px-4 py-3 text-navy-400">{p.feeRate}%</td>
                   <td className="px-4 py-3 text-navy-500">{p._count.postTags}</td>
                   <td className="px-4 py-3">
-                    <ActionButton
-                      payload={{ type: "PRODUCT_DELETE", id: p.id }}
-                      label="삭제"
-                      variant="danger"
-                      confirm="이 상품을 삭제할까요?"
-                      successMsg="삭제되었습니다"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <ProductEditForm
+                        product={{
+                          id: p.id,
+                          name: p.name,
+                          brand: p.brand,
+                          category: p.category,
+                          price: p.price,
+                          feeRate: p.feeRate,
+                          shippingFee: p.shippingFee,
+                          description: p.description,
+                          imageUrl: p.imageUrl,
+                          options: (p as any).options ?? null,
+                          stock: stockMap[p.id]?.stock ?? 0,
+                          freeShippingThreshold: stockMap[p.id]?.freeShippingThreshold ?? 0,
+                        }}
+                        shopTagEnabled={shopTagEnabled}
+                      />
+                      <ActionButton
+                        payload={{ type: "PRODUCT_DELETE", id: p.id }}
+                        label="삭제"
+                        variant="danger"
+                        confirm="이 상품을 삭제할까요?"
+                        successMsg="삭제되었습니다"
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -131,7 +161,24 @@ export default async function AdminProducts({
                     </div>
                   </div>
                 </div>
-                <div className="mt-2">
+                <div className="mt-2 flex items-center gap-1.5">
+                  <ProductEditForm
+                    product={{
+                      id: p.id,
+                      name: p.name,
+                      brand: p.brand,
+                      category: p.category,
+                      price: p.price,
+                      feeRate: p.feeRate,
+                      shippingFee: p.shippingFee,
+                      description: p.description,
+                      imageUrl: p.imageUrl,
+                      options: (p as any).options ?? null,
+                      stock: stockMap[p.id]?.stock ?? 0,
+                      freeShippingThreshold: stockMap[p.id]?.freeShippingThreshold ?? 0,
+                    }}
+                    shopTagEnabled={shopTagEnabled}
+                  />
                   <ActionButton
                     payload={{ type: "PRODUCT_DELETE", id: p.id }}
                     label="삭제"
