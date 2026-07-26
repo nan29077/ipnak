@@ -6,15 +6,17 @@ import { EmptyState } from "@/components/ui";
 import { productCategoryLabel } from "@/lib/taxonomy";
 import { won, cn } from "@/lib/utils";
 import { FeaturedProductPanel } from "@/components/admin/FeaturedProductPanel";
-import { getBoolSetting } from "@/lib/settings";
+import { getBoolSetting, getSetting } from "@/lib/settings";
 import { ProductCreateForm } from "@/components/admin/ProductCreateForm";
 import { ProductEditForm } from "@/components/admin/ProductEditForm";
+import { PolicySettingsPanel } from "@/components/admin/PolicySettingsPanel";
 
 export const dynamic = "force-dynamic";
 
 const TABS = [
   { key: "products", label: "상품 목록" },
   { key: "featured", label: "쇼핑 추천 상품" },
+  { key: "policy", label: "정책 설정" },
 ];
 
 export default async function AdminProducts({
@@ -22,9 +24,19 @@ export default async function AdminProducts({
 }: {
   searchParams: { tab?: string };
 }) {
-  const tab = searchParams.tab === "featured" ? "featured" : "products";
+  const tab = searchParams.tab === "featured" ? "featured" : searchParams.tab === "policy" ? "policy" : "products";
 
   const shopTagEnabled = await getBoolSetting("shop_tag_enabled");
+
+  // 정책 설정 탭: 현재 설정값 서버사이드 로드
+  let initialRefund = "";
+  let initialShipping = "";
+  if (tab === "policy") {
+    [initialRefund, initialShipping] = await Promise.all([
+      getSetting("refund_policy"),
+      getSetting("shipping_guide"),
+    ]);
+  }
 
   const products = await prisma.product.findMany({
     include: {
@@ -191,6 +203,8 @@ export default async function AdminProducts({
             ))}
           </div>
         </>
+      ) : tab === "policy" ? (
+        <PolicySettingsPanel initialRefund={initialRefund} initialShipping={initialShipping} />
       ) : (
         <FeaturedProductPanel products={products} featured={featured} />
       )}

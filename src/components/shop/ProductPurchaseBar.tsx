@@ -209,36 +209,30 @@ export function ProductPurchaseBar({ product, shopTagEnabled }: { product: Produ
 
   const selectedAddress = addresses.find((a) => a.id === selectedAddressId);
 
-  const bottomBar = (
-    <div
-      className="fixed inset-x-0 z-50 border-t border-navy-100 bg-[#0d1b2a]/90 p-3 backdrop-blur-md md:relative md:!bottom-auto md:border-0 md:bg-[#162538]"
-      style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}
-    >
-      <div className="mx-auto flex max-w-[640px] gap-2">
-        {/* 장바구니 버튼 */}
-        <button
-          type="button"
-          onClick={handleAddToCart}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-navy-100/30 bg-[#162538] text-navy-400 transition-colors hover:border-orange-400 hover:text-orange-400"
-          aria-label="장바구니 담기"
-        >
-          <ShoppingCart size={20} />
-        </button>
-        {/* 구매하기 버튼 */}
-        <button
-          type="button"
-          onClick={openBuySheet}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft btn-press transition-colors outline-none hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-aqua-300 focus-visible:ring-offset-1"
-        >
-          <ShoppingBag size={18} /> 구매하기
-        </button>
-      </div>
+  // 인라인 버튼 (가격 행 옆에 배치)
+  const inlineButtons = (
+    <div className="flex gap-2">
+      {/* 장바구니 버튼 */}
+      <button
+        type="button"
+        onClick={handleAddToCart}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-navy-100/30 bg-[#162538] text-navy-400 transition-colors hover:border-orange-400 hover:text-orange-400"
+        aria-label="장바구니 담기"
+      >
+        <ShoppingCart size={18} />
+      </button>
+      {/* 구매하기 버튼 */}
+      <button
+        type="button"
+        onClick={openBuySheet}
+        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-[14px] font-semibold text-white shadow-soft btn-press transition-colors outline-none hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-aqua-300 focus-visible:ring-offset-1"
+      >
+        <ShoppingBag size={16} /> 구매하기
+      </button>
     </div>
   );
 
-  if (typeof document === "undefined") return bottomBar;
-
-  const buySheet = sheetOpen && createPortal(
+  const buySheet = sheetOpen && typeof document !== "undefined" && createPortal(
     <>
       <div className="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-[4px]" onClick={() => setSheetOpen(false)} />
       <div
@@ -372,7 +366,7 @@ export function ProductPurchaseBar({ product, shopTagEnabled }: { product: Produ
     document.body,
   );
 
-  const pgModal = pgOpen && createPortal(
+  const pgModal = pgOpen && typeof document !== "undefined" && createPortal(
     <>
       <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-[6px]" onClick={!pgLoading && !pgResult ? closePg : undefined} />
       <div
@@ -469,7 +463,7 @@ export function ProductPurchaseBar({ product, shopTagEnabled }: { product: Produ
 
   return (
     <>
-      {bottomBar}
+      {inlineButtons}
       {buySheet}
       {pgModal}
     </>

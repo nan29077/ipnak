@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Fish, ShoppingBag, Settings, Navigation, Clock, Route,
@@ -34,6 +34,7 @@ interface Props {
   user: { id: string; nickname: string; email: string; role: string; avatarUrl: string | null };
   isAdmin: boolean;
   shopEnabled: boolean;
+  shopTagEnabled: boolean;
   reservationEnabled: boolean;
   pEnabled: boolean;
   ballEnabled: boolean;
@@ -83,12 +84,19 @@ const tabs = [
 ];
 
 export function MePageTabs({
-  user, isAdmin, shopEnabled, reservationEnabled, pEnabled, ballEnabled,
+  user, isAdmin, shopEnabled, shopTagEnabled, reservationEnabled, pEnabled, ballEnabled,
   ballPriceRaw, openBallOnMount, pointBalance, recentTrips, myWalkingPosts,
   marketSellCount, marketBuyCount, marketFavCount, marketChatCount,
   needsReplyChats, myGroupMembers, bookings, posts, points, entries, bio,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"fishing" | "market" | "settings">("fishing");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const activeTab = (rawTab === "market" || rawTab === "settings") ? rawTab : "fishing";
+
+  function setActiveTab(tab: "fishing" | "market" | "settings") {
+    router.replace(`/me?tab=${tab}`, { scroll: false });
+  }
 
   return (
     <div>
@@ -274,6 +282,11 @@ export function MePageTabs({
                 </div>
               </div>
             )}
+
+            {/* ProfileView */}
+            <div className="border-t border-navy-100 pt-2">
+              <ProfileView posts={posts} points={points} entries={entries} />
+            </div>
           </>
         )}
 
@@ -355,41 +368,6 @@ export function MePageTabs({
               </div>
             </div>
 
-            {/* 포인트 & 혜택 */}
-            {(pEnabled || shopEnabled) && (
-              <div className="overflow-hidden rounded-2xl border border-amber-400/20 bg-[#162538]">
-                <div className="flex items-center gap-2 border-b border-navy-100/15 px-4 py-2.5">
-                  <Coins size={14} className="text-amber-400" />
-                  <p className="text-[13px] font-bold text-navy-700">포인트 & 혜택</p>
-                </div>
-                <div className="divide-y divide-navy-100/15 px-4">
-                  {pEnabled && (
-                    <Link href="/me/points" className="flex items-center gap-3 py-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#0d1b2a]"><Coins size={17} /></span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-bold text-navy-900">포인트 관리</span>
-                        <span className="block text-[11px] text-navy-400">적립·사용 내역, 충전, 친구에게 선물</span>
-                      </span>
-                      <span className="shrink-0 text-[14px] font-extrabold tabular-nums text-amber-400">
-                        {pointBalance.toLocaleString()}<span className="text-[11px] text-amber-400/70">P</span>
-                      </span>
-                      <ChevronRight size={16} className="shrink-0 text-navy-300" />
-                    </Link>
-                  )}
-                  {shopEnabled && (
-                    <Link href="/referral" className="flex items-center gap-3 py-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white"><Tag size={17} /></span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-bold text-navy-900">피싱태그 수익</span>
-                        <span className="block text-[11px] text-navy-400">내 글의 피싱태그로 적립된 리퍼럴 수익</span>
-                      </span>
-                      <ChevronRight size={16} className="shrink-0 text-navy-300" />
-                    </Link>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* 쇼핑 */}
             {shopEnabled && (
               <div className="overflow-hidden rounded-2xl border border-navy-100/20 bg-[#162538]">
@@ -426,6 +404,41 @@ export function MePageTabs({
                 </div>
               </div>
             )}
+
+            {/* 포인트 & 혜택 */}
+            {(pEnabled || shopTagEnabled) && (
+              <div className="overflow-hidden rounded-2xl border border-amber-400/20 bg-[#162538]">
+                <div className="flex items-center gap-2 border-b border-navy-100/15 px-4 py-2.5">
+                  <Coins size={14} className="text-amber-400" />
+                  <p className="text-[13px] font-bold text-navy-700">포인트 & 혜택</p>
+                </div>
+                <div className="divide-y divide-navy-100/15 px-4">
+                  {pEnabled && (
+                    <Link href="/me/points" className="flex items-center gap-3 py-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#0d1b2a]"><Coins size={17} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-bold text-navy-900">포인트 관리</span>
+                        <span className="block text-[11px] text-navy-400">적립·사용 내역, 충전, 친구에게 선물</span>
+                      </span>
+                      <span className="shrink-0 text-[14px] font-extrabold tabular-nums text-amber-400">
+                        {pointBalance.toLocaleString()}<span className="text-[11px] text-amber-400/70">P</span>
+                      </span>
+                      <ChevronRight size={16} className="shrink-0 text-navy-300" />
+                    </Link>
+                  )}
+                  {shopTagEnabled && (
+                    <Link href="/referral" className="flex items-center gap-3 py-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white"><Tag size={17} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-bold text-navy-900">피싱태그 수익</span>
+                        <span className="block text-[11px] text-navy-400">내 글의 피싱태그로 적립된 리퍼럴 수익</span>
+                      </span>
+                      <ChevronRight size={16} className="shrink-0 text-navy-300" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -455,11 +468,6 @@ export function MePageTabs({
             {/* 입낚볼관리/알림설정 · 관리자 · 로그아웃 */}
             <div className="mt-2 border-t border-navy-100/20 pt-3">
               <MeActions isAdmin={isAdmin} />
-            </div>
-
-            {/* ProfileView */}
-            <div className="border-t border-navy-100 pt-2">
-              <ProfileView posts={posts} points={points} entries={entries} />
             </div>
           </>
         )}

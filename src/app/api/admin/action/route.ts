@@ -3,6 +3,26 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { aiSettingKey, protectAiCredential } from "@/lib/aiCredentials";
+import { getSetting } from "@/lib/settings";
+
+// 관리자 정책 조회 (GET)
+export async function GET(req: Request) {
+  let user; try { user = await requireUser(); } catch { return NextResponse.json({ error: "권한이 없습니다." }, { status: 401 }); }
+  if (user.role !== "SUPER_ADMIN") return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+
+  const url = new URL(req.url);
+  const type = url.searchParams.get("type");
+
+  if (type === "GET_POLICY") {
+    const [refund, shipping] = await Promise.all([
+      getSetting("refund_policy"),
+      getSetting("shipping_guide"),
+    ]);
+    return NextResponse.json({ refund_policy: refund ?? "", shipping_guide: shipping ?? "" });
+  }
+
+  return NextResponse.json({ error: "알 수 없는 요청" }, { status: 400 });
+}
 
 // 관리자 통합 액션 (모두 실제 DB 반영, 결제/외부 API 제외)
 export async function POST(req: Request) {
@@ -204,6 +224,15 @@ export async function POST(req: Request) {
       case "PRODUCT_DELETE":
         await prisma.product.delete({ where: { id: b.id } });
         await log("PRODUCT_DELETE", b.id); break;
+      case "SAVE_POLICY": {
+        const refundVal = String(b.refund_policy ?? "");
+        const shippingVal = String(b.shipping_guide ?? "");
+        await Promise.all([
+          prisma.setting.upsert({ where: { key: "refund_policy" }, update: { value: refundVal }, create: { key: "refund_policy", value: refundVal } }),
+          prisma.setting.upsert({ where: { key: "shipping_guide" }, update: { value: shippingVal }, create: { key: "shipping_guide", value: shippingVal } }),
+        ]);
+        await log("SAVE_POLICY", "policy", "refund_policy+shipping_guide"); break;
+      }
       case "LISTING_DELETE":
         await prisma.reservationListing.delete({ where: { id: b.id } });
         await log("LISTING_DELETE", b.id); break;

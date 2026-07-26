@@ -35,6 +35,9 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   // 입낚볼 판매 카드 노출 및 현재 판매가
   ipnak_ball_enabled: "true",
   ipnak_ball_price: "39000",
+  // 쇼핑 상품 상세페이지 정책 안내
+  refund_policy: "상품 수령 후 7일 이내 환불 가능합니다. 단, 사용/훼손된 상품은 환불이 불가합니다.",
+  shipping_guide: "주문 후 1-3일 내 발송됩니다. 도서산간 지역은 추가 배송비가 발생할 수 있습니다.",
 };
 
 export async function getSetting(key: string): Promise<string> {

@@ -20,13 +20,14 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
   const data = await getProfileData(user.id, user.id);
   if (!data) redirect("/login");
   const { stats } = data;
-  const [shopEnabled, reservationEnabled, pEnabled, ballEnabled, ballPriceRaw, bassOnly] = await Promise.all([
+  const [shopEnabled, reservationEnabled, pEnabled, ballEnabled, ballPriceRaw, bassOnly, shopTagEnabled] = await Promise.all([
     getBoolSetting("shop_menu_enabled"),
     getBoolSetting("reservation_enabled"),
     pointsEnabled(),
     getBoolSetting("ipnak_ball_enabled"),
     getSetting("ipnak_ball_price"),
     getBoolSetting("bass_only_mode"),
+    getBoolSetting("shop_tag_enabled"),
   ]);
   const anglerLabel = user.role === "ANGLER" && bassOnly ? "앵글러" : ROLE_LABELS[user.role];
   const pointBalance = pEnabled ? await getBalance(user.id) : 0;
@@ -157,6 +158,7 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
         user={{ id: user.id, nickname: user.nickname, email: user.email, role: user.role, avatarUrl: user.avatarUrl }}
         isAdmin={user.role === "SUPER_ADMIN"}
         shopEnabled={shopEnabled}
+        shopTagEnabled={shopTagEnabled}
         reservationEnabled={reservationEnabled}
         pEnabled={pEnabled}
         ballEnabled={ballEnabled}
