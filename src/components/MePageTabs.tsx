@@ -1,11 +1,14 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Fish, ShoppingBag, Settings, Navigation, Clock, Route,
   Tag, Heart, MessageCircle, Plus, Users, CalendarDays,
-  ChevronRight, Coins, MapPin, Radio,
+  ChevronRight, Coins, MapPin, Radio, Bell, Shield,
+  MessageSquare, ThumbsUp, Users2, Megaphone, Satellite,
+  UserX, Loader2,
 } from "lucide-react";
 import { MeDiaryButton } from "@/components/MeDiaryButton";
 import { MyBallManager } from "@/components/BallLinkSection";
@@ -13,11 +16,183 @@ import TripMemoInline from "@/components/TripMemoInline";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
 import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
 import { ProfileView } from "@/components/ProfileView";
-import { MeActions } from "@/components/MeActions";
 import { Badge, Button } from "@/components/ui";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { won, kstFormat } from "@/lib/utils";
 import { reservationCategoryLabel } from "@/lib/taxonomy";
+
+// ── 알림 설정 패널 ─────────────────────────────────────
+type NotifSettings = {
+  pushEnabled: boolean;
+  newComment: boolean;
+  newLike: boolean;
+  groupActivity: boolean;
+  announcement: boolean;
+  ballRelated: boolean;
+};
+
+const NOTIF_ITEMS: { key: keyof Omit<NotifSettings, "pushEnabled">; label: string; desc: string; Icon: React.ElementType }[] = [
+  { key: "newComment",    label: "새 댓글 알림",     desc: "내 게시글에 댓글이 달릴 때",       Icon: MessageSquare },
+  { key: "newLike",       label: "좋아요 알림",       desc: "내 게시글에 좋아요가 달릴 때",     Icon: ThumbsUp },
+  { key: "groupActivity", label: "소모임 알림",       desc: "낚시단 새 소식 및 활동 알림",      Icon: Users2 },
+  { key: "announcement",  label: "이벤트/공지 알림",  desc: "이벤트·공지사항 새 소식",          Icon: Megaphone },
+  { key: "ballRelated",   label: "입낚볼 알림",       desc: "입낚볼 주문·배송 상태 알림",       Icon: Satellite },
+];
+
+function NotifToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none ${
+        checked ? "bg-orange-500" : "bg-navy-100/30"
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-5" : "translate-x-0.5"
+        }`}
+      />
+    </button>
+  );
+}
+
+function NotificationSettingsPanel() {
+  const [settings, setSettings] = useState<NotifSettings | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [pushStatus, setPushStatus] = useState<"default" | "granted" | "denied" | "unsupported">("default");
+
+  useEffect(() => {
+    fetch("/api/me/notification-settings")
+      .then((r) => r.json())
+      .then((d) => setSettings(d))
+      .catch(() => {});
+
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPushStatus(Notification.permission as "default" | "granted" | "denied");
+    } else {
+      setPushStatus("unsupported");
+    }
+  }, []);
+
+  const save = useCallback(async (patch: Partial<NotifSettings>) => {
+    if (!settings) return;
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    setSaving(true);
+    try {
+      await fetch("/api/me/notification-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [settings]);
+
+  async function requestPush() {
+    if (pushStatus === "denied") return;
+    if (pushStatus === "unsupported") return;
+    if (pushStatus === "granted") {
+      // 이미 허용 → 토글처럼 앱 레벨 설정만 끔
+      await save({ pushEnabled: !(settings?.pushEnabled ?? false) });
+      return;
+    }
+    const result = await Notification.requestPermission();
+    setPushStatus(result);
+    if (result === "granted") {
+      await save({ pushEnabled: true });
+    }
+  }
+
+  const pushLabel =
+    pushStatus === "granted"
+      ? (settings?.pushEnabled ? "알림 켜짐" : "알림 꺼짐")
+      : pushStatus === "denied"
+      ? "브라우저에서 차단됨"
+      : pushStatus === "unsupported"
+      ? "이 기기에서 미지원"
+      : "알림 허용";
+
+  const pushDesc =
+    pushStatus === "denied"
+      ? "브라우저 설정에서 직접 허용해 주세요"
+      : pushStatus === "unsupported"
+      ? "웹 알림을 지원하지 않는 환경입니다"
+      : pushStatus === "granted"
+      ? "각 항목별로 수신 여부를 설정하세요"
+      : "버튼을 눌러 브라우저 알림을 허용하세요";
+
+  return (
+    <div>
+      <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wider text-navy-400">알림</p>
+      <div className="overflow-hidden rounded-2xl border border-navy-100/20 bg-[#162538]">
+        {/* 푸시 알림 허용 버튼 */}
+        <button
+          type="button"
+          onClick={requestPush}
+          disabled={pushStatus === "denied" || pushStatus === "unsupported" || saving}
+          className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition-colors active:bg-white/5 disabled:cursor-default"
+        >
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+            settings?.pushEnabled && pushStatus === "granted"
+              ? "bg-orange-500/20 text-orange-400"
+              : "bg-white/10 text-white/50"
+          }`}>
+            <Bell size={16} strokeWidth={1.8} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-medium text-navy-800">푸시 알림</p>
+            <p className="text-[12px] text-navy-400">{pushDesc}</p>
+          </div>
+          {pushStatus === "granted" ? (
+            <NotifToggle
+              checked={settings?.pushEnabled ?? false}
+              onChange={(v) => save({ pushEnabled: v })}
+            />
+          ) : (
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+              pushStatus === "denied" || pushStatus === "unsupported"
+                ? "bg-navy-100/20 text-navy-400"
+                : "bg-orange-500 text-white"
+            }`}>
+              {pushLabel}
+            </span>
+          )}
+        </button>
+
+        {/* 종류별 스위치 */}
+        {settings && NOTIF_ITEMS.map(({ key, label, desc, Icon }, i) => (
+          <div key={key}>
+            <div className="h-px bg-navy-100/15" />
+            <div className={`flex items-center gap-3.5 px-4 py-3 transition-opacity ${
+              !(settings.pushEnabled && pushStatus === "granted") ? "opacity-40" : ""
+            }`}>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/8 text-navy-400">
+                <Icon size={14} strokeWidth={1.8} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-medium text-navy-700">{label}</p>
+                <p className="text-[11px] text-navy-400">{desc}</p>
+              </div>
+              <NotifToggle
+                checked={settings[key]}
+                onChange={(v) => {
+                  if (!(settings.pushEnabled && pushStatus === "granted")) return;
+                  save({ [key]: v } as Partial<NotifSettings>);
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────
 
 type BadgeTone = "navy" | "aqua" | "amber" | "red" | "green" | "gray";
 
@@ -86,8 +261,7 @@ const tabs = [
 ];
 
 export function MePageTabs({
-  user, isAdmin, shopEnabled, shopTagEnabled, reservationEnabled, pEnabled, ballEnabled,
-  ballPriceRaw, openBallOnMount, pointBalance, recentTrips, myWalkingPosts,
+  user, isAdmin, shopEnabled, shopTagEnabled, reservationEnabled, pEnabled, ballEnabled, ballPriceRaw, openBallOnMount, pointBalance, recentTrips, myWalkingPosts,
   marketSellCount, marketBuyCount, marketFavCount, marketChatCount,
   needsReplyChats, myGroupMembers, bookings, posts, points, entries, bio,
 }: Props) {
@@ -95,9 +269,41 @@ export function MePageTabs({
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab = (rawTab === "market" || rawTab === "settings") ? rawTab : "fishing";
+  const [settingsSubTab, setSettingsSubTab] = useState<"ball" | "config">("ball");
+  const [showBallNotifPanel, setShowBallNotifPanel] = useState(false);
+  const [withdrawStep, setWithdrawStep] = useState<0 | 1 | 2>(0);
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
 
   function setActiveTab(tab: "fishing" | "market" | "settings") {
     router.replace(`/me?tab=${tab}`, { scroll: false });
+  }
+
+  const WITHDRAW_REASONS = [
+    "더 이상 사용하지 않음",
+    "다른 계정 사용",
+    "서비스 불만족",
+    "기타",
+  ];
+
+  async function handleWithdraw() {
+    setWithdrawing(true);
+    try {
+      const res = await fetch("/api/auth/withdraw", { method: "DELETE" });
+      if (res.ok) {
+        router.push("/");
+        router.refresh();
+      } else {
+        const d = await res.json();
+        alert(d.error || "탈퇴 처리에 실패했습니다.");
+        setWithdrawStep(0);
+      }
+    } catch {
+      alert("오류가 발생했습니다. 다시 시도해 주세요.");
+      setWithdrawStep(0);
+    } finally {
+      setWithdrawing(false);
+    }
   }
 
   return (
@@ -240,6 +446,7 @@ export function MePageTabs({
             <div className="border-t border-navy-100 pt-2">
               <ProfileView posts={posts} points={points} entries={entries} />
             </div>
+
           </>
         )}
 
@@ -400,32 +607,219 @@ export function MePageTabs({
         ══════════════════════════════════════════ */}
         {activeTab === "settings" && (
           <>
-            {/* 입낚볼 */}
-            {user.role === "ANGLER" && ballEnabled && (
-              <div>
-                <div className="mb-1.5 flex items-center gap-1.5 px-1">
-                  <Radio size={13} className="text-orange-400" />
-                  <p className="text-[12px] font-bold text-navy-500">입낚볼</p>
-                </div>
-                <div className="space-y-2">
-                  <IpnakBallPurchase
-                    price={ballPriceRaw}
-                    buyer={{ name: user.nickname, email: user.email }}
-                    openOnMount={openBallOnMount}
+            {/* 서브탭 바 */}
+            <div className="flex gap-1 rounded-xl bg-[#162538] p-1">
+              <button
+                onClick={() => setSettingsSubTab("ball")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors ${
+                  settingsSubTab === "ball"
+                    ? "bg-orange-500 text-white"
+                    : "text-navy-400 hover:text-navy-600"
+                }`}
+              >
+                <Radio size={13} strokeWidth={2} />
+                입낚볼
+              </button>
+              <button
+                onClick={() => setSettingsSubTab("config")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors ${
+                  settingsSubTab === "config"
+                    ? "bg-orange-500 text-white"
+                    : "text-navy-400 hover:text-navy-600"
+                }`}
+              >
+                <Settings size={13} strokeWidth={2} />
+                설정
+              </button>
+            </div>
+
+            {/* 서브탭: 입낚볼 */}
+            {settingsSubTab === "ball" && (
+              <div className="space-y-2">
+                {user.role === "ANGLER" && ballEnabled ? (
+                  <>
+                    <IpnakBallPurchase
+                      price={ballPriceRaw}
+                      buyer={{ name: user.nickname, email: user.email }}
+                      openOnMount={openBallOnMount}
+                    />
+                    <MyBallManager />
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-navy-100/20 bg-[#162538] px-4 py-8 text-center">
+                    <p className="text-[13px] text-navy-400">입낚볼 서비스를 이용할 수 없습니다</p>
+                  </div>
+                )}
+
+                {/* 알림 설정 토글 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setShowBallNotifPanel((p) => !p)}
+                  className="flex w-full items-center gap-3.5 rounded-2xl border border-navy-100/20 bg-[#162538] px-4 py-3.5 transition-colors active:bg-white/5"
+                >
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${showBallNotifPanel ? "bg-orange-500/20 text-orange-400" : "bg-white/10 text-white/60"}`}>
+                    <Bell size={16} strokeWidth={1.8} />
+                  </span>
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="text-[14px] font-medium text-navy-800">알림 설정</p>
+                    <p className="text-[12px] text-navy-400">알림 종류별 수신 여부 설정</p>
+                  </div>
+                  <ChevronRight
+                    size={16}
+                    strokeWidth={2}
+                    className={`shrink-0 text-navy-300 transition-transform duration-200 ${showBallNotifPanel ? "rotate-90" : ""}`}
                   />
-                  <MyBallManager />
-                </div>
+                </button>
+
+                {/* 알림 설정 패널 (슬라이드 표시) */}
+                {showBallNotifPanel && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                    <NotificationSettingsPanel />
+                  </div>
+                )}
               </div>
             )}
 
-            {/* 입낚볼관리/알림설정 · 관리자 · 로그아웃 */}
-            <div className="mt-2 border-t border-navy-100/20 pt-3">
-              <MeActions isAdmin={isAdmin} />
-            </div>
+            {/* 서브탭: 설정 */}
+            {settingsSubTab === "config" && (
+              <div className="space-y-3">
+                {/* 알림 */}
+                <NotificationSettingsPanel />
+
+
+
+                {/* 계정 */}
+                <div>
+                  <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wider text-navy-400">계정</p>
+                  <div className="overflow-hidden rounded-2xl border border-navy-100/20 bg-[#162538]">
+                    <div className="flex items-center gap-3.5 px-4 py-3.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/60">
+                        <Shield size={16} strokeWidth={1.8} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-medium text-navy-800">이메일</p>
+                        <p className="truncate text-[12px] text-navy-400">{user.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 회원탈퇴 */}
+                <div>
+                  <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wider text-navy-400">위험 구역</p>
+                  <div className="overflow-hidden rounded-2xl border border-red-500/20 bg-[#162538]">
+                    <button
+                      type="button"
+                      onClick={() => setWithdrawStep(1)}
+                      className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition-colors active:bg-white/5"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-400">
+                        <UserX size={16} strokeWidth={1.8} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-medium text-red-400">회원탈퇴</p>
+                        <p className="text-[12px] text-navy-400">탈퇴 시 모든 데이터가 삭제됩니다</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 관리자 */}
+                {isAdmin && (
+                  <div>
+                    <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wider text-navy-400">관리</p>
+                    <div className="overflow-hidden rounded-2xl border border-navy-100/20 bg-[#162538]">
+                      <Link href="/admin" className="flex items-center gap-3.5 px-4 py-3.5 transition-colors active:bg-white/5">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-orange-400">
+                          <Shield size={16} strokeWidth={1.8} />
+                        </span>
+                        <p className="text-[14px] font-medium text-navy-800">관리자 페이지</p>
+                        <ChevronRight size={15} className="ml-auto text-navy-300" strokeWidth={2} />
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
 
       </div>
+
+      {/* ══ 회원탈퇴 모달 Step 1: 이유 선택 ══ */}
+      {withdrawStep === 1 && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-t-3xl bg-[#162538] p-6 pb-10">
+            <h3 className="mb-1 text-[16px] font-bold text-navy-800">탈퇴 이유를 알려주세요</h3>
+            <p className="mb-4 text-[13px] text-navy-400">더 나은 서비스를 만드는 데 도움이 됩니다.</p>
+            <div className="space-y-2">
+              {WITHDRAW_REASONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setWithdrawReason(r)}
+                  className={`flex w-full items-center rounded-xl border px-4 py-3 text-left text-[14px] font-medium transition-colors ${
+                    withdrawReason === r
+                      ? "border-orange-500 bg-orange-500/10 text-orange-400"
+                      : "border-navy-100/20 text-navy-600 active:bg-white/5"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setWithdrawStep(0); setWithdrawReason(""); }}
+                className="flex-1 rounded-xl border border-navy-100/20 py-3 text-[14px] font-semibold text-navy-400"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => withdrawReason && setWithdrawStep(2)}
+                disabled={!withdrawReason}
+                className="flex-1 rounded-xl bg-red-500 py-3 text-[14px] font-semibold text-white disabled:opacity-40"
+              >
+                다음
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ 회원탈퇴 모달 Step 2: 최종 확인 ══ */}
+      {withdrawStep === 2 && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-t-3xl bg-[#162538] p-6 pb-10">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15">
+              <UserX size={22} className="text-red-400" strokeWidth={1.8} />
+            </div>
+            <h3 className="mb-1 text-[16px] font-bold text-red-400">정말 탈퇴하시겠습니까?</h3>
+            <p className="mb-1 text-[13px] text-navy-500">탈퇴 이유: <span className="font-semibold text-navy-700">{withdrawReason}</span></p>
+            <p className="text-[13px] text-navy-400">탈퇴 시 모든 데이터가 영구 삭제되며 복구할 수 없습니다.</p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setWithdrawStep(1)}
+                className="flex-1 rounded-xl border border-navy-100/20 py-3 text-[14px] font-semibold text-navy-400"
+              >
+                뒤로
+              </button>
+              <button
+                type="button"
+                onClick={handleWithdraw}
+                disabled={withdrawing}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-500 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
+              >
+                {withdrawing && <Loader2 size={15} className="animate-spin" />}
+                {withdrawing ? "처리 중..." : "탈퇴하기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
