@@ -52,7 +52,6 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
       },
       fishingPoints: {
         select: { lat: true, lng: true },
-        where: { lat: { not: null }, lng: { not: null } },
         take: 50,
       },
     },
@@ -98,9 +97,7 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
     ...t,
     startedAt: t.startedAt.toISOString(),
     routePoints: t.routePoints.map((p) => ({ lat: p.lat, lng: p.lng })),
-    catchPoints: t.fishingPoints
-      .filter((p) => p.lat != null && p.lng != null)
-      .map((p) => ({ lat: p.lat!, lng: p.lng! })),
+    catchPoints: t.fishingPoints.map((p) => ({ lat: p.lat, lng: p.lng })),
   }));
   const bookings = bookingsRaw.map((b) => ({
     id: b.id,
