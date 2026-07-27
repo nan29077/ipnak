@@ -276,21 +276,9 @@ export function MapScreen({ userId }: { userId?: string }) {
       };
     }
 
-    // Permissions API 지원 시 권한 상태 먼저 확인 → 커스텀 안내 다이얼로그 표시
-    if (typeof navigator.permissions !== "undefined") {
-      navigator.permissions.query({ name: "geolocation" as PermissionName }).then((result) => {
-        if (result.state === "granted") {
-          startIdleGpsWatch();
-        } else if (result.state === "denied") {
-          setGpsAvail(false);
-        } else {
-          // 별도 앱 안내 없이 브라우저의 단일 위치 권한 팝업을 바로 표시한다.
-          setGpsGuideOpen(true);
-        }
-      }).catch(() => setGpsGuideOpen(true));
-    } else {
-      setGpsGuideOpen(true);
-    }
+    // 사용자가 GPS를 명시적으로 껐거나 아직 활성화하지 않은 상태 — 자동 재시작하지 않는다.
+    // (첫 방문 안내는 마운트 시 useEffect에서 별도 처리)
+    return;
 
     return () => {
       if (idleWatchRef.current !== null) {
