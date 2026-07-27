@@ -60,7 +60,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  const [shopEnabled, shopTagEnabled, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabledSetting] = await Promise.all([
+  const [shopEnabled, shopTagRaw, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabledSetting] = await Promise.all([
     getBoolSetting("shop_menu_enabled"),
     getBoolSetting("shop_tag_enabled"),
     getBoolSetting("bass_only_mode"),
@@ -68,6 +68,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     getBoolSetting("walking_feed_enabled"),
     getBoolSetting("points_enabled"),
   ]);
+  // 쇼핑 메뉴가 꺼지면 쇼핑 태그도 반드시 꺼진다. (쇼핑 OFF + 태그 ON 조합은 불가)
+  const shopTagEnabled = shopTagRaw && shopEnabled;
   // 관리자 설정값이 없으면 AppShell의 로컬 배스 앵글러 배경을 사용한다.
   const pcMarginBg =
     (await getSetting("pcMarginBgImage")) || undefined;

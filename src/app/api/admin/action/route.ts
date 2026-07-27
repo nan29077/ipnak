@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { aiSettingKey, protectAiCredential } from "@/lib/aiCredentials";
-import { getSetting } from "@/lib/settings";
+import { getBoolSetting, getSetting } from "@/lib/settings";
 
 // 관리자 정책 조회 (GET)
 export async function GET(req: Request) {
@@ -243,14 +243,22 @@ export async function POST(req: Request) {
       case "BANNER_CREATE":
         await prisma.banner.create({ data: { title: b.title, body: b.body || null, imageUrl: b.imageUrl || null, linkUrl: b.linkUrl || null, active: true } });
         await log("BANNER_CREATE", undefined, b.title); break;
-      case "SETTING_SET":
+      case "SETTING_SET": {
         if (String(b.key || "").startsWith("ai_connection_")) return NextResponse.json({ error: "AI 키는 AI API 연결 메뉴에서만 변경할 수 있습니다." }, { status: 400 });
+        const key = String(b.key);
+        let value = String(b.value);
+        // 쇼핑 메뉴가 꺼져 있으면 쇼핑 태그는 켤 수 없다.
+        if (key === "shop_tag_enabled" && value === "true") {
+          const shopMenuEnabled = await getBoolSetting("shop_menu_enabled");
+          if (!shopMenuEnabled) value = "false";
+        }
         await prisma.setting.upsert({
-          where: { key: b.key },
-          update: { value: String(b.value) },
-          create: { key: b.key, value: String(b.value) },
+          where: { key },
+          update: { value },
+          create: { key, value },
         });
-        await log("SETTING_SET", b.key, String(b.value)); break;
+        await log("SETTING_SET", key, value); break;
+      }
       case "BANNER_DELETE":
         await prisma.banner.delete({ where: { id: b.id } });
         await log("BANNER_DELETE", b.id); break;

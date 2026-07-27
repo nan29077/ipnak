@@ -1,16 +1,18 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Tag, XCircle } from "lucide-react";
+import { AlertCircle, Loader2, Tag, XCircle } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 
 // 쇼핑 태그 스위치: ON=피드·조행기에서 상품 태그 활성화 / OFF=상품 태그 비활성화
-export function ShopTagToggle({ initial }: { initial: boolean }) {
+export function ShopTagToggle({ initial, shopMenuEnabled }: { initial: boolean; shopMenuEnabled: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [on, setOn] = useState(initial);
   const [loading, setLoading] = useState(false);
+  // 쇼핑 메뉴가 OFF면 쇼핑 태그는 사용할 수 없다.
+  const blocked = !shopMenuEnabled;
 
   async function toggle() {
     const next = !on;
@@ -50,7 +52,7 @@ export function ShopTagToggle({ initial }: { initial: boolean }) {
         </div>
         <button
           onClick={toggle}
-          disabled={loading}
+          disabled={loading || blocked}
           role="switch"
           aria-checked={on}
           aria-label="쇼핑 태그"
@@ -76,6 +78,12 @@ export function ShopTagToggle({ initial }: { initial: boolean }) {
           <><XCircle size={16} className="text-navy-400" /> 상품 태그 <span className="text-navy-400">비활성화</span></>
         )}
       </div>
+      {blocked && (
+        <div className="mt-2 flex items-start gap-2 rounded-xl bg-navy-50/60 px-3 py-2.5 text-[13px] font-semibold text-navy-500">
+          <AlertCircle size={16} className="mt-px shrink-0 text-navy-400" />
+          <span>쇼핑 메뉴가 비활성화 상태입니다. 쇼핑 태그를 사용하려면 먼저 쇼핑 메뉴를 활성화해 주세요.</span>
+        </div>
+      )}
     </div>
   );
 }

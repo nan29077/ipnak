@@ -138,7 +138,7 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
           <PointsToggle initial={pointsEnabled} />
           <GroupPointsToggle initial={groupPointsRequired} />
           <ShopToggle initial={shopEnabled} />
-          <ShopTagToggle initial={shopTagEnabled} />
+          <ShopTagToggle initial={shopTagEnabled} shopMenuEnabled={shopEnabled} />
           <BassOnlyToggle initial={bassOnlyMode} />
           <ReservationToggle initial={reservationEnabled} />
           <WalkingFeedToggle initial={walkingFeedEnabled} />
