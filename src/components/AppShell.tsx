@@ -56,7 +56,10 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
   const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/admin") || pathname.startsWith("/print") || pathname.startsWith("/landing") || pathname.startsWith("/about");
   const MOBILE_NAV = buildMobileNav(shopEnabled);
   const DESKTOP_NAV = buildDesktopNav(shopEnabled, reservationEnabled);
-  const showFab = !bare && !FAB_HIDDEN_PREFIXES.some((p) => pathname.startsWith(p));
+  const showFab =
+    !bare &&
+    pathname !== "/market" &&
+    !FAB_HIDDEN_PREFIXES.some((p) => pathname.startsWith(p));
 
   // 앱 안에 있을 때 랜딩 리다이렉트 방지 플래그 설정 (PC/모바일 구분)
   useEffect(() => {
