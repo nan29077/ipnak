@@ -14,6 +14,21 @@ export async function GET() {
     take: 30,
     include: { _count: { select: { routePoints: true } } },
   });
+  // 이미 워킹 피드에 공개된 기록은 postId를 함께 내려 UI가 "게시됨" 상태를 유지하게 한다.
+  // (자동 생성된 비공개 글은 아직 게시된 것이 아니므로 PUBLIC만 조회)
+  const publishedByTrip = new Map<string, string>();
+  try {
+    const posts = await prisma.post.findMany({
+      where: {
+        tripId: { in: trips.map((t) => t.id) },
+        postType: "WALKING_FEED",
+        visibility: "PUBLIC",
+      },
+      select: { id: true, tripId: true },
+    });
+    for (const p of posts) if (p.tripId) publishedByTrip.set(p.tripId, p.id);
+  } catch { /* 조회 실패 시 postId 없이 반환 */ }
+
   const data = trips.map((t) => ({
     id: t.id,
     title: t.title,
@@ -23,6 +38,7 @@ export async function GET() {
     catchCount: t.catchCount,
     region: t.region,
     createdAt: t.startedAt.toISOString(),
+    postId: publishedByTrip.get(t.id) ?? null,
   }));
   return NextResponse.json({ trips: data });
 }

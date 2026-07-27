@@ -405,6 +405,18 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const postToFeed = useCallback(async (rec: TripRec) => {
     setSavedTrips((s) => s.map((t) => (t.id === rec.id ? { ...t, posting: true } : t)));
     try {
+      // 서버 기록: 기록 종료 시 자동 생성된 비공개 글을 공개로 전환한다.
+      // 새 글을 만들지 않으므로 자동 생성분과 중복되지 않는다.
+      if (!rec.id.startsWith("local-")) {
+        const res = await fetch(`/api/trips/${rec.id}/publish`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "오류");
+        setSavedTrips((s) => s.map((t) => (t.id === rec.id ? { ...t, posting: false, postId: data.id } : t)));
+        toast("워킹 피드에 공개했습니다", "success");
+        return;
+      }
+
+      // 아래는 서버에 저장되지 않은 로컬 기록(오프라인 등) 전용 — 기존 경로 그대로 새 글 생성
       // 동선 포인트 수집 — 로컬 기록엔 route 있음, 서버 기록은 API에서 조회
       let routePoints: LatLng[] = rec.route ?? [];
       // 로컬 세션에서 수집된 피쉬 기록 (photoUrl 포함)

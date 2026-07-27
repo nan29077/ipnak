@@ -63,7 +63,9 @@ export async function createWalkingFeedPost(tripId: string, userId: string) {
       body,
       region: trip.region,
       speciesName: trip.topSpecies,
-      visibility: "PUBLIC",
+      // 자동 생성 글은 비공개로 시작한다. 사용자가 "워킹 피드에 올리기"를 눌러야 공개된다.
+      // (GPS 동선이 본인 동의 없이 공개되지 않도록)
+      visibility: "PRIVATE",
       hashtags: JSON.stringify(["워킹낚시", ...(trip.region ? [trip.region] : [])]),
       images: images.length ? { create: images.map((url, order) => ({ url, order })) } : undefined,
     },

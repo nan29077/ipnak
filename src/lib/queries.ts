@@ -184,7 +184,16 @@ export async function getPost(id: string, userId?: string) {
 export async function getWalkingFeedPosts(userId?: string, opts?: { authorId?: string }, limit = 12): Promise<FeedPost[]> {
   try {
     const posts = await prisma.post.findMany({
-      where: { hidden: false, postType: "WALKING_FEED", ...(opts?.authorId ? { authorId: opts.authorId } : {}) },
+      where: {
+        hidden: false,
+        postType: "WALKING_FEED",
+        // 기록 종료 시 자동 생성된 글은 PRIVATE로 시작한다 → 공개 전에는 작성자 본인에게만 보인다.
+        // 기존 글(수동 게시·더미)은 모두 PUBLIC 이므로 영향 없음.
+        ...(userId
+          ? { OR: [{ visibility: { in: ["PUBLIC", "BLURRED"] } }, { authorId: userId }] }
+          : { visibility: { in: ["PUBLIC", "BLURRED"] } }),
+        ...(opts?.authorId ? { authorId: opts.authorId } : {}),
+      },
       include: feedInclude(userId),
       orderBy: { createdAt: "desc" },
       take: limit,
