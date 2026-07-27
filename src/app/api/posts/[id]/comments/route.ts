@@ -21,6 +21,33 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       data: { postId: params.id, authorId: user.id, body: String(body).trim(), parentId: parentId || null },
       include: { author: { select: { id: true, nickname: true, avatarUrl: true } } },
     });
+
+    // 알림 생성 — 실패해도 댓글 등록 자체는 성공 처리
+    try {
+      const link = `/post/${params.id}`;
+      const targets: { userId: string; type: string; body: string }[] = [];
+
+      // 게시글 작성자에게 댓글 알림 (본인 제외)
+      const post = await prisma.post.findUnique({ where: { id: params.id }, select: { authorId: true } });
+      if (post && post.authorId !== user.id) {
+        targets.push({ userId: post.authorId, type: "COMMENT", body: `${user.nickname}님이 댓글을 남겼습니다` });
+      }
+
+      // 대댓글이면 부모 댓글 작성자에게도 알림 (본인/중복 제외)
+      if (parentId) {
+        const parent = await prisma.comment.findUnique({ where: { id: String(parentId) }, select: { authorId: true } });
+        if (parent && parent.authorId !== user.id && !targets.some((t) => t.userId === parent.authorId)) {
+          targets.push({ userId: parent.authorId, type: "REPLY", body: `${user.nickname}님이 답글을 남겼습니다` });
+        }
+      }
+
+      if (targets.length) {
+        await prisma.notification.createMany({
+          data: targets.map((t) => ({ ...t, link, actorId: user.id, postId: params.id })),
+        });
+      }
+    } catch { /* 알림 실패는 무시 */ }
+
     return NextResponse.json({ comment });
   } catch {
     // 삭제된 게시글/부모 댓글 등 FK 제약 위반 → 원시 500 대신 정돈된 에러 응답
