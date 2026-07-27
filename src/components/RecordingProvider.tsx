@@ -265,7 +265,14 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       .then((d) => setSavedTrips(d.trips || []))
       .catch(() => {});
 
-    return () => stopWatchers();
+    // 다른 페이지/컴포넌트에서 trip 삭제 시 savedTrips 즉시 동기화
+    const onTripDeleted = (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id;
+      if (id) setSavedTrips((prev) => prev.filter((t) => t.id !== id));
+    };
+    window.addEventListener("trip-deleted", onTripDeleted);
+
+    return () => { stopWatchers(); window.removeEventListener("trip-deleted", onTripDeleted); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

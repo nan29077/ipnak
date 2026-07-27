@@ -23,6 +23,8 @@ export function TripCards({ trips: initialTrips }: { trips: TripDetail[] }) {
       const res = await fetch(`/api/trips/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("삭제 실패");
       setTrips((prev) => prev.filter((t) => t.id !== id));
+      // 앱 전체(RecordingProvider savedTrips 포함)에 삭제 이벤트 브로드캐스트
+      window.dispatchEvent(new CustomEvent("trip-deleted", { detail: { id } }));
       router.refresh(); // 서버 데이터(마이페이지 포함) 동기화
     } catch {
       alert("삭제에 실패했습니다.");
