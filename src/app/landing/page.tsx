@@ -91,43 +91,26 @@ export default function LandingPage() {
           animation: ipnakBorderPulse 1.6s ease-in-out infinite;
         }
         @keyframes ipnakCinematicDrift {
-          0%, 100% { transform: scale(1.045) translate3d(0, 0, 0); }
-          50%      { transform: scale(1.075) translate3d(-0.45%, 0.2%, 0); }
+          0%, 100% { transform: scale(1.0); }
+          50%      { transform: scale(1.04); }
         }
         @keyframes ipnakWaterBreath {
           0%, 100% { opacity: 0.1; transform: translate3d(-2%, 0, 0) scaleX(0.96); }
           50%      { opacity: 0.3; transform: translate3d(2%, 0, 0) scaleX(1.04); }
         }
         .ipnak-pc-cinemagraph {
-          animation: ipnakCinematicDrift 8s ease-in-out infinite;
+          animation: ipnakCinematicDrift 10s ease-in-out infinite;
           will-change: transform;
         }
         .ipnak-water-breath {
           animation: ipnakWaterBreath 8s ease-in-out infinite;
           will-change: opacity, transform;
         }
-        @keyframes ipnakBassJump {
-          0%, 2%    { transform: translateY(100px) rotate(0deg);     opacity: 0; }
-          4%        { transform: translateY(25px) rotate(-38deg);    opacity: 0.7; }
-          10%       { transform: translateY(-105px) rotate(-12deg);  opacity: 1; }
-          17%       { transform: translateY(-170px) rotate(2deg);    opacity: 1; }
-          24%       { transform: translateY(-90px) rotate(22deg);    opacity: 1; }
-          30%       { transform: translateY(20px) rotate(38deg);     opacity: 0.35; }
-          34%, 100% { transform: translateY(100px) rotate(0deg);     opacity: 0; }
-        }
-        @keyframes ipnakSplash {
-          0%, 28%     { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
-          31%         { transform: translate(-50%, -50%) scale(0.4); opacity: 0.72; }
-          40%         { transform: translate(-50%, -50%) scale(2);   opacity: 0; }
-          40.1%, 100% { transform: translate(-50%, -50%) scale(0);   opacity: 0; }
-        }
-        .ipnak-bass { pointer-events: none; }
         @media (prefers-reduced-motion: reduce) {
           .ipnak-pc-cinemagraph,
           .ipnak-water-breath {
             animation: none !important;
           }
-          .ipnak-bass { display: none; }
         }
       `}</style>
 
@@ -161,58 +144,6 @@ export default function LandingPage() {
               style={{ backgroundImage: "url('/landing-bear-bass-boat-hero-v2.png')" }}
             />
             <div className="ipnak-water-breath absolute inset-x-0 bottom-0 h-[48%] bg-[linear-gradient(105deg,transparent_5%,rgba(255,179,79,0.16)_31%,transparent_51%,rgba(148,206,255,0.12)_73%,transparent_96%)] mix-blend-screen" />
-            {/* 배스 점프 실루엣 */}
-            {[
-              { left: "10%", top: "64%", dur: "9s",   delay: "0s"   },
-              { left: "25%", top: "63%", dur: "11s",  delay: "2.5s" },
-              { left: "43%", top: "66%", dur: "8.5s", delay: "5s"   },
-              { left: "63%", top: "64%", dur: "10s",  delay: "1.5s" },
-              { left: "80%", top: "65%", dur: "9.5s", delay: "7.5s" },
-            ].map((f, i) => (
-              <div
-                key={i}
-                aria-hidden="true"
-                className="ipnak-bass"
-                style={{ position: "absolute", left: f.left, top: f.top, width: "56px", height: "30px" }}
-              >
-                <svg
-                  width="56"
-                  height="30"
-                  viewBox="0 0 30 16"
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    pointerEvents: "none",
-                    willChange: "transform, opacity",
-                    transformOrigin: "center center",
-                    animation: `ipnakBassJump ${f.dur} ease-in-out ${f.delay} infinite`,
-                    filter: "drop-shadow(0 3px 8px rgba(0,0,0,0.55))",
-                    opacity: 0,
-                  }}
-                >
-                  <path
-                    fill="rgba(5,15,25,0.83)"
-                    d="M2,8 C5,3 12,1 18,4 C22,6 25,5 28,3 L26,7 C30,6 30,10 26,10 L28,13 C25,11 22,10 18,12 C12,15 5,13 2,8 Z"
-                  />
-                </svg>
-                <span
-                  style={{
-                    position: "absolute",
-                    left: "28px",
-                    top: "15px",
-                    width: "44px",
-                    height: "18px",
-                    border: "1.5px solid rgba(255,255,255,0.52)",
-                    borderRadius: "50%",
-                    opacity: 0,
-                    pointerEvents: "none",
-                    willChange: "transform, opacity",
-                    animation: `ipnakSplash ${f.dur} ease-out ${f.delay} infinite`,
-                  }}
-                />
-              </div>
-            ))}
           </div>
         )}
         <div className="absolute inset-0 hidden bg-black/10 md:block" />
