@@ -42,7 +42,15 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
     where: { userId: user.id, endedAt: { not: null } },
     orderBy: { startedAt: "desc" },
     take: 3,
-    select: { id: true, title: true, region: true, distanceM: true, durationSec: true, startedAt: true, catchCount: true },
+    select: {
+      id: true, title: true, region: true, distanceM: true,
+      durationSec: true, startedAt: true, catchCount: true,
+      routePoints: {
+        select: { lat: true, lng: true, order: true },
+        orderBy: { order: "asc" },
+        take: 200,
+      },
+    },
   });
 
   const myWalkingPosts = await getWalkingFeedPosts(user.id, { authorId: user.id }, 6);
@@ -81,7 +89,11 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
   );
 
   // 직렬화: Date → ISO string
-  const recentTrips = recentTripsRaw.map((t) => ({ ...t, startedAt: t.startedAt.toISOString() }));
+  const recentTrips = recentTripsRaw.map((t) => ({
+    ...t,
+    startedAt: t.startedAt.toISOString(),
+    routePoints: t.routePoints.map((p) => ({ lat: p.lat, lng: p.lng })),
+  }));
   const bookings = bookingsRaw.map((b) => ({
     id: b.id,
     listingId: b.listingId,

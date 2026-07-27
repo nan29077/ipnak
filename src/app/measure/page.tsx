@@ -961,12 +961,12 @@ export default function MeasurePage() {
 
         {/* ── 저장 완료 ── */}
         {phase === "SAVED" && result && (
-          <div className="space-y-3">
-            <div className="rounded-card border border-aqua-500/30 bg-aqua-500/10 p-4 text-center">
-              <p className="text-[15px] font-bold text-aqua-300">
+          <div className="space-y-2">
+            <div className="rounded-card border border-aqua-500/30 bg-aqua-500/10 p-3 text-center">
+              <p className="text-[14px] font-bold text-aqua-300">
                 {species}{result.lengthCm != null ? ` ${result.lengthCm}cm` : ""} 기록 완료
               </p>
-              <p className="mt-1 text-[12px] text-navy-400">계측일지에서 언제든 다시 볼 수 있어요.</p>
+              <p className="mt-0.5 text-[12px] text-navy-400">계측일지에서 언제든 다시 볼 수 있어요.</p>
             </div>
 
             {/* 대회 참가 모드 */}
@@ -1000,25 +1000,17 @@ export default function MeasurePage() {
                 계측일지 보기
               </button>
             </div>
-            {/* 스마트피싱에서 진입한 경우: 기록 화면으로 복귀 */}
-            {fromFishing && (
-              <Link
-                href="/map"
-                className="flex items-center justify-center gap-2 rounded-[16px] bg-aqua-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all hover:bg-aqua-600 active:scale-[0.97]"
-              >
-                <MapIcon size={16} strokeWidth={1.9} />
-                스마트피싱으로 돌아가기
-              </Link>
-            )}
-            <div className="flex justify-center py-2">
-              <button
-                type="button"
-                onClick={reset}
-                aria-label="닫기"
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-50/60 text-navy-400 transition-all hover:bg-navy-100/80 hover:text-navy-600 active:scale-[0.93]"
-              >
-                <X size={20} strokeWidth={2.2} />
-              </button>
+            <div className={fromFishing ? "flex gap-2" : ""}>
+              <Button variant="outline" onClick={reset} leftIcon={<X size={16} />}>닫기</Button>
+              {fromFishing && (
+                <Link
+                  href="/map"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-aqua-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all hover:bg-aqua-600 active:scale-[0.97]"
+                >
+                  <MapIcon size={16} strokeWidth={1.9} />
+                  스마트피싱으로 돌아가기
+                </Link>
+              )}
             </div>
           </div>
         )}

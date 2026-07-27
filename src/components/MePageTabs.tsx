@@ -49,6 +49,7 @@ interface Props {
     durationSec: number;
     startedAt: string;
     catchCount: number;
+    routePoints: { lat: number; lng: number }[];
   }>;
   myWalkingPosts: Array<{ id: string; body: string | null }>;
   marketSellCount: number;
@@ -148,71 +149,31 @@ export function MePageTabs({
                       <p className="text-[12px] font-bold text-navy-500">최근 스마트피싱</p>
                       <Link href="/trip" className="text-[11px] text-orange-400">전체보기 →</Link>
                     </div>
-                    <div className="space-y-2">
-                      {recentTrips.map((t) => {
-                        const dist = t.distanceM >= 1000
-                          ? `${(t.distanceM / 1000).toFixed(1)}km`
-                          : `${Math.round(t.distanceM)}m`;
-                        const dur = t.durationSec >= 3600
-                          ? `${Math.floor(t.durationSec / 3600)}h ${Math.floor((t.durationSec % 3600) / 60)}m`
-                          : `${Math.floor(t.durationSec / 60)}분`;
-                        return (
-                          <Link key={t.id} href={`/trip/${t.id}`} className="flex items-center gap-3 rounded-xl border border-navy-100/15 bg-[#0d1b2a] p-2.5">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-aqua-500/15">
-                              <Fish size={16} className="text-aqua-400" strokeWidth={1.6} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[12px] font-semibold text-navy-800">
-                                {(t.title || (t.region ? `${t.region} 출조` : "스마트피싱")).replace(/데이터피싱/g, "스마트피싱")}
-                              </p>
-                              <div className="mt-0.5 flex gap-2 text-[11px] text-navy-400">
-                                <span className="inline-flex items-center gap-0.5"><Navigation size={10} /> {dist}</span>
-                                <span className="inline-flex items-center gap-0.5"><Clock size={10} /> {dur}</span>
-                                {t.catchCount > 0 && (
-                                  <span className="inline-flex items-center gap-0.5"><Fish size={10} className="text-aqua-400" /> {t.catchCount}마리</span>
-                                )}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {recentTrips.map((t) => (
+                        <Link key={t.id} href={`/trip/${t.id}`} className="relative aspect-square overflow-hidden rounded-xl bg-[#1b2b3a]">
+                          {t.routePoints.length >= 2
+                            ? <MiniRouteMap points={t.routePoints} />
+                            : (
+                              <div className="flex h-full w-full flex-col items-center justify-center gap-1">
+                                <Route size={20} className="text-aqua-300/50" />
+                                <p className="text-[9px] text-navy-400">
+                                  {(t.title || (t.region ? `${t.region}` : "출조")).replace(/데이터피싱/g, "스마트피싱")}
+                                </p>
                               </div>
+                            )}
+                          {t.catchCount > 0 && (
+                            <div className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5">
+                              <Fish size={9} className="text-aqua-300" />
+                              <span className="text-[9px] font-bold text-white">{t.catchCount}</span>
                             </div>
-                            <div className="flex shrink-0 items-center gap-1">
-                              <TripMemoInline tripId={t.id} initialMemo={null} />
-                              <span className="text-[10px] text-navy-400">
-                                {new Date(t.startedAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
-                              </span>
-                            </div>
-                          </Link>
-                        );
-                      })}
+                          )}
+                        </Link>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* 내 워킹 피드 */}
-                {myWalkingPosts.length > 0 && (
-                  <div className="mt-3 border-t border-navy-100/15 pt-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-[12px] font-bold text-navy-500">내 워킹 피드</p>
-                      <Link href="/walking" className="text-[11px] text-orange-400">전체보기 →</Link>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {myWalkingPosts.map((p) => {
-                        let routePoints: { lat: number; lng: number }[] = [];
-                        let catchMarkers: { lat: number; lng: number }[] = [];
-                        try {
-                          const d = JSON.parse(p.body ?? "null");
-                          if (Array.isArray(d?.routePoints)) routePoints = d.routePoints;
-                          if (Array.isArray(d?.catchMarkers)) catchMarkers = d.catchMarkers;
-                        } catch {}
-                        return (
-                          <Link key={p.id} href={`/post/${p.id}`} className="relative aspect-square overflow-hidden rounded-xl bg-[#1b2b3a]">
-                            {routePoints.length >= 2
-                              ? <MiniRouteMap points={routePoints} catchPoints={catchMarkers.length > 0 ? catchMarkers : undefined} />
-                              : <div className="flex h-full w-full items-center justify-center"><Route size={24} className="text-aqua-300/50" /></div>}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
