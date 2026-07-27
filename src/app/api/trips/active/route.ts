@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { createWalkingFeedPost } from "@/lib/walkingFeed";
 
 // 진행 중(중지 전) 스마트피싱 세션 = endedAt 이 null 인 FishingTrip 레코드.
 // 별도 스키마 변경 없이 "전역으로 유지되는 기록 세션"을 서버에 영속화한다.
@@ -108,6 +109,8 @@ export async function PUT(req: Request) {
         routePoints: points.length ? { create: points.map((p) => ({ lat: p.lat, lng: p.lng, order: p.order })) } : undefined,
       },
     });
+    // 워킹 피드 글 자동 생성 (실패해도 기록 마감은 성공 처리)
+    try { await createWalkingFeedPost(trip.id, user.id); } catch { /* noop */ }
     return NextResponse.json({ ok: true, id: trip.id });
   }
 
@@ -121,5 +124,7 @@ export async function PUT(req: Request) {
       routePoints: points.length ? { create: points.map((p) => ({ lat: p.lat, lng: p.lng, order: p.order })) } : undefined,
     },
   });
+  // 워킹 피드 글 자동 생성 (실패해도 기록 마감은 성공 처리)
+  try { await createWalkingFeedPost(trip.id, user.id); } catch { /* noop */ }
   return NextResponse.json({ ok: true, id: trip.id });
 }

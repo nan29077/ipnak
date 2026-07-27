@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { createWalkingFeedPost } from "@/lib/walkingFeed";
 
 // GET: 로그인 사용자의 스마트피싱(낚시) 기록 목록
 export async function GET() {
@@ -54,6 +55,9 @@ export async function POST(req: Request) {
       routePoints: points.length ? { create: points.map((p) => ({ lat: p.lat, lng: p.lng, order: p.order })) } : undefined,
     },
   });
+
+  // 워킹 피드 글 자동 생성 (실패해도 기록 저장은 성공 처리)
+  try { await createWalkingFeedPost(trip.id, user.id); } catch { /* noop */ }
 
   return NextResponse.json({ ok: true, id: trip.id });
 }

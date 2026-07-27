@@ -77,6 +77,11 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const trip = await prisma.fishingTrip.findFirst({ where: { id: params.id, userId: user.id } });
   if (!trip) return NextResponse.json({ error: "기록을 찾을 수 없습니다." }, { status: 404 });
 
+  // 기록에서 자동 생성된 워킹 피드 글도 함께 삭제 (피드에 유령 글이 남지 않도록)
+  try {
+    await prisma.post.deleteMany({ where: { tripId: params.id, postType: "WALKING_FEED" } });
+  } catch { /* 워킹 피드 글 삭제 실패는 기록 삭제를 막지 않는다 */ }
+
   await prisma.fishingTrip.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }
