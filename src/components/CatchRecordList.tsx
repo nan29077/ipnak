@@ -1,10 +1,11 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Fish, MapPin, Ruler, PenLine, Trophy, Scale, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { Card, Badge, Chip } from "@/components/ui";
+import { Card, Badge, Chip, EmptyState } from "@/components/ui";
 import { kstFormat } from "@/lib/utils";
 import { estimateWeightKg, formatWeight, speciesAvgCm, vsAveragePct } from "@/lib/fishData";
 import { useAppSettings } from "@/lib/appSettingsContext";
+import { isBassOnlySpecies } from "@/lib/taxonomy";
 
 export type CatchRecordItem = {
   id: string;
@@ -20,19 +21,13 @@ export type CatchRecordItem = {
 // 기록에 표시할 최종 길이 (직접입력 우선, 없으면 스마트 자 측정값)
 const effLen = (r: CatchRecordItem) => r.sizeCm ?? r.measuredLengthCm ?? null;
 
-// 배스낚시 전용 모드에서 표시할 어종명 목록
-const BASS_SPECIES = ["배스", "Largemouth Bass", "Smallmouth Bass", "배스(라지마우스)", "배스(스몰마우스)"];
-
 export function CatchRecordList({ records }: { records: CatchRecordItem[] }) {
   const { bassOnlyMode } = useAppSettings();
   const [filter, setFilter] = useState<string>("전체");
 
-  // 배스 전용 모드 시 배스 관련 기록만 표시
+  // 배스 전용 모드 시 배스 관련 기록만 표시 (BASS_ONLY_SPECIES 8종 기준)
   const displayRecords = useMemo(
-    () =>
-      bassOnlyMode
-        ? records.filter((r) => BASS_SPECIES.some((b) => r.speciesName.includes("배스") || r.speciesName === b))
-        : records,
+    () => (bassOnlyMode ? records.filter((r) => isBassOnlySpecies(r.speciesName)) : records),
     [records, bassOnlyMode]
   );
 
@@ -66,6 +61,22 @@ export function CatchRecordList({ records }: { records: CatchRecordItem[] }) {
     return best;
   }, [displayRecords]);
 
+  // 배스 전용 모드 필터 결과가 0건이면 빈 화면 대신 안내를 노출한다
+  if (displayRecords.length === 0) {
+    return (
+      <div className="space-y-3 p-4">
+        <div className="flex items-center gap-2 rounded-xl bg-orange-500/10 px-3 py-2.5 text-[13px] font-semibold text-orange-600">
+          <Fish size={15} />
+          배스낚시 전용 모드 — 배스 기록만 표시 중
+        </div>
+        <EmptyState
+          title="배스 기록이 없습니다"
+          desc={`배스낚시 전용 모드에서는 배스 관련 어종 기록만 표시돼요. 전체 기록 ${records.length}건 중 표시할 기록이 없습니다.`}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 p-4">
       {/* 배스 전용 모드 알림 */}
@@ -90,7 +101,7 @@ export function CatchRecordList({ records }: { records: CatchRecordItem[] }) {
           )}
         </div>
         <div className="text-right text-[12px] text-navy-300">
-          <p>총 {records.length}건</p>
+          <p>총 {displayRecords.length}건</p>
           <p className="mt-0.5">어종 {speciesList.length}종 · PB {pbIds.size}개</p>
         </div>
       </Card>

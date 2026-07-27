@@ -6,6 +6,7 @@ import { MarketList, type MarketItem } from "@/components/market/MarketList";
 import { MarketSellFab } from "@/components/market/MarketSellFab";
 import { MarketTabs } from "@/components/market/MarketTabs";
 import { MarketIntroBanner } from "@/components/market/MarketIntroBanner";
+import { BassOnlyBanner } from "@/components/BassOnlyBanner";
 import { MarketSearchButton } from "@/components/market/MarketSearchButton";
 import { getBoolSetting } from "@/lib/settings";
 
@@ -80,6 +81,10 @@ export default async function MarketPage() {
 
       <div className="pt-4">
         <MarketIntroBanner variant="used" />
+        <BassOnlyBanner
+          text="배스낚시 전용 모드 — 배스 장비 위주로 둘러보세요"
+          className="mx-4 mb-4"
+        />
         <MarketList items={items} />
       </div>
 

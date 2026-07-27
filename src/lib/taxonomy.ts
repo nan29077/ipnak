@@ -121,6 +121,34 @@ export const BASS_ONLY_SPECIES = [
   "배스", "블루길", "쏘가리", "꺽지", "강준치", "가물치", "붕어", "잉어",
 ];
 
+/**
+ * 배스낚시 전용 모드 노출 대상 어종인지 판정.
+ * - "배스" / "bass" 를 포함한 표기(라지마우스 배스, Largemouth Bass 등)
+ * - BASS_ONLY_SPECIES 8종 (글쓰기 드롭다운에서 선택 가능한 어종과 동일 기준)
+ */
+export function isBassOnlySpecies(name: string | null | undefined): boolean {
+  const n = (name ?? "").trim();
+  if (!n) return false;
+  if (n.includes("배스") || n.toLowerCase().includes("bass")) return true;
+  return BASS_ONLY_SPECIES.includes(n);
+}
+
+/** 자유 텍스트(캡션·제목·해시태그)에 배스 관련 키워드가 있는지 */
+export function isBassOnlyText(text: string | null | undefined): boolean {
+  const t = (text ?? "").trim();
+  if (!t) return false;
+  return t.includes("배스") || t.toLowerCase().includes("bass");
+}
+
+/** 게시글(피드/조행기)이 배스 전용 모드에서 노출 대상인지 — 어종 태그 또는 해시태그 기준 */
+export function isBassOnlyPost(post: {
+  speciesName?: string | null;
+  hashtags?: string[] | null;
+}): boolean {
+  if (isBassOnlySpecies(post.speciesName)) return true;
+  return (post.hashtags ?? []).some((tag) => isBassOnlySpecies(tag) || isBassOnlyText(tag));
+}
+
 // 한국 주요 낚시 지역 (위경도)
 export const KOREA_SPOTS: { name: string; lat: number; lng: number }[] = [
   { name: "한강", lat: 37.5326, lng: 126.9905 },

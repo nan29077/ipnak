@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Eye, Heart, MessageSquare, Bookmark, Fish, TrendingUp } from "lucide-react";
 import { getRankedPosts, type RankOpts } from "@/lib/curation";
+import { getBoolSetting } from "@/lib/settings";
+import { isBassOnlySpecies, isBassOnlyText } from "@/lib/taxonomy";
 import { PageHeader, EmptyState, LinkButton } from "@/components/ui";
 import { timeAgo, cn } from "@/lib/utils";
 
@@ -32,7 +34,14 @@ export default async function ExplorePage({ searchParams }: { searchParams: SP }
   const sort = (one(searchParams.sort) as RankOpts["sort"]) ?? "best";
   const kind = (one(searchParams.kind) as RankOpts["kind"]) ?? "all";
 
-  const posts = await getRankedPosts({ species, region, keywords, period, sort, kind, limit: 60 });
+  const [allPosts, bassOnlyMode] = await Promise.all([
+    getRankedPosts({ species, region, keywords, period, sort, kind, limit: 60 }),
+    getBoolSetting("bass_only_mode"),
+  ]);
+  // 배스 전용 모드: 배스 계열 어종 글 또는 제목·본문에 배스 키워드가 있는 글만 노출
+  const posts = bassOnlyMode
+    ? allPosts.filter((p) => isBassOnlySpecies(p.speciesName) || isBassOnlyText(p.title) || isBassOnlyText(p.caption))
+    : allPosts;
   const headline = species || region || (keywords.length ? keywords[0] : null);
   const title = headline ? `${headline} ${period === "weekly" ? "금주 " : period === "monthly" ? "월간 " : ""}${sort === "best" ? "베스트" : "포인트"}`.trim() : buildTitle(species, period ?? "all", sort ?? "best");
 

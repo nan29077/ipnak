@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ChevronRight, Flame, BadgeCheck, Route, Trophy, Clock, Lock, Sparkles } from "lucide-react";
 import { useAppSettings } from "@/lib/appSettingsContext";
+import { isBassOnlyPost, isBassOnlySpecies } from "@/lib/taxonomy";
 import { ScrollRail } from "@/components/ScrollRail";
 import {
   IconEye, IconHeart, IconComment, IconFish, IconRuler, IconBook, IconStar, IconTrend, IconTrophy, IconMapPin, IconUsers,
@@ -57,15 +58,17 @@ export function CurationHome({
 }) {
   const { bassOnlyMode, walkingFeedEnabled } = useAppSettings();
 
-  // 배스 전용 모드: 배스 관련 피드/섹션만 표시
-  const filteredFeedPosts = bassOnlyMode
-    ? feedPosts.filter((p) => p.speciesName?.includes("배스"))
-    : feedPosts;
+  // 배스 전용 모드: 배스 관련 피드/섹션만 표시 (BASS_ONLY_SPECIES 8종 + 해시태그 기준)
+  const filteredFeedPosts = bassOnlyMode ? feedPosts.filter(isBassOnlyPost) : feedPosts;
+  const filteredWalkingPosts = bassOnlyMode ? (walkingPosts ?? []).filter(isBassOnlyPost) : (walkingPosts ?? []);
+  const filteredPersonalizedPosts = bassOnlyMode
+    ? (personalizedPosts ?? []).filter(isBassOnlyPost)
+    : personalizedPosts;
 
   const visibleSections = sections.filter((s) => {
     if (s.posts.length === 0) return false;
-    // 배스 전용 모드: SPECIES 섹션은 배스만 유지, 나머지 어종 섹션 제거
-    if (bassOnlyMode && s.type === "SPECIES" && !s.speciesName?.includes("배스")) return false;
+    // 배스 전용 모드: SPECIES 섹션은 배스 계열만 유지, 나머지 어종 섹션 제거
+    if (bassOnlyMode && s.type === "SPECIES" && !isBassOnlySpecies(s.speciesName)) return false;
     return true;
   });
 
@@ -106,17 +109,17 @@ export function CurationHome({
       </section>
 
       {/* 워킹 피드 섹션 — 스마트피싱 기록 (관리자 설정으로 on/off) */}
-      {walkingFeedEnabled && (walkingPosts ?? []).length > 0 && (
+      {walkingFeedEnabled && filteredWalkingPosts.length > 0 && (
         <section className="mt-6">
           <SectionHead title="워킹 피드" desc="스마트피싱 동선 기록" icon={<Route size={16} className="text-aqua-300" />} />
           <ScrollRail className="flex gap-3 overflow-x-auto px-4 pb-1 no-scrollbar" scrollAmount={320}>
-            {(walkingPosts ?? []).slice(0, 12).map((p) => <WalkingRailCard key={p.id} post={p} />)}
+            {filteredWalkingPosts.slice(0, 12).map((p) => <WalkingRailCard key={p.id} post={p} />)}
           </ScrollRail>
         </section>
       )}
 
       {/* 맞춤 추천 피드 — 관심 어종/방식 기반 AI 큐레이션 */}
-      {personalizedPosts && personalizedPosts.length > 0 && (
+      {filteredPersonalizedPosts && filteredPersonalizedPosts.length > 0 && (
         <section className="mt-6">
           <div className="mb-2.5 px-4">
             <div className="flex items-center gap-2">
@@ -130,7 +133,7 @@ export function CurationHome({
             </p>
           </div>
           <ScrollRail className="flex gap-3 overflow-x-auto px-4 pb-1 no-scrollbar" scrollAmount={320}>
-            {personalizedPosts.slice(0, 12).map((p) => <FeedRailCard key={p.id} post={p} />)}
+            {filteredPersonalizedPosts.slice(0, 12).map((p) => <FeedRailCard key={p.id} post={p} />)}
           </ScrollRail>
         </section>
       )}

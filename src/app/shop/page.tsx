@@ -8,6 +8,7 @@ import { won } from "@/lib/utils";
 import { productCategoryLabel } from "@/lib/taxonomy";
 import { MarketTabs } from "@/components/market/MarketTabs";
 import { MarketIntroBanner } from "@/components/market/MarketIntroBanner";
+import { BassOnlyBanner } from "@/components/BassOnlyBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,10 @@ export default async function ShopPage() {
       <PageHeader title="마켓" />
       <MarketTabs />
       <MarketIntroBanner variant="shopping" />
+      <BassOnlyBanner
+        text="배스낚시 전용 모드 — 배스 장비 위주로 둘러보세요"
+        className="mx-4 mb-4"
+      />
 
       {featured.length === 0 ? (
         <EmptyState

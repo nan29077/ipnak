@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { kstFormat } from "@/lib/utils";
 import { Card, Chip, Button } from "@/components/ui";
-import { TOURNAMENT_TYPES } from "@/lib/taxonomy";
+import { TOURNAMENT_TYPES, isBassOnlySpecies } from "@/lib/taxonomy";
 import { useAppSettings } from "@/lib/appSettingsContext";
 
 type T = {
@@ -76,8 +76,8 @@ export function TournamentList({ tournaments }: { tournaments: T[] }) {
   const { bassOnlyMode } = useAppSettings();
   const [filter, setFilter] = useState("ALL");
   const visible = tournaments.filter((t) => {
-    // 배스 전용 모드: 배스낚시 대회만 표시
-    if (bassOnlyMode && !(t.speciesName ?? "").includes("배스")) return false;
+    // 배스 전용 모드: 배스 계열 어종(BASS_ONLY_SPECIES 8종) 대회만 표시
+    if (bassOnlyMode && !isBassOnlySpecies(t.speciesName)) return false;
     return filter === "ALL" ? true :
       ["WEEKLY", "MONTHLY", "GRAND"].includes(filter) ? t.type === filter : t.status === filter;
   });

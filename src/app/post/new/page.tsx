@@ -7,12 +7,13 @@ import { PhotoPicker, type PickedPhoto } from "@/components/PhotoPicker";
 import { ProductTagPicker } from "@/components/ProductTagPicker";
 import { useToast } from "@/components/Toast";
 import { useAppSettings } from "@/lib/appSettingsContext";
-import { ALL_SPECIES, FISHING_METHODS, VISIBILITY_OPTIONS, KOREA_SPOTS } from "@/lib/taxonomy";
+import { ALL_SPECIES, BASS_ONLY_SPECIES, FISHING_METHODS, VISIBILITY_OPTIONS, KOREA_SPOTS } from "@/lib/taxonomy";
 
 export default function NewPostPage() {
   const router = useRouter();
   const toast = useToast();
-  const { shopMenuEnabled } = useAppSettings();
+  const { shopMenuEnabled, bassOnlyMode } = useAppSettings();
+  const speciesList = bassOnlyMode ? BASS_ONLY_SPECIES : ALL_SPECIES;
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [caption, setCaption] = useState("");
   const [species, setSpecies] = useState("");
@@ -81,7 +82,7 @@ export default function NewPostPage() {
             <Field label="어종">
               <Select value={species} onChange={(e) => setSpecies(e.target.value)}>
                 <option value="">선택</option>
-                {ALL_SPECIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {speciesList.map((s) => <option key={s} value={s}>{s}</option>)}
                 <option value="기타">기타(직접입력)</option>
               </Select>
               {species === "기타" && (

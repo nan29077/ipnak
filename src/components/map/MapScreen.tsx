@@ -11,6 +11,7 @@ import { useToast } from "@/components/Toast";
 import { useRecording, type TripRec } from "@/components/RecordingProvider";
 import { TripDetailSheet, type TripDetail } from "@/components/TripDetailSheet";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
+import { BassOnlyBanner } from "@/components/BassOnlyBanner";
 import { distanceMeters, type LatLng, type MapMarker } from "@/lib/map";
 import { km, duration, stopwatch, timeAgo } from "@/lib/utils";
 import { KOREA_SPOTS } from "@/lib/taxonomy";
@@ -654,6 +655,12 @@ export function MapScreen({ userId }: { userId?: string }) {
             </div>
           )}
         </div>
+        {/* 3행: 배스낚시 전용 모드 안내 — 모드 OFF 이면 렌더링되지 않아 기존 레이아웃 그대로 */}
+        <BassOnlyBanner
+          text="배스낚시 전용 모드 — 배스 포인트 위주로 표시돼요"
+          className="bg-[#0d1b2a]/95 shadow-card backdrop-blur"
+          style={{ gridColumn: "1 / -1" }}
+        />
       </div>
 
       <div data-tutorial-step="0" className="absolute inset-0 z-0 pointer-events-none" aria-hidden="true" />

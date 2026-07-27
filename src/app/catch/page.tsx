@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getBoolSetting } from "@/lib/settings";
+import { isBassOnlySpecies } from "@/lib/taxonomy";
 import { PageHeader, EmptyState, Button } from "@/components/ui";
 import { CatchRecordList, type CatchRecordItem } from "@/components/CatchRecordList";
 
@@ -13,11 +15,14 @@ export default async function CatchListPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const records = await prisma.catchRecord.findMany({
-    where: { userId: user.id },
-    include: { fishingPoint: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [records, bassOnlyMode] = await Promise.all([
+    prisma.catchRecord.findMany({
+      where: { userId: user.id },
+      include: { fishingPoint: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    getBoolSetting("bass_only_mode"),
+  ]);
 
   const data: CatchRecordItem[] = records.map((r) => ({
     id: r.id,
@@ -30,12 +35,17 @@ export default async function CatchListPage() {
     createdAt: r.createdAt.toISOString(),
   }));
 
+  // 배스 전용 모드에서는 헤더 카운트도 실제 표시되는(필터된) 기록 수를 따른다
+  const visibleCount = bassOnlyMode
+    ? data.filter((r) => isBassOnlySpecies(r.speciesName)).length
+    : data.length;
+
   return (
     <div className="pb-10">
       <PageHeader
         title="피쉬 기록"
         back
-        sub={`${records.length}건의 기록`}
+        sub={`${visibleCount}건의 기록`}
         right={
           <Link href="/catch/new">
             <Button size="sm" className="rounded-full" leftIcon={<Plus size={15} />}>기록하기</Button>
