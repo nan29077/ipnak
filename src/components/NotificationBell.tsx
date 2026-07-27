@@ -14,6 +14,7 @@ export function NotificationBell() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   async function load() {
     setLoading(true);
@@ -31,7 +32,12 @@ export function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // 패널은 createPortal로 document.body에 렌더되므로 ref(벨 버튼 래퍼)에 포함되지 않는다.
+      // panelRef를 함께 검사하지 않으면 패널 내부 클릭이 '바깥 클릭'으로 처리되어
+      // mousedown 시점에 패널이 닫히고 onClick(모두 읽음/알림 이동)이 실행되지 않는다.
+      if (ref.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -74,7 +80,7 @@ export function NotificationBell() {
       </button>
 
       {open && typeof document !== "undefined" && createPortal(
-        <div className="animate-scalein fixed z-[10000] w-[320px] max-w-[88vw] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#162538] shadow-sheet" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem)", right: "max(0.75rem, calc((100vw - 640px) / 2 + 0.75rem))" }}>
+        <div ref={panelRef} className="animate-scalein fixed z-[10000] w-[320px] max-w-[88vw] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#162538] shadow-sheet" style={{ top: "calc(env(safe-area-inset-top, 0px) + 3rem)", right: "max(0.75rem, calc((100vw - 640px) / 2 + 0.75rem))" }}>
           {/* 상단 aqua 액센트 라인 */}
           <div className="h-[2px] bg-gradient-to-r from-aqua-600 via-aqua-500 to-aqua-700" />
 
