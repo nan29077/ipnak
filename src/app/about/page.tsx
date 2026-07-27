@@ -253,13 +253,7 @@ export default function AboutPage() {
   const router = useRouter();
 
   const enterApp = useCallback(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      sessionStorage.setItem("ipnak_mobile_entered", "1");
-      router.replace("/measure");
-    } else {
-      sessionStorage.setItem("ipnak_pc_entered", "1");
-      router.replace("/home");
-    }
+    router.replace("/");
   }, [router]);
 
   return (
