@@ -139,6 +139,7 @@ model Post {
   fishingPointId    String?
   fishingPoint      FishingPoint? @relation(fields: [fishingPointId], references: [id])
   tournamentEntryId String?
+  tripId            String? // 스마트피싱 기록에서 자동 생성된 워킹 피드 글의 원본 Trip
 
   images           PostImage[]
   comments         Comment[]
@@ -548,6 +549,7 @@ model Booking {
 }
 
 // ===== 알림 / 관리자 로그 / 배너 =====
+// type: COMMENT | REPLY | LIKE | ...
 model Notification {
   id        String   @id @default(cuid())
   userId    String
@@ -555,6 +557,8 @@ model Notification {
   type      String
   body      String
   link      String? // 클릭 시 이동할 URL
+  actorId   String? // 알림을 발생시킨 사용자(댓글·좋아요 작성자)
+  postId    String? // 관련 게시글
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 }
