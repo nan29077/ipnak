@@ -266,7 +266,7 @@ export function BallLinkSection() {
       <Sheet open={ballExampleOpen} onClose={() => setBallExampleOpen(false)} title="입낚볼 사용 예시" size="diary">
         <div className="space-y-4 pb-2">
           <UsageExample
-            src="/ipnak-ball-handheld-bass-example.png"
+            src="/logo-ipnak-bear-mark-ball-white-arrow.png"
             title="손가락 고리에 입낚볼을 걸고 촬영"
             desc="배스를 들고 촬영할 때도 입낚볼이 물고기와 한 프레임에 선명하게 보이도록 손가락 고리를 이용해 가까이 배치해 주세요."
           />
