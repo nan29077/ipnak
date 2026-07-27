@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ShoppingBag, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppSettings } from "@/lib/appSettingsContext";
 
 const TABS = [
   {
@@ -22,6 +23,10 @@ const TABS = [
 
 export function MarketTabs() {
   const pathname = usePathname() || "/";
+  const { shopMenuEnabled } = useAppSettings();
+
+  // 쇼핑 메뉴 노출 OFF: 쇼핑 탭을 숨기고 중고마켓만 노출 → 탭 자체를 표시하지 않는다
+  if (!shopMenuEnabled) return null;
 
   return (
     <nav className="px-4 pb-3" aria-label="마켓 메뉴">

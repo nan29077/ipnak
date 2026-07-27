@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ShoppingBag, Tag, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getBoolSetting } from "@/lib/settings";
 import { PageHeader, EmptyState, LinkButton, Badge } from "@/components/ui";
 import { won } from "@/lib/utils";
 import { productCategoryLabel } from "@/lib/taxonomy";
@@ -38,6 +40,9 @@ type FeaturedWithProduct = RawFeatured & {
 };
 
 export default async function ShopPage() {
+  // 쇼핑 메뉴 노출 OFF: 쇼핑 페이지를 완전히 숨기고 중고마켓으로 보낸다
+  if (!(await getBoolSetting("shop_menu_enabled"))) redirect("/market");
+
   let featured: FeaturedWithProduct[] = [];
 
   try {

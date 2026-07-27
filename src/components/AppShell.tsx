@@ -25,7 +25,7 @@ function buildMobileNav(shopEnabled: boolean): NavItemDef[] {
   return [
     { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/groups") || p.startsWith("/explore") },
     { href: "/map", label: "스마트피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
-    { href: shopEnabled ? "/shop" : "/market", label: "마켓", icon: IconTackleBox, match: (p) => p.startsWith("/market") || p.startsWith("/shop") },
+    { href: shopEnabled ? "/shop" : "/market", label: shopEnabled ? "마켓" : "중고 마켓", icon: IconTackleBox, match: (p) => p.startsWith("/market") || p.startsWith("/shop") },
     { href: "/me", label: "마이", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },
   ];
 }
@@ -43,7 +43,7 @@ function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): Nav
     ...(reservationEnabled
       ? [{ href: "/reservations", label: "예약", icon: IconCalendar, match: (p: string) => p.startsWith("/reservations") }]
       : []),
-    { href: shopEnabled ? "/shop" : "/market", label: "마켓", icon: IconTackleBox, match: (p) => p.startsWith("/market") || p.startsWith("/shop") },
+    { href: shopEnabled ? "/shop" : "/market", label: shopEnabled ? "마켓" : "중고 마켓", icon: IconTackleBox, match: (p) => p.startsWith("/market") || p.startsWith("/shop") },
     { href: "/me", label: "마이페이지", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },
   ];
 }

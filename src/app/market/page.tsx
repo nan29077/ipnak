@@ -7,11 +7,14 @@ import { MarketSellFab } from "@/components/market/MarketSellFab";
 import { MarketTabs } from "@/components/market/MarketTabs";
 import { MarketIntroBanner } from "@/components/market/MarketIntroBanner";
 import { MarketSearchButton } from "@/components/market/MarketSearchButton";
+import { getBoolSetting } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketPage() {
   const user = await getCurrentUser();
+  // 쇼핑 메뉴 노출 OFF: 쇼핑 탭이 없으므로 제목을 "중고 마켓"으로 표시
+  const shopEnabled = await getBoolSetting("shop_menu_enabled");
   const listings = await prisma.marketListing.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -54,7 +57,7 @@ export default async function MarketPage() {
       <header className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#0d1b2a]/90 backdrop-blur-md">
         <div className="flex h-14 items-center gap-2 px-3.5">
           <span className="shrink-0 text-[19px] font-extrabold tracking-tight text-navy-900">
-            마켓
+            {shopEnabled ? "마켓" : "중고 마켓"}
           </span>
           <MarketSearchButton />
           {user && (
