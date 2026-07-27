@@ -55,7 +55,7 @@ export default async function AdminMarketPage({ searchParams }: { searchParams: 
   return (
     <div>
       <AdminTitle
-        title="중고피싱 관리"
+        title="중고마켓 관리"
         desc={`전체 ${total}개 · 판매중 ${selling} · 예약중 ${reserved} · 완료 ${sold}`}
         right={
           <SearchBox placeholder="제목/판매자/지역 검색" />

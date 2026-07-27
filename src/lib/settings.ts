@@ -18,7 +18,7 @@ function normalizeSettingValue(key: string, value: string): string {
 
 // 사이트 운영 설정 기본값
 export const SETTING_DEFAULTS: Record<string, string> = {
-  shop_menu_enabled: "true", // true: 쇼핑 노출 / false: 중고피싱 노출
+  shop_menu_enabled: "true", // true: 쇼핑 노출 / false: 중고마켓 노출
   // PC(데스크톱 ≥1024px) 좌우 여백 배경 이미지. 이미지 URL 또는 업로드 Data URL.
   // 비어 있으면 프로젝의 기본 배스 앵글러 이미지로 폴백한다.
   pcMarginBgImage: PC_MARGIN_BG_DEFAULT,

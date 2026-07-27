@@ -97,7 +97,7 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
               <Link href="/market/new" onClick={() => setOpen(false)}
                 className="flex flex-col items-start gap-2 rounded-2xl border border-navy-100 bg-[#1c2c3e] p-4 transition-colors hover:border-orange-500/50">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400"><ShoppingBag size={20} /></span>
-                <span className="text-[14px] font-bold text-navy-900">중고 피싱 쓰기</span>
+                <span className="text-[14px] font-bold text-navy-900">중고마켓 판매글 쓰기</span>
                 <span className="text-[12px] leading-snug text-navy-400">낚시 용품을 사고 팔아요</span>
               </Link>
             </div>

@@ -12,7 +12,7 @@ export function MarketSeedButton() {
   const doConfirm = useConfirm();
 
   async function run() {
-    if (!await doConfirm({ title: "중고피싱 더미 데이터 재생성", message: "기존 중고피싱 데이터를 모두 삭제하고 더미 데이터 20개를 새로 생성합니다.", danger: true, confirmLabel: "계속" })) return;
+    if (!await doConfirm({ title: "중고마켓 더미 데이터 재생성", message: "기존 중고마켓 데이터를 모두 삭제하고 더미 데이터 20개를 새로 생성합니다.", danger: true, confirmLabel: "계속" })) return;
     setLoading(true);
     try {
       const res = await fetch("/api/admin/seed-market", { method: "POST" });

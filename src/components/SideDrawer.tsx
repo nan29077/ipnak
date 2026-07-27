@@ -56,7 +56,7 @@ export function SideDrawer({
   ];
   const market: Item[] = [
     ...(shopEnabled ? [{ href: "/shop", label: "쇼핑", icon: ShoppingBag } as Item] : []),
-    { href: "/market", label: "중고피싱", icon: Store },
+    { href: "/market", label: "중고마켓", icon: Store },
   ];
   const community: Item[] = [
     { href: "/feed", label: "피싱 피드", icon: Newspaper },

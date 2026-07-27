@@ -41,7 +41,7 @@ export default async function PurchasesPage() {
         <EmptyState
           title="구매 내역이 없습니다"
           desc="관심 상품의 판매자에게 채팅을 보내 거래를 시작해보세요."
-          action={<LinkButton href="/market">중고피싱 둘러보기</LinkButton>}
+          action={<LinkButton href="/market">중고마켓 둘러보기</LinkButton>}
         />
       ) : (
         <div className="divide-y divide-navy-50">

@@ -1,30 +1,57 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Newspaper, BookOpen, Store, Users, FileText, Route } from "lucide-react";
+import { Newspaper, BookOpen, Users, FileText, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { href: "/feed", label: "피싱 피드", icon: Newspaper, match: (p: string) => p === "/feed" || p.startsWith("/feed/") },
-  { href: "/general", label: "일반 피드", icon: FileText, match: (p: string) => p.startsWith("/general") },
-  { href: "/log", label: "조행기", icon: BookOpen, match: (p: string) => p.startsWith("/log") },
-  { href: "/market", label: "중고피싱", icon: Store, match: (p: string) => p.startsWith("/market") },
-  { href: "/walking", label: "워킹 피드", icon: Route, match: (p: string) => p.startsWith("/walking") },
-  { href: "/groups", label: "낚시단", icon: Users, match: (p: string) => p.startsWith("/groups") },
+  {
+    href: "/feed",
+    label: "낚시 피드",
+    icon: Newspaper,
+    match: (pathname: string) =>
+      pathname === "/feed" || pathname.startsWith("/feed/"),
+  },
+  {
+    href: "/general",
+    label: "일반 피드",
+    icon: FileText,
+    match: (pathname: string) => pathname.startsWith("/general"),
+  },
+  {
+    href: "/log",
+    label: "조행기",
+    icon: BookOpen,
+    match: (pathname: string) => pathname.startsWith("/log"),
+  },
+  {
+    href: "/walking",
+    label: "워킹 피드",
+    icon: Route,
+    match: (pathname: string) => pathname.startsWith("/walking"),
+  },
+  {
+    href: "/groups",
+    label: "낚시단",
+    icon: Users,
+    match: (pathname: string) => pathname.startsWith("/groups"),
+  },
 ];
 
-// 커뮤니티 탭: 3열 2행 그리드 (모바일 최적화)
 export function CommunityTabs() {
   const pathname = usePathname() || "/";
+
   return (
     <div className="grid grid-cols-3 gap-2 px-3 py-2.5">
-      {TABS.map((t) => {
-        const active = t.match(pathname);
-        const Icon = t.icon;
+      {TABS.map((tab) => {
+        const active = tab.match(pathname);
+        const Icon = tab.icon;
+
         return (
           <Link
-            key={t.href}
-            href={t.href}
+            key={tab.href}
+            href={tab.href}
             replace
             aria-current={active ? "page" : undefined}
             className={cn(
@@ -35,7 +62,7 @@ export function CommunityTabs() {
             )}
           >
             <Icon size={19} strokeWidth={active ? 2.4 : 2} />
-            <span className="leading-none">{t.label}</span>
+            <span className="leading-none">{tab.label}</span>
           </Link>
         );
       })}

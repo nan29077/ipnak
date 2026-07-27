@@ -101,13 +101,13 @@ const SEED_GROUPS: SeedGroup[] = [
     ],
   },
   {
-    title: "중고피싱 더미",
+    title: "중고마켓 더미",
     icon: ShoppingBag,
     iconColor: "aqua",
     items: [
       {
         key: "market",
-        label: "중고피싱 게시글",
+        label: "중고마켓 게시글",
         desc: "낚시 용품 중고거래 더미 게시글 20개를 추가합니다",
         addApi: "/api/admin/seed-market",
         deleteType: "market",
@@ -244,7 +244,7 @@ export function SeedPanel({ stats }: { stats: Stats }) {
           { label: "ANGLER 계정", value: stats.anglerCount, icon: Users },
           { label: "전체 게시글", value: stats.postCount, icon: Newspaper },
           { label: "조행기", value: stats.logCount, icon: BookOpen },
-          { label: "중고피싱", value: stats.marketCount, icon: ShoppingBag },
+          { label: "중고마켓", value: stats.marketCount, icon: ShoppingBag },
           { label: "피싱 피드", value: stats.feedCount, icon: Fish },
           { label: "일반 피드", value: stats.generalFeedCount, icon: Newspaper },
           { label: "워킹 피드", value: stats.walkingFeedCount, icon: Route },
@@ -336,7 +336,7 @@ export function SeedPanel({ stats }: { stats: Stats }) {
             <div>
               <p className="text-[14px] font-bold text-red-300">더미 데이터 전체 삭제</p>
               <p className="mt-0.5 text-[12px] leading-relaxed text-navy-400">
-                ANGLER 계정 전체와 관련 게시글·중고피싱·댓글 등 모든 더미 데이터를 삭제합니다. 최고 관리자 계정은 유지됩니다.
+                ANGLER 계정 전체와 관련 게시글·중고마켓·댓글 등 모든 더미 데이터를 삭제합니다. 최고 관리자 계정은 유지됩니다.
               </p>
             </div>
           </div>

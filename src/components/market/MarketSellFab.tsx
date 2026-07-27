@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Loader2 } from "lucide-react";
 
 /**
- * 중고피싱 판매하기 FAB
+ * 중고마켓 판매하기 FAB
  * - 마운트 시 /market/new를 router.prefetch로 미리 로드
  * - 클릭 시 즉각 로딩 피드백 후 이동
  */

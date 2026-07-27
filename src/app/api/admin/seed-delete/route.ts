@@ -125,7 +125,7 @@ export async function POST(req: Request) {
         if (dummyIds.length === 0) return NextResponse.json({ message: "삭제할 더미 데이터가 없습니다." });
         const listings = await prisma.marketListing.findMany({ where: { sellerId: { in: dummyIds } }, select: { id: true } });
         const listingIds = listings.map((l) => l.id);
-        if (listingIds.length === 0) return NextResponse.json({ message: "삭제할 중고피싱 더미가 없습니다." });
+        if (listingIds.length === 0) return NextResponse.json({ message: "삭제할 중고마켓 더미가 없습니다." });
         await prisma.$transaction([
           prisma.marketMessage.deleteMany({ where: { chat: { listingId: { in: listingIds } } } }),
           prisma.marketChat.deleteMany({ where: { listingId: { in: listingIds } } }),
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
           prisma.marketImage.deleteMany({ where: { listingId: { in: listingIds } } }),
           prisma.marketListing.deleteMany({ where: { id: { in: listingIds } } }),
         ]);
-        return NextResponse.json({ message: `중고피싱 더미 ${listingIds.length}개 삭제 완료` });
+        return NextResponse.json({ message: `중고마켓 더미 ${listingIds.length}개 삭제 완료` });
       }
 
       case "products": {

@@ -1,13 +1,14 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, MapPin, Heart, SlidersHorizontal, MessageCircle, ShoppingBag } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, MapPin, Heart, SlidersHorizontal, MessageCircle, ShoppingBag } from "lucide-react";
 import { won, timeAgo, cn } from "@/lib/utils";
-import { Badge, EmptyState, Select } from "@/components/ui";
+import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
 import {
   MARKET_CATEGORIES, MARKET_REGIONS, MARKET_SORTS,
-  marketCategoryLabel, marketStatusLabel, marketConditionLabel,
+  marketCategoryLabel, marketStatusLabel,
 } from "@/lib/taxonomy";
 
 export type MarketItem = {
@@ -24,12 +25,9 @@ export type MarketItem = {
   chatCount: number;
 };
 
-const STATUS_TONE: Record<string, "aqua" | "amber" | "gray"> = {
-  SELLING: "aqua", RESERVED: "amber", SOLD: "gray",
-};
-
 export function MarketList({ items }: { items: MarketItem[] }) {
-  const [q, setQ] = useState("");
+  const searchParams = useSearchParams();
+  const q = searchParams.get("q") ?? "";
   const [category, setCategory] = useState("ALL");
   const [region, setRegion] = useState("ALL");
   const [sort, setSort] = useState("recent");
@@ -53,19 +51,6 @@ export function MarketList({ items }: { items: MarketItem[] }) {
 
   return (
     <div>
-      {/* 검색 */}
-      <div className="px-3 pb-2">
-        <div className="flex items-center gap-2 rounded-2xl border border-[#2a2a2a] bg-[#122030] px-3 py-2.5 shadow-soft focus-within:border-aqua-400 focus-within:ring-2 focus-within:ring-aqua-100">
-          <Search size={18} className="shrink-0 text-navy-300" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="찾는 낚시 용품을 검색하세요"
-            className="w-full bg-transparent text-[14px] text-navy-800 placeholder-navy-300 outline-none"
-          />
-        </div>
-      </div>
-
       {/* 카테고리 칩 */}
       <div className="flex gap-2 overflow-x-auto px-3 pb-2 no-scrollbar">
         <Chip active={category === "ALL"} onClick={() => setCategory("ALL")}>전체</Chip>
@@ -76,13 +61,26 @@ export function MarketList({ items }: { items: MarketItem[] }) {
 
       {/* 지역 / 정렬 / 판매완료 숨김 */}
       <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
-        <Select value={region} onChange={(e) => setRegion(e.target.value)} className="w-auto rounded-full py-2 text-[13px]">
-          <option value="ALL">전체 지역</option>
-          {MARKET_REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-        </Select>
-        <Select value={sort} onChange={(e) => setSort(e.target.value)} className="w-auto rounded-full py-2 text-[13px]">
-          {MARKET_SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-        </Select>
+        <MarketFilterDropdown
+          value={region}
+          onChange={setRegion}
+          ariaLabel="거래 지역 선택"
+          icon={<MapPin size={14} />}
+          options={[
+            { value: "ALL", label: "전체 지역" },
+            ...MARKET_REGIONS.map((item) => ({ value: item, label: item })),
+          ]}
+        />
+        <MarketFilterDropdown
+          value={sort}
+          onChange={setSort}
+          ariaLabel="상품 정렬 선택"
+          icon={<ArrowUpDown size={14} />}
+          options={MARKET_SORTS.map((item) => ({
+            value: item.key,
+            label: item.label,
+          }))}
+        />
         <button
           onClick={() => setHideSold((v) => !v)}
           className={cn(
@@ -216,5 +214,109 @@ function Chip({ children, active, onClick }: { children: React.ReactNode; active
     >
       {children}
     </button>
+  );
+}
+
+type DropdownOption = {
+  value: string;
+  label: string;
+};
+
+function MarketFilterDropdown({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+  icon,
+}: {
+  value: string;
+  options: DropdownOption[];
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  icon: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={cn(
+          "flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[12px] font-semibold shadow-sm transition-all",
+          open
+            ? "border-orange-400/70 bg-orange-500/10 text-orange-400 ring-2 ring-orange-400/10"
+            : "border-white/10 bg-[#122030] text-navy-500 hover:border-white/20 hover:text-navy-800"
+        )}
+      >
+        <span className={open ? "text-orange-400" : "text-aqua-400"}>{icon}</span>
+        <span>{selected.label}</span>
+        <ChevronDown
+          size={14}
+          className={cn("ml-0.5 transition-transform", open && "rotate-180")}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label={ariaLabel}
+          className="absolute left-0 top-11 z-50 max-h-64 min-w-[180px] overflow-y-auto rounded-2xl border border-white/10 bg-[#142438] p-1.5 shadow-2xl shadow-black/50"
+        >
+          <div className="px-2.5 pb-1.5 pt-1 text-[10px] font-bold tracking-[0.08em] text-white/35">
+            {ariaLabel}
+          </div>
+          {options.map((option) => {
+            const active = option.value === value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[13px] transition-colors",
+                  active
+                    ? "bg-orange-500 text-white"
+                    : "text-white/70 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <span>{option.label}</span>
+                {active && <Check size={15} strokeWidth={2.4} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * 중고피싱 상품 상세 — 이미지 슬라이더
+ * 중고마켓 상품 상세 — 이미지 슬라이더
  * - 터치 스와이프로 자연스럽게 이동 (snap 아님)
  * - 0.32s ease-out 트랜지션
  * - 도트 인디케이터 + 카운터

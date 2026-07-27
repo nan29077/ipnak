@@ -49,7 +49,7 @@ const GROUPS: MenuGroup[] = [
   {
     title: "마켓 · 예약",
     items: [
-      { href: "/admin/market", label: "중고피싱 관리", icon: Store },
+      { href: "/admin/market", label: "중고마켓 관리", icon: Store },
       { href: "/admin/listings", label: "예약 상품 관리", icon: Anchor },
       { href: "/admin/bookings", label: "예약 내역", icon: CalendarDays },
       { href: "/admin/products", label: "상품 관리", icon: ShoppingBag },

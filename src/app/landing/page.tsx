@@ -199,7 +199,7 @@ export default function LandingPage() {
               순간을&nbsp;<span style={{ color: isTopActive ? "#facc15" : "#eab308", transition: "color 0.4s" }}>기록</span>하다
             </h2>
             <p className="max-w-xs text-sm text-white/60 md:text-base">
-              AI 계측 · 조행기 · 피싱포인트 · 낚시 커뮤니티 · 중고피싱 마켓
+              AI 계측 · 조행기 · 피싱포인트 · 낚시 커뮤니티 · 중고마켓
             </p>
             <span
               className="mt-1 inline-block rounded-full px-6 py-2 text-sm font-bold transition-all duration-400 md:mt-2 md:px-7 md:py-2.5"
@@ -332,7 +332,7 @@ export default function LandingPage() {
                 transition: "text-shadow 0.5s",
               }}
             >
-              <span className="md:hidden">손 안에서 더 깊게<br />즐기는{" "}</span>
+              <span className="md:hidden">더 스마트하게<br />즐기는{" "}</span>
               <span className="hidden md:inline">PC에서 더 넓게<br />즐기는{" "}</span>
               <span style={{ color: isBottomActive ? "#facc15" : "#eab308", transition: "color 0.4s" }}>
                 입낚
@@ -340,8 +340,8 @@ export default function LandingPage() {
             </h2>
 
             <p className="max-w-xs text-sm text-white/60 md:text-base">
-              <span className="md:hidden">AI 계측·조행기·피드를 스마트폰으로 바로</span>
-              <span className="hidden md:inline">넓은 화면으로 커뮤니티와 기록을 한눈에</span>
+              <span className="md:hidden">AI 계측·조행기·피드를 스마트폰으로 바로 만나보세요.</span>
+              <span className="hidden md:inline">넓은 화면에서 커뮤니티와 기록을 한눈에 만나보세요.</span>
             </p>
 
             <button

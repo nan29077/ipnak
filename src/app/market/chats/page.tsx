@@ -40,7 +40,7 @@ export default async function MarketChatsPage() {
         <EmptyState
           title="진행 중인 채팅이 없습니다"
           desc="관심 있는 상품의 판매자와 채팅을 시작해보세요."
-          action={<LinkButton href="/market">중고피싱 둘러보기</LinkButton>}
+          action={<LinkButton href="/market">중고마켓 둘러보기</LinkButton>}
         />
       ) : (
         <div className="divide-y divide-navy-100/10">

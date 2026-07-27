@@ -73,7 +73,7 @@ export function IconRod(p: FishingIconProps) {
   );
 }
 
-/** 태클박스 (낚싯대-릴-도구/태클박스.svg) — 쇼핑/중고피싱 */
+/** 태클박스 (낚싯대-릴-도구/태클박스.svg) — 쇼핑/중고마켓 */
 export function IconTackleBox(p: FishingIconProps) {
   return (
     <Base {...p}>

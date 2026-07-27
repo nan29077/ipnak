@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/groups/[id]/market
- * 낚시단 회원들의 중고피싱 판매 상품 목록
+ * 낚시단 회원들의 중고마켓 판매 상품 목록
  * - 승인 회원(leader/sub_leader/member)만 조회 가능
  */
 export async function GET(

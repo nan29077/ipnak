@@ -41,7 +41,7 @@ export default async function FavoritesPage() {
         <EmptyState
           title="관심 상품이 없습니다"
           desc="마음에 드는 상품에 하트를 눌러 저장해보세요."
-          action={<LinkButton href="/market">중고피싱 둘러보기</LinkButton>}
+          action={<LinkButton href="/market">중고마켓 둘러보기</LinkButton>}
         />
       ) : (
         <div className="divide-y divide-navy-50">

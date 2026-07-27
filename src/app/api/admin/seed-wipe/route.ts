@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * 더미 데이터 삭제 API
- * - ANGLER 역할의 모든 사용자와 그들의 게시글/중고피싱/댓글 등을 삭제
+ * - ANGLER 역할의 모든 사용자와 그들의 게시글/중고마켓/댓글 등을 삭제
  * - SUPER_ADMIN 계정은 보존
  */
 export async function POST(req: Request) {
@@ -49,13 +49,13 @@ export async function POST(req: Request) {
     ]);
 
     await prisma.$transaction([
-      // 중고피싱 관련
+      // 중고마켓 관련
       prisma.marketMessage.deleteMany({ where: { senderId: { in: dummyIds } } }),
       prisma.marketChat.deleteMany({ where: { buyerId: { in: dummyIds } } }),
       prisma.marketFavorite.deleteMany({ where: { userId: { in: dummyIds } } }),
     ]);
 
-    // 판매자로서의 중고피싱
+    // 판매자로서의 중고마켓
     const listings = await prisma.marketListing.findMany({
       where: { sellerId: { in: dummyIds } },
       select: { id: true },

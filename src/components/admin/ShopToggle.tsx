@@ -5,7 +5,7 @@ import { Loader2, ShoppingBag, Store } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 
-// 쇼핑 메뉴 노출 스위치: ON=쇼핑 노출 / OFF=중고피싱 노출
+// 쇼핑 메뉴 노출 스위치: ON=쇼핑 노출 / OFF=중고마켓 노출
 export function ShopToggle({ initial }: { initial: boolean }) {
   const router = useRouter();
   const toast = useToast();
@@ -23,7 +23,7 @@ export function ShopToggle({ initial }: { initial: boolean }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "오류");
-      toast(next ? "쇼핑 메뉴를 노출합니다" : "중고피싱 메뉴를 노출합니다", "success");
+      toast(next ? "쇼핑 메뉴를 노출합니다" : "중고마켓 메뉴를 노출합니다", "success");
       router.refresh();
     } catch (e: any) {
       setOn(!next);
@@ -37,8 +37,8 @@ export function ShopToggle({ initial }: { initial: boolean }) {
         <div>
           <h2 className="text-[15px] font-bold text-navy-800">쇼핑 메뉴 노출</h2>
           <p className="mt-1 text-[13px] leading-relaxed text-navy-400">
-            ON: <b className="text-navy-600">중고피싱</b> 메뉴를 유지하면서 <b className="text-navy-600">쇼핑</b> 메뉴가 추가됩니다.<br />
-            OFF: <b className="text-navy-600">쇼핑</b> 메뉴가 숨겨지고 중고피싱만 노출됩니다.
+            ON: <b className="text-navy-600">중고마켓</b> 메뉴를 유지하면서 <b className="text-navy-600">쇼핑</b> 메뉴가 추가됩니다.<br />
+            OFF: <b className="text-navy-600">쇼핑</b> 메뉴가 숨겨지고 중고마켓만 노출됩니다.
           </p>
         </div>
         <button
@@ -59,9 +59,9 @@ export function ShopToggle({ initial }: { initial: boolean }) {
         {loading ? (
           <><Loader2 size={16} className="animate-spin text-orange-500" /> 저장 중...</>
         ) : on ? (
-          <><ShoppingBag size={16} className="text-orange-500" /> <span className="text-orange-500">쇼핑</span> 메뉴 추가됨 (중고피싱 유지)</>
+          <><ShoppingBag size={16} className="text-orange-500" /> <span className="text-orange-500">쇼핑</span> 메뉴 추가됨 (중고마켓 유지)</>
         ) : (
-          <><Store size={16} className="text-aqua-500" /> 현재: <span className="text-aqua-500">중고피싱</span>만 노출</>
+          <><Store size={16} className="text-aqua-500" /> 현재: <span className="text-aqua-500">중고마켓</span>만 노출</>
         )}
       </div>
     </div>

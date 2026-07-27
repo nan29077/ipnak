@@ -295,11 +295,11 @@ export function MePageTabs({
         ══════════════════════════════════════════ */}
         {activeTab === "market" && (
           <>
-            {/* 중고피싱 */}
+            {/* 중고마켓 */}
             <div className="overflow-hidden rounded-2xl border border-navy-100/20 bg-[#162538]">
               <div className="flex items-center gap-2 border-b border-navy-100/15 px-4 py-2.5">
                 <ShoppingBag size={14} className="text-orange-400" />
-                <p className="text-[13px] font-bold text-navy-700">중고피싱</p>
+                <p className="text-[13px] font-bold text-navy-700">중고마켓</p>
                 <Link href="/market" className="ml-auto text-[11px] text-orange-400">마켓 바로가기 →</Link>
               </div>
               <div className="p-3">

@@ -58,7 +58,7 @@ export function ProfileMarketSection({ userId }: { userId: string }) {
         )}
       >
         <ShoppingBag size={16} strokeWidth={1.7} />
-        <span>중고피싱</span>
+        <span>중고마켓</span>
         {fetched && sellingCount > 0 && (
           <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[11px] font-bold text-white">
             {sellingCount}
