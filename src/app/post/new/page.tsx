@@ -12,7 +12,7 @@ import { ALL_SPECIES, BASS_ONLY_SPECIES, FISHING_METHODS, VISIBILITY_OPTIONS, KO
 export default function NewPostPage() {
   const router = useRouter();
   const toast = useToast();
-  const { shopMenuEnabled, bassOnlyMode } = useAppSettings();
+  const { shopTagEnabled, bassOnlyMode } = useAppSettings();
   const speciesList = bassOnlyMode ? BASS_ONLY_SPECIES : ALL_SPECIES;
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [caption, setCaption] = useState("");
@@ -124,7 +124,7 @@ export default function NewPostPage() {
           </div>
         </Card>
 
-        {shopMenuEnabled && <ProductTagPicker selected={productIds} onChange={setProductIds} />}
+        {shopTagEnabled && <ProductTagPicker selected={productIds} onChange={setProductIds} />}
 
         <Button onClick={submit} disabled={loading} full size="lg" leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}>
           {loading ? "공유 중..." : "게시글 공유"}

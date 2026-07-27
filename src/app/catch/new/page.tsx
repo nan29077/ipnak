@@ -17,7 +17,7 @@ import { estimateWeightKg, formatWeight } from "@/lib/fishData";
 export default function NewCatchPage() {
   const router = useRouter();
   const toast = useToast();
-  const { bassOnlyMode } = useAppSettings();
+  const { bassOnlyMode, shopTagEnabled } = useAppSettings();
   const speciesList = bassOnlyMode ? BASS_ONLY_SPECIES : ALL_SPECIES;
   const { status, addCatchToRecording, sessionId, lastSessionId, lastPoint } = useRecording();
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
@@ -86,6 +86,8 @@ export default function NewCatchPage() {
       const lat = coords?.lat ?? spot?.lat;
       const lng = coords?.lng ?? spot?.lng;
       const photo = photos[0]?.submitUrl;
+      // 쇼핑 태그 OFF 시 상품 태그 관련 값은 저장 payload에서 제외
+      const taggedProductIds = shopTagEnabled ? productIds : [];
       const res = await fetch("/api/catch", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -94,8 +96,8 @@ export default function NewCatchPage() {
           sizeCm: size ? Number(size) : ruler?.measuredLengthCm, region: resolvedRegion, lat, lng,
           photoUrl: photo, pointVisibility, visibility, shareToFeed: share,
           gearSummary: [gear.rod, gear.reel, gear.rig, gear.lure].filter(Boolean).join(" / "),
-          gear, productIds,
-          productTags: productIds.map((pid) => {
+          gear, productIds: taggedProductIds,
+          productTags: taggedProductIds.map((pid) => {
             const pos = tagPositions[pid] ?? { posX: 0.5, posY: 0.5 };
             return { productId: pid, posX: pos.posX, posY: pos.posY };
           }),
@@ -296,15 +298,19 @@ export default function NewCatchPage() {
           </div>
         </Card>
 
-        <ProductTagPicker selected={productIds} onChange={handleProductChange} />
+        {shopTagEnabled && (
+          <>
+            <ProductTagPicker selected={productIds} onChange={handleProductChange} />
 
-        {productIds.length > 0 && photos[0] && (
-          <ProductTagPlacer
-            photoUrl={photos[0].preview}
-            selected={productIds}
-            positions={tagPositions}
-            onChange={setTagPositions}
-          />
+            {productIds.length > 0 && photos[0] && (
+              <ProductTagPlacer
+                photoUrl={photos[0].preview}
+                selected={productIds}
+                positions={tagPositions}
+                onChange={setTagPositions}
+              />
+            )}
+          </>
         )}
 
         <Card className="space-y-3 p-4">

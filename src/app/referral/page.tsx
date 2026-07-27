@@ -1,15 +1,40 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getReferralEarnings } from "@/lib/referral";
+import { getBoolSetting } from "@/lib/settings";
 import { PageHeader, EmptyState, LinkButton, Card, Badge } from "@/components/ui";
 import { won, timeAgo } from "@/lib/utils";
 import { productCategoryLabel } from "@/lib/taxonomy";
-import { Tag, MousePointerClick, ShoppingCart, Wallet } from "lucide-react";
+import { Tag, MousePointerClick, ShoppingCart, Wallet, BadgeX } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReferralPage() {
+  const shopTagEnabled = await getBoolSetting("shop_tag_enabled");
   const user = await getCurrentUser();
+
+  // 쇼핑 태그 기능 비활성화 시: 서비스 준비 중 페이지 (SUPER_ADMIN은 미리보기 허용)
+  if (!shopTagEnabled && user?.role !== "SUPER_ADMIN") {
+    return (
+      <div>
+        <PageHeader title="피싱태그 수익" back />
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-24 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-navy-50">
+            <BadgeX size={40} className="text-navy-300" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-lg font-bold text-navy-700">서비스 준비 중입니다.</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-navy-400">
+              피싱태그 수익 서비스를 준비하고 있습니다.
+              <br />
+              조금만 기다려 주세요.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div>

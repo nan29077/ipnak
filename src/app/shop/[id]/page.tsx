@@ -6,7 +6,7 @@ import { PageHeader, Badge, SectionTitle } from "@/components/ui";
 import { won } from "@/lib/utils";
 import { productCategoryLabel } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
-import { getBoolSetting, getSetting } from "@/lib/settings";
+import { getSetting } from "@/lib/settings";
 import { ProductImageSlider } from "@/components/shop/ProductImageSlider";
 import { ProductPurchaseBar } from "@/components/shop/ProductPurchaseBar";
 
@@ -27,9 +27,8 @@ function parseProductOptions(optionsJson: string | null) {
 }
 
 export default async function ShopProductPage({ params }: { params: { id: string } }) {
-  const [p, shopTagEnabled, refundPolicy, shippingGuide] = await Promise.all([
+  const [p, refundPolicy, shippingGuide] = await Promise.all([
     prisma.product.findUnique({ where: { id: params.id }, include: { seller: { select: { id: true, nickname: true, avatarUrl: true } } } }),
-    getBoolSetting("shop_tag_enabled"),
     getSetting("refund_policy"),
     getSetting("shipping_guide"),
   ]);
@@ -77,7 +76,7 @@ export default async function ShopProductPage({ params }: { params: { id: string
           <div className="mt-2 flex items-center gap-3">
             <p className="text-2xl font-extrabold text-navy-800">{won(p.price)}</p>
             <div className="ml-auto">
-              <ProductPurchaseBar product={productForClient} shopTagEnabled={shopTagEnabled} />
+              <ProductPurchaseBar product={productForClient} />
             </div>
           </div>
 

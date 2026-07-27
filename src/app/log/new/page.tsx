@@ -12,7 +12,7 @@ import { LOG_CATEGORIES, ALL_SPECIES, BASS_ONLY_SPECIES, KOREA_SPOTS } from "@/l
 export default function NewLogPage() {
   const router = useRouter();
   const toast = useToast();
-  const { shopMenuEnabled, bassOnlyMode } = useAppSettings();
+  const { shopTagEnabled, bassOnlyMode } = useAppSettings();
   const speciesList = bassOnlyMode ? BASS_ONLY_SPECIES : ALL_SPECIES;
   const [boardCategory, setBoardCategory] = useState("WALKING");
   const [title, setTitle] = useState("");
@@ -102,7 +102,7 @@ export default function NewLogPage() {
           <PhotoPicker value={photos} onChange={setPhotos} max={8} />
         </Card>
 
-        {shopMenuEnabled && <ProductTagPicker selected={productIds} onChange={setProductIds} />}
+        {shopTagEnabled && <ProductTagPicker selected={productIds} onChange={setProductIds} />}
 
         <Button onClick={submit} disabled={loading} full size="lg" leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : <BookOpen size={18} />}>
           {loading ? "등록 중..." : "조행기 등록"}

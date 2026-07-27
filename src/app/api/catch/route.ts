@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { getBoolSetting } from "@/lib/settings";
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0.5));
 
@@ -21,7 +22,10 @@ function buildProductTags(b: any) {
 
 export async function POST(req: Request) {
   let user; try { user = await requireUser(); } catch { return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }); }
+  const shopTagEnabled = await getBoolSetting("shop_tag_enabled");
   const b = await req.json().catch(() => ({}));
+  // 쇼핑 태그 OFF 시: 403 대신 태그만 무효화해 기록 저장 자체는 정상 처리
+  if (!shopTagEnabled) { b.productTags = []; b.productIds = []; }
   const photo = b.photoUrl || `https://picsum.photos/seed/mycatch-${Date.now()}/800/800`;
   const lat = b.lat ?? 37.5326, lng = b.lng ?? 126.9905;
 

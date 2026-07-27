@@ -82,7 +82,7 @@ function CardInput({ label, value, onChange, placeholder, maxLen }: { label: str
   );
 }
 
-export function ProductPurchaseBar({ product, shopTagEnabled }: { product: ProductForPurchase; shopTagEnabled: boolean }) {
+export function ProductPurchaseBar({ product }: { product: ProductForPurchase }) {
   const toast = useToast();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pgOpen, setPgOpen] = useState(false);
