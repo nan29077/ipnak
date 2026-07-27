@@ -21,6 +21,8 @@ export async function createSession(userId: string) {
   cookies().set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
+    // 운영(HTTPS)에서만 secure — 로컬 http 개발 환경에서는 쿠키가 막히지 않도록 유지
+    secure: process.env.NODE_ENV === "production",
     maxAge: MAX_AGE,
     path: "/",
   });
