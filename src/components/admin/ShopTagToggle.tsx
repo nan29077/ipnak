@@ -47,7 +47,7 @@ export function ShopTagToggle({ initial, shopMenuEnabled }: { initial: boolean; 
           <h2 className="text-[15px] font-bold text-navy-800">쇼핑 태그</h2>
           <p className="mt-1 text-[13px] leading-relaxed text-navy-400">
             ON: 회원들이 피드·조행기 게시글에 <b className="text-navy-600">상품 태그</b>를 달 수 있습니다.<br />
-            OFF: 상품 태그 기능이 비활성화됩니다. (쇼핑 메뉴와는 별개로 동작합니다)
+            OFF: 상품 태그 기능이 비활성화됩니다. (쇼핑 메뉴가 활성화된 경우에만 사용 가능합니다)
           </p>
         </div>
         <button
