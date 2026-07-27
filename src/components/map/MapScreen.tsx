@@ -240,7 +240,9 @@ export function MapScreen({ userId }: { userId?: string }) {
         if (!userMovedRef.current) setCenter(p);
       },
       () => { setGpsAvail(false); },
-      { enableHighAccuracy: true, maximumAge: 5000 }
+      typeof window !== "undefined" && window.innerWidth >= 1024
+        ? { enableHighAccuracy: false, timeout: 12000, maximumAge: 30000 }
+        : { enableHighAccuracy: true, maximumAge: 5000 }
     );
   }
 
@@ -397,9 +399,15 @@ export function MapScreen({ userId }: { userId?: string }) {
     })),
   ];
 
+  // PC(1024px↑)는 GPS 칩이 없어 enableHighAccuracy 불가 → IP 기반으로 폴백, 타임아웃 늘림
+  const geoOptions = (highAccuracy = true): PositionOptions =>
+    window.innerWidth >= 1024
+      ? { enableHighAccuracy: false, timeout: 12000, maximumAge: 30000 }
+      : { enableHighAccuracy: highAccuracy, timeout: 8000 };
+
   function locateMe() {
     if (!navigator.geolocation) {
-      toast("이 브라우저에서는 GPS를 지원하지 않습니다", "info");
+      toast("이 브라우저에서는 위치 서비스를 지원하지 않습니다", "info");
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -412,8 +420,14 @@ export function MapScreen({ userId }: { userId?: string }) {
         moveToManual(currentPosition);
         toast("현재 위치로 지도를 이동했습니다", "success");
       },
-      () => toast("위치 권한이 없어 현재 위치를 불러올 수 없습니다", "info"),
-      { enableHighAccuracy: true, timeout: 4000 }
+      (err) => {
+        if (err.code === 1) {
+          toast("위치 권한을 허용해 주세요. 브라우저 주소창 왼쪽의 자물쇠 아이콘 → 위치 허용", "info");
+        } else {
+          toast("현재 위치를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.", "info");
+        }
+      },
+      geoOptions(),
     );
   }
 
@@ -430,7 +444,7 @@ export function MapScreen({ userId }: { userId?: string }) {
       return;
     }
     if (!navigator.geolocation) {
-      toast("이 브라우저는 GPS를 지원하지 않습니다", "info");
+      toast("이 브라우저는 위치 서비스를 지원하지 않습니다", "info");
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -441,13 +455,17 @@ export function MapScreen({ userId }: { userId?: string }) {
         setGpsTrackingEnabled(true);
         startIdleGpsWatch();
         setCenter(p);
-        toast("GPS가 켜졌습니다", "success");
+        toast("위치를 불러왔습니다", "success");
       },
-      () => {
+      (err) => {
         setGpsAvail(false);
-        toast("GPS 권한을 허용해 주세요. 브라우저 설정에서 위치 권한을 확인해 주세요.", "info");
+        if (err.code === 1) {
+          toast("위치 권한을 허용해 주세요. 브라우저 주소창 왼쪽 자물쇠 → 위치 허용", "info");
+        } else {
+          toast("위치를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.", "info");
+        }
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      geoOptions(),
     );
   }
 
