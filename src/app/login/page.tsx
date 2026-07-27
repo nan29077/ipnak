@@ -31,7 +31,8 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "로그인 실패");
       toast("로그인 되었습니다", "success");
-      router.push(data.role === "SUPER_ADMIN" ? "/admin" : "/");
+      // replace: 로그인 페이지가 뒤로가기 히스토리에 남지 않도록
+      router.replace(data.role === "SUPER_ADMIN" ? "/admin" : "/home");
       router.refresh();
     } catch (e: any) {
       toast(e.message, "error");

@@ -46,7 +46,7 @@ export default function NewPostPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "오류");
       toast("게시글이 등록되었습니다", "success");
-      router.push("/");
+      router.replace("/home");
       router.refresh();
     } catch (e: any) {
       toast(e.message, "error");

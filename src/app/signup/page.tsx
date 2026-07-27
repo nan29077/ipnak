@@ -171,7 +171,7 @@ export default function SignupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "가입 실패");
       toast("가입을 환영합니다!", "success");
-      router.push("/");
+      router.replace("/home");
       router.refresh();
     } catch (e: any) {
       toast(e.message, "error");

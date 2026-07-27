@@ -278,14 +278,6 @@ export function MapScreen({ userId }: { userId?: string }) {
 
     // 사용자가 GPS를 명시적으로 껐거나 아직 활성화하지 않은 상태 — 자동 재시작하지 않는다.
     // (첫 방문 안내는 마운트 시 useEffect에서 별도 처리)
-    return;
-
-    return () => {
-      if (idleWatchRef.current !== null) {
-        navigator.geolocation.clearWatch(idleWatchRef.current);
-        idleWatchRef.current = null;
-      }
-    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, gpsEnabled, gpsPreferenceLoaded]);
 

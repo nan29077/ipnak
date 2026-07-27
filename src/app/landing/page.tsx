@@ -26,12 +26,12 @@ export default function LandingPage() {
       sessionStorage.setItem("ipnak_mobile_entered", "1");
       // 쿠키 세팅: 미들웨어에서 재방문 시 /measure 로 직행
       document.cookie = "ipnak_entered=mobile; path=/; max-age=86400";
-      router.push("/home");
+      router.replace("/home");
     } else {
       sessionStorage.setItem("ipnak_pc_entered", "1");
       // 쿠키 세팅: 미들웨어에서 재방문 시 홈 유지
       document.cookie = "ipnak_entered=pc; path=/; max-age=86400";
-      router.push("/home");
+      router.replace("/home");
     }
   }, [router]);
 

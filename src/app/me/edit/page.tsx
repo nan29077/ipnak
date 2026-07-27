@@ -73,7 +73,7 @@ export default function EditProfilePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "저장 실패");
       toast("프로필을 업데이트했습니다", "success");
-      router.push("/me");
+      router.replace("/me");
       router.refresh();
     } catch (e: any) {
       toast(e?.message || "저장에 실패했습니다", "error");
