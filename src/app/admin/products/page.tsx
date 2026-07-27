@@ -22,9 +22,12 @@ const TABS = [
 export default async function AdminProducts({
   searchParams,
 }: {
-  searchParams: { tab?: string };
+  searchParams: { tab?: string; subtab?: string };
 }) {
-  const tab = searchParams.tab === "featured" ? "featured" : searchParams.tab === "policy" ? "policy" : "products";
+  const tab =
+    searchParams.tab === "featured" ? "featured" :
+    searchParams.tab === "policy" ? "policy" :
+    "products";
 
   const shopTagEnabled = await getBoolSetting("shop_tag_enabled");
 
@@ -73,7 +76,7 @@ export default async function AdminProducts({
       <AdminTitle title="상품 관리" desc="피싱 태그 상품 목록 및 쇼핑 메뉴 추천 상품 설정" />
 
       {/* 탭 */}
-      <div className="mb-5 flex gap-1.5 border-b border-navy-100">
+      <div className="mb-5 flex flex-wrap gap-1.5 border-b border-navy-100">
         {TABS.map((t) => (
           <Link
             key={t.key}

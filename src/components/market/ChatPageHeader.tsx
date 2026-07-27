@@ -12,7 +12,7 @@ export function ChatPageHeader({ nickname, sub }: { nickname: string; sub: strin
   return (
     <div className="flex h-14 shrink-0 items-center gap-2 border-b border-navy-100/20 bg-[#0d1b2a] px-3">
       <button
-        onClick={() => router.back()}
+        onClick={() => { if (window.history.length > 1) router.back(); else router.replace("/market/chats"); }}
         aria-label="뒤로"
         className="-ml-1 rounded-full p-1.5 text-navy-700 transition-colors hover:bg-navy-50 active:bg-navy-100"
       >

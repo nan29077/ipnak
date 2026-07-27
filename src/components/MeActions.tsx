@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { LogOut, Settings, Shield } from "lucide-react";
+import { LogOut, Shield } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui";
@@ -23,16 +23,6 @@ export function MeActions({ isAdmin }: { isAdmin: boolean }) {
           </Button>
         </Link>
       )}
-      <Link href="/settings" className="block">
-        <Button
-          variant="outline"
-          full
-          leftIcon={<Settings size={18} />}
-          className="justify-start"
-        >
-          입낚볼관리/알림설정
-        </Button>
-      </Link>
       <Button
         variant="outline"
         full

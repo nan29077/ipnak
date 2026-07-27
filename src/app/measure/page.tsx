@@ -773,7 +773,7 @@ export default function MeasurePage() {
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])} />
 
-      <div className={showCanvas ? "space-y-2 px-3 py-2" : "space-y-3 p-4"}>
+      <div className={showCanvas ? "space-y-2 px-3 py-2" : "space-y-2 px-4 pt-2 pb-4"}>
         {/* ── IDLE: 안내 + 촬영 버튼 ── */}
         {phase === "IDLE" && (
           <>
@@ -786,7 +786,7 @@ export default function MeasurePage() {
             )}
 
             {/* 안내 카드 */}
-            <div className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-surface-200 px-4 py-3.5">
+            <div className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-surface-200 px-4 py-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15 text-orange-500">
                 <ScanLine size={20} strokeWidth={1.7} />
               </span>
@@ -801,7 +801,7 @@ export default function MeasurePage() {
               <button
                 type="button"
                 onClick={openCamera}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 py-6 text-orange-500 transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 py-4 text-orange-500 transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
               >
                 <Camera size={26} strokeWidth={1.7} />
                 <span className="text-[13px] font-bold">AI 카메라 계측</span>
@@ -809,7 +809,7 @@ export default function MeasurePage() {
               <button
                 type="button"
                 onClick={() => { if (!loggedIn) { setLoginModal(true); return; } setShowGallerySheet(true); }}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-6 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-4 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
               >
                 <Images size={26} strokeWidth={1.7} />
                 <span className="text-[13px] font-bold">갤러리 선택</span>

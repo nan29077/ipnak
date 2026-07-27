@@ -10,7 +10,7 @@ import {
 /* ── PC 배경 이미지 3장 (각 1번씩 등장) ── */
 const IMG_A = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지3.png";
 const IMG_B = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지2.png";
-const IMG_C = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 루어낚시 대회 배경이미지-v2.png";
+const IMG_C = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 루어낚시 대회 배경이미지.png";
 
 // 8섹션 ÷ 3이미지 = 2.667 → A:섹션0~2, B:섹션3~5, C:섹션6~7
 // FeatureSection의 bgIdx = Math.floor((featIdx + 1) * 3 / 8)
@@ -253,7 +253,12 @@ export default function AboutPage() {
   const router = useRouter();
 
   const enterApp = useCallback(() => {
-    router.replace("/");
+    // 모바일 랜딩 리다이렉트 우회: 세션 플래그 설정 후 홈으로 이동
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("ipnak_mobile_entered", "1");
+      sessionStorage.setItem("ipnak_pc_entered", "1");
+    }
+    router.replace("/home");
   }, [router]);
 
   return (
@@ -269,7 +274,7 @@ export default function AboutPage() {
       >
         {/* 돌아가기 버튼 */}
         <button
-          onClick={() => router.back()}
+          onClick={() => { if (window.history.length > 1) router.back(); else router.replace("/home"); }}
           className="flex items-center gap-2 rounded-full px-4 py-2 text-base font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
         >
           <ArrowLeft size={20} />

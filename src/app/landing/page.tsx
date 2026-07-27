@@ -158,7 +158,7 @@ export default function LandingPage() {
           <div className="pointer-events-none absolute inset-0 hidden overflow-hidden md:block" aria-hidden="true">
             <div
               className="ipnak-pc-cinemagraph absolute -inset-[4%] bg-cover bg-center"
-              style={{ backgroundImage: "url('/landing-bear-skipping-cinemagraph-v1.png')" }}
+              style={{ backgroundImage: "url('/landing-bear-bass-boat-hero-v2.png')" }}
             />
             <div className="ipnak-water-breath absolute inset-x-0 bottom-0 h-[48%] bg-[linear-gradient(105deg,transparent_5%,rgba(255,179,79,0.16)_31%,transparent_51%,rgba(148,206,255,0.12)_73%,transparent_96%)] mix-blend-screen" />
             <span className="ipnak-skip-ripple left-[58%] top-[63%]" style={{ animationDelay: "0s" }} />

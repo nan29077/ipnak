@@ -14,7 +14,7 @@ export function PageHeader({
     <header className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#0d1b2a]/85 backdrop-blur-md">
       <div className="flex h-14 items-center gap-2 px-3">
         {back && (
-          <button onClick={onBack ?? (() => router.back())} aria-label="뒤로" className="-ml-1 rounded-full p-1.5 text-navy-700 transition-colors hover:bg-navy-50 active:bg-navy-100">
+          <button onClick={onBack ?? (() => { if (window.history.length > 1) router.back(); else router.replace("/home"); })} aria-label="뒤로" className="-ml-1 rounded-full p-1.5 text-navy-700 transition-colors hover:bg-navy-50 active:bg-navy-100">
             <ChevronLeft size={22} />
           </button>
         )}

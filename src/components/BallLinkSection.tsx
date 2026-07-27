@@ -8,9 +8,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, ShoppingBag, Camera, Crosshair, Download, Image as ImageIcon, Smartphone } from "lucide-react";
+import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, Camera, Crosshair, Download, Image as ImageIcon, Smartphone } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import NfcService from "@/services/NfcService";
+import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
+import { useUser } from "@/lib/userContext";
 import { Sheet } from "@/components/ui";
 
 const NFC_UNSUPPORTED_MSG = "이 기기에서는 NFC를 지원하지 않습니다. Android Chrome에서 이용해 주세요.";
@@ -107,10 +109,23 @@ export function BallLinkSection() {
   const [linkGuideOpen, setLinkGuideOpen] = useState(false);
   const [exampleOpen, setExampleOpen] = useState(false);
   const [ballExampleOpen, setBallExampleOpen] = useState(false);
+  const currentUser = useUser();
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [ballPrice, setBallPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/shop/ipnak-ball/products")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const first = data?.products?.[0];
+        if (first?.price) setBallPrice(Number(first.price));
+      })
+      .catch(() => {});
+  }, []);
 
   return (
-    <div className="rounded-card border border-navy-100 bg-surface-200 p-4">
-      <div className="mb-3 flex items-center gap-2.5">
+    <div className="rounded-card border border-navy-100 bg-surface-200 p-3">
+      <div className="mb-2 flex items-center gap-2.5">
         <span
           className={
             "flex h-9 w-9 shrink-0 items-center justify-center rounded-full " +
@@ -135,7 +150,7 @@ export function BallLinkSection() {
         type="button"
         onClick={tagAndRegister}
         disabled={reading}
-        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-60"
       >
         {reading ? <Loader2 size={16} className="animate-spin" /> : <Nfc size={16} strokeWidth={1.9} />}
         {reading ? "볼을 태그해 주세요..." : "볼에 NFC 태그하기"}
@@ -146,24 +161,25 @@ export function BallLinkSection() {
       <button
         type="button"
         onClick={() => setLinkGuideOpen(true)}
-        className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2.5 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
       >
         <CircleHelp size={15} strokeWidth={2} />
         입낚볼 연동방법 보기
       </button>
 
-      <div className="mt-4 border-t border-navy-100 pt-4">
-        <Link
-          href="/me?ipnakBallPurchase=1"
-          className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-3 text-[13px] font-bold text-white transition-colors hover:bg-orange-600 active:scale-[0.98]"
+      <div className="mt-3 border-t border-navy-100 pt-3">
+        <button
+          type="button"
+          onClick={() => setPurchaseOpen(true)}
+          className="mb-2 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-orange-600 active:scale-[0.98]"
         >
-          <ShoppingBag size={16} strokeWidth={2} />
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
           입낚볼 구매하러 가기
-        </Link>
+        </button>
         <button
           type="button"
           onClick={() => setGuideOpen(true)}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-aqua-500/30 bg-aqua-500/10 py-3 text-[13px] font-bold text-aqua-300 transition-colors hover:bg-aqua-500/15 active:scale-[0.98]"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-aqua-500/30 bg-aqua-500/10 py-2.5 text-[13px] font-bold text-aqua-300 transition-colors hover:bg-aqua-500/15 active:scale-[0.98]"
         >
           <CircleHelp size={16} strokeWidth={2} />
           입낚볼 없이도 AI 측정이 가능해요
@@ -266,7 +282,7 @@ export function BallLinkSection() {
       <Sheet open={ballExampleOpen} onClose={() => setBallExampleOpen(false)} title="입낚볼 사용 예시" size="diary">
         <div className="space-y-4 pb-2">
           <UsageExample
-            src="/logo-ipnak-bear-mark-ball-white-arrow.png"
+            src="/ipnak-ball-handheld-bass-example.png"
             title="손가락 고리에 입낚볼을 걸고 촬영"
             desc="배스를 들고 촬영할 때도 입낚볼이 물고기와 한 프레임에 선명하게 보이도록 손가락 고리를 이용해 가까이 배치해 주세요."
           />
@@ -277,6 +293,13 @@ export function BallLinkSection() {
           />
         </div>
       </Sheet>
+      <IpnakBallPurchase
+        price={ballPrice ?? 0}
+        buyer={{ name: currentUser?.nickname ?? "", email: currentUser?.email ?? "" }}
+        hideCard
+        triggerOpen={purchaseOpen}
+        onOpened={() => setPurchaseOpen(false)}
+      />
     </div>
   );
 }

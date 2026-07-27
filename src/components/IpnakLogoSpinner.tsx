@@ -13,8 +13,7 @@ export function IpnakLogoSpinner({ size = 52 }: { size?: number }) {
         animation: "spin 1.5s linear infinite",
       }}
     >
-      {/* 낚바늘 로고 — 어두운 색으로 반전 */}
-      <svg viewBox="60 32 96 132" width={inner} height={inner} fill="none">
+      <svg viewBox="60 32 96 132" width={inner} height={inner} fill="none" aria-label="입낚 로딩">
         <path
           d="M92 52V118C92 150 138 150 138 116C138 98 118 96 110 110"
           stroke="#0d1b2a"

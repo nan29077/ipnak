@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
@@ -54,6 +55,35 @@ type MyFishingTrip = {
   catchCount: number; region?: string | null; createdAt: string;
 };
 
+// ── 역지오코딩: 좌표 → 동네명 ──
+const _areaCache = new Map<string, string>();
+async function coordsToArea(lat: number, lng: number): Promise<string> {
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  if (_areaCache.has(key)) return _areaCache.get(key)!;
+  try {
+    const res = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ko`
+    );
+    const data = await res.json();
+    const area = data.locality || data.city || data.principalSubdivision || "위치 미상";
+    _areaCache.set(key, area);
+    return area;
+  } catch {
+    return "위치 미상";
+  }
+}
+
+function AreaName({ lat, lng }: { lat: number; lng: number }) {
+  const [name, setName] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    coordsToArea(lat, lng).then((n) => { if (!cancelled) setName(n); });
+    return () => { cancelled = true; };
+  }, [lat, lng]);
+  if (name === null) return <span className="text-navy-500">위치 확인 중...</span>;
+  return <span className="text-aqua-400">{name}</span>;
+}
+
 function isApproved(role: string | null) {
   return role === "leader" || role === "sub_leader" || role === "member";
 }
@@ -71,6 +101,7 @@ function Avatar({ name, url, size = 9 }: { name: string; url: string | null; siz
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
@@ -116,7 +147,7 @@ export default function GroupDetailPage() {
     <div className="min-h-screen bg-[#0d1b2a] pb-20">
       {/* 헤더 */}
       <div className="flex items-center gap-3 border-b border-navy-100/20 px-3.5 py-3">
-        <Link href="/groups"><ArrowLeft size={20} className="text-navy-400" /></Link>
+        <button onClick={() => { if (window.history.length > 1) router.back(); else router.replace("/groups"); }} aria-label="뒤로" className="rounded-full p-1 text-navy-400 hover:bg-navy-50/10 active:bg-navy-50/20"><ArrowLeft size={20} /></button>
         <h1 className="flex-1 truncate text-[16px] font-extrabold text-navy-900">{group.name}</h1>
         {group.myRole === "leader" && (
           <Link href={`/groups/${id}/manage`} className="rounded-full p-2 text-navy-400 hover:bg-navy-50/10">
@@ -688,9 +719,7 @@ function PointsTab({ groupId }: { groupId: string }) {
                     <span>·</span>
                     <span>{timeAgo(p.createdAt)}</span>
                     <span>·</span>
-                    <span className="font-mono text-aqua-400">
-                      {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
-                    </span>
+                    <AreaName lat={p.lat} lng={p.lng} />
                   </div>
                   {p.tripId && (
                     <button

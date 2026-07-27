@@ -107,7 +107,7 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
 // 관리자 설정 이미지(pcMarginBgImage)가 있으면 그것을, 없으면 로컬 배스 앵글러 이미지를
 // 기본값으로 사용한다. 사진은 opacity를 낮춰 오버레이처럼 적용해 본문 가독성을 해치지 않고,
 // 본문 컬럼은 솔리드 다크(#0d1b2a)라 텍스트 가독성에 영향 없다. 모바일/태블릿(<1024px) 미표시.
-const PC_BG_DEFAULT = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지.png";
+const PC_BG_DEFAULT = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지-화이트와펜.png";
 
 function DesktopPatternBg({ image }: { image?: string }) {
   const src = image && image.trim() ? image : PC_BG_DEFAULT;

@@ -189,10 +189,10 @@ export default function SignupPage() {
         {/* 헤더 */}
         <div className="mb-8 text-center">
           <Image
-            src="/logo-ipnak-dark.png"
+            src="/logo-ipnak-bear-exact.png"
             alt="입낚"
-            width={131}
-            height={70}
+            width={1330}
+            height={620}
             priority
             className="mx-auto mb-4 h-[70px] w-auto"
           />

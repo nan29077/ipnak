@@ -11,7 +11,7 @@ import { AppSettingsProvider } from "@/lib/appSettingsContext";
 
 const SHARE_TITLE = "입낚 — 낚시인의 모든 순간을 기록하다";
 const SHARE_DESCRIPTION = "조황 기록, 피싱포인트, 스마트 계측, 낚시 커뮤니티를 입낚에서 한 번에 만나보세요.";
-const SHARE_IMAGE = "/og-ipnak-share-v4.png";
+const SHARE_IMAGE = "/og-ipnak-share-v5.png";
 
 // 카카오톡 등 외부 크롤러가 개발 미리보기 주소에서도 이미지를 찾을 수 있도록
 // 현재 요청 호스트를 기준으로 OG 이미지와 공유 URL을 절대경로로 만든다.
@@ -75,6 +75,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="ko">
       <head>
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
+        <link rel="preconnect" href="https://api.bigdatacloud.net" crossOrigin="" />
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"

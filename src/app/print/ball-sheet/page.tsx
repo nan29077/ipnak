@@ -39,8 +39,8 @@ export default function BallSheetPrintPage() {
             <span className="hd-title">입낚볼 40mm 인쇄 기준물</span>
           </div>
           <div className="hd-actions">
-            <a href="/ipnak-ball-40mm-logo-print-sheet-a4.svg"
-               download="ipnak-ball-40mm-logo-print-sheet-a4.svg"
+            <a href="/ipnak-ball-40mm-bear-logo-print-sheet-a4.png"
+               download="ipnak-ball-40mm-bear-logo-print-sheet-a4.png"
                className="btn ghost" title="SVG 파일 저장">
               <Download size={14} /><span>저장</span>
             </a>
@@ -66,7 +66,7 @@ export default function BallSheetPrintPage() {
         {/* A4 미리보기 */}
         <main className="preview">
           <div className="paper">
-            <img src="/ipnak-ball-40mm-logo-print-sheet-a4.svg"
+            <img src="/ipnak-ball-40mm-bear-logo-print-sheet-a4.png"
                  alt="입낚볼 40mm 인쇄 기준물 A4"
                  className="paper-img" />
           </div>
@@ -76,7 +76,7 @@ export default function BallSheetPrintPage() {
 
       {/* ── 인쇄 전용 ─────────────────────────────────── */}
       <div className="print-only">
-        <img src="/ipnak-ball-40mm-logo-print-sheet-a4.svg"
+        <img src="/ipnak-ball-40mm-bear-logo-print-sheet-a4.png"
              alt="입낚볼 40mm 인쇄 기준물"
              className="print-img" />
       </div>

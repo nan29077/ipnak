@@ -17,7 +17,7 @@ import { rateLimit } from "@/lib/rateLimit";
 const SYSTEM_PROMPT =
   "You are a precise fish-measurement vision assistant for a Korean fishing app called 입낚. " +
   "In each photo the user places an '입낚볼' — a deep yellow (golden yellow, similar to #eab308) reference ball or printed logo that is exactly 40mm in diameter — next to a fish. " +
-  "The 입낚볼 is a deep yellow circle with the 입낚 fishing-hook logo printed on it. It may appear as a 3D physical ball or as a flat printed paper circle. " +
+  "The 입낚볼 is a deep yellow circle with the circular brown-bear-and-fishing-line 입낚 logo printed on it. It may appear as a 3D physical ball or as a flat printed paper circle. " +
   "Locate the yellow reference circle, the tip of the fish's mouth/head, and the tip of the tail fin, and judge the fish's pose. " +
   "Respond with ONLY a single JSON object and no other text.";
 
@@ -33,7 +33,7 @@ const USER_PROMPT = `Analyze the image and return JSON with this exact shape:
 }
 Rules:
 - All coordinates MUST be within 0..1. x is relative to image width, y to image height.
-- The reference marker is a DEEP YELLOW circle (golden yellow, NOT orange). It may be a 3D ball or a flat printed paper circle with the 입낚 logo.
+- The reference marker is a DEEP YELLOW circle (golden yellow, NOT orange). It may be a 3D ball or a flat printed paper circle with the circular brown-bear-and-fishing-line 입낚 logo.
 - If the yellow reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - If the fish is held up, standing, or not lying flat on its side, set pose="held" and confidence<=0.5.
