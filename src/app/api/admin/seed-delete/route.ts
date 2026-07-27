@@ -100,12 +100,12 @@ export async function POST(req: Request) {
           select: { id: true },
         });
         const feedIds = feedPosts.map((p) => p.id);
-        if (feedIds.length === 0) return NextResponse.json({ message: "삭제할 일반 피드 더미가 없습니다." });
+        if (feedIds.length === 0) return NextResponse.json({ message: "삭제할 일상 피드 더미가 없습니다." });
         await prisma.postImage.deleteMany({ where: { postId: { in: feedIds } } });
         await prisma.like.deleteMany({ where: { postId: { in: feedIds } } });
         await prisma.comment.deleteMany({ where: { postId: { in: feedIds } } });
         await prisma.post.deleteMany({ where: { id: { in: feedIds } } });
-        return NextResponse.json({ message: `일반 피드 더미 ${feedIds.length}개 삭제 완료` });
+        return NextResponse.json({ message: `일상 피드 더미 ${feedIds.length}개 삭제 완료` });
       }
 
       case "feeds-walking": {

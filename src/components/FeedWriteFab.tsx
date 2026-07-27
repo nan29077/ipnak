@@ -85,7 +85,7 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
               <Link href="/post/new?type=general" onClick={() => setOpen(false)}
                 className="flex flex-col items-start gap-2 rounded-2xl border border-navy-100 bg-[#1c2c3e] p-4 transition-colors hover:border-orange-500/50">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-50/20 text-navy-500"><FileText size={20} /></span>
-                <span className="text-[14px] font-bold text-navy-900">일반 피드</span>
+                <span className="text-[14px] font-bold text-navy-900">일상 피드</span>
                 <span className="text-[12px] leading-snug text-navy-400">자유롭게 글과 사진을 올려요</span>
               </Link>
               <Link href="/log/new" onClick={() => setOpen(false)}

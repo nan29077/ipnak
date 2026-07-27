@@ -69,7 +69,7 @@ const SEED_GROUPS: SeedGroup[] = [
       },
       {
         key: "feeds-general",
-        label: "일반 피드",
+        label: "일상 피드",
         desc: "낚시 일상·장비·동출 등 일반 커뮤니티 피드 12개를 추가합니다",
         addApi: "/api/admin/seed-feeds-general",
         deleteType: "feeds-general",
@@ -246,7 +246,7 @@ export function SeedPanel({ stats }: { stats: Stats }) {
           { label: "조행기", value: stats.logCount, icon: BookOpen },
           { label: "중고마켓", value: stats.marketCount, icon: ShoppingBag },
           { label: "피싱 피드", value: stats.feedCount, icon: Fish },
-          { label: "일반 피드", value: stats.generalFeedCount, icon: Newspaper },
+          { label: "일상 피드", value: stats.generalFeedCount, icon: Newspaper },
           { label: "워킹 피드", value: stats.walkingFeedCount, icon: Route },
           { label: "쇼핑 상품", value: stats.productCount, icon: Package },
         ].map((s) => (

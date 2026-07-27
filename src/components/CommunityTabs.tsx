@@ -8,14 +8,14 @@ import { cn } from "@/lib/utils";
 const TABS = [
   {
     href: "/feed",
-    label: "낚시 피드",
+    label: "피싱 피드",
     icon: Newspaper,
     match: (pathname: string) =>
       pathname === "/feed" || pathname.startsWith("/feed/"),
   },
   {
     href: "/general",
-    label: "일반 피드",
+    label: "일상 피드",
     icon: FileText,
     match: (pathname: string) => pathname.startsWith("/general"),
   },
@@ -52,7 +52,6 @@ export function CommunityTabs() {
           <Link
             key={tab.href}
             href={tab.href}
-            replace
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex flex-col items-center gap-1.5 rounded-2xl py-3 text-[12px] font-semibold transition-all active:scale-[0.96]",

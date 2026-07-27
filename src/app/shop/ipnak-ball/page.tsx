@@ -130,7 +130,11 @@ export default function IpnakBallShopPage() {
       {/* 헤더 */}
       <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/10 bg-[#0d1b2a]/95 px-4 py-3 backdrop-blur">
         <button
-          onClick={() => (step === "form" ? setStep("list") : router.back())}
+          onClick={() => {
+            if (step === "form") { setStep("list"); return; }
+            // 직접 URL 진입 등 히스토리가 없으면 홈으로
+            if (window.history.length > 1) router.back(); else router.replace("/home");
+          }}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors active:bg-white/20"
         >
           <ArrowLeft size={18} strokeWidth={2} />

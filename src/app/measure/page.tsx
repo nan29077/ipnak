@@ -752,7 +752,10 @@ export default function MeasurePage() {
         back
         // 측정 진행 중이면 페이지를 벗어나지 않고 초기 상태(사진 선택 전)로 리셋.
         // 이미 IDLE(사진 선택 전)이면 그때만 이전 페이지로 나간다.
-        onBack={() => { if (phase !== "IDLE") reset(); else router.back(); }}
+        onBack={() => {
+          if (phase !== "IDLE") { reset(); return; }
+          if (window.history.length > 1) router.back(); else router.replace("/home");
+        }}
         sub="입낚볼 기준 물고기 자동 계측"
         right={
           <button

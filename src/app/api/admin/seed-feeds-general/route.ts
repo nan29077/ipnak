@@ -51,7 +51,7 @@ export async function POST() {
           caption: feed.caption,
           region: feed.region,
           visibility: "PUBLIC",
-          hashtags: JSON.stringify(["일반피드", feed.region, "낚시일상"]),
+          hashtags: JSON.stringify(["일상피드", feed.region, "낚시일상"]),
           createdAt: new Date(Date.now() - i * 36000000),
         },
       });
@@ -74,7 +74,7 @@ export async function POST() {
       created++;
     }
 
-    return NextResponse.json({ message: `일반 피드 더미 ${created}개 생성 완료` });
+    return NextResponse.json({ message: `일상 피드 더미 ${created}개 생성 완료` });
   } catch (e: any) {
     console.error(e);
     return NextResponse.json({ error: e.message || "서버 오류" }, { status: 500 });
