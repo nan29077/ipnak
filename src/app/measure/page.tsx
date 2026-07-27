@@ -12,7 +12,7 @@ import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { useUser } from "@/lib/userContext";
 import {
   Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
-  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, Ruler, ChevronRight, FolderOpen, X,
+  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, Ruler, ChevronRight, FolderOpen, X, Smartphone, QrCode,
 } from "lucide-react";
 import { PageHeader, Button, Chip } from "@/components/ui";
 import { useToast } from "@/components/Toast";
@@ -92,11 +92,12 @@ export default function MeasurePage() {
     } catch { /* noop */ }
   }, []);
 
-  // 브라우저 방향 감지 — 가로 시 페이지를 세로로 고정 표시 (스캔 화면 제외)
+  // 브라우저 방향 감지 — 가로 시 페이지를 세로로 고정 표시 (모바일 전용, 스캔 화면 제외)
   useEffect(() => {
     const mq = window.matchMedia("(orientation: landscape)");
-    setBrowserLandscape(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setBrowserLandscape(e.matches);
+    const isMobile = () => window.innerWidth < 1024;
+    setBrowserLandscape(isMobile() && mq.matches);
+    const handler = (e: MediaQueryListEvent) => setBrowserLandscape(isMobile() && e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
@@ -618,6 +619,11 @@ export default function MeasurePage() {
   /* ── AI 카메라 계측 열기: 비로그인이면 로그인 안내, 첫 방문이면 튜토리얼 먼저 ── */
   const TUTORIAL_KEY = "ipnak_ai_tutorial_done";
   const openCamera = useCallback(() => {
+    // PC(1024px 이상)에서는 카메라 계측 불가 → 안내 팝업 표시
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setShowPcModal(true);
+      return;
+    }
     if (!loggedIn) { setLoginModal(true); return; }
     try {
       if (!localStorage.getItem(TUTORIAL_KEY)) {
@@ -654,6 +660,7 @@ export default function MeasurePage() {
 
   const [diaryOpen, setDiaryOpen] = useState(false);
   const [showGallerySheet, setShowGallerySheet] = useState(false); // 갤러리 선택 커스텀 바텀시트
+  const [showPcModal, setShowPcModal] = useState(false); // PC 미지원 안내 팝업
 
   const showCanvas = hasImage && phase !== "IDLE";
   const busy = phase === "ANALYZING" || phase === "SCANNING" || phase === "SAVING";
@@ -677,6 +684,69 @@ export default function MeasurePage() {
     >
     <div className={showCanvas ? "pb-2" : "pb-10"}>
       <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="AI 측정 기능" />
+
+      {/* ── PC 미지원 안내 팝업 ── */}
+      {showPcModal && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
+          onClick={() => setShowPcModal(false)}
+        >
+          <div
+            className="w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d1b2a] shadow-2xl shadow-black/70"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 상단 그라디언트 배너 */}
+            <div className="relative flex flex-col items-center bg-gradient-to-b from-[#0f2540] to-[#0d1b2a] px-6 pb-6 pt-8">
+              {/* 아이콘 배지 */}
+              <div className="relative mb-4">
+                <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[20px] border border-white/10 bg-white/5 ring-4 ring-white/5">
+                  <Camera size={30} strokeWidth={1.4} className="text-navy-300" />
+                </div>
+                <span className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 shadow-lg shadow-orange-500/40 ring-2 ring-[#0d1b2a]">
+                  <Smartphone size={14} strokeWidth={2.2} className="text-white" />
+                </span>
+              </div>
+
+              <h3 className="text-[17px] font-extrabold tracking-tight text-white">
+                PC에서는 지원되지 않아요
+              </h3>
+              <p className="mt-2 text-center text-[13px] leading-relaxed text-navy-400">
+                AI 카메라 계측은 카메라가 있는{" "}
+                <span className="font-semibold text-aqua-300">모바일 기기</span>
+                에서만<br />이용할 수 있어요.
+              </p>
+
+              {/* 구분선 + 힌트 */}
+              <div className="mt-4 flex w-full items-center gap-2.5 rounded-xl border border-aqua-500/20 bg-aqua-500/8 px-3.5 py-2.5">
+                <QrCode size={16} strokeWidth={1.7} className="shrink-0 text-aqua-400" />
+                <p className="text-[12px] text-aqua-300/80">
+                  갤러리 사진 업로드는 PC에서도 이용 가능합니다.
+                </p>
+              </div>
+            </div>
+
+            {/* 버튼 영역 */}
+            <div className="flex flex-col gap-2 border-t border-white/5 px-6 pb-6 pt-4">
+              <a
+                href="/landing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-3 text-[14px] font-bold text-white shadow-md shadow-orange-500/30 transition-all hover:bg-orange-600 active:scale-[0.97]"
+              >
+                <Smartphone size={15} strokeWidth={2} />
+                모바일 앱으로 이용하기
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowPcModal(false)}
+                className="flex w-full items-center justify-center rounded-[14px] border border-white/10 py-3 text-[14px] font-medium text-navy-400 transition-all hover:border-white/20 hover:text-navy-300"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <PageHeader
         title="AI 측정"
         back
@@ -758,7 +828,7 @@ export default function MeasurePage() {
               ref={canvasRef}
               onPointerDown={onCanvasTap}
               className="block touch-none select-none"
-              style={{ width: "100%", height: "auto", maxHeight: "38vh" }}
+              style={{ width: "100%", height: "auto", maxHeight: phase === "SAVED" ? "26vh" : "38vh" }}
             />
             {busy && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 backdrop-blur-[2px]">
@@ -941,20 +1011,11 @@ export default function MeasurePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <Button variant="outline" size="sm" onClick={retake} leftIcon={<RefreshCcw size={15} />}>재촬영</Button>
               <Button variant="outline" size="sm" onClick={handleDownload} leftIcon={<Download size={15} />}>이미지</Button>
               <Button size="sm" onClick={handleSave} leftIcon={<Save size={15} />}>저장</Button>
-            </div>
-            <div className="flex justify-center py-2">
-              <button
-                type="button"
-                onClick={reset}
-                aria-label="닫기"
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-50/60 text-navy-400 transition-all hover:bg-navy-100/80 hover:text-navy-600 active:scale-[0.93]"
-              >
-                <X size={20} strokeWidth={2.2} />
-              </button>
+              <Button variant="outline" size="sm" onClick={reset} leftIcon={<X size={15} />}>닫기</Button>
             </div>
           </>
         )}

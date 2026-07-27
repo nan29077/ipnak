@@ -8,6 +8,9 @@ interface Ripple {
   y: number;
 }
 
+// 새 PC 배경이 마음에 들지 않으면 false 한 번으로 기존 배경으로 복귀합니다.
+const ENABLE_PC_LANDING_CINEMAGRAPH = true;
+
 export default function LandingPage() {
   const router = useRouter();
   const [hovered, setHovered] = useState<"left" | "right" | null>(null);
@@ -87,6 +90,45 @@ export default function LandingPage() {
         .ipnak-active-border {
           animation: ipnakBorderPulse 1.6s ease-in-out infinite;
         }
+        @keyframes ipnakCinematicDrift {
+          0%, 100% { transform: scale(1.045) translate3d(0, 0, 0); }
+          50%      { transform: scale(1.075) translate3d(-0.45%, 0.2%, 0); }
+        }
+        @keyframes ipnakWaterBreath {
+          0%, 100% { opacity: 0.1; transform: translate3d(-2%, 0, 0) scaleX(0.96); }
+          50%      { opacity: 0.3; transform: translate3d(2%, 0, 0) scaleX(1.04); }
+        }
+        @keyframes ipnakSkipRipple {
+          0%, 18%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.45); }
+          25%            { opacity: 0.85; }
+          43%            { opacity: 0; transform: translate(-50%, -50%) scale(1.7); }
+        }
+        .ipnak-pc-cinemagraph {
+          animation: ipnakCinematicDrift 8s ease-in-out infinite;
+          will-change: transform;
+        }
+        .ipnak-water-breath {
+          animation: ipnakWaterBreath 8s ease-in-out infinite;
+          will-change: opacity, transform;
+        }
+        .ipnak-skip-ripple {
+          position: absolute;
+          width: clamp(32px, 3.2vw, 66px);
+          aspect-ratio: 2.4 / 1;
+          border: 1px solid rgba(255,255,255,0.72);
+          border-radius: 50%;
+          box-shadow: 0 0 12px rgba(255,255,255,0.3);
+          animation: ipnakSkipRipple 4s ease-out infinite;
+          opacity: 0;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ipnak-pc-cinemagraph,
+          .ipnak-water-breath,
+          .ipnak-skip-ripple {
+            animation: none !important;
+          }
+          .ipnak-skip-ripple { display: none; }
+        }
       `}</style>
 
       <div className="relative flex h-[100dvh] w-full overflow-hidden flex-col md:flex-row">
@@ -112,7 +154,20 @@ export default function LandingPage() {
             backgroundPosition: "center",
           }}
         />
-        <div className="absolute inset-0 bg-black/0 hidden md:block" />
+        {ENABLE_PC_LANDING_CINEMAGRAPH && (
+          <div className="pointer-events-none absolute inset-0 hidden overflow-hidden md:block" aria-hidden="true">
+            <div
+              className="ipnak-pc-cinemagraph absolute -inset-[4%] bg-cover bg-center"
+              style={{ backgroundImage: "url('/landing-bear-skipping-cinemagraph-v1.png')" }}
+            />
+            <div className="ipnak-water-breath absolute inset-x-0 bottom-0 h-[48%] bg-[linear-gradient(105deg,transparent_5%,rgba(255,179,79,0.16)_31%,transparent_51%,rgba(148,206,255,0.12)_73%,transparent_96%)] mix-blend-screen" />
+            <span className="ipnak-skip-ripple left-[58%] top-[63%]" style={{ animationDelay: "0s" }} />
+            <span className="ipnak-skip-ripple left-[67%] top-[66%]" style={{ animationDelay: "0.32s" }} />
+            <span className="ipnak-skip-ripple left-[76%] top-[69%]" style={{ animationDelay: "0.64s" }} />
+            <span className="ipnak-skip-ripple left-[85%] top-[73%]" style={{ animationDelay: "0.96s" }} />
+          </div>
+        )}
+        <div className="absolute inset-0 hidden bg-black/10 md:block" />
 
         {/* ──────────────────────────────────────────────
             상단(모바일) / 좌측(PC): 입낚 소개

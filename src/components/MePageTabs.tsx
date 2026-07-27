@@ -50,6 +50,7 @@ interface Props {
     startedAt: string;
     catchCount: number;
     routePoints: { lat: number; lng: number }[];
+    catchPoints: { lat: number; lng: number }[];
   }>;
   myWalkingPosts: Array<{ id: string; body: string | null }>;
   marketSellCount: number;
@@ -152,16 +153,7 @@ export function MePageTabs({
                     <div className="grid grid-cols-3 gap-1.5">
                       {recentTrips.map((t) => (
                         <Link key={t.id} href={`/trip/${t.id}`} className="relative aspect-square overflow-hidden rounded-xl bg-[#1b2b3a]">
-                          {t.routePoints.length >= 2
-                            ? <MiniRouteMap points={t.routePoints} />
-                            : (
-                              <div className="flex h-full w-full flex-col items-center justify-center gap-1">
-                                <Route size={20} className="text-aqua-300/50" />
-                                <p className="text-[9px] text-navy-400">
-                                  {(t.title || (t.region ? `${t.region}` : "출조")).replace(/데이터피싱/g, "스마트피싱")}
-                                </p>
-                              </div>
-                            )}
+                          <MiniRouteMap points={t.routePoints} catchPoints={t.catchPoints} />
                           {t.catchCount > 0 && (
                             <div className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5">
                               <Fish size={9} className="text-aqua-300" />

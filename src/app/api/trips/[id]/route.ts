@@ -68,3 +68,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     },
   });
 }
+
+// DELETE: 스마트피싱 기록 삭제
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  let user;
+  try { user = await requireUser(); } catch { return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }); }
+
+  const trip = await prisma.fishingTrip.findFirst({ where: { id: params.id, userId: user.id } });
+  if (!trip) return NextResponse.json({ error: "기록을 찾을 수 없습니다." }, { status: 404 });
+
+  await prisma.fishingTrip.delete({ where: { id: params.id } });
+  return NextResponse.json({ ok: true });
+}

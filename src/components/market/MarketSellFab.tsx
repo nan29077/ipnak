@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Loader2 } from "lucide-react";
+import { ShoppingBag, Loader2 } from "lucide-react";
 
 /**
  * 중고마켓 판매하기 FAB
@@ -26,13 +26,25 @@ export function MarketSellFab() {
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-orange-500 px-5 py-3 text-[14px] font-semibold text-white shadow-fab transition-transform active:scale-95 disabled:opacity-80 md:bottom-8 md:left-auto md:right-8 md:translate-x-0"
-    >
-      {loading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} strokeWidth={2.4} />}
-      판매하기
-    </button>
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 top-0 z-40 mx-auto flex w-full max-w-[760px] justify-center">
+      <div className="relative w-full max-w-[640px]">
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={loading}
+          aria-label="중고마켓 판매하기"
+          title="판매하기"
+          className="pointer-events-auto absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-orange-500 px-5 py-3 text-[14px] font-semibold text-white shadow-fab transition-all active:scale-95 disabled:opacity-80 md:bottom-6 md:left-auto md:right-4 md:h-14 md:w-14 md:translate-x-0 md:justify-center md:p-0 md:shadow-xl md:shadow-black/40 md:ring-1 md:ring-orange-300/50"
+        >
+          {loading ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : (
+            <ShoppingBag size={22} strokeWidth={2.1} />
+          )}
+          <span className="md:sr-only">판매하기</span>
+        </button>
+      </div>
+      <div className="hidden w-[104px] shrink-0 md:block" aria-hidden />
+    </div>
   );
 }
