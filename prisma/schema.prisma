@@ -56,6 +56,8 @@ model User {
   pointTx           PointTransaction[]   @relation("PointTxUser")
   walkingUnlocks    WalkingFeedUnlock[]
   ballOrders        BallOrder[]
+  ipnakBallOrders       IpnakBallOrder[]
+  notificationSettings  NotificationSettings?
 }
 
 // ===== 포인트 제도 =====
@@ -617,6 +619,48 @@ model BallOrder {
   @@index([createdAt])
 }
 
+
+// ===== 입낚볼 상품 카탈로그 / 신규 구매 주문 =====
+// status: pending | confirmed | shipped | delivered | cancelled
+model IpnakBallProduct {
+  id              String   @id @default(cuid())
+  name            String
+  price           Int
+  description     String?
+  stock           Int      @default(0)
+  imageUrl        String?
+  isActive        Boolean  @default(true)
+  optionEnabled   Boolean  @default(false)
+  optionOneLabel  String?
+  optionOnePrice  Int?
+  optionTwoLabel  String?
+  optionTwoPrice  Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  orders          IpnakBallOrder[]
+}
+
+model IpnakBallOrder {
+  id            String          @id @default(cuid())
+  userId        String
+  productId     String
+  quantity      Int             @default(1)
+  totalPrice    Int
+  status        String          @default("pending")
+  addressName   String
+  address       String
+  addressDetail String?
+  phone         String
+  memo          String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id])
+  product       IpnakBallProduct @relation(fields: [productId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
 model Banner {
   id        String   @id @default(cuid())
   title     String
@@ -693,6 +737,21 @@ model MarketMessage {
   sender    User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
   body      String
   createdAt DateTime   @default(now())
+}
+
+// ===== 알림 설정 =====
+// 사용자별 푸시 알림 수신 여부를 저장한다.
+model NotificationSettings {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushEnabled   Boolean  @default(false) // 브라우저 푸시 알림 허용 여부
+  newComment    Boolean  @default(true)  // 새 댓글 알림
+  newLike       Boolean  @default(true)  // 좋아요 알림
+  groupActivity Boolean  @default(true)  // 소모임 알림
+  announcement  Boolean  @default(true)  // 이벤트/공지 알림
+  ballRelated   Boolean  @default(true)  // 입낚볼 알림
+  updatedAt     DateTime @default(now()) @updatedAt
 }
 
 // ===== 소모임 =====
