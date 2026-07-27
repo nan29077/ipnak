@@ -6,6 +6,7 @@ import {
   Users, ArrowLeft, Monitor,
   Fish, Ruler, CircleDot, Route, ShoppingBag,
 } from "lucide-react";
+import { useAppSettings } from "@/lib/appSettingsContext";
 
 /* ── PC 배경 이미지 3장 (각 1번씩 등장) ── */
 const IMG_A = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지3.png";
@@ -25,7 +26,21 @@ const MOBILE_IMG_4 = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/�
 // feat0,1,2=0, feat3,4,5=1
 
 /* ── 기능 소개 데이터 ── */
-const FEATURES = [
+type Feature = {
+  icon: any;
+  title: string;
+  sub: string;
+  body: string;
+  color: string;
+  accent: string;
+  features: string[];
+  // 예약 기능(reservation_enabled) OFF 시 사용할 대체 본문
+  bodyReservationOff?: string;
+  // 예약 기능 OFF 시 칩 목록에서 제외할 항목
+  reservationChips?: string[];
+};
+
+const FEATURES: Feature[] = [
   {
     icon: Camera,
     title: "AI 카메라 계측",
@@ -76,9 +91,11 @@ const FEATURES = [
     title: "피싱포인트 & 낚시 대회",
     sub: "명당을 발견하고, 대회에 도전하다",
     body: "지도 기반 피싱포인트에서 숨겨진 명당을 발견하고 직접 포인트를 등록해 공유하세요. 온라인 낚시 대회에 참여해 랭킹을 경쟁하고, 지역 낚시 예약 서비스로 편리하게 출조를 준비하세요.",
+    bodyReservationOff: "지도 기반 피싱포인트에서 숨겨진 명당을 발견하고 직접 포인트를 등록해 공유하세요. 온라인 낚시 대회에 참여해 랭킹을 경쟁하고 나만의 기록에 도전하세요.",
     color: "from-rose-500/80 to-red-600/80",
     accent: "#f43f5e",
     features: ["지도 기반 피싱포인트", "포인트 직접 등록 · 공유", "온라인 낚시 대회", "낚시터 예약 서비스"],
+    reservationChips: ["낚시터 예약 서비스"],
   },
   {
     icon: ShoppingBag,
@@ -174,12 +191,17 @@ function FixedBgManager() {
   );
 }
 
-function FeatureSection({ feat, idx }: { feat: (typeof FEATURES)[0]; idx: number }) {
+function FeatureSection({ feat, idx, reservationEnabled }: { feat: Feature; idx: number; reservationEnabled: boolean }) {
   const Icon = feat.icon;
   // PC: 8섹션 ÷ 3이미지
   const bgIdx = Math.floor(((idx + 1) * 3) / 8);
   // 모바일: 8섹션 ÷ 2이미지 (feat0~2=0, feat3~5=1)
   const mobileBgIdx = Math.floor((idx + 1) / 4);
+  // 예약 기능 OFF 시: 예약 관련 문구·칩 숨김
+  const body = reservationEnabled ? feat.body : feat.bodyReservationOff ?? feat.body;
+  const chips = reservationEnabled
+    ? feat.features
+    : feat.features.filter((f) => !feat.reservationChips?.includes(f));
 
   return (
     <section
@@ -229,12 +251,12 @@ function FeatureSection({ feat, idx }: { feat: (typeof FEATURES)[0]; idx: number
 
         {/* 설명 */}
         <p className="max-w-xl text-base leading-relaxed text-white/65">
-          {feat.body}
+          {body}
         </p>
 
         {/* 피처 칩 */}
         <div className={`flex flex-wrap gap-2 ${idx % 2 !== 0 ? "justify-end" : ""}`}>
-          {feat.features.map((f) => (
+          {chips.map((f) => (
             <span
               key={f}
               className="rounded-full px-4 py-1.5 text-sm font-semibold text-white/80 backdrop-blur-sm"
@@ -251,6 +273,8 @@ function FeatureSection({ feat, idx }: { feat: (typeof FEATURES)[0]; idx: number
 
 export default function AboutPage() {
   const router = useRouter();
+  // 예약 기능 스위치 — layout.tsx의 getBoolSetting("reservation_enabled") 값이 context로 전달됨
+  const { reservationEnabled } = useAppSettings();
 
   const enterApp = useCallback(() => {
     // 모바일 랜딩 리다이렉트 우회: 세션 플래그 설정 후 홈으로 이동
@@ -368,7 +392,7 @@ export default function AboutPage() {
           섹션 2–7: 기능별 소개
       ══════════════════════════════════════════ */}
       {FEATURES.map((feat, idx) => (
-        <FeatureSection key={feat.title} feat={feat} idx={idx} />
+        <FeatureSection key={feat.title} feat={feat} idx={idx} reservationEnabled={reservationEnabled} />
       ))}
 
       {/* ══════════════════════════════════════════

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { ReservationList } from "@/components/ReservationList";
 import { getBoolSetting } from "@/lib/settings";
@@ -9,9 +10,11 @@ export const dynamic = "force-dynamic";
 
 export default async function ReservationsPage() {
   const reservationEnabled = await getBoolSetting("reservation_enabled");
+  // 비로그인 시에도 안전하게 — 조회 실패는 null 처리
+  const user = await getCurrentUser().catch(() => null);
 
-  // 예약 기능 비활성화 시: 서비스 준비 중 페이지
-  if (!reservationEnabled) {
+  // 예약 기능 비활성화 시: 서비스 준비 중 페이지 (SUPER_ADMIN은 미리보기 허용)
+  if (!reservationEnabled && user?.role !== "SUPER_ADMIN") {
     return (
       <div>
         <PageHeader title="예약" sub="낚시배 · 펜션 · 유료터 · 좌대 · 가이드" />

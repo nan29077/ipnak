@@ -15,6 +15,7 @@ import {
   Shield, LogIn, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppSettings } from "@/lib/appSettingsContext";
 import { useToast } from "@/components/Toast";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 
@@ -25,11 +26,14 @@ export type DrawerUser = {
 type Item = { href: string; label: string; icon: any; match?: (p: string) => boolean };
 
 export function SideDrawer({
-  open, onClose, user, shopEnabled = true, reservationEnabled = true,
+  open, onClose, user, shopEnabled = true, reservationEnabled,
 }: { open: boolean; onClose: () => void; user: DrawerUser; shopEnabled?: boolean; reservationEnabled?: boolean }) {
   const pathname = usePathname() || "/";
   const router = useRouter();
   const toast = useToast();
+  // 예약 노출 여부: prop 우선, 전달되지 않으면 AppSettings context 값으로 폴백
+  const appSettings = useAppSettings();
+  const reservationVisible = reservationEnabled ?? appSettings.reservationEnabled;
 
   // 드로어 열림 동안 배경 스크롤 잠금
   useEffect(() => {
@@ -62,7 +66,7 @@ export function SideDrawer({
     { href: "/feed", label: "피싱 피드", icon: Newspaper },
     { href: "/groups", label: "낚시단", icon: Users },
     { href: "/tournaments", label: "대회", icon: Trophy },
-    ...(reservationEnabled ? [{ href: "/reservations", label: "예약", icon: CalendarDays } as Item] : []),
+    ...(reservationVisible ? [{ href: "/reservations", label: "예약", icon: CalendarDays } as Item] : []),
     { href: "/explore", label: "베스트 피드", icon: Compass },
   ];
   const account: Item[] = [
