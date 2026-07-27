@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+const TRADE_METHODS = ["DIRECT", "DELIVERY", "BOTH"];
+
 // 판매글 목록 (검색/필터/정렬) — 클라이언트 검색용 보조 API
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -55,6 +57,7 @@ export async function POST(req: Request) {
       price: Math.max(0, Math.round(Number(b.price) || 0)),
       region: b.region || null,
       description: b.description || null,
+      tradeMethod: TRADE_METHODS.includes(b.tradeMethod) ? b.tradeMethod : null,
       status: "SELLING",
       images: { create: images.map((url: string, i: number) => ({ url, order: i })) },
     },

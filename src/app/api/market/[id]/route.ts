@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const STATUSES = ["SELLING", "RESERVED", "SOLD"];
+const TRADE_METHODS = ["DIRECT", "DELIVERY", "BOTH"];
 
 // 판매글 수정 (상태 변경 / 내용 수정) — 판매자 본인만
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -22,6 +23,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof b.category === "string" && b.category) data.category = b.category;
   if (typeof b.region === "string") data.region = b.region;
   if (typeof b.condition === "string" && (b.condition === "NEW" || b.condition === "USED")) data.condition = b.condition;
+  if (typeof b.tradeMethod === "string" && TRADE_METHODS.includes(b.tradeMethod)) data.tradeMethod = b.tradeMethod;
 
   const updated = await prisma.marketListing.update({ where: { id: params.id }, data });
   return NextResponse.json({ ok: true, status: updated.status });

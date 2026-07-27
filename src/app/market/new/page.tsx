@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { Loader2, Tag } from "lucide-react";
 import { PageHeader, Chip, Button, Card, SectionTitle, Input, Select, Textarea } from "@/components/ui";
 import { useToast } from "@/components/Toast";
-import { MARKET_CATEGORIES, MARKET_REGIONS, MARKET_CONDITIONS } from "@/lib/taxonomy";
+import { MARKET_CATEGORIES, MARKET_REGIONS, MARKET_CONDITIONS, MARKET_TRADE_METHODS } from "@/lib/taxonomy";
 import type { PickedPhoto } from "@/components/PhotoPicker";
 
 // PhotoPicker는 카메라/갤러리 접근이 필요해 무거움 — 코드 스플리팅으로 초기 번들에서 분리
@@ -29,6 +29,7 @@ export default function NewMarketListingPage() {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [condition, setCondition] = useState("USED");
+  const [tradeMethod, setTradeMethod] = useState("BOTH");
   const [price, setPrice] = useState("");
   const [region, setRegion] = useState("");
   const [description, setDescription] = useState("");
@@ -43,7 +44,7 @@ export default function NewMarketListingPage() {
       const res = await fetch("/api/market", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title, category, condition,
+          title, category, condition, tradeMethod,
           price: price || 0, region: region || null, description: description || null,
           images: photos.map((p) => p.submitUrl),
         }),
@@ -94,6 +95,14 @@ export default function NewMarketListingPage() {
             <div className="flex gap-2">
               {MARKET_CONDITIONS.map((c) => (
                 <Chip key={c.key} active={condition === c.key} onClick={() => setCondition(c.key)}>{c.label}</Chip>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-navy-700">거래방법</label>
+            <div className="flex flex-wrap gap-2">
+              {MARKET_TRADE_METHODS.map((m) => (
+                <Chip key={m.key} active={tradeMethod === m.key} onClick={() => setTradeMethod(m.key)}>{m.label}</Chip>
               ))}
             </div>
           </div>

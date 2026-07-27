@@ -170,6 +170,15 @@ export const MARKET_CONDITIONS: { key: string; label: string }[] = [
 export const marketConditionLabel = (key: string) =>
   MARKET_CONDITIONS.find((c) => c.key === key)?.label ?? key;
 
+// 거래방법 (직거래/택배/둘 다 가능)
+export const MARKET_TRADE_METHODS: { key: string; label: string }[] = [
+  { key: "DIRECT", label: "직거래" },
+  { key: "DELIVERY", label: "택배" },
+  { key: "BOTH", label: "둘 다 가능" },
+];
+export const marketTradeMethodLabel = (key: string) =>
+  MARKET_TRADE_METHODS.find((m) => m.key === key)?.label ?? key;
+
 // 판매 상태 (판매중/예약중/판매완료)
 export const MARKET_STATUS: { key: string; label: string }[] = [
   { key: "SELLING", label: "판매중" },

@@ -642,6 +642,7 @@ model MarketListing {
   price       Int      @default(0)
   region      String?
   description String?
+  tradeMethod String? // TradeMethod: DIRECT | DELIVERY | BOTH (미지정 시 null)
   status      String   @default("SELLING")
   viewCount   Int      @default(0)
   createdAt   DateTime @default(now())
