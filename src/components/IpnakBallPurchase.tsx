@@ -2,12 +2,13 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronLeft, CreditCard, Loader2, MapPin, Minus, Package, Plus, Radio, Search, ShieldCheck, Truck, X } from "lucide-react";
+import { Check, ChevronLeft, CreditCard, KeyRound, Loader2, MapPin, Minus, Package, Plus, Radio, Search, ShieldCheck, Truck, X } from "lucide-react";
 import { AddressSearchModal } from "@/components/AddressSearchModal";
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 
 type Step = "intro" | "form" | "pay" | "done";
+type ProductType = "ball" | "keyring";
 type ProductInfo = {
   imageUrl?: string;
   imageUrls?: string[];
@@ -19,13 +20,42 @@ type ProductInfo = {
   optionTwoLabel?: string;
   optionTwoPrice?: number | null;
 };
+type TypeConfig = { enabled: boolean; price: number };
+
+const TYPES: ProductType[] = ["ball", "keyring"];
+const TYPE_LABEL: Record<ProductType, string> = { ball: "입낚볼", keyring: "입낚키링" };
+const TYPE_ICON = { ball: Radio, keyring: KeyRound } as const;
+
 const methods = [
   { key: "card", label: "신용·체크카드" },
   { key: "transfer", label: "계좌이체" },
   { key: "phone", label: "휴대폰 결제" },
 ];
 
-export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOpen = false, hideCard = false, onOpened }: { price: number; buyer: { name: string; email: string }; openOnMount?: boolean; triggerOpen?: boolean; hideCard?: boolean; onOpened?: () => void }) {
+/* imageUrl은 단일 URL 문자열 또는 JSON 배열 문자열 두 형태를 모두 저장한다. */
+function parseImageUrls(raw?: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean);
+  } catch {}
+  return [raw];
+}
+
+export function IpnakBallPurchase({
+  price, buyer, openOnMount = false, triggerOpen = false, hideCard = false, onOpened,
+  ballEnabled = true, keyringEnabled = false, keyringPrice = 0,
+}: {
+  price: number;
+  buyer: { name: string; email: string };
+  openOnMount?: boolean;
+  triggerOpen?: boolean;
+  hideCard?: boolean;
+  onOpened?: () => void;
+  ballEnabled?: boolean;
+  keyringEnabled?: boolean;
+  keyringPrice?: number;
+}) {
   const toast = useToast();
   const detailAddressRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -35,7 +65,13 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
   const [method, setMethod] = useState("card");
   const [loading, setLoading] = useState(false);
   const [orderNo, setOrderNo] = useState("");
-  const [product, setProduct] = useState<ProductInfo>({});
+  // 상품 타입별 판매 여부·판매가 (서버 설정이 기준, props는 SSR 초기값)
+  const [config, setConfig] = useState<Record<ProductType, TypeConfig>>({
+    ball: { enabled: ballEnabled, price },
+    keyring: { enabled: keyringEnabled, price: keyringPrice },
+  });
+  const [products, setProducts] = useState<Partial<Record<ProductType, ProductInfo>>>({});
+  const [activeType, setActiveType] = useState<ProductType>(ballEnabled ? "ball" : keyringEnabled ? "keyring" : "ball");
   // 상품 이미지 캐러셀
   const [imgIdx, setImgIdx] = useState(0);
   const touchStartX = useRef(0);
@@ -51,30 +87,42 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
     fetch("/api/shop/ipnak-ball/products")
       .then((r) => r.json())
       .then((data) => {
-        const first = data?.products?.[0];
-        if (!first) return;
-        // imageUrl은 단일 URL 문자열 또는 JSON 배열 문자열
-        const rawUrl: string | undefined = first.imageUrl;
-        let imageUrls: string[] = [];
-        try {
-          const p = JSON.parse(rawUrl ?? "");
-          if (Array.isArray(p)) imageUrls = p.filter(Boolean);
-        } catch {}
-        if (imageUrls.length === 0 && rawUrl) imageUrls = [rawUrl];
-        setProduct({
-          imageUrl: imageUrls[0],
-          imageUrls,
-          name: first.name,
-          description: first.description,
-          optionEnabled: Boolean(first.optionEnabled),
-          optionOneLabel: first.optionOneLabel,
-          optionOnePrice: first.optionOnePrice,
-          optionTwoLabel: first.optionTwoLabel,
-          optionTwoPrice: first.optionTwoPrice,
-        });
+        const nextProducts: Partial<Record<ProductType, ProductInfo>> = {};
+        for (const p of (data?.products ?? []) as any[]) {
+          const t: ProductType = p.type === "keyring" ? "keyring" : "ball";
+          if (nextProducts[t]) continue; // 타입별 1개만 사용
+          const imageUrls = parseImageUrls(p.imageUrl);
+          nextProducts[t] = {
+            imageUrl: imageUrls[0],
+            imageUrls,
+            name: p.name,
+            description: p.description,
+            optionEnabled: Boolean(p.optionEnabled),
+            optionOneLabel: p.optionOneLabel,
+            optionOnePrice: p.optionOnePrice,
+            optionTwoLabel: p.optionTwoLabel,
+            optionTwoPrice: p.optionTwoPrice,
+          };
+        }
+        setProducts(nextProducts);
+        if (data?.config) {
+          setConfig((prev) => ({
+            ball: { enabled: Boolean(data.config.ball?.enabled), price: Number(data.config.ball?.price) || prev.ball.price },
+            keyring: { enabled: Boolean(data.config.keyring?.enabled), price: Number(data.config.keyring?.price) || prev.keyring.price },
+          }));
+        }
       })
       .catch(() => {});
   }, []);
+
+  const enabledTypes = TYPES.filter((t) => config[t].enabled);
+
+  // 현재 탭이 비활성화되면 켜져 있는 다른 탭으로 이동한다.
+  useEffect(() => {
+    if (config[activeType].enabled) return;
+    const fallback = TYPES.find((t) => config[t].enabled);
+    if (fallback) setActiveType(fallback);
+  }, [config, activeType]);
 
   useEffect(() => {
     if (openOnMount) {
@@ -93,12 +141,27 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
     prevTrigger.current = triggerOpen;
   }, [triggerOpen, onOpened]);
 
+  const label = TYPE_LABEL[activeType];
+  const TypeIcon = TYPE_ICON[activeType];
+  const product = products[activeType] ?? {};
+  const basePrice = config[activeType].price;
+
+  // 탭 전환: 상품마다 옵션·수량·단계가 다르므로 구매 흐름을 처음부터 다시 시작한다.
+  function switchType(next: ProductType) {
+    if (next === activeType) return;
+    setActiveType(next);
+    setStep("intro");
+    setQty(1);
+    setSelectedOption(null);
+    setImgIdx(0);
+  }
+
   // 현재 단가: 옵션 활성화 시 선택된 옵션 가격, 아니면 기본가
   const unitPrice = (() => {
-    if (!product.optionEnabled) return price;
+    if (!product.optionEnabled) return basePrice;
     if (selectedOption === "one" && product.optionOnePrice != null) return product.optionOnePrice;
     if (selectedOption === "two" && product.optionTwoPrice != null) return product.optionTwoPrice;
-    return price;
+    return basePrice;
   })();
 
   const totalPrice = unitPrice * qty;
@@ -112,10 +175,10 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
   // 옵션 선택 시 안내 문구 (예: 2개입 × 2개 = 총 4개)
   const optionHint = (() => {
     if (!product.optionEnabled || selectedOption === null) return null;
-    const label = selectedOption === "one" ? (product.optionOneLabel ?? "1개입") : (product.optionTwoLabel ?? "2개입");
+    const optionLabel = selectedOption === "one" ? (product.optionOneLabel ?? "1개입") : (product.optionTwoLabel ?? "2개입");
     const perPack = selectedOption === "one" ? 1 : 2;
     const totalItems = perPack * qty;
-    return `${label} × ${qty}개 = 총 ${totalItems}개`;
+    return `${optionLabel} × ${qty}개 = 총 ${totalItems}개`;
   })();
 
   // ── 디바이스 뒤로가기 버튼 처리: 바텀시트 열릴 때 history 엔트리 push ──
@@ -172,7 +235,7 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
     try {
       const res = await fetch("/api/ipnak-ball/orders", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, quantity: qty, paymentMethod: method, selectedOption }),
+        body: JSON.stringify({ ...form, quantity: qty, paymentMethod: method, selectedOption, productType: activeType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "결제에 실패했습니다.");
@@ -180,38 +243,79 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
     } catch (e: any) { toast(e.message, "error"); }
     finally { setLoading(false); }
   }
-  const field = (key: keyof typeof form, label: string, required = false, type = "text") => (
+  const field = (key: keyof typeof form, fieldLabel: string, required = false, type = "text") => (
     <label className="block">
-      <span className="mb-1 block text-[12px] font-semibold text-white/60">{label}{required && " *"}</span>
+      <span className="mb-1 block text-[12px] font-semibold text-white/60">{fieldLabel}{required && " *"}</span>
       <input type={type} required={required} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="w-full rounded-xl border border-white/10 bg-white/[.05] px-3 py-2.5 text-[16px] text-white outline-none focus:border-aqua-400" />
     </label>
   );
 
+  // 두 스위치가 모두 꺼져 있으면 구매 카드는 숨기고, 시트가 열리면 판매 중지 안내를 보여준다.
   return <>
-    {!hideCard && <div className="overflow-hidden rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500/15 via-[#202020] to-aqua-500/10 p-4">
+    {!hideCard && enabledTypes.length > 0 && <div className="overflow-hidden rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500/15 via-[#202020] to-aqua-500/10 p-4">
       <div className="flex items-start gap-3">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-soft"><Radio size={23} /></span>
-        <div className="min-w-0 flex-1"><p className="text-[16px] font-extrabold text-navy-900">스마트 계측의 시작, 입낚볼</p><p className="mt-0.5 text-[12px] text-navy-400">NFC 연동으로 나의 어획 기록을 더 간편하게</p><p className="mt-2 text-[19px] font-extrabold text-orange-400">{price.toLocaleString()}원</p></div>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-soft"><TypeIcon size={23} /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[16px] font-extrabold text-navy-900">스마트 계측의 시작, {enabledTypes.map((t) => TYPE_LABEL[t]).join(" · ")}</p>
+          <p className="mt-0.5 text-[12px] text-navy-400">NFC 연동으로 나의 어획 기록을 더 간편하게</p>
+          <p className="mt-2 text-[19px] font-extrabold text-orange-400">
+            {enabledTypes.length > 1
+              ? enabledTypes.map((t) => `${TYPE_LABEL[t]} ${config[t].price.toLocaleString()}원`).join(" · ")
+              : `${config[enabledTypes[0]].price.toLocaleString()}원`}
+          </p>
+        </div>
       </div>
-      <button onClick={() => { setStep("intro"); setOpen(true); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-extrabold text-white">입낚볼 구매하기</button>
+      <button onClick={() => { setStep("intro"); setOpen(true); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-extrabold text-white">
+        {enabledTypes.length > 1 ? "구매하기" : `${TYPE_LABEL[enabledTypes[0]]} 구매하기`}
+      </button>
     </div>}
 
     {open && typeof document !== "undefined" && createPortal(
       <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/75 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && close()}>
         <div className="ipnak-ball-scrollbar h-[76vh] w-full max-w-[480px] overflow-y-auto rounded-t-[28px] bg-[#151b21] text-white shadow-2xl sm:rounded-[28px]">
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#151b21]/95 px-5 py-4 backdrop-blur">
-            <button onClick={() => step === "intro" ? close() : setStep(step === "pay" ? "form" : "intro")} className="p-1 text-white/60">{step === "intro" || step === "done" ? <X /> : <ChevronLeft />}</button>
-            <p className="font-bold">{step === "intro" ? "입낚볼 소개" : step === "form" ? "구매자·배송지 정보" : step === "pay" ? "PG 결제" : "주문 완료"}</p><span className="w-7" />
+          <div className="sticky top-0 z-10 border-b border-white/10 bg-[#151b21]/95 backdrop-blur">
+            <div className="flex items-center justify-between px-5 py-4">
+              <button onClick={() => step === "intro" ? close() : setStep(step === "pay" ? "form" : "intro")} className="p-1 text-white/60">{step === "intro" || step === "done" ? <X /> : <ChevronLeft />}</button>
+              <p className="font-bold">{step === "intro" ? `${label} 소개` : step === "form" ? "구매자·배송지 정보" : step === "pay" ? "PG 결제" : "주문 완료"}</p><span className="w-7" />
+            </div>
+            {/* 상품 탭 — 두 스위치가 모두 켜져 있을 때만 노출 */}
+            {enabledTypes.length > 1 && step === "intro" && (
+              <div className="flex gap-1.5 px-5 pb-3">
+                {enabledTypes.map((t) => {
+                  const Icon = TYPE_ICON[t];
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => switchType(t)}
+                      aria-pressed={activeType === t}
+                      className={cn(
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-bold transition",
+                        activeType === t ? "border-orange-400 bg-orange-500/15 text-orange-300" : "border-white/10 text-white/50 hover:border-white/25"
+                      )}
+                    >
+                      <Icon size={15} /> {TYPE_LABEL[t]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
+          {enabledTypes.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-sm text-white/60">현재 판매 중인 상품이 없습니다.</p>
+              <button onClick={close} className="mt-6 w-full rounded-2xl bg-white/10 py-3 font-bold">확인</button>
+            </div>
+          ) : <>
           {step === "intro" && <div className="p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
             {images.length === 0 ? (
               <div className="flex items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500/15 to-aqua-500/10">
-                <div className="flex h-48 items-center justify-center"><Radio size={72} className="text-orange-400" /></div>
+                <div className="flex h-48 items-center justify-center"><TypeIcon size={72} className="text-orange-400" /></div>
               </div>
             ) : images.length === 1 ? (
               <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500/15 to-aqua-500/10">
-                <img src={images[0]} alt={product.name ?? "입낚볼"} className="aspect-square w-full object-contain" />
+                <img src={images[0]} alt={product.name ?? label} className="aspect-square w-full object-contain" />
               </div>
             ) : (
               <div>
@@ -223,11 +327,23 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
                     if (Math.abs(diff) > 50) moveImage(diff < 0 ? 1 : -1);
                   }}
                 >
-                  <img
-                    src={images[Math.min(imgIdx, images.length - 1)]}
-                    alt={`${product.name ?? "입낚볼"} 이미지 ${imgIdx + 1}`}
-                    className="aspect-square w-full object-contain"
-                  />
+                  {/* 슬라이드 트랙 — 이미지를 가로로 나란히 배치하고 translateX로 이동 */}
+                  <div
+                    className="flex"
+                    style={{
+                      transform: `translateX(-${Math.min(imgIdx, images.length - 1) * 100}%)`,
+                      transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                    }}
+                  >
+                    {images.map((src, i) => (
+                      <img
+                        key={i}
+                        src={src}
+                        alt={`${product.name ?? label} 이미지 ${i + 1}`}
+                        className="aspect-square w-full shrink-0 object-contain"
+                      />
+                    ))}
+                  </div>
                 </div>
                 <div className="mt-2.5 flex items-center justify-center gap-2">
                   {images.map((_, i) => (
@@ -245,13 +361,13 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
                 </div>
               </div>
             )}
-            <h2 className="mt-5 text-xl font-extrabold">{product.name ?? "입낚볼 하나로 더 스마트한 낚시"}</h2>
+            <h2 className="mt-5 text-xl font-extrabold">{product.name ?? `${label} 하나로 더 스마트한 낚시`}</h2>
             <div className="mt-4 space-y-3 text-sm text-white/65">
               {product.description
                 ? <p className="whitespace-pre-line">{product.description}</p>
                 : <>
-                    <p className="flex gap-2"><Radio className="shrink-0 text-aqua-400" size={18} /> NFC 태그로 앱과 빠르게 연결</p>
-                    <p className="flex gap-2"><ShieldCheck className="shrink-0 text-aqua-400" size={18} /> 측정 기록과 입낚볼 ID를 안전하게 저장</p>
+                    <p className="flex gap-2"><TypeIcon className="shrink-0 text-aqua-400" size={18} /> NFC 태그로 앱과 빠르게 연결</p>
+                    <p className="flex gap-2"><ShieldCheck className="shrink-0 text-aqua-400" size={18} /> 측정 기록과 {label} ID를 안전하게 저장</p>
                     <p className="flex gap-2"><Truck className="shrink-0 text-aqua-400" size={18} /> 결제 완료 후 순차 배송</p>
                   </>}
             </div>
@@ -325,6 +441,7 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
           </div>}
 
           {step === "form" && <form onSubmit={submitInfo} className="space-y-5 p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
+            <div className="rounded-xl bg-white/[.05] px-4 py-2.5 text-[13px] font-bold text-orange-300">{label} 주문</div>
             <section><h3 className="mb-3 flex items-center gap-2 font-bold"><Package size={17} className="text-orange-400"/>구매자 정보</h3><div className="space-y-3">{field("buyerName", "이름", true)}{field("buyerPhone", "휴대전화", true, "tel")}{field("buyerEmail", "이메일", false, "email")}</div></section>
             <section>
               <h3 className="mb-3 flex items-center gap-2 font-bold"><MapPin size={17} className="text-aqua-400"/>배송지 정보</h3>
@@ -348,7 +465,7 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
 
           {step === "pay" && <div className="p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
             <div className="rounded-2xl bg-white/[.05] p-5 text-center">
-              <p className="text-xs text-white/50">최종 결제 금액</p>
+              <p className="text-xs text-white/50">{label} · 최종 결제 금액</p>
               <p className="mt-1 text-3xl font-extrabold">₩{totalPrice.toLocaleString()}</p>
               {optionHint && <p className="mt-1 text-xs text-aqua-400">{optionHint}</p>}
             </div>
@@ -358,6 +475,7 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
           </div>}
 
           {step === "done" && <div className="p-8 text-center pb-[max(32px,env(safe-area-inset-bottom))]"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-aqua-500/15 text-aqua-400"><Check size={32}/></span><h2 className="mt-4 text-xl font-extrabold">구매가 완료되었습니다</h2><p className="mt-2 text-sm text-white/55">주문번호 {orderNo}<br/>관리자가 배송 상태를 순차적으로 업데이트합니다.</p><button onClick={close} className="mt-6 w-full rounded-2xl bg-white/10 py-3 font-bold">확인</button></div>}
+          </>}
         </div>
       </div>, document.body)}
 
