@@ -28,7 +28,7 @@ const ALL_SPECIES_PC_IMAGES = [
 ] as const;
 const BASS_PC_IMAGES = [IMG_A, IMG_B, IMG_C] as const;
 const ALL_SPECIES_MOBILE_IMAGES = [
-  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 전체어종 에깅 배경이미지.png",
+  MOBILE_IMG_3,
   "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 선상바다낚시 배경이미지.png",
 ] as const;
 const BASS_MOBILE_IMAGES = [MOBILE_IMG_3, MOBILE_IMG_4] as const;
