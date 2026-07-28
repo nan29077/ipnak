@@ -61,10 +61,10 @@ export const productCategoryLabel = (key: string) =>
 // 조행기(카페형 게시판) 카테고리
 export const LOG_CATEGORIES: { key: string; label: string }[] = [
   { key: "WALKING",    label: "워킹조행기" },
+  { key: "BOATING",    label: "보팅조행기" },
   { key: "JWADAE",     label: "좌대조행기" },
   { key: "SEA",        label: "바다조행기" },
   { key: "FRESHWATER", label: "민물조행기" },
-  { key: "BOATING",    label: "보팅조행기" },
 ];
 
 export const logCategoryLabel = (key: string | null | undefined) =>

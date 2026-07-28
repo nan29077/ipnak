@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { Route, Fish, ChevronDown, Loader2 } from "lucide-react";
+import { Route, Fish, Lock, ChevronDown, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { EmptyState } from "@/components/ui";
@@ -60,24 +60,42 @@ export function WalkingFeedPage({
             let walkingData: { distanceM?: number; durationSec?: number; catchCount?: number } | null = null;
             try { walkingData = JSON.parse(p.body ?? "null"); } catch {}
             const thumb = p.images[0]?.url ?? null;
+            const isLocked = p.walkingLocked;
             return (
               <Link key={p.id} href={`/post/${p.id}`} className="relative aspect-square overflow-hidden bg-[#0d1b1a]">
-                {thumb ? (
+                {isLocked ? (
+                  <div className="h-full w-full bg-black" />
+                ) : thumb ? (
                   <img src={thumb} alt="" loading="lazy" className="h-full w-full object-cover opacity-80" />
                 ) : (
                   <div className="h-full w-full bg-gradient-to-br from-[#0d2a1a] to-[#0a1a12]" />
                 )}
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/30">
-                  <Route size={18} className="text-aqua-300" strokeWidth={1.5} />
-                  {walkingData?.distanceM != null && (
-                    <span className="text-[10px] font-bold text-white">{km(walkingData.distanceM)}</span>
-                  )}
-                  {(walkingData?.catchCount ?? 0) > 0 && (
-                    <span className="flex items-center gap-0.5 text-[9px] text-aqua-300">
-                      <Fish size={9} />{walkingData!.catchCount}마리
-                    </span>
-                  )}
-                </div>
+                {isLocked ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40">
+                    <Lock size={18} className="text-yellow-400" strokeWidth={1.5} />
+                    <span className="text-[9px] font-semibold text-white">200P로 열기</span>
+                    {walkingData?.distanceM != null && (
+                      <span className="mt-0.5 text-[9px] text-white/60">{km(walkingData.distanceM)}</span>
+                    )}
+                    {(walkingData?.catchCount ?? 0) > 0 && (
+                      <span className="flex items-center gap-0.5 text-[9px] text-white/60">
+                        <Fish size={9} />{walkingData!.catchCount}마리
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/30">
+                    <Route size={18} className="text-aqua-300" strokeWidth={1.5} />
+                    {walkingData?.distanceM != null && (
+                      <span className="text-[10px] font-bold text-white">{km(walkingData.distanceM)}</span>
+                    )}
+                    {(walkingData?.catchCount ?? 0) > 0 && (
+                      <span className="flex items-center gap-0.5 text-[9px] text-aqua-300">
+                        <Fish size={9} />{walkingData!.catchCount}마리
+                      </span>
+                    )}
+                  </div>
+                )}
               </Link>
             );
           })}

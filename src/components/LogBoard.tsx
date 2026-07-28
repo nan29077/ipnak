@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { MessageSquare, Eye, ImageIcon, PenLine, BookOpen, ChevronDown, Loader2 } from "lucide-react";
+import { MessageSquare, Eye, ImageIcon, BookOpen, ChevronDown, Loader2 } from "lucide-react";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { Chip, EmptyState, LinkButton } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
@@ -70,13 +70,7 @@ export function LogBoard({
           </h1>
           <p className="mt-0.5 text-[12px] text-navy-400">출조 후기와 조행 정보를 글로 나눠요</p>
         </div>
-        <div className="flex items-center gap-2">
-          <ViewToggle mode={viewMode} onChange={setViewMode} />
-          <Link href={currentUserId ? "/log/new" : "/login"}
-            className="inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-3.5 py-2 text-[13px] font-semibold text-white shadow-soft transition-colors hover:bg-orange-600 active:scale-[0.97]">
-            <PenLine size={15} /> 글쓰기
-          </Link>
-        </div>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
       {visible.length === 0 ? (
