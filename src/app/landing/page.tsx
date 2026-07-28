@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useAppSettings } from "@/lib/appSettingsContext";
 
 interface Ripple {
   id: number;
@@ -10,9 +11,18 @@ interface Ripple {
 
 // 새 PC 배경이 마음에 들지 않으면 false 한 번으로 기존 배경으로 복귀합니다.
 const ENABLE_PC_LANDING_CINEMAGRAPH = true;
+const BASS_MOBILE_BACKGROUND =
+  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 배경이미지4.png";
+const ALL_SPECIES_MOBILE_BACKGROUND =
+  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 전체어종 에깅 배경이미지.png";
+const BASS_PC_FALLBACK_BACKGROUND =
+  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지.png";
+const BASS_PC_CINEMAGRAPH_BACKGROUND = "/landing-bear-bass-boat-hero-v2.png";
+const ALL_SPECIES_PC_BACKGROUND = "/landing-bear-all-species-offshore-pc.png";
 
 export default function LandingPage() {
   const router = useRouter();
+  const { bassOnlyMode } = useAppSettings();
   const [hovered, setHovered] = useState<"left" | "right" | null>(null);
   const [touched, setTouched] = useState<"top" | "bottom" | null>(null);
   const [topRipples, setTopRipples] = useState<Ripple[]>([]);
@@ -57,6 +67,15 @@ export default function LandingPage() {
   const isTopActive = hovered === "left" || touched === "top";
   const isBottomActive = hovered === "right" || touched === "bottom";
   const anyActive = !!(hovered || touched);
+  const mobileBackground = bassOnlyMode
+    ? BASS_MOBILE_BACKGROUND
+    : ALL_SPECIES_MOBILE_BACKGROUND;
+  const pcBackground = bassOnlyMode
+    ? BASS_PC_FALLBACK_BACKGROUND
+    : ALL_SPECIES_PC_BACKGROUND;
+  const showBassCinemagraph = bassOnlyMode && ENABLE_PC_LANDING_CINEMAGRAPH;
+  // 배스 전용 모드 OFF — 전체어종 PC 배경에도 동일한 시네마그래프 연출 적용
+  const showAllSpeciesCinemagraph = !bassOnlyMode && ENABLE_PC_LANDING_CINEMAGRAPH;
 
   return (
     <>
@@ -106,9 +125,18 @@ export default function LandingPage() {
           animation: ipnakWaterBreath 8s ease-in-out infinite;
           will-change: opacity, transform;
         }
+        @keyframes ipnakSeaSwell {
+          0%, 100% { opacity: 0.14; transform: translate3d(-5%, 0, 0) scaleY(1); }
+          50%      { opacity: 0.32; transform: translate3d(5%, 0, 0) scaleY(1.08); }
+        }
+        .ipnak-sea-swell {
+          animation: ipnakSeaSwell 14s ease-in-out infinite;
+          will-change: opacity, transform;
+        }
         @media (prefers-reduced-motion: reduce) {
           .ipnak-pc-cinemagraph,
-          .ipnak-water-breath {
+          .ipnak-water-breath,
+          .ipnak-sea-swell {
             animation: none !important;
           }
         }
@@ -120,7 +148,7 @@ export default function LandingPage() {
         <div
           className="absolute inset-0 md:hidden"
           style={{
-            backgroundImage: "url('/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 배경이미지4.png')",
+            backgroundImage: `url('${mobileBackground}')`,
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
@@ -132,18 +160,30 @@ export default function LandingPage() {
         <div
           className="absolute inset-0 hidden md:block"
           style={{
-            backgroundImage: "url('/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지.png')",
+            backgroundImage: `url('${pcBackground}')`,
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
         />
-        {ENABLE_PC_LANDING_CINEMAGRAPH && (
+        {showBassCinemagraph && (
           <div className="pointer-events-none absolute inset-0 hidden overflow-hidden md:block" aria-hidden="true">
             <div
               className="ipnak-pc-cinemagraph absolute -inset-[4%] bg-cover bg-center"
-              style={{ backgroundImage: "url('/landing-bear-bass-boat-hero-v2.png')" }}
+              style={{ backgroundImage: `url('${BASS_PC_CINEMAGRAPH_BACKGROUND}')` }}
             />
             <div className="ipnak-water-breath absolute inset-x-0 bottom-0 h-[48%] bg-[linear-gradient(105deg,transparent_5%,rgba(255,179,79,0.16)_31%,transparent_51%,rgba(148,206,255,0.12)_73%,transparent_96%)] mix-blend-screen" />
+          </div>
+        )}
+        {showAllSpeciesCinemagraph && (
+          <div className="pointer-events-none absolute inset-0 hidden overflow-hidden md:block" aria-hidden="true">
+            <div
+              className="ipnak-pc-cinemagraph absolute -inset-[4%] bg-cover bg-center"
+              style={{ backgroundImage: `url('${ALL_SPECIES_PC_BACKGROUND}')` }}
+            />
+            {/* 바다 노을 물빛 — 수평 스웰 */}
+            <div className="ipnak-sea-swell absolute inset-x-0 bottom-0 h-[52%] bg-[linear-gradient(100deg,transparent_4%,rgba(148,206,255,0.16)_28%,transparent_49%,rgba(255,214,140,0.14)_71%,transparent_95%)] mix-blend-screen" />
+            {/* 잔물결 반짝임 */}
+            <div className="ipnak-water-breath absolute inset-x-0 bottom-0 h-[34%] bg-[linear-gradient(80deg,transparent_8%,rgba(255,255,255,0.10)_34%,transparent_58%,rgba(120,190,255,0.12)_79%,transparent_98%)] mix-blend-screen" />
           </div>
         )}
         <div className="absolute inset-0 hidden bg-black/10 md:block" />

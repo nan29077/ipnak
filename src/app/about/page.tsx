@@ -6,7 +6,7 @@ import {
   Users, ArrowLeft, Monitor,
   Fish, Ruler, CircleDot, Route, ShoppingBag,
 } from "lucide-react";
-import { useAppSettings } from "@/lib/appSettingsContext";
+import { useAppSettings, useAnglerLabel } from "@/lib/appSettingsContext";
 
 /* ── PC 배경 이미지 3장 (각 1번씩 등장) ── */
 const IMG_A = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지3.png";
@@ -20,6 +20,18 @@ const IMG_C = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 �
 /* ── 모바일 배경 이미지 2장 (각 1번씩 등장) ── */
 const MOBILE_IMG_3 = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 배경이미지2.png";
 const MOBILE_IMG_4 = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 배스 랜딩 배경이미지.png";
+// 배스 전용 모드 OFF 세트 — 배스 전용 컷과 겹치지 않는 전체어종 계열 이미지만 사용
+const ALL_SPECIES_PC_IMAGES = [
+  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지5.png",
+  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 송어 플라이낚시 배경이미지.png",
+  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 선상바다낚시 배경이미지.png",
+] as const;
+const BASS_PC_IMAGES = [IMG_A, IMG_B, IMG_C] as const;
+const ALL_SPECIES_MOBILE_IMAGES = [
+  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 전체어종 에깅 배경이미지.png",
+  "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 모바일 선상바다낚시 배경이미지.png",
+] as const;
+const BASS_MOBILE_IMAGES = [MOBILE_IMG_3, MOBILE_IMG_4] as const;
 
 // 8섹션 ÷ 2이미지 = 4 → 3: 섹션0~3, 4: 섹션4~7
 // FeatureSection의 mobileBgIdx = Math.floor((featIdx + 1) / 4)
@@ -38,6 +50,8 @@ type Feature = {
   bodyReservationOff?: string;
   // 예약 기능 OFF 시 칩 목록에서 제외할 항목
   reservationChips?: string[];
+  // 배스낚시 전용 모드(bass_only_mode) OFF 시 사용할 대체 본문 — useAnglerLabel() 결과를 받아 조립
+  bodyBassOff?: (anglerLabel: string) => string;
 };
 
 const FEATURES: Feature[] = [
@@ -82,6 +96,8 @@ const FEATURES: Feature[] = [
     title: "피드 & 커뮤니티",
     sub: "낚시인들과 기쁨을 나누다",
     body: "조황 사진과 측정 기록을 커뮤니티에 공유하고 다른 낚시인들의 피드를 팔로우하세요. 워킹피싱 전용 피드에서 배스 앵글러들과 실시간으로 소통할 수 있습니다.",
+    bodyBassOff: (angler) =>
+      `조황 사진과 측정 기록을 커뮤니티에 공유하고 다른 낚시인들의 피드를 팔로우하세요. 워킹피싱 전용 피드에서 ${angler}들과 실시간으로 소통할 수 있습니다.`,
     color: "from-blue-500/80 to-indigo-600/80",
     accent: "#3b82f6",
     features: ["실시간 조황 피드", "워킹피싱 전용 피드", "좋아요 · 댓글 소통", "팔로우 기반 맞춤 피드"],
@@ -113,7 +129,13 @@ const FEATURES: Feature[] = [
  * - PC(≥768px): A/B/C 3장, data-bg-idx 기반 크로스페이드
  * - 모바일(<768px): 3/4 2장, data-mobile-bg-idx 기반 크로스페이드
  */
-function FixedBgManager() {
+function FixedBgManager({
+  pcImages,
+  mobileImages,
+}: {
+  pcImages: readonly string[];
+  mobileImages: readonly string[];
+}) {
   const [activePcIdx, setActivePcIdx] = useState(0);
   const [activeMobileIdx, setActiveMobileIdx] = useState(0);
 
@@ -160,7 +182,7 @@ function FixedBgManager() {
   return (
     <div className="pointer-events-none fixed inset-0" style={{ zIndex: 1 }}>
       {/* PC 배경 3장 — 모바일에서는 CSS로 숨김 */}
-      {[IMG_A, IMG_B, IMG_C].map((src, i) => (
+      {pcImages.map((src, i) => (
         <div
           key={`pc-${i}`}
           className="absolute inset-0 hidden md:block"
@@ -174,7 +196,7 @@ function FixedBgManager() {
         />
       ))}
       {/* 모바일 배경 2장 — PC에서는 CSS로 숨김 */}
-      {[MOBILE_IMG_3, MOBILE_IMG_4].map((src, i) => (
+      {mobileImages.map((src, i) => (
         <div
           key={`mobile-${i}`}
           className="absolute inset-0 block md:hidden"
@@ -191,14 +213,29 @@ function FixedBgManager() {
   );
 }
 
-function FeatureSection({ feat, idx, reservationEnabled }: { feat: Feature; idx: number; reservationEnabled: boolean }) {
+function FeatureSection({
+  feat,
+  idx,
+  reservationEnabled,
+  bassOnlyMode,
+  anglerLabel,
+}: {
+  feat: Feature;
+  idx: number;
+  reservationEnabled: boolean;
+  bassOnlyMode: boolean;
+  anglerLabel: string;
+}) {
   const Icon = feat.icon;
   // PC: 8섹션 ÷ 3이미지
   const bgIdx = Math.floor(((idx + 1) * 3) / 8);
   // 모바일: 8섹션 ÷ 2이미지 (feat0~2=0, feat3~5=1)
   const mobileBgIdx = Math.floor((idx + 1) / 4);
+  // 배스 전용 모드 OFF 시: 배스 전용 문구를 일반 낚시 문구로 대체
+  const bassAdjustedBody =
+    bassOnlyMode || !feat.bodyBassOff ? feat.body : feat.bodyBassOff(anglerLabel);
   // 예약 기능 OFF 시: 예약 관련 문구·칩 숨김
-  const body = reservationEnabled ? feat.body : feat.bodyReservationOff ?? feat.body;
+  const body = reservationEnabled ? bassAdjustedBody : feat.bodyReservationOff ?? bassAdjustedBody;
   const chips = reservationEnabled
     ? feat.features
     : feat.features.filter((f) => !feat.reservationChips?.includes(f));
@@ -274,7 +311,11 @@ function FeatureSection({ feat, idx, reservationEnabled }: { feat: Feature; idx:
 export default function AboutPage() {
   const router = useRouter();
   // 예약 기능 스위치 — layout.tsx의 getBoolSetting("reservation_enabled") 값이 context로 전달됨
-  const { reservationEnabled } = useAppSettings();
+  const { reservationEnabled, bassOnlyMode } = useAppSettings();
+  // 배스 전용 모드 ON → "앵글러", OFF → "낚시꾼"
+  const anglerLabel = useAnglerLabel();
+  const pcBackgrounds = bassOnlyMode ? BASS_PC_IMAGES : ALL_SPECIES_PC_IMAGES;
+  const mobileBackgrounds = bassOnlyMode ? BASS_MOBILE_IMAGES : ALL_SPECIES_MOBILE_IMAGES;
 
   const enterApp = useCallback(() => {
     // 모바일 랜딩 리다이렉트 우회: 세션 플래그 설정 후 홈으로 이동
@@ -289,7 +330,7 @@ export default function AboutPage() {
     <div className="relative" style={{ background: "#080c10" }}>
 
       {/* ── 뷰포트 고정 배경 (3장 크로스페이드) ── */}
-      <FixedBgManager />
+      <FixedBgManager pcImages={pcBackgrounds} mobileImages={mobileBackgrounds} />
 
       {/* ── 고정 상단 내비 ── */}
       <nav
@@ -392,7 +433,14 @@ export default function AboutPage() {
           섹션 2–7: 기능별 소개
       ══════════════════════════════════════════ */}
       {FEATURES.map((feat, idx) => (
-        <FeatureSection key={feat.title} feat={feat} idx={idx} reservationEnabled={reservationEnabled} />
+        <FeatureSection
+          key={feat.title}
+          feat={feat}
+          idx={idx}
+          reservationEnabled={reservationEnabled}
+          bassOnlyMode={bassOnlyMode}
+          anglerLabel={anglerLabel}
+        />
       ))}
 
       {/* ══════════════════════════════════════════
