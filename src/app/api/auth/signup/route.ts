@@ -5,13 +5,14 @@ import { hashPassword, createSession } from "@/lib/auth";
 
 const PW_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]).{8,}$/;
 
+// 필드 자체가 빠진 경우 zod 기본 메시지("Required")가 그대로 노출되므로 한국어로 지정한다
 const schema = z.object({
-  email: z.string().email("올바른 이메일을 입력하세요."),
+  email: z.string({ required_error: "이메일을 입력하세요." }).email("올바른 이메일을 입력하세요."),
   password: z
-    .string()
+    .string({ required_error: "비밀번호를 입력하세요." })
     .min(8, "비밀번호는 8자 이상이어야 합니다.")
     .regex(PW_REGEX, "비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다."),
-  nickname: z.string().min(2, "닉네임은 2자 이상이어야 합니다."),
+  nickname: z.string({ required_error: "닉네임을 입력하세요." }).min(2, "닉네임은 2자 이상이어야 합니다."),
   fishingMethods: z.array(z.string()).optional(),
   fishSpecies: z.array(z.string()).optional(),
   // 구버전 호환 (flat array)
@@ -38,16 +39,24 @@ export async function POST(req: Request) {
     species: fishSpecies ?? interests ?? [],
   });
 
-  const user = await prisma.user.create({
-    data: {
-      email: email.toLowerCase(),
-      passwordHash: await hashPassword(password),
-      nickname,
-      role: "ANGLER",
-      avatarUrl: null,
-      interests: interestsPayload,
-    },
-  });
-  await createSession(user.id);
-  return NextResponse.json({ ok: true });
+  try {
+    const user = await prisma.user.create({
+      data: {
+        email: email.toLowerCase(),
+        passwordHash: await hashPassword(password),
+        nickname,
+        role: "ANGLER",
+        avatarUrl: null,
+        interests: interestsPayload,
+      },
+    });
+    await createSession(user.id);
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    // findUnique 확인과 create 사이 경쟁 조건으로 인한 중복(P2002) → 409로 정돈
+    if (e?.code === "P2002") {
+      return NextResponse.json({ error: "이미 가입된 이메일입니다." }, { status: 409 });
+    }
+    return NextResponse.json({ error: "회원가입 처리 중 오류가 발생했습니다." }, { status: 500 });
+  }
 }

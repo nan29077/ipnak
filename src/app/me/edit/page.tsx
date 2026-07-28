@@ -20,7 +20,8 @@ export default function EditProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
-  // 현재 프로필 불러오기
+  // 현재 프로필 불러오기 — 비로그인이면 저장할 수 없으므로 로그인 페이지로 보낸다
+  // (다른 /me 하위 페이지는 서버 컴포넌트라 redirect로 처리하지만 이 페이지는 클라이언트 컴포넌트다)
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
@@ -32,11 +33,13 @@ export default function EditProfilePage() {
           setRegion(d.user.region ?? "");
           setAvatarUrl(d.user.avatarUrl ?? null);
           setAvatarPreview(d.user.avatarUrl ?? null);
+          setLoading(false);
+        } else {
+          router.replace("/login");
         }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => setLoading(false));
+  }, [router]);
 
   // 프로필 사진 선택 → 압축 → base64 preview
   const handleAvatarFile = useCallback((file: File | undefined) => {

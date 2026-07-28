@@ -12,6 +12,8 @@ import { useAnglerLabel } from "@/lib/appSettingsContext";
 const FIELD_CLASS =
   "w-full rounded-[16px] px-3.5 py-3 text-[15px] bg-white/[0.06] border border-white/[0.12] text-white placeholder-white/40 outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-400/30 transition-colors";
 
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
 export default function LoginPage() {
   const router = useRouter();
   const anglerLabel = useAnglerLabel();
@@ -83,25 +85,29 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        {/* 테스트 계정 빠른 로그인 */}
-        <div className="mb-5 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => login("admin@ipnak.test", "Admin1234!")}
-            disabled={loading}
-            className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-all active:scale-[0.97] disabled:opacity-50"
-          >
-            관리자 테스트 로그인
-          </button>
-          <button
-            type="button"
-            onClick={() => login("angler@ipnak.test", "Angler1234!")}
-            disabled={loading}
-            className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-all active:scale-[0.97] disabled:opacity-50"
-          >
-            {anglerLabel} 테스트 로그인
-          </button>
-        </div>
+        {/* 테스트 계정 빠른 로그인 — 개발 환경 전용.
+            NODE_ENV는 빌드 시점에 상수로 치환되므로 운영 빌드에서는 이 블록과
+            테스트 계정 비밀번호가 번들에서 통째로 제거된다. */}
+        {!IS_PRODUCTION && (
+          <div className="mb-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => login("admin@ipnak.test", "Admin1234!")}
+              disabled={loading}
+              className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-all active:scale-[0.97] disabled:opacity-50"
+            >
+              관리자 테스트 로그인
+            </button>
+            <button
+              type="button"
+              onClick={() => login("angler@ipnak.test", "Angler1234!")}
+              disabled={loading}
+              className="rounded-[14px] border border-white/[0.12] bg-white/[0.04] py-2.5 text-[12px] font-semibold text-white/70 outline-none transition-all active:scale-[0.97] disabled:opacity-50"
+            >
+              {anglerLabel} 테스트 로그인
+            </button>
+          </div>
+        )}
 
         {/* 구분선 */}
         <div className="mb-5 flex items-center gap-2.5">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MapPin, Plus, Trash2, Loader2, Check } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { useToast } from "@/components/Toast";
@@ -17,6 +18,7 @@ interface ShippingAddress {
 const inputCls = "w-full rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-white outline-none focus:border-orange-400 placeholder:text-white/25 transition-colors";
 
 export default function ShippingPage() {
+  const router = useRouter();
   const toast = useToast();
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,9 @@ export default function ShippingPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/me/shipping-addresses");
+      // 비로그인이면 배송지를 저장할 수 없으므로 빈 목록 대신 로그인 페이지로 보낸다
+      // (이 페이지는 클라이언트 컴포넌트라 서버 redirect를 쓸 수 없다)
+      if (res.status === 401) { router.replace("/login"); return; }
       if (res.ok) {
         const data = await res.json();
         setAddresses(data.addresses ?? []);

@@ -15,7 +15,9 @@ export type GroupPointItem = {
 };
 
 // Leaflet 기본 아이콘 경로 수정
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// (이 프로젝트의 eslint 설정은 next/core-web-vitals만 확장하므로 @typescript-eslint 룰이
+//  정의돼 있지 않다. 해당 룰을 끄는 주석을 남기면 "Definition for rule ... was not found"
+//  오류로 프로덕션 빌드가 실패한다.)
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
