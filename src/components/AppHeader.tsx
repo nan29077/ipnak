@@ -7,12 +7,16 @@ import { IconLogin } from "@/components/FishingIcon";
 import { NotificationBell } from "@/components/NotificationBell";
 import { PointsBadge } from "@/components/PointsBadge";
 import { SideDrawer, type DrawerUser } from "@/components/SideDrawer";
+import { useAppSettings } from "@/lib/appSettingsContext";
 
 // 모든 페이지 상단 공용 헤더 바 (왼쪽 햄버거 + 로고 / 오른쪽 [포인트] 알림)
 export function AppHeader({
   loggedIn, user = null, shopEnabled = true, reservationEnabled = true, pointsEnabled = false, points = 0,
 }: { loggedIn: boolean; user?: DrawerUser; shopEnabled?: boolean; reservationEnabled?: boolean; pointsEnabled?: boolean; points?: number }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // 포인트 제도가 OFF 이면 배지 자체를 렌더링하지 않는다(불필요한 잔액 API 호출 방지).
+  const { pointsEnabled: pointsEnabledSetting } = useAppSettings();
+  const showPointsBadge = pointsEnabledSetting || pointsEnabled;
   return (
     <>
     <header className="pt-safe sticky top-0 z-40 border-b border-navy-100 bg-[#0d1b2a]/90 backdrop-blur-md">
@@ -40,7 +44,7 @@ export function AppHeader({
         <div className="ml-auto flex items-center gap-1">
           {loggedIn ? (
             <>
-              <PointsBadge initial={points} initialEnabled={pointsEnabled} />
+              {showPointsBadge && <PointsBadge initial={points} initialEnabled={pointsEnabled} />}
               <NotificationBell />
             </>
           ) : (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { awardPostReward } from "@/lib/points";
 import { getBoolSetting } from "@/lib/settings";
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0.5));
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
     },
   });
   let postId: string | null = null;
+  let pointsEarned = 0;
   if (b.shareToFeed !== false) {
     const post = await prisma.post.create({
       data: {
@@ -74,6 +76,8 @@ export async function POST(req: Request) {
       },
     });
     postId = post.id;
+    // 피드 글 작성 적립 (하루 5회 한도, 포인트 제도 ON 일 때만) — 실패해도 기록 저장은 성공 처리
+    pointsEarned = (await awardPostReward(user.id, post.id)) ?? 0;
   }
-  return NextResponse.json({ ok: true, pointId: point.id, catchId: cr.id, postId });
+  return NextResponse.json({ ok: true, pointId: point.id, catchId: cr.id, postId, pointsEarned });
 }

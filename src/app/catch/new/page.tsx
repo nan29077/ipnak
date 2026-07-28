@@ -9,6 +9,7 @@ import { ProductTagPicker } from "@/components/ProductTagPicker";
 import { ProductTagPlacer, type TagPosition } from "@/components/ProductTagPlacer";
 import { SmartRuler, type RulerResult } from "@/components/SmartRuler";
 import { useToast } from "@/components/Toast";
+import { notifyPointsChanged } from "@/components/PointsBadge";
 import { useRecording } from "@/components/RecordingProvider";
 import { ALL_SPECIES, BASS_ONLY_SPECIES, FISHING_METHODS, FRESH_ENVIRONMENTS, SEA_ENVIRONMENTS, POINT_VISIBILITY, VISIBILITY_OPTIONS, KOREA_SPOTS } from "@/lib/taxonomy";
 import { useAppSettings } from "@/lib/appSettingsContext";
@@ -119,6 +120,11 @@ export default function NewCatchPage() {
         addCatchToRecording({ photoUrl: photo || null, speciesName: resolvedSpecies || null, lat: coords?.lat ?? lastPoint?.lat ?? null, lng: coords?.lng ?? lastPoint?.lng ?? null });
       }
       toast("기록 완료", "success");
+      // 피드 공유로 포인트가 적립된 경우 안내 (포인트 제도 OFF·일일 한도 초과 시 0)
+      if (data.pointsEarned > 0) {
+        toast(`${Number(data.pointsEarned).toLocaleString()}P 적립됐습니다!`, "success");
+        notifyPointsChanged();
+      }
       router.push(share && data.postId ? `/post/${data.postId}` : "/trip");
       router.refresh();
     } catch (e: any) {

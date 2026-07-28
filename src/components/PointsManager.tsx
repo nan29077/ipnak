@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coins, CreditCard, Gift, Plus, Minus, Loader2, Lock } from "lucide-react";
+import { Coins, CreditCard, Gift, Plus, Minus, Loader2, Lock, CalendarCheck } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { Sheet } from "@/components/ui";
 import { notifyPointsChanged } from "@/components/PointsBadge";
@@ -28,8 +28,12 @@ function fmtDate(iso: string) {
 }
 
 export function PointsManager({
-  initialBalance, enabled, initialTx,
-}: { initialBalance: number; enabled: boolean; initialTx: PointTx[] }) {
+  initialBalance, enabled, initialTx, remainingRewards, dailyRewardLimit = 5,
+}: {
+  initialBalance: number; enabled: boolean; initialTx: PointTx[];
+  // 오늘 남은 글 작성 적립 횟수 (서버에서 계산해 전달)
+  remainingRewards?: number; dailyRewardLimit?: number;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [balance, setBalance] = useState(initialBalance);
@@ -90,7 +94,15 @@ export function PointsManager({
 
       {/* 적립/사용 안내 */}
       <div className="mt-4 rounded-2xl border border-navy-100/20 bg-[#122030] p-4">
-        <p className="text-[13px] font-bold text-navy-800">포인트 적립·사용 안내</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[13px] font-bold text-navy-800">포인트 적립·사용 안내</p>
+          {enabled && typeof remainingRewards === "number" && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/10 px-2.5 py-1 text-[11px] font-bold text-amber-300 ring-1 ring-amber-400/20">
+              <CalendarCheck size={11} strokeWidth={2} />
+              오늘 남은 적립 {remainingRewards}/{dailyRewardLimit}회
+            </span>
+          )}
+        </div>
         <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-navy-400">
           <li>• 신용카드 등으로 충전 (10,000원 = 10,000P)</li>
           <li>• 각종 피드 글 올리기 — 하루 최대 5회, 회당 100P</li>

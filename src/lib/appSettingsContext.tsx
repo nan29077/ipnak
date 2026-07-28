@@ -8,6 +8,8 @@ export type AppSettings = {
   shopTagEnabled: boolean;
   walkingFeedEnabled: boolean;
   pointsEnabled: boolean;
+  // 낚시단 유료 개설(개설 10,000P · 가입 1,000P) — pointsEnabled 가 ON 일 때만 유효
+  groupPointsRequired: boolean;
 };
 
 const AppSettingsContext = createContext<AppSettings>({
@@ -17,6 +19,7 @@ const AppSettingsContext = createContext<AppSettings>({
   shopTagEnabled: true,
   walkingFeedEnabled: true,
   pointsEnabled: false,
+  groupPointsRequired: false,
 });
 
 export function AppSettingsProvider({

@@ -10,7 +10,31 @@ export const dynamic = "force-dynamic";
 export default async function ChargePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const [enabled, balance] = await Promise.all([pointsEnabled(), getBalance(user.id)]);
+  const enabled = await pointsEnabled();
+
+  // 포인트 제도 비활성화 시: 서비스 준비 중 페이지 (SUPER_ADMIN은 미리보기 허용)
+  if (!enabled && user.role !== "SUPER_ADMIN") {
+    return (
+      <div className="pb-10">
+        <PageHeader title="포인트 충전" back />
+        <div className="flex flex-col items-center justify-center gap-4 px-6 py-24 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-navy-50">
+            <Coins size={40} className="text-navy-300" strokeWidth={1.5} />
+          </div>
+          <div>
+            <p className="text-lg font-bold text-navy-700">서비스 준비 중입니다.</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-navy-400">
+              포인트 서비스를 준비하고 있습니다.
+              <br />
+              조금만 기다려 주세요.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const balance = await getBalance(user.id);
 
   return (
     <div className="pb-10">

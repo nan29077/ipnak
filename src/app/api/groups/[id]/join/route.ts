@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { groupPointsRequired, getBalance, chargeGroupJoin, POINT_RULES } from "@/lib/points";
+import { pointsEnabled, groupPointsRequired, getBalance, chargeGroupJoin, POINT_RULES } from "@/lib/points";
 
 function createId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -22,8 +22,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   );
   if (existing) return NextResponse.json({ error: "이미 가입신청했거나 회원입니다." }, { status: 409 });
 
+  // 포인트 제도 OFF 이면 유료 개설 설정과 무관하게 포인트를 사용하지 않는다.
+  // (가입 신청 자체는 그대로 이용 가능 — 차감 로직만 건너뛴다)
+  const [enabled, requirePoints] = await Promise.all([pointsEnabled(), groupPointsRequired()]);
+  const paidJoin = enabled && requirePoints;
+
   // 낚시단 유료 개설 ON 이면 가입 신청 시 1,000P 차감 (거절 시 환불 / 승인 시 단장 500P 적립)
-  const paidJoin = await groupPointsRequired();
   if (paidJoin) {
     const bal = await getBalance(user.id);
     if (bal < POINT_RULES.GROUP_JOIN_COST)

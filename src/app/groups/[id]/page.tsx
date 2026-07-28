@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Users, MapPin, Fish, Settings, UserPlus, Loader2, CheckCircle, Clock, Crown, Heart, MessageCircle, Image as ImageIcon, Send, X, Lock, Navigation, Plus, Route, BookOpen, Search } from "lucide-react";
+import { ArrowLeft, Users, MapPin, Fish, Settings, UserPlus, Loader2, CheckCircle, Clock, Crown, Heart, MessageCircle, Image as ImageIcon, Send, X, Lock, Navigation, Plus, Route, BookOpen, Search, Coins } from "lucide-react";
+import { useAppSettings } from "@/lib/appSettingsContext";
 import { timeAgo } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { TripDetailSheet, type TripDetail } from "@/components/TripDetailSheet";
@@ -102,6 +103,9 @@ function Avatar({ name, url, size = 9 }: { name: string; url: string | null; siz
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  // 낚시단 유료 개설(포인트 제도 ON + 유료 개설 ON)일 때만 가입 비용 안내
+  const { pointsEnabled, groupPointsRequired } = useAppSettings();
+  const showJoinCost = pointsEnabled && groupPointsRequired;
   const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
@@ -248,11 +252,19 @@ export default function GroupDetailPage() {
               <Clock size={18} strokeWidth={1.5} /> 가입 승인 대기 중입니다. 단장의 승인을 기다려주세요.
             </div>
           ) : (
-            <button onClick={join} disabled={joining}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft disabled:opacity-60">
-              {joining ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
-              {joining ? "신청 중..." : "가입 신청하기"}
-            </button>
+            <div className="space-y-2">
+              {showJoinCost && (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3.5 py-2.5 text-[12px] leading-relaxed text-amber-300">
+                  <Coins size={14} strokeWidth={1.8} className="mt-0.5 shrink-0" />
+                  <span>가입 신청 시 <b className="font-extrabold">1,000P</b>가 차감됩니다. (가입 거절 시 환불)</span>
+                </div>
+              )}
+              <button onClick={join} disabled={joining}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft disabled:opacity-60">
+                {joining ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
+                {joining ? "신청 중..." : "가입 신청하기"}
+              </button>
+            </div>
           )}
         </div>
       )}

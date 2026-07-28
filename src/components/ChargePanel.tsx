@@ -76,7 +76,7 @@ export function ChargePanel({
       </div>
 
       <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-navy-50/10 px-3 py-2 text-[11px] text-navy-400">
-        <CreditCard size={13} /> 신용카드 등 결제(PG) 연동은 준비 중이며, 현재는 테스트 결제로 즉시 충전됩니다.
+        <CreditCard size={13} /> 신용카드 등 결제(PG) 연동 준비 중으로, 현재 포인트 충전 서비스는 이용할 수 없습니다.
       </div>
 
       <button

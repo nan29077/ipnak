@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown, Coins } from "lucide-react";
 import Link from "next/link";
+import { useAppSettings } from "@/lib/appSettingsContext";
 
 const CATEGORIES = ["어종별", "지역별", "장르별", "동행", "기타"];
 const FISH_SPECIES = ["배스", "송어", "잉어", "숭어", "광어", "우럭", "참돔", "감성돔", "기타"];
@@ -10,6 +11,9 @@ const REGIONS = ["서울", "경기", "강원", "충청", "전라", "경상", "�
 
 export default function NewGroupPage() {
   const router = useRouter();
+  // 낚시단 유료 개설(포인트 제도 ON + 유료 개설 ON)일 때만 개설 비용 안내
+  const { pointsEnabled, groupPointsRequired } = useAppSettings();
+  const showCreateCost = pointsEnabled && groupPointsRequired;
   const [form, setForm] = useState({
     name: "", description: "", category: "어종별", region: "", fishSpecies: "", isPublic: true,
   });
@@ -103,8 +107,15 @@ export default function NewGroupPage() {
           </div>
         </Field>
 
+        {showCreateCost && (
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3.5 py-2.5 text-[12px] leading-relaxed text-amber-300">
+            <Coins size={14} strokeWidth={1.8} className="mt-0.5 shrink-0" />
+            <span>개설 시 <b className="font-extrabold">10,000P</b>가 차감됩니다.</span>
+          </div>
+        )}
+
         <button type="submit" disabled={loading}
-          className="mt-4 w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft disabled:opacity-60">
+          className={`${showCreateCost ? "mt-2" : "mt-4"} w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft disabled:opacity-60`}>
           {loading ? "생성 중..." : "낚시단 만들기"}
         </button>
       </form>

@@ -60,14 +60,17 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  const [shopEnabled, shopTagRaw, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabledSetting] = await Promise.all([
+  const [shopEnabled, shopTagRaw, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabledSetting, groupPointsRaw] = await Promise.all([
     getBoolSetting("shop_menu_enabled"),
     getBoolSetting("shop_tag_enabled"),
     getBoolSetting("bass_only_mode"),
     getBoolSetting("reservation_enabled"),
     getBoolSetting("walking_feed_enabled"),
     getBoolSetting("points_enabled"),
+    getBoolSetting("group_points_required"),
   ]);
+  // 포인트 제도가 꺼지면 낚시단 유료 개설도 적용되지 않는다. (포인트 OFF + 유료 개설 ON 조합은 불가)
+  const groupPointsRequired = groupPointsRaw && pointsEnabledSetting;
   // 쇼핑 메뉴가 꺼지면 쇼핑 태그도 반드시 꺼진다. (쇼핑 OFF + 태그 ON 조합은 불가)
   const shopTagEnabled = shopTagRaw && shopEnabled;
   // 관리자 설정값이 없으면 AppShell의 로컬 배스 앵글러 배경을 사용한다.
@@ -86,7 +89,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="antialiased font-sans">
         <ToastProvider>
           <RecordingProvider>
-            <AppSettingsProvider value={{ bassOnlyMode, reservationEnabled, shopMenuEnabled: shopEnabled, shopTagEnabled, walkingFeedEnabled, pointsEnabled: pointsEnabledSetting }}>
+            <AppSettingsProvider value={{ bassOnlyMode, reservationEnabled, shopMenuEnabled: shopEnabled, shopTagEnabled, walkingFeedEnabled, pointsEnabled: pointsEnabledSetting, groupPointsRequired }}>
               <AppShell user={user} shopEnabled={shopEnabled} reservationEnabled={reservationEnabled} pointsEnabled={pointsEnabledSetting} pcMarginBg={pcMarginBg}>{children}</AppShell>
             </AppSettingsProvider>
           </RecordingProvider>
