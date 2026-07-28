@@ -174,15 +174,19 @@ export async function POST(req: Request) {
         await prisma.comment.update({ where: { id: b.id }, data: { hidden: !!b.hidden } });
         await log("COMMENT_HIDE", b.id); break;
       case "REPORT_STATUS":
+        if (!["PENDING", "RESOLVED", "REJECTED"].includes(b.status)) return NextResponse.json({ error: "유효하지 않은 상태" }, { status: 400 });
         await prisma.report.update({ where: { id: b.id }, data: { status: b.status } });
         await log("REPORT_" + b.status, b.id); break;
       case "BOOKING_STATUS":
+        if (!["REQUESTED", "CONFIRMED", "CANCELLED", "DONE"].includes(b.status)) return NextResponse.json({ error: "유효하지 않은 상태" }, { status: 400 });
         await prisma.booking.update({ where: { id: b.id }, data: { status: b.status } });
         await log("BOOKING_" + b.status, b.id); break;
       case "ENTRY_REVIEW":
+        if (!["REVIEW", "APPROVED", "REJECTED"].includes(b.status)) return NextResponse.json({ error: "유효하지 않은 상태" }, { status: 400 });
         await prisma.tournamentEntry.update({ where: { id: b.id }, data: { status: b.status } });
         await log("ENTRY_" + b.status, b.id); break;
       case "USER_ROLE":
+        if (!["SUPER_ADMIN", "ANGLER", "PARTNER"].includes(b.role)) return NextResponse.json({ error: "유효하지 않은 역할" }, { status: 400 });
         await prisma.user.update({ where: { id: b.id }, data: { role: b.role } });
         await log("USER_ROLE_" + b.role, b.id); break;
       case "TOURNAMENT_CREATE":
@@ -245,6 +249,7 @@ export async function POST(req: Request) {
         await log("BANNER_CREATE", undefined, b.title); break;
       case "SETTING_SET": {
         if (String(b.key || "").startsWith("ai_connection_")) return NextResponse.json({ error: "AI 키는 AI API 연결 메뉴에서만 변경할 수 있습니다." }, { status: 400 });
+        if (!b.key || typeof b.value === "undefined") return NextResponse.json({ error: "key와 value가 필요합니다." }, { status: 400 });
         const key = String(b.key);
         let value = String(b.value);
         // 쇼핑 메뉴가 꺼져 있으면 쇼핑 태그는 켤 수 없다.
@@ -286,6 +291,8 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || "처리 실패" }, { status: 500 });
+    // 내부 예외 메시지(스키마/SQL 정보)를 클라이언트에 그대로 노출하지 않는다
+    console.error("[admin/action]", e);
+    return NextResponse.json({ error: "처리 실패" }, { status: 500 });
   }
 }

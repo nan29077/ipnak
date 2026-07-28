@@ -7,7 +7,13 @@ export async function POST(req: Request) {
   if (user.role !== "SUPER_ADMIN") return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   const { entryId, status } = await req.json().catch(() => ({}));
   if (!["APPROVED", "REJECTED", "REVIEW"].includes(status)) return NextResponse.json({ error: "잘못된 상태" }, { status: 400 });
-  await prisma.tournamentEntry.update({ where: { id: entryId }, data: { status } });
-  await prisma.adminLog.create({ data: { actorId: user.id, action: `ENTRY_${status}`, target: entryId } });
-  return NextResponse.json({ ok: true });
+  if (!entryId || typeof entryId !== "string") return NextResponse.json({ error: "entryId가 필요합니다." }, { status: 400 });
+  try {
+    await prisma.tournamentEntry.update({ where: { id: entryId }, data: { status } });
+    await prisma.adminLog.create({ data: { actorId: user.id, action: `ENTRY_${status}`, target: entryId } });
+    return NextResponse.json({ ok: true });
+  } catch {
+    // 존재하지 않는 참가 기록(P2025) 등 → 원시 500 대신 정돈된 에러 응답
+    return NextResponse.json({ error: "참가 기록을 찾을 수 없습니다." }, { status: 404 });
+  }
 }

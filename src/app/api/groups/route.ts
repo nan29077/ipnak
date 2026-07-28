@@ -101,10 +101,11 @@ export async function POST(req: Request) {
       `INSERT INTO "GroupMember" ("id","groupId","userId","role","joinedAt") VALUES (?,?,?,?,?)`,
       memberId, id, user.id, "leader", now
     );
-  } catch (e) {
+  } catch {
     // 생성에 실패했다면 선차감한 개설 비용을 되돌린다
-    if (paidCreate) await refundGroupCreate(user.id, id);
-    throw e;
+    if (paidCreate) await refundGroupCreate(user.id, id).catch(() => {});
+    // throw 대신 정돈된 500 응답 (raw 500 방지)
+    return NextResponse.json({ error: "낚시단 개설 중 오류가 발생했습니다." }, { status: 500 });
   }
 
   const [group] = await prisma.$queryRawUnsafe<any[]>(

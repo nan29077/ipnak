@@ -44,23 +44,31 @@ export async function POST(req: Request) {
   if (!title) return NextResponse.json({ error: "제목을 입력해주세요." }, { status: 400 });
   if (!b.category) return NextResponse.json({ error: "카테고리를 선택해주세요." }, { status: 400 });
 
-  const images: string[] = Array.isArray(b.images) && b.images.length
-    ? b.images.slice(0, 10)
+  // 이미지 배열 요소는 문자열만 허용 (숫자/객체 혼입 시 Prisma 타입 오류 → 500 방지)
+  const rawImages: string[] = Array.isArray(b.images)
+    ? b.images.filter((u: unknown) => typeof u === "string" && u).slice(0, 10)
+    : [];
+  const images: string[] = rawImages.length
+    ? rawImages
     : [`https://picsum.photos/seed/market-${Date.now()}/800/800`];
 
-  const listing = await prisma.marketListing.create({
-    data: {
-      sellerId: user.id,
-      title,
-      category: b.category,
-      condition: b.condition === "NEW" ? "NEW" : "USED",
-      price: Math.max(0, Math.round(Number(b.price) || 0)),
-      region: b.region || null,
-      description: b.description || null,
-      tradeMethod: TRADE_METHODS.includes(b.tradeMethod) ? b.tradeMethod : null,
-      status: "SELLING",
-      images: { create: images.map((url: string, i: number) => ({ url, order: i })) },
-    },
-  });
-  return NextResponse.json({ ok: true, id: listing.id });
+  try {
+    const listing = await prisma.marketListing.create({
+      data: {
+        sellerId: user.id,
+        title,
+        category: String(b.category),
+        condition: b.condition === "NEW" ? "NEW" : "USED",
+        price: Math.max(0, Math.round(Number(b.price) || 0)),
+        region: b.region || null,
+        description: b.description || null,
+        tradeMethod: TRADE_METHODS.includes(b.tradeMethod) ? b.tradeMethod : null,
+        status: "SELLING",
+        images: { create: images.map((url: string, i: number) => ({ url, order: i })) },
+      },
+    });
+    return NextResponse.json({ ok: true, id: listing.id });
+  } catch {
+    return NextResponse.json({ error: "판매글 등록 중 오류가 발생했습니다." }, { status: 500 });
+  }
 }

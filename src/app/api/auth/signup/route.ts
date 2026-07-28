@@ -38,16 +38,24 @@ export async function POST(req: Request) {
     species: fishSpecies ?? interests ?? [],
   });
 
-  const user = await prisma.user.create({
-    data: {
-      email: email.toLowerCase(),
-      passwordHash: await hashPassword(password),
-      nickname,
-      role: "ANGLER",
-      avatarUrl: null,
-      interests: interestsPayload,
-    },
-  });
-  await createSession(user.id);
-  return NextResponse.json({ ok: true });
+  try {
+    const user = await prisma.user.create({
+      data: {
+        email: email.toLowerCase(),
+        passwordHash: await hashPassword(password),
+        nickname,
+        role: "ANGLER",
+        avatarUrl: null,
+        interests: interestsPayload,
+      },
+    });
+    await createSession(user.id);
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    // findUnique 확인과 create 사이 경쟁 조건으로 인한 중복(P2002) → 409로 정돈
+    if (e?.code === "P2002") {
+      return NextResponse.json({ error: "이미 가입된 이메일입니다." }, { status: 409 });
+    }
+    return NextResponse.json({ error: "회원가입 처리 중 오류가 발생했습니다." }, { status: 500 });
+  }
 }
