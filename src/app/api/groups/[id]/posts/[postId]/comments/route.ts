@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import {
-  readGroupPosts, readGroupComments, writeGroupComments,
-  newId, getGroupRole, isApprovedRole, type StoredGroupComment,
+  readGroupPosts, readGroupComments, writeGroupComment,
+  newId, getGroupRole, isApprovedRole,
 } from "@/lib/groupPosts";
 
 // GET /api/groups/[id]/posts/[postId]/comments — 댓글 목록 (승인된 회원만)
@@ -15,10 +15,12 @@ export async function GET(_req: Request, { params }: { params: { id: string; pos
     return NextResponse.json({ error: "낚시단 회원만 이용할 수 있습니다." }, { status: 403 });
   }
 
-  const post = readGroupPosts().find((p) => p.id === params.postId && p.groupId === params.id);
+  const allPosts = await readGroupPosts();
+  const post = allPosts.find((p) => p.id === params.postId && p.groupId === params.id);
   if (!post) return NextResponse.json({ error: "글을 찾을 수 없습니다." }, { status: 404 });
 
-  const comments = readGroupComments()
+  const allComments = await readGroupComments();
+  const comments = allComments
     .filter((c) => c.postId === params.postId)
     .sort((a, b) => (a.createdAt > b.createdAt ? 1 : -1));
 
@@ -35,7 +37,8 @@ export async function POST(req: Request, { params }: { params: { id: string; pos
     return NextResponse.json({ error: "낚시단 회원만 댓글을 작성할 수 있습니다." }, { status: 403 });
   }
 
-  const post = readGroupPosts().find((p) => p.id === params.postId && p.groupId === params.id);
+  const allPosts = await readGroupPosts();
+  const post = allPosts.find((p) => p.id === params.postId && p.groupId === params.id);
   if (!post) return NextResponse.json({ error: "글을 찾을 수 없습니다." }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
@@ -43,20 +46,28 @@ export async function POST(req: Request, { params }: { params: { id: string; pos
   if (!content) return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
   const parentId = typeof body.parentId === "string" ? body.parentId : null;
 
-  const comment: StoredGroupComment = {
-    id: newId(),
+  const id = newId();
+  const createdAt = new Date().toISOString();
+
+  await writeGroupComment({
+    id,
+    postId: params.postId,
+    authorId: user.id,
+    content,
+    createdAt,
+    parentId: parentId || null,
+  });
+
+  const comment = {
+    id,
     postId: params.postId,
     authorId: user.id,
     authorNickname: user.nickname,
     authorAvatar: user.avatarUrl ?? null,
     content,
-    createdAt: new Date().toISOString(),
+    createdAt,
     parentId: parentId || null,
   };
-
-  const comments = readGroupComments();
-  comments.push(comment);
-  writeGroupComments(comments);
 
   return NextResponse.json({ comment });
 }
