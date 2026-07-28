@@ -23,6 +23,8 @@ import autoTagService from "@/services/AutoTagService";
 import syncService from "@/services/SyncService";
 // 실시간 AI 스캐너 (앱 내 카메라 스트림 + /api/measure/scan 폴링)
 import { LiveScanCamera, type LiveScanResult } from "@/components/LiveScanCamera";
+import { FishScanGlow } from "@/components/FishScanGlow";
+import { estimateWeightByWidth } from "@/lib/weightEstimation";
 import { BallLinkSection } from "@/components/BallLinkSection";
 import { useRecording } from "@/components/RecordingProvider";
 import { DiarySheet } from "@/components/DiarySheet";
@@ -73,6 +75,8 @@ export default function MeasurePage() {
   const [proceedWithoutBall, setProceedWithoutBall] = useState(false);
   const [head, setHead] = useState<Point | null>(null);
   const [tail, setTail] = useState<Point | null>(null);
+  // 몸통 최대 너비 양 끝점 (AI 자동 스캔에서만 감지 — 수동 측정 시 null)
+  const [widthPts, setWidthPts] = useState<{ top: Point; bottom: Point } | null>(null);
   const [species, setSpecies] = useState<string>(tournamentSpecies ?? "기타");
   const [result, setResult] = useState<any>(null);
   const [hasImage, setHasImage] = useState(false);
@@ -131,6 +135,7 @@ export default function MeasurePage() {
     setBall(null);
     setHead(null);
     setTail(null);
+    setWidthPts(null);
     setResult(null);
     setIsMockFish(false);
     setProceedWithoutBall(false);
@@ -176,6 +181,7 @@ export default function MeasurePage() {
     setBall(null);
     setHead(null);
     setTail(null);
+    setWidthPts(null);
     setResult(null);
     setIsMockFish(false);
     setPhase("SCANNING");
@@ -224,12 +230,21 @@ export default function MeasurePage() {
       };
       const headP: Point = { x: data.head.x * work.width, y: data.head.y * work.height };
       const tailP: Point = { x: data.tail.x * work.width, y: data.tail.y * work.height };
+      // 몸통 최대 너비 (선택 — 감지 실패 시 null, 무게는 길이 공식으로 폴백)
+      const widthP =
+        data.width?.top && data.width?.bottom
+          ? {
+              top: { x: data.width.top.x * work.width, y: data.width.top.y * work.height },
+              bottom: { x: data.width.bottom.x * work.width, y: data.width.bottom.y * work.height },
+            }
+          : null;
 
       setBall(ballObj);
       setIsMockFish(false);
       setHead(headP);
       setTail(tailP);
-      setPhase("RESULT"); // 길이 계산은 result useEffect가 처리
+      setWidthPts(widthP);
+      setPhase("RESULT"); // 길이·너비 계산은 result useEffect가 처리
     } catch {
       // 어떤 실패든 수동 모드로 폴백
       scanFailToManual();
@@ -277,6 +292,7 @@ export default function MeasurePage() {
     setBall(null);
     setHead(null);
     setTail(null);
+    setWidthPts(null);
     setResult(null);
     setIsMockFish(false);
     workCanvasRef.current = work;
@@ -300,6 +316,7 @@ export default function MeasurePage() {
     setIsMockFish(false);
     setHead(res.head);
     setTail(res.tail);
+    setWidthPts(res.width ?? null);
     setLiveScanOpen(false);
     setPhase("RESULT");
   }
@@ -316,6 +333,7 @@ export default function MeasurePage() {
       setBall(null);
       setHead(null);
       setTail(null);
+      setWidthPts(null);
       setResult(null);
       setIsMockFish(true); // 볼 감지 없이 진행
       setProceedWithoutBall(true);
@@ -379,17 +397,27 @@ export default function MeasurePage() {
       const gradeLabel = proceedWithoutBall ? "계측 실패" : "사진 기록";
       const gradeColor = proceedWithoutBall ? "#ff6b6b" : "#888";
       const gradeCode  = proceedWithoutBall ? "FAIL"    : "N/A";
-      setResult({ lengthCm: null, weightG: null, grade: { label: gradeLabel, color: gradeColor, grade: gradeCode }, legal: null });
+      setResult({ lengthCm: null, widthCm: null, weightG: null, grade: { label: gradeLabel, color: gradeColor, grade: gradeCode }, legal: null });
       return;
     }
     const eng = engines();
     const lengthCm = eng.calc.calculateLength(head, tail, ball.mmPerPixel);
-    const weightG = eng.calc.estimateWeight(lengthCm, species);
+    // 너비를 감지했으면 둘레(G = 너비 × π × 계수) 기반 공식, 아니면 기존 a × L^b 폴백
+    const widthCm = widthPts ? eng.calc.calculateWidth(widthPts.top, widthPts.bottom, ball.mmPerPixel) : null;
+    const byWidth = widthCm != null ? estimateWeightByWidth(lengthCm, widthCm, species) : null;
+    const weightG = byWidth ?? eng.calc.estimateWeight(lengthCm, species);
     const grade = eng.calc.getConfidenceGrade(ball.confidence, ball.method);
     const legal = eng.calc.checkLegalSize(lengthCm, species);
-    setResult({ lengthCm, weightG, grade, legal });
+    setResult({
+      lengthCm,
+      widthCm: byWidth != null ? widthCm : null, // 무게에 반영되지 않은 비정상 너비는 표시하지 않음
+      weightG,
+      weightMethod: byWidth != null ? "girth" : "length",
+      grade,
+      legal,
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ball, head, tail, species, proceedWithoutBall]);
+  }, [ball, head, tail, widthPts, species, proceedWithoutBall]);
 
   /* ── 오버레이 렌더 ── */
   useEffect(() => {
@@ -402,10 +430,11 @@ export default function MeasurePage() {
       measureResult: result,
       headPoint: head,
       tailPoint: tail,
+      widthPoints: result?.widthCm != null ? widthPts : null,
       selectedSpecies: species,
       isMockMode: isMockFish && phase !== "SAVED",
     });
-  }, [hasImage, ball, result, head, tail, species, isMockFish, phase]);
+  }, [hasImage, ball, result, head, tail, widthPts, species, isMockFish, phase]);
 
   /* ── 캔버스 탭: 머리 → 꼬리 지정 / 결과 화면에서는 가까운 점 이동 ── */
   function onCanvasTap(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -457,6 +486,7 @@ export default function MeasurePage() {
 
       await dbService.saveMeasurement({
         lengthCm: result.lengthCm,
+        bodyWidth: result.widthCm ?? null,
         weightG: result.weightG,
         speciesKr: species,
         confidence: ball?.confidence ?? 0,
@@ -492,6 +522,8 @@ export default function MeasurePage() {
             body: JSON.stringify({
               speciesName: species,
               sizeCm: result?.lengthCm ?? null,
+              bodyWidth: result?.widthCm ?? null,
+              estimatedWeight: result?.weightG ?? null,
               photoUrl: imageBase64,
               lat: catchLat,
               lng: catchLng,
@@ -581,6 +613,7 @@ export default function MeasurePage() {
     setBall(null);
     setHead(null);
     setTail(null);
+    setWidthPts(null);
     setResult(null);
     setIsMockFish(false);
     setShowNoBallPopup(false);
@@ -607,6 +640,7 @@ export default function MeasurePage() {
   function cancelManual() {
     setHead(null);
     setTail(null);
+    setWidthPts(null);
     setPhase("CHOICE");
   }
 
@@ -833,7 +867,14 @@ export default function MeasurePage() {
               className="block touch-none select-none"
               style={{ width: "100%", height: "auto", maxHeight: phase === "SAVED" ? "26vh" : "38vh" }}
             />
-            {busy && (
+            {/* 자동 스캔 중: 물고기 윤곽선 반짝임 애니메이션 (측정 완료 시 자동 종료) */}
+            {phase === "SCANNING" && (
+              <>
+                <div className="pointer-events-none absolute inset-0 bg-black/35" />
+                <FishScanGlow active label={loadingMsg || "스캔 중..."} />
+              </>
+            )}
+            {busy && phase !== "SCANNING" && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 backdrop-blur-[2px]">
                 <Loader2 className="animate-spin text-orange-400" size={30} />
                 <p className="px-6 text-center text-[13px] font-medium text-white">
@@ -990,13 +1031,28 @@ export default function MeasurePage() {
                     <p className="mt-1 text-[16px] font-bold text-navy-600">사진으로 기록</p>
                   )}
                 </div>
-                {result.weightG != null && (
-                  <div className="text-right">
-                    <p className="text-[12px] text-navy-400">추정 무게</p>
-                    <p className="text-[18px] font-bold text-navy-800">약 {result.weightG}g</p>
-                  </div>
-                )}
+                <div className="flex items-end gap-4">
+                  {result.widthCm != null && (
+                    <div className="text-right">
+                      <p className="text-[12px] text-navy-400">몸통 너비</p>
+                      <p className="text-[18px] font-bold text-aqua-500">{result.widthCm}cm</p>
+                    </div>
+                  )}
+                  {result.weightG != null && (
+                    <div className="text-right">
+                      <p className="text-[12px] text-navy-400">추정 무게</p>
+                      <p className="text-[18px] font-bold text-navy-800">약 {result.weightG}g</p>
+                    </div>
+                  )}
+                </div>
               </div>
+              {result.weightG != null && (
+                <p className="mt-2 text-[11px] text-navy-400">
+                  {result.weightMethod === "girth"
+                    ? "무게 산출: 전장 + 몸통 둘레 기반 (정밀)"
+                    : "무게 산출: 전장 기반 추정 — 너비 미감지"}
+                </p>
+              )}
               <div className="mt-3 flex items-center justify-between border-t border-navy-100 pt-3">
                 <span
                   className="rounded-full px-2.5 py-1 text-[11px] font-bold"

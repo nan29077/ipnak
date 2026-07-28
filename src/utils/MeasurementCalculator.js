@@ -17,6 +17,16 @@ class MeasurementCalculator {
     return Math.round(corrected / 10 * 10) / 10 // mm → cm, 0.1cm 반올림
   }
 
+  /** 몸통 최대 너비(cm, 소수 1자리) — 전장에 수직인 최대 폭 두 점 사이 거리 */
+  calculateWidth(topPoint, bottomPoint, mmPerPixel) {
+    if (!topPoint || !bottomPoint || !mmPerPixel) return null
+    const dx = bottomPoint.x - topPoint.x
+    const dy = bottomPoint.y - topPoint.y
+    const distancePx = Math.sqrt(dx * dx + dy * dy)
+    if (!(distancePx > 0)) return null
+    return Math.round((distancePx * mmPerPixel) / 10 * 10) / 10 // mm → cm
+  }
+
   /** 길이(cm) → 추정 무게(g) */
   estimateWeight(lengthCm, species = 'default') {
     const formulas = {

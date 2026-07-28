@@ -18,7 +18,7 @@ const SYSTEM_PROMPT =
   "You are a precise fish-measurement vision assistant for a Korean fishing app called 입낚. " +
   "In each photo the user places an '입낚볼' — a deep yellow (golden yellow, similar to #eab308) reference ball or printed logo that is exactly 40mm in diameter — next to a fish. " +
   "The 입낚볼 is a deep yellow circle with the circular brown-bear-and-fishing-line 입낚 logo printed on it. It may appear as a 3D physical ball or as a flat printed paper circle. " +
-  "Locate the yellow reference circle, the tip of the fish's mouth/head, and the tip of the tail fin, and judge the fish's pose. " +
+  "Locate the yellow reference circle, the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
   "Respond with ONLY a single JSON object and no other text.";
 
 const USER_PROMPT = `Analyze the image and return JSON with this exact shape:
@@ -28,11 +28,17 @@ const USER_PROMPT = `Analyze the image and return JSON with this exact shape:
   "fishFound": boolean,        // true only if a whole fish is visible
   "head": { "x": number, "y": number },  // tip of the fish mouth/head, normalized
   "tail": { "x": number, "y": number },  // tip of the tail fin, normalized
+  "widthFound": boolean,       // true only if the fish body outline is clear enough to measure its maximum width
+  "bodyTop": { "x": number, "y": number },     // on the widest cross-section of the BODY, the point on one side of the outline, normalized
+  "bodyBottom": { "x": number, "y": number },  // the opposite point of that same cross-section, normalized
   "pose": "flat" | "held" | "unknown",   // "flat" = fish lying on its side flat on the ground; "held" = held up / standing / angled; "unknown" if unclear
   "confidence": number         // 0.0~1.0 overall confidence that ball + head + tail are correctly located AND the fish lies flat
 }
 Rules:
 - All coordinates MUST be within 0..1. x is relative to image width, y to image height.
+- bodyTop/bodyBottom mark the thickest part of the fish body (usually just behind the head, near the front of the dorsal fin). The segment between them MUST be perpendicular to the head→tail axis and MUST touch the body outline on both sides.
+- Measure the BODY only for bodyTop/bodyBottom: exclude the dorsal fin, anal fin, pectoral fins and tail fin.
+- If the body outline is blurred, cropped, or hidden (e.g. by a hand), set widthFound=false and omit bodyTop/bodyBottom.
 - The reference marker is a DEEP YELLOW circle (golden yellow, NOT orange). It may be a 3D ball or a flat printed paper circle with the circular brown-bear-and-fishing-line 입낚 logo.
 - If the yellow reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
@@ -85,7 +91,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: process.env.OPENAI_MEASURE_MODEL || "gpt-4.1-mini",
         temperature: 0,
-        max_tokens: 300,
+        max_tokens: 400, // 너비(bodyTop/bodyBottom) 필드 추가분 여유
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -134,11 +140,18 @@ export async function POST(req: Request) {
       parsed?.pose === "flat" || parsed?.pose === "held" ? parsed.pose : "unknown";
     const confidence = num(parsed?.confidence);
 
+    // 몸통 최대 너비 (선택) — 감지 실패해도 길이 측정은 그대로 성공 처리
+    const bodyTop = pt(parsed?.bodyTop);
+    const bodyBottom = pt(parsed?.bodyBottom);
+    const width =
+      parsed?.widthFound === true && bodyTop && bodyBottom ? { top: bodyTop, bottom: bodyBottom } : null;
+
     return NextResponse.json({
       ok: true,
       ball: { x: clamp01(bx), y: clamp01(by), r: clamp01(br) },
       head,
       tail,
+      width,
       pose,
       confidence: confidence == null ? 0 : Math.max(0, Math.min(1, confidence)),
     });

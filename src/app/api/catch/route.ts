@@ -47,12 +47,14 @@ export async function POST(req: Request) {
       data: { catchCount: { increment: 1 } },
     }).catch(() => {});
   }
-  // 추정 무게(g) — 클라이언트 값이 없으면 길이·어종으로 서버에서 산출
+  // 추정 무게(g) — 클라이언트 값이 없으면 길이·너비·어종으로 서버에서 산출
   const weightKey = b.species || speciesKeyFromName(b.speciesName);
+  const bodyWidth = b.bodyWidth != null && Number(b.bodyWidth) > 0 ? Number(b.bodyWidth) : null;
   const estimatedWeight = resolveWeightG({
     estimatedWeight: b.estimatedWeight != null ? Number(b.estimatedWeight) : null,
     species: weightKey, speciesName: b.speciesName,
     lengthCm: b.sizeCm ?? b.measuredLengthCm,
+    bodyWidthCm: bodyWidth,
   });
 
   const cr = await prisma.catchRecord.create({
@@ -60,6 +62,7 @@ export async function POST(req: Request) {
       userId: user.id, fishingPointId: point.id, speciesName: b.speciesName || "미상",
       species: weightKey || null, estimatedWeight: estimatedWeight ?? null,
       categoryPath: b.categoryPath || null, sizeCm: b.sizeCm ? Number(b.sizeCm) : null,
+      bodyWidth,
       photoUrl: photo, shareToFeed: b.shareToFeed !== false,
       originalImageUrl: b.originalImageUrl || photo, measuredImageUrl: b.measuredImageUrl || photo,
       calibrationStart: b.calibrationStart ? JSON.stringify(b.calibrationStart) : null,

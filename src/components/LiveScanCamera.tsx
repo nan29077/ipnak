@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Camera, Loader2, RefreshCw, ScanLine, Check, Ruler, RotateCw } from "lucide-react";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
+import { FishScanGlow } from "./FishScanGlow";
 
 type Point = { x: number; y: number };
 type Norm = { x: number; y: number };
@@ -34,6 +35,8 @@ export type LiveScanResult = {
   };
   head: Point;
   tail: Point;
+  /** 몸통 최대 너비 양 끝점 — 감지 실패 시 null */
+  width: { top: Point; bottom: Point } | null;
   confidence: number;
 };
 
@@ -54,8 +57,10 @@ type Detection = {
   ballN: NormBall;
   headN: Norm;
   tailN: Norm;
+  widthN: { top: Norm; bottom: Norm } | null; // 몸통 최대 너비 (선택)
   confidence: number;
   lengthCm: number | null;
+  widthCm: number | null;
 };
 
 export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) {
@@ -322,6 +327,20 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
     };
     dot(hx, hy, "#22c55e");
     dot(tx, ty, "#22d3ee");
+
+    // 몸통 최대 너비 선 (전장에 수직, 하늘색 점선)
+    if (d.widthN) {
+      const wtx = d.widthN.top.x * W, wty = d.widthN.top.y * H;
+      const wbx = d.widthN.bottom.x * W, wby = d.widthN.bottom.y * H;
+      ctx.setLineDash([Math.max(6, base * 0.012), Math.max(4, base * 0.008)]);
+      ctx.strokeStyle = "rgba(125,211,252,0.95)";
+      ctx.lineWidth = Math.max(2.5, base * 0.005);
+      ctx.beginPath();
+      ctx.moveTo(wtx, wty);
+      ctx.lineTo(wbx, wby);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }, []);
 
   useEffect(() => { drawOverlay(det); }, [det, videoHasData, drawOverlay]);
@@ -373,20 +392,34 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         if (ok) {
           const w = frame.width, h = frame.height;
           const diameterPx = 2 * data.ball.r * w;
+          const widthN =
+            data.width?.top && data.width?.bottom
+              ? { top: data.width.top as Norm, bottom: data.width.bottom as Norm }
+              : null;
           let lengthCm: number | null = null;
+          let widthCm: number | null = null;
           if (diameterPx > 0) {
             const mmPerPixel = 40 / diameterPx; // 입낚볼 실지름 40mm
             const hx = data.head.x * w, hy = data.head.y * h;
             const tx = data.tail.x * w, ty = data.tail.y * h;
             const px = Math.hypot(tx - hx, ty - hy);
             lengthCm = Math.round((px * mmPerPixel) / 10 * 10) / 10; // cm, 소수 1자리
+            if (widthN) {
+              const wpx = Math.hypot(
+                (widthN.bottom.x - widthN.top.x) * w,
+                (widthN.bottom.y - widthN.top.y) * h,
+              );
+              widthCm = wpx > 0 ? Math.round((wpx * mmPerPixel) / 10 * 10) / 10 : null;
+            }
           }
           const detection: Detection = {
             ballN: { x: data.ball.x, y: data.ball.y, r: data.ball.r },
             headN: { x: data.head.x, y: data.head.y },
             tailN: { x: data.tail.x, y: data.tail.y },
+            widthN,
             confidence: data.confidence,
             lengthCm,
+            widthCm,
           };
           successRef.current = { work: frame, det: detection };
           setDet(detection);
@@ -434,6 +467,12 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       },
       head: { x: s.det.headN.x * w, y: s.det.headN.y * h },
       tail: { x: s.det.tailN.x * w, y: s.det.tailN.y * h },
+      width: s.det.widthN
+        ? {
+            top: { x: s.det.widthN.top.x * w, y: s.det.widthN.top.y * h },
+            bottom: { x: s.det.widthN.bottom.x * w, y: s.det.widthN.bottom.y * h },
+          }
+        : null,
       confidence: s.det.confidence,
     };
     onConfirm(result);
@@ -574,6 +613,12 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       className={!needsCssRotation ? "fixed inset-0 z-[400] overflow-hidden" : undefined}
       style={needsCssRotation ? { ...outerStyle, backgroundColor: "transparent" } : undefined}
     >
+      {/* ── 스캔 중 물고기 윤곽선 반짝임 (인식 완료 시 자동 종료) ── */}
+      <FishScanGlow
+        active={camStatus === "ready" && videoHasData && !canConfirm}
+        label={null} /* 상단 '입낚 AI 측정 중' 배지·하단 안내와 겹치지 않도록 문구는 생략 */
+        spanRatio={effectiveLandscape ? 0.5 : 0.72}
+      />
 
       {/* ── 상단 바 ── */}
       <div
@@ -625,6 +670,7 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
             <Check size={14} strokeWidth={2.6} />
             물고기 인식됨
             {det?.lengthCm != null && <span className="ml-0.5">· 약 {det.lengthCm}cm</span>}
+            {det?.widthCm != null && <span className="ml-0.5">· 폭 {det.widthCm}cm</span>}
           </span>
         </div>
       )}

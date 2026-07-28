@@ -337,6 +337,7 @@ model CatchRecord {
   estimatedWeight     Int? // 길이-무게 상관관계로 산출한 추정 무게(g)
   categoryPath        String?
   sizeCm              Float?
+  bodyWidth           Float? // AI가 감지한 몸통 최대 너비(cm) — 둘레 기반 무게 산출에 사용
   photoUrl            String?
   shareToFeed         Boolean       @default(true)
   // 스마트 룰러 측정 데이터

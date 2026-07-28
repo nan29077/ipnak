@@ -40,6 +40,7 @@ class DatabaseService {
       id: Date.now(),
       measuredAt: new Date().toISOString(),
       lengthCm: data.lengthCm,
+      bodyWidth: data.bodyWidth ?? null, // 몸통 최대 너비(cm) — AI 자동 스캔 시에만
       weightG: data.weightG ?? null,
       speciesKr: data.speciesKr || '기타',
       confidence: data.confidence ?? null,

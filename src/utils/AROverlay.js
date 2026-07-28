@@ -10,13 +10,14 @@ class AROverlay {
       head: '#ef4444',
       tail: '#3b82f6',
       line: '#fbbf24',
+      width: '#22d3ee',
       text: '#ffffff',
       bg: 'rgba(0,0,0,0.72)',
       warning: '#ef4444',
     }
   }
 
-  draw(canvas, { imageElement, ballResult, measureResult, headPoint, tailPoint, selectedSpecies, isMockMode }) {
+  draw(canvas, { imageElement, ballResult, measureResult, headPoint, tailPoint, widthPoints, selectedSpecies, isMockMode }) {
     if (!canvas || !imageElement) return
     const ctx = canvas.getContext('2d')
     const w = imageElement.naturalWidth || imageElement.width || 640
@@ -29,6 +30,7 @@ class AROverlay {
 
     if (ballResult && ballResult.found) this._drawBall(ctx, ballResult, canvas)
     if (headPoint || tailPoint) this._drawMeasureLine(ctx, headPoint, tailPoint, measureResult && measureResult.lengthCm, canvas)
+    if (widthPoints) this._drawWidthLine(ctx, widthPoints, measureResult && measureResult.widthCm, canvas)
     if (measureResult) this._drawResultCard(ctx, measureResult, selectedSpecies, canvas)
     if (isMockMode) this._drawMockBanner(ctx, canvas)
   }
@@ -101,10 +103,52 @@ class AROverlay {
     }
   }
 
+  /** 몸통 최대 너비 선 (전장에 수직) */
+  _drawWidthLine(ctx, widthPoints, widthCm, canvas) {
+    const { top, bottom } = widthPoints
+    if (!top || !bottom) return
+
+    ctx.beginPath()
+    ctx.moveTo(top.x, top.y)
+    ctx.lineTo(bottom.x, bottom.y)
+    ctx.strokeStyle = this.COLORS.width
+    ctx.lineWidth = Math.max(2, canvas.width * 0.0035)
+    ctx.setLineDash([6, 4])
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // 양 끝 짧은 마감선
+    const r = Math.max(5, canvas.width * 0.008)
+    const ux = bottom.x - top.x
+    const uy = bottom.y - top.y
+    const len = Math.hypot(ux, uy) || 1
+    const px = -uy / len // 수직 단위벡터
+    const py = ux / len
+    ctx.beginPath()
+    ctx.moveTo(top.x - px * r, top.y - py * r); ctx.lineTo(top.x + px * r, top.y + py * r)
+    ctx.moveTo(bottom.x - px * r, bottom.y - py * r); ctx.lineTo(bottom.x + px * r, bottom.y + py * r)
+    ctx.stroke()
+
+    if (widthCm) {
+      const mx = (top.x + bottom.x) / 2
+      const my = (top.y + bottom.y) / 2
+      const label = `폭 ${widthCm} cm`
+      const fs = Math.max(12, canvas.width * 0.021)
+      ctx.font = `bold ${fs}px sans-serif`
+      ctx.textAlign = 'left'
+      const tw = ctx.measureText(label).width
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'
+      ctx.fillRect(mx + r * 1.4, my - fs * 0.85, tw + 10, fs + 8)
+      ctx.fillStyle = this.COLORS.width
+      ctx.fillText(label, mx + r * 1.4 + 5, my + fs * 0.25)
+    }
+  }
+
   _drawResultCard(ctx, result, species, canvas) {
     const scale = Math.max(1, canvas.width / 640)
     const cardW = 170 * scale
-    const cardH = 96 * scale
+    const hasWidth = result.widthCm != null
+    const cardH = (hasWidth ? 114 : 96) * scale
     const pad = 12 * scale
     const x = canvas.width - cardW - pad
     const y = pad
@@ -120,12 +164,19 @@ class AROverlay {
     ctx.font = `bold ${22 * scale}px sans-serif`
     ctx.fillStyle = this.COLORS.line
     ctx.fillText(`${result.lengthCm} cm`, x + 10 * scale, y + 48 * scale)
+    let lineY = 68
+    if (hasWidth) {
+      ctx.font = `${13 * scale}px sans-serif`
+      ctx.fillStyle = this.COLORS.width
+      ctx.fillText(`폭 ${result.widthCm} cm`, x + 10 * scale, y + lineY * scale)
+      lineY += 18
+    }
     ctx.font = `${13 * scale}px sans-serif`
     ctx.fillStyle = '#ccc'
-    ctx.fillText(`약 ${result.weightG}g`, x + 10 * scale, y + 68 * scale)
+    ctx.fillText(`약 ${result.weightG}g`, x + 10 * scale, y + lineY * scale)
     if (result.grade) {
       ctx.fillStyle = result.grade.color
-      ctx.fillText(result.grade.label, x + 10 * scale, y + 86 * scale)
+      ctx.fillText(result.grade.label, x + 10 * scale, y + (lineY + 18) * scale)
     }
   }
 
