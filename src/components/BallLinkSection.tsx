@@ -292,7 +292,7 @@ export function BallLinkSection() {
             desc="배스와 입낚볼을 가능한 한 같은 평면에 놓고 위에서 촬영하면 가장 안정적으로 길이를 계산할 수 있어요."
           />
           <UsageExample
-            src="/ipnak-keyring-usage-example.svg"
+            src="/ipnak-keyring-usage-example.png"
             title="입낚키링을 물고기 주변 어디든 놓고 촬영"
             desc="입낚키링은 고리 없이 디스크만 물고기 옆 바닥에 놓으면 돼요. 프레임 안 어느 위치에 있어도 인식할 수 있어요."
           />
