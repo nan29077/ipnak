@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "ipnak-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3010
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev"],
+      "port": 3010,
+      "autoPort": true
     }
   ]
 }
