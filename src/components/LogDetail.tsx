@@ -114,28 +114,49 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
   const toast = useToast();
   const [comments, setComments] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [sending, setSending] = useState(false);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<{ parentId: string; nickname: string } | null>(null);
 
-  async function load() {
-    const res = await fetch(`/api/posts/${postId}/comments`);
-    const data = await res.json();
-    setComments(data.comments || []);
-    setLoaded(true);
-  }
-  if (!loaded) load();
+  // 렌더 단계 fetch 호출(무한 재요청 위험) 대신 useEffect 로 1회만 로드
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/posts/${postId}/comments`);
+        if (!res.ok) throw new Error("load failed");
+        const data = await res.json();
+        if (!cancelled) setComments(data.comments || []);
+      } catch {
+        if (!cancelled) setLoadError(true);
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [postId]);
 
   async function post(body: string, parentId?: string) {
     if (!currentUserId) { onRequireLogin?.(); return false; }
     if (!body.trim()) return false;
-    const res = await fetch(`/api/posts/${postId}/comments`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}) }),
-    });
-    const data = await res.json();
-    if (!res.ok) { toast(data.error || "오류", "error"); return false; }
-    setComments((c) => [...c, data.comment]);
-    return true;
+    if (sending) return false; // 중복 제출 방지
+    setSending(true);
+    try {
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(data.error || "오류", "error"); return false; }
+      setComments((c) => [...c, data.comment]);
+      return true;
+    } catch {
+      toast("댓글 등록에 실패했습니다", "error");
+      return false;
+    } finally {
+      setSending(false);
+    }
   }
   async function send() { if (await post(text)) setText(""); }
   function startReply(comment: any) { setReplyTo({ parentId: comment.parentId || comment.id, nickname: comment.author.nickname }); }
@@ -149,7 +170,8 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
       <h2 className="mb-3 text-[14px] font-bold text-navy-900">댓글 {comments.length || count}</h2>
       <div className="space-y-3">
         {!loaded && <p className="py-4 text-center text-sm text-navy-300">불러오는 중...</p>}
-        {loaded && top.length === 0 && <p className="py-4 text-center text-sm text-navy-300">첫 댓글을 남겨보세요</p>}
+        {loaded && loadError && <p className="py-4 text-center text-sm text-navy-300">댓글을 불러오지 못했습니다</p>}
+        {loaded && !loadError && top.length === 0 && <p className="py-4 text-center text-sm text-navy-300">첫 댓글을 남겨보세요</p>}
         {top.map((c) => (
           <div key={c.id}>
             <LogCommentRow c={c} onReply={() => startReply(c)} />
@@ -174,7 +196,7 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
         <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
           className="flex-1 rounded-full border border-navy-100 bg-[#162538] px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500" />
-        <button onClick={send} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press hover:bg-orange-600"><Send size={16} /></button>
+        <button onClick={send} disabled={sending} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press hover:bg-orange-600 disabled:opacity-60"><Send size={16} /></button>
       </div>
     </section>
   );

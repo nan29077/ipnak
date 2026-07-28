@@ -77,6 +77,7 @@ function ReviewsContent() {
         setEntries(d.entries ?? []);
         setTournaments(d.tournaments ?? []);
       })
+      .catch(() => { /* 네트워크/파싱 오류 시 unhandled rejection 방지 */ })
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
