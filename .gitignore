@@ -5,6 +5,8 @@ node_modules
 prisma/dev.db
 prisma/dev.db-journal
 *.log
+*.tsbuildinfo
 .DS_Store
+Thumbs.db
 next-env.d.ts
 .group-data
