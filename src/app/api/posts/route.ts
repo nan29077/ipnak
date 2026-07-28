@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   const b = await req.json().catch(() => ({}));
   // 쇼핑 태그 OFF 시: 403 대신 태그만 무효화해 글 작성 자체는 정상 처리
   if (!shopTagEnabled) { b.productTags = []; b.productIds = []; }
-  const kind = b.kind === "LOG" ? "LOG" : b.kind === "WALKING" ? "WALKING" : "FEED";
+  const kind = b.kind === "LOG" ? "LOG" : b.kind === "WALKING" ? "WALKING" : b.kind === "GENERAL" ? "GENERAL" : "FEED";
 
   // LOG·WALKING은 사진 없이도 가능. 피싱 피드(FEED)는 사진이 없으면 더미 1장 보강.
   const rawImages: string[] = Array.isArray(b.images) ? b.images.filter(Boolean) : [];
