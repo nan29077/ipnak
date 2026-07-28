@@ -3,13 +3,17 @@ import { useMemo, useState } from "react";
 import { Fish, MapPin, Ruler, PenLine, Trophy, Scale, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Card, Badge, Chip, EmptyState } from "@/components/ui";
 import { kstFormat } from "@/lib/utils";
-import { estimateWeightKg, formatWeight, speciesAvgCm, vsAveragePct } from "@/lib/fishData";
+import { speciesAvgCm, vsAveragePct } from "@/lib/fishData";
+import { formatWeight, resolveWeightG } from "@/lib/weightEstimation";
+import { WeightInfoModal } from "@/components/WeightInfoModal";
 import { useAppSettings } from "@/lib/appSettingsContext";
 import { isBassOnlySpecies } from "@/lib/taxonomy";
 
 export type CatchRecordItem = {
   id: string;
   speciesName: string;
+  species: string | null;
+  estimatedWeight: number | null;
   sizeCm: number | null;
   photoUrl: string | null;
   measuredLengthCm: number | null;
@@ -20,6 +24,10 @@ export type CatchRecordItem = {
 
 // 기록에 표시할 최종 길이 (직접입력 우선, 없으면 스마트 자 측정값)
 const effLen = (r: CatchRecordItem) => r.sizeCm ?? r.measuredLengthCm ?? null;
+
+// 기록에 표시할 추정 무게(g) — 저장값 우선, 없으면 길이·어종으로 계산
+const effWeightG = (r: CatchRecordItem) =>
+  resolveWeightG({ estimatedWeight: r.estimatedWeight, species: r.species, speciesName: r.speciesName, lengthCm: effLen(r) });
 
 export function CatchRecordList({ records }: { records: CatchRecordItem[] }) {
   const { bassOnlyMode } = useAppSettings();
@@ -91,11 +99,19 @@ export function CatchRecordList({ records }: { records: CatchRecordItem[] }) {
         <div>
           <p className="text-[11px] text-navy-300">나의 최고 기록</p>
           {overallBest ? (
-            <p className="mt-0.5">
-              <span className="text-[26px] font-extrabold text-aqua-500">{(effLen(overallBest) ?? 0).toFixed(1)}</span>
-              <span className="ml-1 text-[14px] font-semibold text-navy-300">cm</span>
-              <span className="ml-2 text-[13px] font-semibold text-navy-500">{overallBest.speciesName}</span>
-            </p>
+            <>
+              <p className="mt-0.5">
+                <span className="text-[26px] font-extrabold text-aqua-500">{(effLen(overallBest) ?? 0).toFixed(1)}</span>
+                <span className="ml-1 text-[14px] font-semibold text-navy-300">cm</span>
+                <span className="ml-2 text-[13px] font-semibold text-navy-500">{overallBest.speciesName}</span>
+              </p>
+              {effWeightG(overallBest) != null && (
+                <p className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-navy-400">
+                  <Scale size={12} />추정 {formatWeight(effWeightG(overallBest)!)}
+                  <WeightInfoModal size={12} />
+                </p>
+              )}
+            </>
           ) : (
             <p className="mt-1 text-sm text-navy-300">-</p>
           )}
@@ -120,7 +136,7 @@ export function CatchRecordList({ records }: { records: CatchRecordItem[] }) {
       <div className="space-y-2.5">
         {shown.map((r) => {
           const len = effLen(r);
-          const weight = estimateWeightKg(r.speciesName, len);
+          const weight = effWeightG(r);
           const avg = speciesAvgCm(r.speciesName);
           const pct = vsAveragePct(r.speciesName, len);
           const isSmart = r.measuredLengthCm != null;
@@ -151,6 +167,7 @@ export function CatchRecordList({ records }: { records: CatchRecordItem[] }) {
                     {weight != null && (
                       <span className="ml-2 inline-flex items-center gap-1 text-[12px] font-semibold text-navy-400">
                         <Scale size={12} />추정 {formatWeight(weight)}
+                        <WeightInfoModal size={12} />
                       </span>
                     )}
                   </p>

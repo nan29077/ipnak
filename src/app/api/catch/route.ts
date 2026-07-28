@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { awardPostReward } from "@/lib/points";
 import { getBoolSetting } from "@/lib/settings";
+import { resolveWeightG, speciesKeyFromName } from "@/lib/weightEstimation";
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0.5));
 
@@ -46,9 +47,18 @@ export async function POST(req: Request) {
       data: { catchCount: { increment: 1 } },
     }).catch(() => {});
   }
+  // 추정 무게(g) — 클라이언트 값이 없으면 길이·어종으로 서버에서 산출
+  const weightKey = b.species || speciesKeyFromName(b.speciesName);
+  const estimatedWeight = resolveWeightG({
+    estimatedWeight: b.estimatedWeight != null ? Number(b.estimatedWeight) : null,
+    species: weightKey, speciesName: b.speciesName,
+    lengthCm: b.sizeCm ?? b.measuredLengthCm,
+  });
+
   const cr = await prisma.catchRecord.create({
     data: {
       userId: user.id, fishingPointId: point.id, speciesName: b.speciesName || "미상",
+      species: weightKey || null, estimatedWeight: estimatedWeight ?? null,
       categoryPath: b.categoryPath || null, sizeCm: b.sizeCm ? Number(b.sizeCm) : null,
       photoUrl: photo, shareToFeed: b.shareToFeed !== false,
       originalImageUrl: b.originalImageUrl || photo, measuredImageUrl: b.measuredImageUrl || photo,

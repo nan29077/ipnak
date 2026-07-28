@@ -27,6 +27,8 @@ export default async function CatchListPage() {
   const data: CatchRecordItem[] = records.map((r) => ({
     id: r.id,
     speciesName: r.speciesName,
+    species: r.species,
+    estimatedWeight: r.estimatedWeight,
     sizeCm: r.sizeCm,
     photoUrl: r.photoUrl,
     measuredLengthCm: r.measuredLengthCm,

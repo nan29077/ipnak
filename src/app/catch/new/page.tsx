@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ruler, MapPin, Loader2, Trophy, ChevronRight, Camera, Images } from "lucide-react";
+import { Ruler, MapPin, Loader2, Trophy, ChevronRight, Camera, Images, Info, Scale } from "lucide-react";
 import { PageHeader, Chip, Sheet, Button, Card, SectionTitle, Input, Select, Textarea, Badge } from "@/components/ui";
 import { PhotoPicker, type PickedPhoto } from "@/components/PhotoPicker";
 import { CameraCapture } from "@/components/CameraCapture";
@@ -13,7 +13,8 @@ import { notifyPointsChanged } from "@/components/PointsBadge";
 import { useRecording } from "@/components/RecordingProvider";
 import { ALL_SPECIES, BASS_ONLY_SPECIES, FISHING_METHODS, FRESH_ENVIRONMENTS, SEA_ENVIRONMENTS, POINT_VISIBILITY, VISIBILITY_OPTIONS, KOREA_SPOTS } from "@/lib/taxonomy";
 import { useAppSettings } from "@/lib/appSettingsContext";
-import { estimateWeightKg, formatWeight } from "@/lib/fishData";
+import { WeightInfoModal } from "@/components/WeightInfoModal";
+import { SPECIES_WEIGHT_OPTIONS, formatWeight, resolveWeightG, speciesKeyFromName } from "@/lib/weightEstimation";
 
 export default function NewCatchPage() {
   const router = useRouter();
@@ -30,6 +31,8 @@ export default function NewCatchPage() {
   const [ruler, setRuler] = useState<RulerResult | null>(null);
   const [species, setSpecies] = useState("");
   const [customSpecies, setCustomSpecies] = useState("");
+  // 무게 산출용 어종 키 — 어종 선택 시 자동 매칭되며, 드롭다운으로 직접 바꿀 수 있다
+  const [weightSpecies, setWeightSpecies] = useState("");
   const [memo, setMemo] = useState("");
   const [fishingType, setFishingType] = useState("");
   const [customFishingType, setCustomFishingType] = useState("");
@@ -68,11 +71,20 @@ export default function NewCatchPage() {
     }
   }, []);
 
+  // 어종을 고르면 무게 산출용 어종도 자동 매칭 (대응 어종이 없으면 미선택 상태)
+  useEffect(() => {
+    setWeightSpecies(speciesKeyFromName(species === "기타" ? customSpecies : species) ?? "");
+  }, [species, customSpecies]);
+
   const eligible = species && Number(size) > 0; // 대회 참가 가능 여부(간단 기준)
 
-  // 표시용 파생값: 현재 길이(직접입력 우선) → 어종별 길이-무게식으로 추정 무게 계산
+  // 표시용 파생값: 현재 길이(직접입력 우선) → 길이-무게식(W = a × L^b)으로 추정 무게 계산
   const currentLenCm = size ? Number(size) : ruler?.measuredLengthCm ?? null;
-  const estWeightKg = estimateWeightKg(species, currentLenCm);
+  const estWeightG = resolveWeightG({
+    species: weightSpecies || null,
+    speciesName: species === "기타" ? customSpecies : species,
+    lengthCm: currentLenCm,
+  });
 
   async function submit(shareOverride?: boolean) {
     if (!species) { toast("어종을 선택하세요", "error"); return; }
@@ -87,12 +99,17 @@ export default function NewCatchPage() {
       const lat = coords?.lat ?? spot?.lat;
       const lng = coords?.lng ?? spot?.lng;
       const photo = photos[0]?.submitUrl;
+      // 저장 시점의 길이 기준으로 추정 무게(g)를 확정해 함께 보낸다
+      const lenForWeight = size ? Number(size) : ruler?.measuredLengthCm ?? null;
+      const weightKey = weightSpecies || speciesKeyFromName(resolvedSpecies);
+      const estimatedWeight = resolveWeightG({ species: weightKey, speciesName: resolvedSpecies, lengthCm: lenForWeight });
       // 쇼핑 태그 OFF 시 상품 태그 관련 값은 저장 payload에서 제외
       const taggedProductIds = shopTagEnabled ? productIds : [];
       const res = await fetch("/api/catch", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          speciesName: resolvedSpecies, fishingType: resolvedFishingType, categoryPath: `${waterType} > ${env || resolvedFishingType}`,
+          speciesName: resolvedSpecies, species: weightKey || undefined, estimatedWeight: estimatedWeight ?? undefined,
+          fishingType: resolvedFishingType, categoryPath: `${waterType} > ${env || resolvedFishingType}`,
           caption: memo || undefined,
           sizeCm: size ? Number(size) : ruler?.measuredLengthCm, region: resolvedRegion, lat, lng,
           photoUrl: photo, pointVisibility, visibility, shareToFeed: share,
@@ -224,8 +241,11 @@ export default function NewCatchPage() {
                 <span className="ml-1 text-[16px] font-semibold text-navy-300">cm</span>
               </p>
               <p className="mt-0.5 text-[12px] text-navy-300">신뢰도 {ruler ? ruler.confidence : "--"}%</p>
-              {estWeightKg != null && (
-                <p className="mt-0.5 text-[12px] font-semibold text-navy-400">추정 무게 {formatWeight(estWeightKg)}</p>
+              {estWeightG != null && (
+                <p className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-navy-400">
+                  추정 무게 {formatWeight(estWeightG)}
+                  <WeightInfoModal size={12} />
+                </p>
               )}
               {ruler?.referenceLabel && (
                 <p className="mt-0.5 text-[11px] text-navy-300">기준물체: {ruler.referenceLabel} {ruler.calibrationLengthCm}cm</p>
@@ -262,6 +282,30 @@ export default function NewCatchPage() {
             </div>
             <Input type="number" value={size} onChange={(e) => setSize(e.target.value)} placeholder={ruler ? String(ruler.measuredLengthCm) : "예: 42.5"} />
           </div>
+        </div>
+
+        {/* 추정 무게 — 길이·어종으로 자동 산출 */}
+        <div>
+          <SectionTitle className="mb-2 flex items-center gap-1 uppercase tracking-[.05em] text-navy-300">
+            추정 무게 <WeightInfoModal size={13} />
+          </SectionTitle>
+          <div className="grid grid-cols-2 gap-3">
+            <Select value={weightSpecies} onChange={(e) => setWeightSpecies(e.target.value)} aria-label="무게 산출 어종">
+              <option value="">무게 산출 어종 선택</option>
+              {SPECIES_WEIGHT_OPTIONS.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+            </Select>
+            <div className="flex items-center gap-1.5 rounded-xl border border-navy-100 bg-navy-50/40 px-3.5 py-2.5">
+              <Scale size={15} className="shrink-0 text-aqua-500" />
+              <span className="text-[15px] font-bold text-navy-700">{estWeightG != null ? formatWeight(estWeightG) : "--"}</span>
+              <span className="text-[11px] text-navy-300">자동 계산</span>
+            </div>
+          </div>
+          {!weightSpecies && (
+            <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-navy-300">
+              <Info size={13} className="mt-0.5 shrink-0" />
+              어종을 선택하면 더 정확한 무게를 예측할 수 있습니다
+            </p>
+          )}
         </div>
 
         {/* 메모 */}

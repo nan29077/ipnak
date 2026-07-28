@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { getBoolSetting, getSetting } from "@/lib/settings";
 import { getBalance, pointsEnabled } from "@/lib/points";
 import { MePageTabs } from "@/components/MePageTabs";
+import { WeightInfoModal } from "@/components/WeightInfoModal";
+import { formatWeight } from "@/lib/weightEstimation";
 import { PageHeader, Card, Badge } from "@/components/ui";
 import { ROLE_LABELS } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -155,6 +157,13 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
           <p className="text-[22px] font-extrabold text-aqua-500">
             {stats.maxSize ?? "-"}<span className="ml-0.5 text-[13px] font-semibold text-navy-300">cm</span>
           </p>
+          {stats.maxWeight != null && (
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-navy-400">
+              추정 {formatWeight(stats.maxWeight)}
+              {stats.avgWeight != null && <span className="font-normal text-navy-300">· 평균 {formatWeight(stats.avgWeight)}</span>}
+              <WeightInfoModal size={11} />
+            </p>
+          )}
           <p className="text-[11px] text-navy-300">{stats.topSpecies ?? "기록 없음"}</p>
         </Card>
         <Card className="p-3.5">

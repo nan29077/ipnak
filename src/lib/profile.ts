@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { safeJson } from "./utils";
+import { resolveWeightG } from "./weightEstimation";
 
 export async function getProfileData(userId: string, viewerId?: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -18,7 +19,7 @@ export async function getProfileData(userId: string, viewerId?: string) {
       where: { userId }, orderBy: { createdAt: "desc" }, include: { tournament: true }, take: 30,
     }),
     viewerId ? prisma.follow.findUnique({ where: { followerId_followingId: { followerId: viewerId, followingId: userId } } }) : null,
-    prisma.catchRecord.findMany({ where: { userId }, select: { speciesName: true, sizeCm: true, measuredLengthCm: true }, orderBy: { createdAt: "desc" }, take: 200 }),
+    prisma.catchRecord.findMany({ where: { userId }, select: { speciesName: true, species: true, estimatedWeight: true, sizeCm: true, measuredLengthCm: true }, orderBy: { createdAt: "desc" }, take: 200 }),
   ]);
 
   // 대표 어종: 게시글 + 캐치 레코드 어종 합산
@@ -35,12 +36,22 @@ export async function getProfileData(userId: string, viewerId?: string) {
     ...catchRecords.map((c) => c.measuredLengthCm ?? c.sizeCm ?? 0),
   );
 
+  // 추정 무게 통계(g): 캐치 레코드 기준 최대·평균
+  const weights = catchRecords
+    .map((c) => resolveWeightG({
+      estimatedWeight: c.estimatedWeight, species: c.species,
+      speciesName: c.speciesName, lengthCm: c.sizeCm ?? c.measuredLengthCm,
+    }))
+    .filter((w): w is number => w != null && w > 0);
+  const maxWeight = weights.length ? Math.max(...weights) : null;
+  const avgWeight = weights.length ? Math.round(weights.reduce((a, b) => a + b, 0) / weights.length) : null;
+
   return {
     user: {
       id: user.id, nickname: user.nickname, avatarUrl: user.avatarUrl, bio: user.bio,
       region: user.region, role: user.role, interests: safeJson<string[]>(user.interests, []),
     },
-    stats: { postCount, followerCount, followingCount, topSpecies, maxSize: maxSize || null, pointCount: points.length, catchCount: catchRecords.length },
+    stats: { postCount, followerCount, followingCount, topSpecies, maxSize: maxSize || null, maxWeight, avgWeight, pointCount: points.length, catchCount: catchRecords.length },
     posts: posts.map((p) => ({ id: p.id, image: p.images[0]?.url ?? null, postType: p.postType, sizeCm: p.sizeCm, speciesName: p.speciesName, body: p.body ?? null })),
     points: points.map((p) => ({ id: p.posts[0]?.id ?? p.id, image: p.photoUrl, postType: "FISHING_POINT", sizeCm: p.sizeCm, speciesName: p.speciesName })),
     entries: entries.map((e) => ({ id: e.id, tournamentId: e.tournamentId, title: e.tournament.title, speciesName: e.speciesName, sizeCm: e.sizeCm, status: e.status })),

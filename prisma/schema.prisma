@@ -333,6 +333,8 @@ model CatchRecord {
   fishingPointId      String?       @unique
   fishingPoint        FishingPoint? @relation(fields: [fishingPointId], references: [id])
   speciesName         String
+  species             String? // 무게 산출용 어종 키 (SPECIES_WEIGHT_PARAMS)
+  estimatedWeight     Int? // 길이-무게 상관관계로 산출한 추정 무게(g)
   categoryPath        String?
   sizeCm              Float?
   photoUrl            String?
