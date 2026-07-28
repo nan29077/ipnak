@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { distanceMeters } from "@/lib/map";
 import { getAiCredentials } from "@/lib/aiCredentials";
@@ -98,6 +99,13 @@ function topSigunguByPosts(pool: PoolItem[], posts: AnyPost[], n: number): PoolI
 }
 
 export async function POST(req: Request) {
+  // 외부 AI·검색 API 비용이 발생하므로 로그인한 회원만 호출할 수 있다.
+  try {
+    await requireUser();
+  } catch {
+    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  }
+
   // IP당 분당 3회 제한 — 네이버/OpenAI API 비용 절감
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (!rateLimit(`recommend:${ip}`, 3, 60_000)) {

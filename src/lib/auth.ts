@@ -14,10 +14,25 @@ export async function verifyPassword(pw: string, hash: string) {
   return bcrypt.compare(pw, hash);
 }
 
+/**
+ * 만료된 세션 레코드 정리.
+ * 로그인마다 Session 행이 쌓이기만 하고 지워지는 곳이 없어 무한히 누적된다.
+ * 요청 응답을 늦추지 않도록 await 하지 않고 백그라운드로 돌리며,
+ * 실패해도 로그인 자체에는 영향이 없도록 예외를 삼킨다.
+ * 만료 세션은 getCurrentUser에서 이미 거부되므로 삭제는 순수한 청소 작업이다.
+ */
+export function purgeExpiredSessions() {
+  prisma.session
+    .deleteMany({ where: { expiresAt: { lt: new Date() } } })
+    .catch(() => {});
+}
+
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + MAX_AGE * 1000);
   await prisma.session.create({ data: { token, userId, expiresAt } });
+  // 세션이 새로 생기는 시점(로그인·회원가입)에 만료분을 함께 치운다.
+  purgeExpiredSessions();
   cookies().set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

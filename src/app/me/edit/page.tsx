@@ -5,6 +5,7 @@ import { Camera, User, FileText, MapPin, Check, Loader2, X } from "lucide-react"
 import { PageHeader, Button } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { PasswordChangeSection } from "@/components/PasswordChangeSection";
 
 export default function EditProfilePage() {
   const router = useRouter();
@@ -19,6 +20,8 @@ export default function EditProfilePage() {
   const [userId, setUserId] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  // 소셜 전용 계정은 비밀번호 변경 폼 대신 안내를 보여준다
+  const [hasPassword, setHasPassword] = useState(true);
 
   // 현재 프로필 불러오기 — 비로그인이면 저장할 수 없으므로 로그인 페이지로 보낸다
   // (다른 /me 하위 페이지는 서버 컴포넌트라 redirect로 처리하지만 이 페이지는 클라이언트 컴포넌트다)
@@ -33,6 +36,7 @@ export default function EditProfilePage() {
           setRegion(d.user.region ?? "");
           setAvatarUrl(d.user.avatarUrl ?? null);
           setAvatarPreview(d.user.avatarUrl ?? null);
+          setHasPassword(d.user.hasPassword !== false);
           setLoading(false);
         } else {
           router.replace("/login");
@@ -185,6 +189,8 @@ export default function EditProfilePage() {
         >
           {saving ? "저장 중..." : "저장하기"}
         </Button>
+
+        <PasswordChangeSection hasPassword={hasPassword} />
       </div>
     </div>
   );

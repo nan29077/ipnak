@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { getAiCredentials } from "@/lib/aiCredentials";
+import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/rateLimit";
 
 /**
@@ -60,9 +61,17 @@ function pt(o: any): { x: number; y: number } | null {
 }
 
 export async function POST(req: Request) {
-  // IP당 분당 5회 제한 — OpenAI 비용 절감
+  // 외부 AI(OpenAI Vision) 비용이 발생하므로 로그인한 회원만 호출할 수 있다.
+  try {
+    await requireUser();
+  } catch {
+    return NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 401 });
+  }
+
+  // IP당 분당 30회 제한 — 라이브 스캐너가 2초 간격 폴링(분당 최대 ~30회)이므로 이에 맞춘 상한.
+  // (기존 5회 제한은 폴링 6번째부터 전부 429가 되어 기준물 미감지 판정이 불가능했음)
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!rateLimit(`scan:${ip}`, 5, 60_000)) {
+  if (!rateLimit(`scan:${ip}`, 30, 60_000)) {
     return NextResponse.json({ ok: false, reason: "rate-limited" }, { status: 429 });
   }
 
@@ -124,7 +133,15 @@ export async function POST(req: Request) {
     const ballFound = parsed?.ballFound === true;
     const fishFound = parsed?.fishFound === true;
     if (!ballFound || !fishFound) {
-      return NextResponse.json({ ok: false, reason: !ballFound ? "no-ball" : "no-fish" });
+      // ballFound / fishFound 플래그 동봉 — 클라이언트가
+      // "아무것도 없음"과 "물고기는 있는데 기준물만 없음"을 구분할 수 있게 한다.
+      // (reason 값은 기존 그대로 유지 — measure 페이지 no-ball 분기 호환)
+      return NextResponse.json({
+        ok: false,
+        reason: !ballFound ? "no-ball" : "no-fish",
+        ballFound,
+        fishFound,
+      });
     }
 
     const bx = num(parsed?.ball?.x);

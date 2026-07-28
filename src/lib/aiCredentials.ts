@@ -37,20 +37,38 @@ function decrypt(value: string) {
   } catch { return ""; }
 }
 
-export function aiSettingKey(name: "openai" | "naverClientId" | "naverClientSecret") {
+/**
+ * 외부 연동 자격증명 이름.
+ * smsApiKey/smsApiSecret/smsSender는 휴대폰 인증(SMS) 서비스용으로,
+ * 현재는 저장만 하고 실제 발송 연동은 하지 않는다.
+ */
+export type AiCredentialName =
+  | "openai"
+  | "naverClientId"
+  | "naverClientSecret"
+  | "smsApiKey"
+  | "smsApiSecret"
+  | "smsSender";
+
+export const AI_CREDENTIAL_NAMES: AiCredentialName[] = [
+  "openai", "naverClientId", "naverClientSecret", "smsApiKey", "smsApiSecret", "smsSender",
+];
+
+export function aiSettingKey(name: AiCredentialName) {
   return `${KEY_PREFIX}${name}`;
 }
 
 export function protectAiCredential(value: string) { return encrypt(value.trim()); }
 
 export async function getAiCredentials() {
-  const saved = await getSettings([
-    aiSettingKey("openai"), aiSettingKey("naverClientId"), aiSettingKey("naverClientSecret"),
-  ]);
+  const saved = await getSettings(AI_CREDENTIAL_NAMES.map(aiSettingKey));
   return {
     openai: decrypt(saved[aiSettingKey("openai")]) || process.env.OPENAI_API_KEY || "",
     naverClientId: decrypt(saved[aiSettingKey("naverClientId")]) || process.env.NAVER_SEARCH_CLIENT_ID || "",
     naverClientSecret: decrypt(saved[aiSettingKey("naverClientSecret")]) || process.env.NAVER_SEARCH_CLIENT_SECRET || "",
+    smsApiKey: decrypt(saved[aiSettingKey("smsApiKey")]) || process.env.SMS_API_KEY || "",
+    smsApiSecret: decrypt(saved[aiSettingKey("smsApiSecret")]) || process.env.SMS_API_SECRET || "",
+    smsSender: decrypt(saved[aiSettingKey("smsSender")]) || process.env.SMS_SENDER || "",
   };
 }
 
@@ -59,5 +77,8 @@ export async function getAiConnectionStatus() {
   return {
     openaiConfigured: Boolean(credentials.openai),
     naverConfigured: Boolean(credentials.naverClientId && credentials.naverClientSecret),
+    smsConfigured: Boolean(credentials.smsApiKey && credentials.smsApiSecret),
+    // 발신번호는 비밀값이 아니라 운영자가 확인해야 하는 값이라 그대로 내려준다.
+    smsSender: credentials.smsSender,
   };
 }

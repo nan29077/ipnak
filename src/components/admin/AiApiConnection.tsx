@@ -1,12 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Search } from "lucide-react";
+import { Bot, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, MessageSquare, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 
-type ApiTab = "chatgpt" | "naver";
-type Props = { initial: { openaiConfigured: boolean; naverConfigured: boolean } };
+type ApiTab = "chatgpt" | "naver" | "sms";
+type Props = {
+  initial: {
+    openaiConfigured: boolean;
+    naverConfigured: boolean;
+    smsConfigured: boolean;
+    smsSender: string;
+  };
+};
 
 export function AiApiConnection({ initial }: Props) {
   const router = useRouter();
@@ -15,6 +22,10 @@ export function AiApiConnection({ initial }: Props) {
   const [openai, setOpenai] = useState("");
   const [naverClientId, setNaverClientId] = useState("");
   const [naverClientSecret, setNaverClientSecret] = useState("");
+  // 발신번호는 비밀값이 아니라 현재 설정된 값을 그대로 보여주고 수정하게 한다.
+  const [smsApiKey, setSmsApiKey] = useState("");
+  const [smsApiSecret, setSmsApiSecret] = useState("");
+  const [smsSender, setSmsSender] = useState(initial.smsSender ?? "");
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -23,13 +34,21 @@ export function AiApiConnection({ initial }: Props) {
 
     const payload = activeTab === "chatgpt"
       ? { type: "AI_CONNECTION_SAVE", openai }
-      : { type: "AI_CONNECTION_SAVE", naverClientId, naverClientSecret };
+      : activeTab === "naver"
+      ? { type: "AI_CONNECTION_SAVE", naverClientId, naverClientSecret }
+      : { type: "AI_CONNECTION_SAVE", smsApiKey, smsApiSecret, smsSender };
 
     if (activeTab === "chatgpt" && !openai.trim()) {
       return toast("ChatGPT API 키를 입력해 주세요.", "info");
     }
     if (activeTab === "naver" && (!naverClientId.trim() || !naverClientSecret.trim())) {
       return toast("NAVER Client ID와 Client Secret을 모두 입력해 주세요.", "error");
+    }
+    if (activeTab === "sms" && !smsApiKey.trim() && !smsApiSecret.trim() && !smsSender.trim()) {
+      return toast("저장할 SMS 연동 정보를 입력해 주세요.", "info");
+    }
+    if (activeTab === "sms" && (Boolean(smsApiKey.trim()) !== Boolean(smsApiSecret.trim()))) {
+      return toast("SMS API 키와 Secret은 함께 입력해 주세요.", "error");
     }
 
     setSaving(true);
@@ -43,11 +62,15 @@ export function AiApiConnection({ initial }: Props) {
       if (!res.ok) throw new Error(data.error || "저장하지 못했습니다.");
 
       if (activeTab === "chatgpt") setOpenai("");
-      else {
+      else if (activeTab === "naver") {
         setNaverClientId("");
         setNaverClientSecret("");
+      } else {
+        // 발신번호는 화면에 계속 보여줘야 하므로 비우지 않는다.
+        setSmsApiKey("");
+        setSmsApiSecret("");
       }
-      toast(`${activeTab === "chatgpt" ? "ChatGPT" : "NAVER 검색"} API 연결 정보를 저장했습니다.`, "success");
+      toast(`${activeTab === "chatgpt" ? "ChatGPT" : activeTab === "naver" ? "NAVER 검색" : "SMS"} API 연결 정보를 저장했습니다.`, "success");
       router.refresh();
     } catch (error: unknown) {
       toast(error instanceof Error ? error.message : "저장하지 못했습니다.", "error");
@@ -66,19 +89,40 @@ export function AiApiConnection({ initial }: Props) {
           <Bot size={20} />
         </span>
         <div>
-          <h2 className="text-[15px] font-bold text-navy-800">AI API 연결</h2>
+          <h2 className="text-[15px] font-bold text-navy-800">외부 API 연결</h2>
           <p className="mt-1 text-[12px] leading-relaxed text-navy-400">서비스별 API 정보를 탭에서 각각 입력하고 저장할 수 있습니다.</p>
         </div>
       </div>
 
-      <div className="mt-5 flex border-b border-navy-100" role="tablist" aria-label="AI API 종류">
+      <div className="mt-5 flex border-b border-navy-100" role="tablist" aria-label="외부 API 종류">
         <ApiTabButton active={isChatGpt} icon={<Bot size={15} />} label="ChatGPT API" configured={initial.openaiConfigured} onClick={() => setActiveTab("chatgpt")} />
-        <ApiTabButton active={!isChatGpt} icon={<Search size={15} />} label="NAVER 검색 API" configured={initial.naverConfigured} onClick={() => setActiveTab("naver")} />
+        <ApiTabButton active={activeTab === "naver"} icon={<Search size={15} />} label="NAVER 검색 API" configured={initial.naverConfigured} onClick={() => setActiveTab("naver")} />
+        <ApiTabButton active={activeTab === "sms"} icon={<MessageSquare size={15} />} label="휴대폰 인증(SMS)" configured={initial.smsConfigured} onClick={() => setActiveTab("sms")} />
       </div>
 
       <div className="mt-5">
         {isChatGpt ? (
           <SecretInput label="OpenAI API Key" value={openai} onChange={setOpenai} visible={visible} className={inputClass} />
+        ) : activeTab === "sms" ? (
+          <div className="space-y-3">
+            <SecretInput label="SMS 서비스 API 키" value={smsApiKey} onChange={setSmsApiKey} visible={visible} className={inputClass} />
+            <SecretInput label="SMS 서비스 Secret" value={smsApiSecret} onChange={setSmsApiSecret} visible={visible} className={inputClass} />
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-semibold text-navy-600">발신 번호 (선택)</span>
+              <input
+                type="tel"
+                autoComplete="off"
+                value={smsSender}
+                onChange={(e) => setSmsSender(e.target.value)}
+                placeholder="예: 01012345678 (사전 등록된 발신번호)"
+                className={inputClass}
+              />
+            </label>
+            <p className="rounded-xl bg-amber-400/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-amber-500 ring-1 ring-amber-400/20">
+              현재는 <b>키 저장까지만</b> 지원합니다. 실제 문자 발송 연동은 아직 되어 있지 않습니다.
+              알리고·CoolSMS 등 사용하실 서비스의 키를 미리 등록해 두세요.
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             <SecretInput label="NAVER Search Client ID" value={naverClientId} onChange={setNaverClientId} visible={visible} className={inputClass} />
