@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 type Step = "intro" | "form" | "pay" | "done";
 type ProductInfo = {
   imageUrl?: string;
+  imageUrls?: string[];
   name?: string;
   description?: string;
   optionEnabled?: boolean;
@@ -35,6 +36,9 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
   const [loading, setLoading] = useState(false);
   const [orderNo, setOrderNo] = useState("");
   const [product, setProduct] = useState<ProductInfo>({});
+  // 상품 이미지 캐러셀
+  const [imgIdx, setImgIdx] = useState(0);
+  const touchStartX = useRef(0);
   // 옵션 선택: "one" | "two" | null
   const [selectedOption, setSelectedOption] = useState<"one" | "two" | null>(null);
   const [form, setForm] = useState({
@@ -48,8 +52,18 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
       .then((r) => r.json())
       .then((data) => {
         const first = data?.products?.[0];
-        if (first) setProduct({
-          imageUrl: first.imageUrl,
+        if (!first) return;
+        // imageUrl은 단일 URL 문자열 또는 JSON 배열 문자열
+        const rawUrl: string | undefined = first.imageUrl;
+        let imageUrls: string[] = [];
+        try {
+          const p = JSON.parse(rawUrl ?? "");
+          if (Array.isArray(p)) imageUrls = p.filter(Boolean);
+        } catch {}
+        if (imageUrls.length === 0 && rawUrl) imageUrls = [rawUrl];
+        setProduct({
+          imageUrl: imageUrls[0],
+          imageUrls,
           name: first.name,
           description: first.description,
           optionEnabled: Boolean(first.optionEnabled),
@@ -89,6 +103,12 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
 
   const totalPrice = unitPrice * qty;
 
+  const images = product.imageUrls ?? [];
+  function moveImage(delta: number) {
+    if (images.length < 2) return;
+    setImgIdx((i) => Math.min(images.length - 1, Math.max(0, i + delta)));
+  }
+
   // 옵션 선택 시 안내 문구 (예: 2개입 × 2개 = 총 4개)
   const optionHint = (() => {
     if (!product.optionEnabled || selectedOption === null) return null;
@@ -97,6 +117,47 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
     const totalItems = perPack * qty;
     return `${label} × ${qty}개 = 총 ${totalItems}개`;
   })();
+
+  // ── 디바이스 뒤로가기 버튼 처리: 바텀시트 열릴 때 history 엔트리 push ──
+  const historyPushedRef = useRef(false);
+  const stepRef = useRef<Step>(step);
+  useEffect(() => { stepRef.current = step; }, [step]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    // 시트가 열릴 때 history 엔트리 하나 추가 (뒤로가기가 페이지 이탈 대신 시트 닫힘으로)
+    history.pushState({ ballPurchaseOpen: true }, "");
+    historyPushedRef.current = true;
+
+    function onPopState() {
+      const s = stepRef.current;
+      if (s === "pay") {
+        // pay → form
+        history.pushState({ ballPurchaseOpen: true }, "");
+        setStep("form");
+      } else if (s === "form") {
+        // form → intro
+        history.pushState({ ballPurchaseOpen: true }, "");
+        setStep("intro");
+      } else {
+        // intro / done → 시트 닫기 (browser가 이미 한 스텝 뒤로 감)
+        historyPushedRef.current = false;
+        setOpen(false);
+        setStep("intro");
+      }
+    }
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      // X 버튼 등으로 시트가 programmatic하게 닫힐 때 push했던 엔트리 제거
+      if (historyPushedRef.current) {
+        historyPushedRef.current = false;
+        history.go(-1);
+      }
+    };
+  }, [open]);
 
   const close = () => {
     if (!loading) {
@@ -137,18 +198,53 @@ export function IpnakBallPurchase({ price, buyer, openOnMount = false, triggerOp
 
     {open && typeof document !== "undefined" && createPortal(
       <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/75 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-        <div className="ipnak-ball-scrollbar max-h-[92vh] w-full max-w-[480px] overflow-y-auto rounded-t-[28px] bg-[#151b21] text-white shadow-2xl sm:rounded-[28px]">
+        <div className="ipnak-ball-scrollbar h-[76vh] w-full max-w-[480px] overflow-y-auto rounded-t-[28px] bg-[#151b21] text-white shadow-2xl sm:rounded-[28px]">
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#151b21]/95 px-5 py-4 backdrop-blur">
             <button onClick={() => step === "intro" ? close() : setStep(step === "pay" ? "form" : "intro")} className="p-1 text-white/60">{step === "intro" || step === "done" ? <X /> : <ChevronLeft />}</button>
             <p className="font-bold">{step === "intro" ? "입낚볼 소개" : step === "form" ? "구매자·배송지 정보" : step === "pay" ? "PG 결제" : "주문 완료"}</p><span className="w-7" />
           </div>
 
           {step === "intro" && <div className="p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
-            <div className="flex aspect-[16/8] items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500/25 to-aqua-500/20">
-              {product.imageUrl
-                ? <img src={product.imageUrl} alt={product.name ?? "입낚볼"} className="h-full w-full object-cover" />
-                : <Radio size={72} className="text-orange-400" />}
-            </div>
+            {images.length === 0 ? (
+              <div className="flex items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500/15 to-aqua-500/10">
+                <div className="flex h-48 items-center justify-center"><Radio size={72} className="text-orange-400" /></div>
+              </div>
+            ) : images.length === 1 ? (
+              <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500/15 to-aqua-500/10">
+                <img src={images[0]} alt={product.name ?? "입낚볼"} className="aspect-square w-full object-contain" />
+              </div>
+            ) : (
+              <div>
+                <div
+                  className="overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500/15 to-aqua-500/10"
+                  onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+                  onTouchEnd={(e) => {
+                    const diff = e.changedTouches[0].clientX - touchStartX.current;
+                    if (Math.abs(diff) > 50) moveImage(diff < 0 ? 1 : -1);
+                  }}
+                >
+                  <img
+                    src={images[Math.min(imgIdx, images.length - 1)]}
+                    alt={`${product.name ?? "입낚볼"} 이미지 ${imgIdx + 1}`}
+                    className="aspect-square w-full object-contain"
+                  />
+                </div>
+                <div className="mt-2.5 flex items-center justify-center gap-2">
+                  {images.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setImgIdx(i)}
+                      aria-label={`${i + 1}번 이미지 보기`}
+                      className={cn(
+                        "h-2 rounded-full transition-all",
+                        i === Math.min(imgIdx, images.length - 1) ? "w-5 bg-orange-400" : "w-2 bg-white/25"
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             <h2 className="mt-5 text-xl font-extrabold">{product.name ?? "입낚볼 하나로 더 스마트한 낚시"}</h2>
             <div className="mt-4 space-y-3 text-sm text-white/65">
               {product.description

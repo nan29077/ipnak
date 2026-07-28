@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSetting } from "@/lib/settings";
 import { AdminTitle, StatusBadge, Table } from "@/components/admin/ui";
 import { BallPriceForm, BallStatusActions } from "@/components/admin/IpnakBallAdminActions";
-import { IpnakBallProductForm, IpnakBallProductToggle } from "@/components/admin/IpnakBallProductForm";
+import { IpnakBallProductForm, IpnakBallProductToggle, IpnakBallProductDelete, IpnakBallProductEditModal } from "@/components/admin/IpnakBallProductForm";
 import { cn, kstFormat } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,19 @@ const tabs = [
   { key: "products", label: "상품 관리" },
   { key: "price", label: "가격 설정" },
 ];
+
+/* imageUrl은 단일 URL 또는 JSON 배열 문자열 — 목록에서는 첫 장만 썸네일로 사용 */
+function parseFirstImage(raw?: string | null): string | null {
+  if (!raw) return null;
+  try { const p = JSON.parse(raw); if (Array.isArray(p) && p[0]) return p[0]; } catch {}
+  return raw;
+}
+
+function imageCount(raw?: string | null): number {
+  if (!raw) return 0;
+  try { const p = JSON.parse(raw); if (Array.isArray(p)) return p.filter(Boolean).length; } catch {}
+  return 1;
+}
 
 export default async function BallAdmin({ searchParams }: { searchParams: { tab?: string } }) {
   const tab = tabs.some(t => t.key === searchParams.tab) ? searchParams.tab! : "requests";
@@ -42,7 +55,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
             <IpnakBallProductForm />
           ) : (
             <div className="rounded-xl border border-orange-400/30 bg-orange-500/5 px-4 py-3 text-sm text-orange-400">
-              상품이 이미 1개 등록되어 있습니다. 입낚볼 상품은 1개만 유지할 수 있습니다. 기존 상품을 수정하거나 비활성화 후 삭제하세요.
+              상품이 이미 1개 등록되어 있습니다. 수정하거나 삭제 후 새로 등록하세요.
             </div>
           )}
           <div>
@@ -50,31 +63,90 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
             {products.length === 0 ? (
               <p className="py-8 text-center text-navy-400">등록된 상품이 없습니다.</p>
             ) : (
-              <Table head={["상품명", "가격", "재고", "이미지", "상태", "등록일", "관리"]}>
-                {products.map((p: any) => (
-                  <tr key={p.id}>
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-navy-800">{p.name}</p>
-                      {p.description && <p className="text-xs text-navy-400 mt-0.5">{p.description}</p>}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-bold text-navy-800">{Number(p.price).toLocaleString()}원</td>
-                    <td className="px-4 py-3 text-navy-700">{p.stock}개</td>
-                    <td className="px-4 py-3">
-                      {p.imageUrl
-                        ? <img src={p.imageUrl} alt={p.name} className="h-12 w-12 rounded-lg object-cover border border-navy-100" />
-                        : <span className="text-xs text-navy-300">없음</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={p.isActive ? "ACTIVE" : "INACTIVE"} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs text-navy-400">{String(p.createdAt).slice(0, 10)}</td>
-                    <td className="px-4 py-3">
-                      <IpnakBallProductToggle id={p.id} isActive={Boolean(p.isActive)} stock={p.stock} />
-                    </td>
-                  </tr>
-                ))}
-              </Table>
+              <>
+                {/* PC 테이블 */}
+                <div className="hidden md:block">
+                  <Table head={["상품명", "가격", "재고", "이미지", "상태", "등록일", "관리"]}>
+                    {products.map((p: any) => (
+                      <tr key={p.id}>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-navy-800">{p.name}</p>
+                          {p.description && <p className="text-xs text-navy-400 mt-0.5">{p.description}</p>}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 font-bold text-navy-800">{Number(p.price).toLocaleString()}원</td>
+                        <td className="px-4 py-3 text-navy-700">{p.stock}개</td>
+                        <td className="px-4 py-3">
+                          {parseFirstImage(p.imageUrl)
+                            ? <div className="relative h-12 w-12">
+                                <img src={parseFirstImage(p.imageUrl)!} alt={p.name} className="h-12 w-12 rounded-lg object-contain bg-[#0d1b2a] border border-navy-100" />
+                                {imageCount(p.imageUrl) > 1 && (
+                                  <span className="absolute -right-1 -top-1 rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">{imageCount(p.imageUrl)}</span>
+                                )}
+                              </div>
+                            : <span className="text-xs text-navy-300">없음</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3"><StatusBadge status={p.isActive ? "ACTIVE" : "INACTIVE"} /></td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-navy-400">{String(p.createdAt).slice(0, 10)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            <IpnakBallProductToggle id={p.id} isActive={Boolean(p.isActive)} stock={p.stock} />
+                            <IpnakBallProductEditModal product={{ ...p, isActive: Boolean(p.isActive), optionEnabled: Boolean(p.optionEnabled) }} />
+                            <IpnakBallProductDelete id={p.id} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </Table>
+                </div>
+
+                {/* 모바일 카드 */}
+                <div className="space-y-4 md:hidden">
+                  {products.map((p: any) => (
+                    <div key={p.id} className="rounded-2xl border border-navy-100 bg-[#162538] overflow-hidden">
+                      {/* 이미지 + 기본 정보 */}
+                      <div className="flex items-start gap-3 p-3.5">
+                        <div className="relative h-20 w-20 shrink-0 rounded-xl bg-[#0d1b2a] border border-navy-100/30">
+                          {parseFirstImage(p.imageUrl)
+                            ? <>
+                                <img src={parseFirstImage(p.imageUrl)!} alt={p.name} className="h-full w-full rounded-xl object-contain" />
+                                {imageCount(p.imageUrl) > 1 && (
+                                  <span className="absolute -right-1.5 -top-1.5 rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">{imageCount(p.imageUrl)}</span>
+                                )}
+                              </>
+                            : <span className="flex h-full w-full items-center justify-center text-[10px] text-navy-400">없음</span>
+                          }
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-[14px] font-bold text-navy-800 truncate">{p.name}</p>
+                            <StatusBadge status={p.isActive ? "ACTIVE" : "INACTIVE"} />
+                          </div>
+                          {p.description && <p className="mt-0.5 text-[11px] text-navy-400 line-clamp-2">{p.description}</p>}
+                          <p className="mt-1.5 text-[16px] font-extrabold text-orange-400">{Number(p.price).toLocaleString()}원</p>
+                          <div className="mt-1 flex gap-3 text-[11px] text-navy-400">
+                            <span>재고 {p.stock}개</span>
+                            <span>{String(p.createdAt).slice(0, 10)} 등록</span>
+                          </div>
+                          {Boolean(p.optionEnabled) && (
+                            <p className="mt-1 text-[11px] text-aqua-400">
+                              옵션: {p.optionOneLabel ?? "1개입"} / {p.optionTwoLabel ?? "2개입"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {/* 버튼 영역 */}
+                      <div className="flex gap-2 border-t border-navy-100/20 px-3.5 py-2.5">
+                        <IpnakBallProductToggle id={p.id} isActive={Boolean(p.isActive)} stock={p.stock} />
+                        <IpnakBallProductEditModal product={{ ...p, isActive: Boolean(p.isActive), optionEnabled: Boolean(p.optionEnabled) }} />
+                        <div className="ml-auto">
+                          <IpnakBallProductDelete id={p.id} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
