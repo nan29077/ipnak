@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, AlertTriangle } from "lucide-react";
 import { Sheet } from "@/components/ui";
 
 /** 무게 표시 옆 ? 버튼 — 무게 산출 방법 안내 시트를 연다 */
@@ -30,6 +30,14 @@ export function WeightInfoModal({ size = 13, className = "" }: { size?: number; 
             <li>· 어종을 선택할수록 정확도가 높아집니다</li>
             <li>· 오차 범위: 약 ±15~20% (참고용 수치)</li>
           </ul>
+          {/* 중요 안내 — 회원 참여가 쌓일수록 정확도가 올라간다는 점을 강조 */}
+          <div className="flex items-start gap-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3.5 py-3">
+            <AlertTriangle size={15} strokeWidth={1.8} className="mt-0.5 shrink-0 text-orange-500" />
+            <p className="text-[12.5px] leading-relaxed text-navy-500">
+              <span className="font-bold text-orange-500">중요</span>
+              {" — 무게는 입낚 회원들의 참여가 많아질수록 AI가 점점 더 정확하게 만들어 갑니다."}
+            </p>
+          </div>
         </div>
       </Sheet>
     </>
