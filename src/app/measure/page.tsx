@@ -871,7 +871,14 @@ export default function MeasurePage() {
             {phase === "SCANNING" && (
               <>
                 <div className="pointer-events-none absolute inset-0 bg-black/35" />
-                <FishScanGlow active label={loadingMsg || "스캔 중..."} />
+                {/* 캡처 프레임에서 실제 물고기 윤곽을 추출해 그 위에 반짝임 표시
+                    (canvas 는 컨테이너를 그대로 채우므로 fit=fill 로 좌표 정합) */}
+                <FishScanGlow
+                  active
+                  sourceRef={canvasRef}
+                  objectFit="fill"
+                  label={loadingMsg || "스캔 중..."}
+                />
               </>
             )}
             {busy && phase !== "SCANNING" && (

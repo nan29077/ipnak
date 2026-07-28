@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Camera, Loader2, RefreshCw, ScanLine, Check, Ruler, RotateCw } from "lucide-react";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 import { FishScanGlow } from "./FishScanGlow";
+import type { ContourStatus } from "@/lib/fishContour";
 
 type Point = { x: number; y: number };
 type Norm = { x: number; y: number };
@@ -80,6 +81,8 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
   const [videoHasData, setVideoHasData] = useState(false);
   const [retry, setRetry] = useState(0);
   const [det, setDet] = useState<Detection | null>(null);
+  // 실시간 물고기 윤곽 감지 상태 (FishScanGlow → 안내 문구 분기)
+  const [scanStatus, setScanStatus] = useState<ContourStatus>("idle");
   // 브라우저 권한 요청 전 커스텀 안내 팝업 (LiveMeasureCamera 와 동일 UX)
   const [consented, setConsented] = useState(false);
   // 사용자가 선택한 촬영 방향 (false=세로, true=가로) — 기기 자동회전과 무관
@@ -520,6 +523,16 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
 
   const canConfirm = !!det;
 
+  /* ── 윤곽 감지 상태별 안내 문구 ── */
+  const scanGuide: { main: string; sub: string; locked: boolean } =
+    scanStatus === "locked"
+      ? { main: "물고기 윤곽 인식됨 · 측정 중...", sub: "입낚볼이 함께 보이면 길이가 더 정확해요", locked: true }
+      : scanStatus === "too-small"
+      ? { main: "물고기가 너무 작게 보여요", sub: "조금 더 가까이에서 비춰주세요", locked: false }
+      : scanStatus === "too-large"
+      ? { main: "물고기가 화면에 꽉 찼어요", sub: "조금 더 멀리서 비춰주세요", locked: false }
+      : { main: "물고기를 화면 중앙에 놓아주세요", sub: "바닥에 옆으로 눕히고 입낚볼도 함께 보이게 맞춰주세요", locked: false };
+
   /* ── 안내 텍스트 (세로/가로 공용) ── */
   const guidance = canConfirm ? (
     <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-green-400">
@@ -527,11 +540,15 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       인식 완료 — '측정하기'를 눌러 확정하세요
     </p>
   ) : (
-    <div className="flex flex-col items-center gap-1 text-center" style={{ animation: "slowBlink 3s ease-in-out infinite" }}>
-      <p className="text-[13px] font-semibold text-white/90">
-        물고기를 바닥에 옆으로 눕혀주세요
+    <div
+      className="flex flex-col items-center gap-1 text-center"
+      style={scanGuide.locked ? undefined : { animation: "slowBlink 3s ease-in-out infinite" }}
+    >
+      <p className={"flex items-center gap-1.5 text-[13px] font-semibold " + (scanGuide.locked ? "text-sky-300" : "text-white/90")}>
+        {scanGuide.locked && <ScanLine size={14} strokeWidth={2.2} />}
+        {scanGuide.main}
       </p>
-      <p className="text-[11px] text-white/55">입낚볼과 물고기가 함께 보이도록 맞춰주세요</p>
+      <p className="text-[11px] text-white/55">{scanGuide.sub}</p>
     </div>
   );
 
@@ -606,6 +623,16 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         ref={overlayRef}
         style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
       />
+      {/* ── 실시간 물고기 윤곽 반짝임 (인식 완료 시 자동 종료) ──
+          ⚠️ 반드시 video 와 같은 레이어에 둔다. UI 컨테이너는 CSS 회전 모드에서
+             rotate(90deg) 되므로, 그 안에 두면 윤곽 좌표가 카메라 화면과 어긋난다. */}
+      <FishScanGlow
+        active={camStatus === "ready" && videoHasData && !canConfirm}
+        sourceRef={videoRef}
+        objectFit="cover"
+        label={null} /* 상단 배지·하단 안내와 겹치지 않도록 문구는 부모가 배치 */
+        onStatusChange={setScanStatus}
+      />
     </div>
 
     {/* ── UI 오버레이 컨테이너 (z-400, 투명 배경) — CSS 회전 모드일 때 rotate(90deg) 적용 ── */}
@@ -613,13 +640,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
       className={!needsCssRotation ? "fixed inset-0 z-[400] overflow-hidden" : undefined}
       style={needsCssRotation ? { ...outerStyle, backgroundColor: "transparent" } : undefined}
     >
-      {/* ── 스캔 중 물고기 윤곽선 반짝임 (인식 완료 시 자동 종료) ── */}
-      <FishScanGlow
-        active={camStatus === "ready" && videoHasData && !canConfirm}
-        label={null} /* 상단 '입낚 AI 측정 중' 배지·하단 안내와 겹치지 않도록 문구는 생략 */
-        spanRatio={effectiveLandscape ? 0.5 : 0.72}
-      />
-
       {/* ── 상단 바 ── */}
       <div
         className={
