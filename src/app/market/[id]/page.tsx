@@ -40,36 +40,39 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
   const viewCount = updated?.viewCount ?? l.viewCount + 1;
 
   const isOwner = !!user && user.id === l.sellerId;
-  const favorited = !!user && !isOwner
-    ? !!(await prisma.marketFavorite.findUnique({ where: { listingId_userId: { listingId: l.id, userId: user.id } } }))
-    : false;
 
   const images = l.images.length ? l.images.map((i) => i.url) : ["https://picsum.photos/seed/market/800/800"];
 
-  // 판매자의 다른 판매글 (최신 4개, 현재 상품 제외)
-  const otherListings = await prisma.marketListing.findMany({
-    where: { sellerId: l.sellerId, id: { not: l.id }, status: { not: "SOLD" } },
-    orderBy: { createdAt: "desc" },
-    take: 4,
-    include: { images: { take: 1, orderBy: { order: "asc" } } },
-  });
-
-  // 판매자 완료 거래 수
-  const sellerSoldCount = await prisma.marketListing.count({
-    where: { sellerId: l.sellerId, status: "SOLD" },
-  });
-
-  // 이 상품의 구매 희망자 채팅 목록 (판매자 전용)
-  const buyerChats = isOwner
-    ? await prisma.marketChat.findMany({
-        where: { listingId: l.id },
-        include: {
-          buyer: { select: { id: true, nickname: true, avatarUrl: true } },
-          messages: { orderBy: { createdAt: "desc" }, take: 1 },
-        },
-        orderBy: { updatedAt: "desc" },
-      })
-    : [];
+  // 서로 독립적인 후속 쿼리 4개 병렬화 (기존 직렬 waterfall 제거 — 결과 동일)
+  const [favoriteRow, otherListings, sellerSoldCount, buyerChats] = await Promise.all([
+    // 찜 여부 (본인 글이 아닐 때만)
+    user && !isOwner
+      ? prisma.marketFavorite.findUnique({ where: { listingId_userId: { listingId: l.id, userId: user.id } } })
+      : Promise.resolve(null),
+    // 판매자의 다른 판매글 (최신 4개, 현재 상품 제외)
+    prisma.marketListing.findMany({
+      where: { sellerId: l.sellerId, id: { not: l.id }, status: { not: "SOLD" } },
+      orderBy: { createdAt: "desc" },
+      take: 4,
+      include: { images: { take: 1, orderBy: { order: "asc" } } },
+    }),
+    // 판매자 완료 거래 수
+    prisma.marketListing.count({
+      where: { sellerId: l.sellerId, status: "SOLD" },
+    }),
+    // 이 상품의 구매 희망자 채팅 목록 (판매자 전용)
+    isOwner
+      ? prisma.marketChat.findMany({
+          where: { listingId: l.id },
+          include: {
+            buyer: { select: { id: true, nickname: true, avatarUrl: true } },
+            messages: { orderBy: { createdAt: "desc" }, take: 1 },
+          },
+          orderBy: { updatedAt: "desc" },
+        })
+      : Promise.resolve([]),
+  ]);
+  const favorited = !!favoriteRow;
 
   return (
     <PostDetailClient>

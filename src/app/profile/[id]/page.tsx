@@ -14,12 +14,15 @@ import { getAvatarUrl } from "@/lib/avatarUtils";
 export const dynamic = "force-dynamic";
 
 export default async function ProfilePage({ params }: { params: { id: string } }) {
-  const viewer = await getCurrentUser();
+  // viewer 조회와 독립적인 설정 조회를 병렬화 (결과 동일)
+  const [viewer, bassOnly] = await Promise.all([
+    getCurrentUser(),
+    getBoolSetting("bass_only_mode"),
+  ]);
   const data = await getProfileData(params.id, viewer?.id);
   if (!data) notFound();
   const { user, stats } = data;
   const isMe = viewer?.id === user.id;
-  const bassOnly = await getBoolSetting("bass_only_mode");
   const roleLabel = user.role === "ANGLER" && bassOnly ? "앵글러" : ROLE_LABELS[user.role];
 
   return (

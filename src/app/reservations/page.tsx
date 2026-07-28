@@ -9,9 +9,11 @@ import { CalendarX } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function ReservationsPage() {
-  const reservationEnabled = await getBoolSetting("reservation_enabled");
-  // 비로그인 시에도 안전하게 — 조회 실패는 null 처리
-  const user = await getCurrentUser().catch(() => null);
+  // 서로 독립적인 조회 병렬화 — 비로그인 시에도 안전하게, 조회 실패는 null 처리
+  const [reservationEnabled, user] = await Promise.all([
+    getBoolSetting("reservation_enabled"),
+    getCurrentUser().catch(() => null),
+  ]);
 
   // 예약 기능 비활성화 시: 서비스 준비 중 페이지 (SUPER_ADMIN은 미리보기 허용)
   if (!reservationEnabled && user?.role !== "SUPER_ADMIN") {
