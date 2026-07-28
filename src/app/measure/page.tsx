@@ -24,6 +24,7 @@ import syncService from "@/services/SyncService";
 // 실시간 AI 스캐너 (앱 내 카메라 스트림 + /api/measure/scan 폴링)
 import { LiveScanCamera, type LiveScanResult } from "@/components/LiveScanCamera";
 import { FishScanGlow } from "@/components/FishScanGlow";
+import { FishShimmer } from "@/components/FishShimmer";
 import { estimateWeightByWidth } from "@/lib/weightEstimation";
 import { BallLinkSection } from "@/components/BallLinkSection";
 import { useRecording } from "@/components/RecordingProvider";
@@ -34,6 +35,7 @@ type Phase =
   | "ANALYZING"
   | "CHOICE"       // 사진 로드 후: 자동 스캔 / 수동 점찍기 선택
   | "SCANNING"     // AI 자동 스캔 진행 중
+  | "SHIMMER"      // 인식 성공 → 윤슬(빛 포인트) 한 바퀴 후 결과 확정
   | "SCAN_FAILED"  // 자동 스캔 실패 → 잠시 안내 후 선택 화면 복귀
   | "ERROR"
   | "RESULT"
@@ -44,6 +46,7 @@ type Point = { x: number; y: number };
 const MAX_WORK_PX = 1280;
 const SCAN_TIMEOUT_MS = 12000; // 자동 스캔 하드 타임아웃 — 무한 로딩 방지
 const SCAN_MIN_CONFIDENCE = 0.7; // 이 미만이면 실패 처리
+const SHIMMER_MS = 1800; // 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 도는 시간
 
 export default function MeasurePage() {
   const toast = useToast();
@@ -108,6 +111,12 @@ export default function MeasurePage() {
   const enginesRef = useRef<{ ball: any; fish: any; calc: any; overlay: any } | null>(null);
   const scanAbortRef = useRef<AbortController | null>(null); // 자동 스캔 fetch 취소용
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 인식 성공 결과 임시 보관 — 윤슬 애니메이션이 끝난 뒤 화면에 반영
+  const pendingScanRef = useRef<{
+    ball: any; head: Point; tail: Point; width: { top: Point; bottom: Point } | null;
+  } | null>(null);
+  // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 안내 팝업
+  const [refMissing, setRefMissing] = useState(false);
 
   function engines() {
     if (!enginesRef.current) {
@@ -196,6 +205,13 @@ export default function MeasurePage() {
       if (!res.ok) throw new Error("ai-error");
       const data = await res.json();
 
+      // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 → 측정 불가 안내 후 선택 화면 복귀
+      if (data?.ok === false && data.reason === "no-ball") {
+        setPhase("CHOICE");
+        setRefMissing(true);
+        return;
+      }
+
       // 실패 조건: 입낚볼/물고기 미감지, 자세 flat 아님, 신뢰도 부족, 응답 이상
       if (
         !data?.ok ||
@@ -231,11 +247,9 @@ export default function MeasurePage() {
             }
           : null;
 
-      setBall(ballObj);
-      setHead(headP);
-      setTail(tailP);
-      setWidthPts(widthP);
-      setPhase("RESULT"); // 길이·너비 계산은 result useEffect가 처리
+      // 기준물까지 인식됨 → 윤슬 한 바퀴 후 결과 확정 (길이·너비 계산은 result useEffect가 처리)
+      pendingScanRef.current = { ball: ballObj, head: headP, tail: tailP, width: widthP };
+      setPhase("SHIMMER");
     } catch {
       // 어떤 실패든 안내 후 선택 화면으로 복귀
       scanFailToChoice();
@@ -247,6 +261,18 @@ export default function MeasurePage() {
       if (scanTimerRef.current === timeoutId) scanTimerRef.current = null;
       scanAbortRef.current = null;
     }
+  }
+
+  /* ── 윤슬 한 바퀴 완료 → 인식 결과를 화면에 반영 ── */
+  function applyPendingScan() {
+    const p = pendingScanRef.current;
+    pendingScanRef.current = null;
+    if (!p) { setPhase("CHOICE"); return; }
+    setBall(p.ball);
+    setHead(p.head);
+    setTail(p.tail);
+    setWidthPts(p.width);
+    setPhase("RESULT");
   }
 
   /* ── 자동 스캔 실패 → 안내 후 2초 뒤 선택 화면 복귀 ── */
@@ -475,6 +501,8 @@ export default function MeasurePage() {
     scanAbortRef.current?.abort();
     scanAbortRef.current = null;
     if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null; }
+    pendingScanRef.current = null;
+    setRefMissing(false);
     setPhase("IDLE");
     setHasImage(false);
     setErrorMsg(null);
@@ -738,6 +766,16 @@ export default function MeasurePage() {
                   label={loadingMsg || "스캔 중..."}
                 />
               </>
+            )}
+            {/* 인식 성공 → 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 돈 뒤 결과 확정 */}
+            {phase === "SHIMMER" && (
+              <FishShimmer
+                active
+                sourceRef={canvasRef}
+                objectFit="fill"
+                durationMs={SHIMMER_MS}
+                onComplete={applyPendingScan}
+              />
             )}
             {busy && phase !== "SCANNING" && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 backdrop-blur-[2px]">
@@ -1056,6 +1094,40 @@ export default function MeasurePage() {
                 className="w-full rounded-2xl py-3 text-[14px] font-semibold text-white/35 transition-colors active:text-white/65"
               >
                 취소
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── 기준물 미감지 안내 (갤러리 사진) ──
+          '확인' 시 사진을 버리고 선택 화면(IDLE)으로 복귀 */}
+      {refMissing && createPortal(
+        <div className="fixed inset-0 z-[9100] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+        >
+          <div
+            className="w-full max-w-[340px] overflow-hidden rounded-[24px] shadow-2xl ring-1 ring-white/[0.09]"
+            style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#132233 60%,#1a2a3a 100%)" }}
+          >
+            <div className="h-[2.5px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400/90 to-orange-700/30" />
+            <div className="flex flex-col items-center px-6 pb-5 pt-7">
+              <div className="mb-4 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
+                <AlertTriangle size={30} strokeWidth={1.6} className="text-orange-400" />
+              </div>
+              <p className="text-[17px] font-extrabold tracking-tight text-white">측정할 수 없는 사진이에요</p>
+              <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
+                기준물(입낚볼·입낚키링·인쇄 기준물)이 없는 사진은<br />측정할 수 없습니다.
+              </p>
+            </div>
+            <div className="px-4 pb-6 pt-1">
+              <button
+                type="button"
+                onClick={() => { setRefMissing(false); reset(); }}
+                className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+              >
+                확인
               </button>
             </div>
           </div>

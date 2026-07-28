@@ -30,6 +30,12 @@ type Props = {
   label?: string | null;
   /** 감지 상태 변화 알림 (안내 문구를 부모 레이어에 배치할 때 사용) */
   onStatusChange?: (status: ContourStatus) => void;
+  /**
+   * true 면 윤곽을 전혀 그리지 않고 감지 상태만 알린다.
+   * (카메라 실시간 화면 — 인식 전까지 아무 선도 보이지 않게 하고,
+   *  인식 후에는 FishShimmer 의 윤슬 애니메이션만 노출하기 위함)
+   */
+  silent?: boolean;
   className?: string;
 };
 
@@ -62,6 +68,7 @@ export function FishScanGlow({
   objectFit = "cover",
   label = "스캔 중...",
   onStatusChange,
+  silent = false,
   className,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,6 +80,8 @@ export function FishScanGlow({
   fitRef.current = objectFit;
   const onStatusRef = useRef(onStatusChange);
   onStatusRef.current = onStatusChange;
+  const silentRef = useRef(silent);
+  silentRef.current = silent;
 
   useEffect(() => {
     if (!active) return;
@@ -141,6 +150,9 @@ export function FishScanGlow({
       /* ── ② 물고기 인식(locked) 전에는 아무것도 그리지 않는다 ──
          카메라를 켜자마자 윤곽이 보이지 않도록, 안내 문구는 부모가 표시 */
       if (status !== "locked" || contour.length < 12) return;
+
+      /* ── ②' silent 모드: 감지 상태만 알리고 윤곽은 그리지 않는다 ── */
+      if (silentRef.current) return;
 
       /* ── ③ 정규화 좌표 → 오버레이 캔버스 좌표 (object-fit 정합) ── */
       let sx = w;

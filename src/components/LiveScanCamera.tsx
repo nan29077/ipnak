@@ -12,9 +12,10 @@
  * ⚠️ 오버레이 정렬을 위해 video / overlay 모두 object-cover 사용 (동일 크롭 → 좌표 일치)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, Camera, Loader2, RefreshCw, ScanLine, Check, RotateCw } from "lucide-react";
+import { X, Camera, Loader2, RefreshCw, ScanLine, Check, RotateCw, AlertTriangle } from "lucide-react";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 import { FishScanGlow } from "./FishScanGlow";
+import { FishShimmer } from "./FishShimmer";
 import type { ContourStatus } from "@/lib/fishContour";
 
 type Point = { x: number; y: number };
@@ -49,8 +50,20 @@ const POLL_INTERVAL_MS = 2000; // 스캔 폴링 주기
 const SCAN_MAX_PX = 1024;      // 전송 프레임 최대 해상도 (속도/정확도 균형)
 const REQ_TIMEOUT_MS = 9000;   // 개별 요청 하드 타임아웃
 const CONFIDENCE_MIN = 0.7;    // 이 미만이면 실패 처리 (measure 페이지와 동일 기준)
+const SHIMMER_MS = 1800;       // 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 도는 시간
+// 물고기는 인식됐는데 기준물만 연속으로 못 잡은 횟수 — 이 횟수를 넘으면 안내 후 카메라 종료
+// (AI 응답 한 번의 실수로 카메라가 닫히지 않도록 2회 연속을 요구)
+const REF_MISS_LIMIT = 2;
 
 type Cam = "loading" | "ready" | "error";
+
+/**
+ * 스캔 단계
+ * - scan        : 물고기/기준물 탐색 중 (윤곽선은 그리지 않음)
+ * - shimmer     : 물고기 + 기준물 모두 인식됨 → 윤슬 한 바퀴 후 자동 측정
+ * - ref-missing : 물고기는 인식됐으나 기준물 미감지 → 안내 후 카메라 종료
+ */
+type Stage = "scan" | "shimmer" | "ref-missing";
 
 type Detection = {
   ballN: NormBall;
@@ -81,6 +94,21 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
   const [det, setDet] = useState<Detection | null>(null);
   // 실시간 물고기 윤곽 감지 상태 (FishScanGlow → 안내 문구 분기)
   const [scanStatus, setScanStatus] = useState<ContourStatus>("idle");
+  const scanStatusRef = useRef<ContourStatus>("idle"); // 폴링 콜백에서 최신 상태 참조
+  const [stage, setStage] = useState<Stage>("scan");
+  const stageRef = useRef<Stage>("scan");
+  const refMissRef = useRef(0); // 기준물 연속 미감지 횟수
+
+  /** FishScanGlow 감지 상태 수신 (state + ref 동시 갱신) */
+  const handleScanStatus = useCallback((s: ContourStatus) => {
+    scanStatusRef.current = s;
+    setScanStatus(s);
+  }, []);
+
+  const goStage = useCallback((s: Stage) => {
+    stageRef.current = s;
+    setStage(s);
+  }, []);
   // 브라우저 권한 요청 전 커스텀 안내 팝업 (LiveMeasureCamera 와 동일 UX)
   const [consented, setConsented] = useState(false);
   // 사용자가 선택한 촬영 방향 (false=세로, true=가로) — 기기 자동회전과 무관
@@ -346,9 +374,10 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
 
   useEffect(() => { drawOverlay(det); }, [det, videoHasData, drawOverlay]);
 
-  /* ── 프레임 캡처 → /api/measure/scan 폴링 ── */
+  /* ── 프레임 캡처 → /api/measure/scan 폴링 ──
+     stage 가 scan 일 때만 동작한다 (윤슬 진행 중/기준물 안내 중에는 정지) */
   useEffect(() => {
-    if (camStatus !== "ready" || !videoHasData) return;
+    if (camStatus !== "ready" || !videoHasData || stage !== "scan") return;
     let stopped = false;
 
     const runScan = async () => {
@@ -423,11 +452,22 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
             widthCm,
           };
           successRef.current = { work: frame, det: detection };
+          refMissRef.current = 0;
           setDet(detection);
+          // 물고기 + 기준물 모두 인식 → 윤슬 한 바퀴 후 자동 측정
+          goStage("shimmer");
         } else {
           // 실패/인식 안 됨 → 오버레이 제거 (스펙: 카메라 화면만 유지)
           successRef.current = null;
           setDet(null);
+          // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 —
+          // 물고기가 locked 로 인식된 상태에서만 안내 대상으로 센다
+          if (data?.reason === "no-ball" && scanStatusRef.current === "locked") {
+            refMissRef.current += 1;
+            if (refMissRef.current >= REF_MISS_LIMIT) goStage("ref-missing");
+          } else {
+            refMissRef.current = 0;
+          }
         }
       } catch {
         if (!stopped) { successRef.current = null; setDet(null); }
@@ -445,7 +485,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
       if (firstScanRef.current) { clearTimeout(firstScanRef.current); firstScanRef.current = null; }
       abortRef.current?.abort();
     };
-  }, [camStatus, videoHasData]);
+  }, [camStatus, videoHasData, stage, goStage]);
 
   /* ── "측정하기": 마지막 성공 프레임 확정 → 부모로 ── */
   const confirm = useCallback(() => {
@@ -479,6 +519,15 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
     onConfirm(result);
   }, [cleanupStream, onConfirm, onClose]);
 
+  /* ── 윤슬 한 바퀴 완료 → 자동으로 측정 확정 ── */
+  const handleShimmerComplete = useCallback(() => { confirm(); }, [confirm]);
+
+  /* ── 기준물 미감지 안내 '확인' → 카메라 닫고 선택 화면 복귀 ── */
+  const closeAfterRefMissing = useCallback(() => {
+    cleanupStream();
+    onClose();
+  }, [cleanupStream, onClose]);
+
   // effectiveLandscape: 실제로 가로 UI를 표시할지 여부
   const effectiveLandscape = isLandscape || browserIsLandscape;
   // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우
@@ -497,7 +546,12 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
       : { main: "물고기를 화면 중앙에 놓아주세요", sub: "바닥에 옆으로 눕히고 입낚볼도 함께 보이게 맞춰주세요", locked: false };
 
   /* ── 안내 텍스트 (세로/가로 공용) ── */
-  const guidance = canConfirm ? (
+  const guidance = stage === "shimmer" ? (
+    <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-yellow-300">
+      <ScanLine size={15} strokeWidth={2.2} />
+      인식 완료 — 측정 중이에요...
+    </p>
+  ) : canConfirm ? (
     <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-green-400">
       <Check size={15} strokeWidth={2.5} />
       인식 완료 — '측정하기'를 눌러 확정하세요
@@ -578,11 +632,20 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
           ⚠️ 반드시 video 와 같은 레이어에 둔다. UI 컨테이너는 CSS 회전 모드에서
              rotate(90deg) 되므로, 그 안에 두면 윤곽 좌표가 카메라 화면과 어긋난다. */}
       <FishScanGlow
-        active={camStatus === "ready" && videoHasData && !canConfirm}
+        active={camStatus === "ready" && videoHasData && stage === "scan"}
         sourceRef={videoRef}
         objectFit="cover"
         label={null} /* 상단 배지·하단 안내와 겹치지 않도록 문구는 부모가 배치 */
-        onStatusChange={setScanStatus}
+        onStatusChange={handleScanStatus}
+        silent /* 카메라에서는 윤곽선을 그리지 않는다 — 인식 후 윤슬만 노출 */
+      />
+      {/* ── 윤슬(빛 포인트) 한 바퀴 → 완료 시 자동 측정 ── */}
+      <FishShimmer
+        active={stage === "shimmer"}
+        sourceRef={videoRef}
+        objectFit="cover"
+        durationMs={SHIMMER_MS}
+        onComplete={handleShimmerComplete}
       />
     </div>
 
@@ -729,6 +792,44 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
       )}
 
     </div>
+
+    {/* ── 기준물 미감지 안내 ──
+        물고기는 인식됐지만 기준물(입낚볼·입낚키링·인쇄 기준물)이 없으면 측정 불가 →
+        '확인' 시 카메라를 닫고 이전 선택 화면으로 복귀.
+        회전된 카메라 컨테이너 밖에 fixed 로 배치 → 항상 세로(portrait) 방향 표시 */}
+    {stage === "ref-missing" && (
+      <div
+        className="fixed inset-0 z-[460] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.84)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }}
+      >
+        <div
+          className="w-full max-w-[340px] overflow-hidden rounded-[24px] shadow-2xl ring-1 ring-white/[0.1]"
+          style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#162434 60%,#1a2a3a 100%)" }}
+        >
+          <div className="h-[3px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400/90 to-orange-700/30" />
+          <div className="flex flex-col items-center px-6 pb-5 pt-7">
+            <div className="mb-4 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
+              <AlertTriangle size={30} strokeWidth={1.6} className="text-orange-400" />
+            </div>
+            <p className="text-[17px] font-extrabold tracking-tight text-white">기준물이 인식되지 않았어요</p>
+            <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
+              기준물(입낚볼·입낚키링·인쇄 기준물)이 인식되지 않았습니다.
+              <br />
+              기준물을 함께 놓고 다시 촬영해주세요.
+            </p>
+          </div>
+          <div className="px-4 pb-6 pt-1">
+            <button
+              type="button"
+              onClick={closeAfterRefMissing}
+              className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* ── 권한 사전 안내 오버레이 ──
         회전된 카메라 컨테이너 밖에 fixed로 배치 → 항상 세로(portrait) 방향으로 표시 */}
