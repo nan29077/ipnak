@@ -67,8 +67,12 @@ export async function POST(req: Request) {
       ).catch(() => {});
       throw createError;
     }
-    // productType은 Prisma 스키마에 없는 raw 컬럼이라 생성 직후 별도로 기록한다.
-    await prisma.$executeRawUnsafe(`UPDATE "BallOrder" SET "productType" = ? WHERE "id" = ?`, productType, order.id);
+    // productType·productId는 Prisma 스키마에 없는 raw 컬럼이라 생성 직후 별도로 기록한다.
+    // productId는 위에서 실제로 재고를 차감한 상품 레코드 — 취소·환불 시 이 상품으로 되돌린다.
+    await prisma.$executeRawUnsafe(
+      `UPDATE "BallOrder" SET "productType" = ?, "productId" = ? WHERE "id" = ?`,
+      productType, product.id, order.id
+    );
     return NextResponse.json({ ok: true, orderNo: order.orderNo });
   } catch (e: any) {
     return NextResponse.json({ error: e.message === "UNAUTHORIZED" ? "로그인이 필요합니다." : "주문 처리에 실패했습니다." }, { status: e.message === "UNAUTHORIZED" ? 401 : 500 });
