@@ -48,6 +48,8 @@ const STATUS_MAP: Record<string, { label: string; tone: "navy" | "aqua" | "amber
   DELIVERED: { label: "배송완료", tone: "green" },
   REFUNDED: { label: "환불", tone: "red" },
   READY: { label: "결제대기", tone: "amber" },
+  ACTIVE: { label: "판매중", tone: "green" },
+  INACTIVE: { label: "비활성", tone: "gray" },
   SUPER_ADMIN: { label: "관리자", tone: "navy" },
   ANGLER: { label: "낚시꾼", tone: "gray" },
   PARTNER: { label: "파트너", tone: "aqua" },

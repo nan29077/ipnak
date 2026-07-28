@@ -133,7 +133,7 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                 u.role !== "PARTNER" ? (
                   <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "PARTNER" }} label="파트너 지정" successMsg="역할이 변경되었습니다" />
                 ) : (
-                  <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "ANGLER" }} label="낚시꾼으로" successMsg="역할이 변경되었습니다" />
+                  <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "ANGLER" }} label={`${anglerLabel}으로`} successMsg="역할이 변경되었습니다" />
                 )
               )}
             </div>

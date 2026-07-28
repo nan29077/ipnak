@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState, useTransition } from "react";
+import { Suspense, useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { ActionButton } from "@/components/admin/ActionButton";
@@ -64,22 +64,26 @@ function ReviewsContent() {
   const st    = searchParams.get("status")       ?? "";
   const sort  = searchParams.get("sort")         ?? "newest";
 
-  useEffect(() => {
-    setLoading(true);
+  /* 이 페이지는 클라이언트 컴포넌트라 router.refresh()로는 목록이 갱신되지 않는다.
+     승인·반려 후에는 showSpinner=false 로 직접 다시 불러온다. */
+  const load = useCallback((showSpinner: boolean) => {
+    if (showSpinner) setLoading(true);
     const p = new URLSearchParams();
     if (tId)  p.set("tournamentId", tId);
     if (st)   p.set("status", st);
     p.set("sort", sort);
 
-    fetch(`/api/admin/reviews?${p.toString()}`)
+    return fetch(`/api/admin/reviews?${p.toString()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
         setEntries(d.entries ?? []);
         setTournaments(d.tournaments ?? []);
       })
+      .catch(() => { /* 네트워크/파싱 오류 시 unhandled rejection 방지 */ })
       .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.toString()]);
+  }, [tId, st, sort]);
+
+  useEffect(() => { load(true); }, [load]);
 
   function change(key: string, val: string) {
     startTransition(() => {
@@ -175,12 +179,14 @@ function ReviewsContent() {
                             <ActionButton
                               payload={{ type: "ENTRY_REVIEW", id: e.id, status: "APPROVED" }}
                               label="승인" variant="primary" successMsg="승인되었습니다"
+                              onSuccess={() => load(false)}
                             />
                           )}
                           {e.status !== "REJECTED" && (
                             <ActionButton
                               payload={{ type: "ENTRY_REVIEW", id: e.id, status: "REJECTED" }}
                               label="반려" variant="danger" successMsg="반려되었습니다"
+                              onSuccess={() => load(false)}
                             />
                           )}
                         </div>
@@ -237,12 +243,14 @@ function ReviewsContent() {
                       <ActionButton
                         payload={{ type: "ENTRY_REVIEW", id: e.id, status: "APPROVED" }}
                         label="승인" variant="primary" successMsg="승인되었습니다"
+                        onSuccess={() => load(false)}
                       />
                     )}
                     {e.status !== "REJECTED" && (
                       <ActionButton
                         payload={{ type: "ENTRY_REVIEW", id: e.id, status: "REJECTED" }}
                         label="반려" variant="danger" successMsg="반려되었습니다"
+                        onSuccess={() => load(false)}
                       />
                     )}
                   </div>

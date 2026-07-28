@@ -54,7 +54,8 @@ export default async function AdminGroupsPage() {
                   <div className="flex items-center gap-1.5">
                     <p className="truncate text-[13px] font-semibold text-navy-800">{g.name}</p>
                     <span className="shrink-0 rounded-full bg-navy-50/60 px-1.5 py-0.5 text-[10px] text-navy-400">{g.category}</span>
-                    {g.isPublic === 0 && (
+                    {/* raw 쿼리라 isPublic이 boolean(false) 또는 0으로 올 수 있어 둘 다 처리 */}
+                    {!g.isPublic && (
                       <span className="shrink-0 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] text-red-500">비공개</span>
                     )}
                   </div>

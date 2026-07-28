@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmDialog";
 
 export function ActionButton({
-  payload, label, variant = "default", confirm, successMsg,
+  payload, label, variant = "default", confirm, successMsg, onSuccess,
 }: {
   payload: Record<string, any>; label: string;
   variant?: "default" | "primary" | "danger" | "ghost"; confirm?: string; successMsg?: string;
+  /** 클라이언트 컴포넌트 페이지처럼 router.refresh()만으로 목록이 갱신되지 않는 곳에서 직접 다시 불러오기 위해 사용 */
+  onSuccess?: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -28,6 +30,7 @@ export function ActionButton({
       if (!res.ok) throw new Error(data.error || "오류");
       toast(successMsg || "처리되었습니다", "success");
       router.refresh();
+      onSuccess?.();
     } catch (e: any) {
       toast(e.message, "error");
     } finally {

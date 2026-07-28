@@ -276,3 +276,119 @@ export async function getLogCategoryCounts(): Promise<Record<string, number>> {
   for (const r of rows as any[]) out[r.boardCategory ?? "FREE"] = r._count?._all ?? 0;
   return out;
 }
+
+// ===== cursor 기반 페이지네이션 =====
+
+/** 피싱피드 / 일상피드 페이지 단위 조회 */
+export async function getFeedPostsPage(
+  userId?: string,
+  opts?: { authorId?: string; postType?: string; savedBy?: string; kind?: string | null },
+  cursor?: string,
+  limit = 20
+): Promise<{ posts: FeedPost[]; nextCursor: string | null }> {
+  const baseWhere: any = { hidden: false };
+  if (opts?.postType) baseWhere.postType = opts.postType;
+  else baseWhere.postType = { notIn: ["WALKING_FEED", "FISHING_POINT"] };
+  if (opts?.savedBy) baseWhere.bookmarks = { some: { userId: opts.savedBy } };
+
+  if (userId) {
+    const following = await prisma.follow.findMany({
+      where: { followerId: userId },
+      select: { followingId: true },
+    });
+    const followingIds = following.map((f) => f.followingId);
+    baseWhere.OR = [
+      { visibility: { in: ["PUBLIC", "BLURRED"] } },
+      { AND: [{ visibility: "FOLLOWERS" }, { authorId: { in: followingIds } }] },
+      { authorId: userId },
+    ];
+  } else {
+    baseWhere.visibility = { in: ["PUBLIC", "BLURRED"] };
+  }
+
+  if (opts?.authorId) baseWhere.authorId = opts.authorId;
+
+  const useKind = opts?.kind !== null;
+  const where = useKind ? { ...baseWhere, kind: opts?.kind ?? "FEED" } : baseWhere;
+  // 유니온({cursor,skip} | {})으로 추론되면 스프레드 시 findMany 인자 타입이 깨진다 → 선택 필드로 명시
+  const cursorClause: { cursor?: { id: string }; skip?: number } = cursor ? { cursor: { id: cursor }, skip: 1 } : {};
+
+  const fetchAndPaginate = async (w: any) => {
+    const raw = await prisma.post.findMany({
+      where: w, include: feedInclude(userId), orderBy: { createdAt: "desc" },
+      take: limit + 1, ...cursorClause,
+    });
+    const hasMore = raw.length > limit;
+    const items = hasMore ? raw.slice(0, limit) : raw;
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
+    const posts = await Promise.all(items.map((p) => toFeedPost(p, userId)));
+    return { posts, nextCursor };
+  };
+
+  try {
+    return await fetchAndPaginate(where);
+  } catch (e) {
+    if (!useKind) throw e;
+    return await fetchAndPaginate(baseWhere);
+  }
+}
+
+/** 조행기 페이지 단위 조회 */
+export async function getLogPostsPage(
+  opts?: { category?: string | null; authorId?: string },
+  cursor?: string,
+  limit = 20
+): Promise<{ posts: LogListItem[]; nextCursor: string | null }> {
+  const where: any = { hidden: false, kind: "LOG" };
+  if (opts?.category) where.boardCategory = opts.category;
+  if (opts?.authorId) where.authorId = opts.authorId;
+  // 유니온({cursor,skip} | {})으로 추론되면 스프레드 시 findMany 인자 타입이 깨진다 → 선택 필드로 명시
+  const cursorClause: { cursor?: { id: string }; skip?: number } = cursor ? { cursor: { id: cursor }, skip: 1 } : {};
+  try {
+    const raw = await prisma.post.findMany({
+      where, include: logListInclude, orderBy: { createdAt: "desc" },
+      take: limit + 1, ...cursorClause,
+    });
+    const hasMore = raw.length > limit;
+    const items = hasMore ? raw.slice(0, limit) : raw;
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
+    return { posts: (items as any[]).map(toLogListItem), nextCursor };
+  } catch {
+    return { posts: [], nextCursor: null };
+  }
+}
+
+/** 워킹 피드 페이지 단위 조회 */
+export async function getWalkingFeedPostsPage(
+  userId?: string,
+  opts?: { authorId?: string },
+  cursor?: string,
+  limit = 12
+): Promise<{ posts: FeedPost[]; nextCursor: string | null }> {
+  // 유니온({cursor,skip} | {})으로 추론되면 스프레드 시 findMany 인자 타입이 깨진다 → 선택 필드로 명시
+  const cursorClause: { cursor?: { id: string }; skip?: number } = cursor ? { cursor: { id: cursor }, skip: 1 } : {};
+  try {
+    const raw = await prisma.post.findMany({
+      where: {
+        hidden: false,
+        postType: "WALKING_FEED",
+        ...(userId
+          ? { OR: [{ visibility: { in: ["PUBLIC", "BLURRED"] } }, { authorId: userId }] }
+          : { visibility: { in: ["PUBLIC", "BLURRED"] } }),
+        ...(opts?.authorId ? { authorId: opts.authorId } : {}),
+      },
+      include: feedInclude(userId),
+      orderBy: { createdAt: "desc" },
+      take: limit + 1,
+      ...cursorClause,
+    });
+    const hasMore = raw.length > limit;
+    const items = hasMore ? raw.slice(0, limit) : raw;
+    const locks = await computeWalkingLocks(items, userId);
+    const posts = await Promise.all(items.map((p) => toFeedPost(p, userId, locks.get(p.id) ?? false)));
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
+    return { posts, nextCursor };
+  } catch {
+    return { posts: [], nextCursor: null };
+  }
+}
