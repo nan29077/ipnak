@@ -18,7 +18,8 @@ const ALL_SPECIES_MOBILE_BACKGROUND =
 const BASS_PC_FALLBACK_BACKGROUND =
   "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지.png";
 const BASS_PC_CINEMAGRAPH_BACKGROUND = "/landing-bear-bass-boat-hero-v2.png";
-const ALL_SPECIES_PC_BACKGROUND = "/landing-bear-all-species-offshore-pc.png";
+// OFF 상태 PC 배경 — 이전 버전(정중앙 배스 파이팅 컷)으로 복귀
+const ALL_SPECIES_PC_BACKGROUND = "/landing-bear-bass-boat-hero-v2.png";
 
 export default function LandingPage() {
   const router = useRouter();
