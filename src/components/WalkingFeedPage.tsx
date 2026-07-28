@@ -1,15 +1,44 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
-import { Route, Navigation, Clock, Fish } from "lucide-react";
+import { Route, Fish, ChevronDown, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
-import { km, duration } from "@/lib/utils";
+import { km } from "@/lib/utils";
 import type { FeedPost } from "@/lib/queries";
 
-export function WalkingFeedPage({ posts, currentUserId }: { posts: FeedPost[]; currentUserId?: string }) {
+export function WalkingFeedPage({
+  posts: initialPosts,
+  currentUserId,
+  nextCursor: initialNextCursor,
+}: {
+  posts: FeedPost[];
+  currentUserId?: string;
+  nextCursor?: string | null;
+}) {
   const [viewMode, setViewMode] = useViewMode("ipnak_view_walking");
+  const [posts, setPosts] = useState<FeedPost[]>(initialPosts);
+  const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  async function loadMore() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/posts/walking?cursor=${cursor}&limit=12`);
+      const data = await res.json();
+      if (data.posts?.length) {
+        setPosts((prev) => [...prev, ...data.posts]);
+      }
+      setCursor(data.nextCursor ?? null);
+    } catch {
+      // 실패 시 무시
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <div className="bg-[#121212]">
@@ -56,6 +85,21 @@ export function WalkingFeedPage({ posts, currentUserId }: { posts: FeedPost[]; c
       ) : (
         <div className="md:py-3">
           {posts.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
+        </div>
+      )}
+
+      {/* 더 보기 버튼 */}
+      {cursor && (
+        <div className="flex justify-center py-6">
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="inline-flex items-center gap-2 rounded-full border border-navy-200 bg-[#1a2a1a] px-5 py-2.5 text-[13px] font-semibold text-navy-400 transition-colors hover:bg-[#223322] disabled:opacity-50"
+          >
+            {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <ChevronDown size={15} />}
+            {loadingMore ? "불러오는 중..." : "더 보기"}
+          </button>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutList, LayoutGrid, Ruler, Fish } from "lucide-react";
+import { LayoutList, LayoutGrid, Ruler, Fish, ChevronDown, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
@@ -30,9 +30,40 @@ export function useViewMode(key: string): ["list" | "card", (m: "list" | "card")
   return [mode, update];
 }
 
-export function FeedList({ posts, currentUserId, banners }: { posts: FeedPost[]; currentUserId?: string; banners?: { title: string; imageUrl: string | null; linkUrl?: string | null }[] }) {
+export function FeedList({
+  posts: initialPosts,
+  currentUserId,
+  banners,
+  nextCursor: initialNextCursor,
+  feedKind = "FEED",
+}: {
+  posts: FeedPost[];
+  currentUserId?: string;
+  banners?: { title: string; imageUrl: string | null; linkUrl?: string | null }[];
+  nextCursor?: string | null;
+  feedKind?: string;
+}) {
   const [viewMode, setViewMode] = useViewMode("ipnak_view_feed");
-  const visible = posts;
+  const [posts, setPosts] = useState<FeedPost[]>(initialPosts);
+  const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  async function loadMore() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/posts/feed?cursor=${cursor}&limit=20&kind=${feedKind}`);
+      const data = await res.json();
+      if (data.posts?.length) {
+        setPosts((prev) => [...prev, ...data.posts]);
+      }
+      setCursor(data.nextCursor ?? null);
+    } catch {
+      // 실패 시 무시
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <div className="bg-[#0d1b2a]">
@@ -64,11 +95,11 @@ export function FeedList({ posts, currentUserId, banners }: { posts: FeedPost[];
         <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
-      {visible.length === 0 ? (
+      {posts.length === 0 ? (
         <EmptyState title="피싱 피드가 없습니다" desc="첫 조황 사진을 올려보세요" action={<LinkButton href="/post/new">피싱 피드 올리기</LinkButton>} />
       ) : viewMode === "card" ? (
         <div className="grid grid-cols-3 gap-0.5">
-          {visible.map((p) => {
+          {posts.map((p) => {
             const thumb = p.images[0]?.url ?? null;
             return (
               <Link key={p.id} href={`/post/${p.id}`} className="relative aspect-square overflow-hidden bg-[#1b2b3a]">
@@ -93,7 +124,22 @@ export function FeedList({ posts, currentUserId, banners }: { posts: FeedPost[];
         </div>
       ) : (
         <div className="md:py-3">
-          {visible.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
+          {posts.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
+        </div>
+      )}
+
+      {/* 더 보기 버튼 */}
+      {cursor && (
+        <div className="flex justify-center py-6">
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="inline-flex items-center gap-2 rounded-full border border-navy-200 bg-[#162538] px-5 py-2.5 text-[13px] font-semibold text-navy-400 transition-colors hover:bg-[#1e3248] disabled:opacity-50"
+          >
+            {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <ChevronDown size={15} />}
+            {loadingMore ? "불러오는 중..." : "더 보기"}
+          </button>
         </div>
       )}
     </div>

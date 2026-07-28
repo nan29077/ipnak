@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { MessageSquare, Eye, ImageIcon, PenLine, BookOpen } from "lucide-react";
+import { MessageSquare, Eye, ImageIcon, PenLine, BookOpen, ChevronDown, Loader2 } from "lucide-react";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { Chip, EmptyState, LinkButton } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
@@ -9,10 +9,41 @@ import { LOG_CATEGORIES } from "@/lib/taxonomy";
 import { timeAgo } from "@/lib/utils";
 import type { LogListItem } from "@/lib/queries";
 
-export function LogBoard({ posts, counts, currentUserId }: { posts: LogListItem[]; counts: Record<string, number>; currentUserId?: string }) {
+export function LogBoard({
+  posts: initialPosts,
+  counts,
+  currentUserId,
+  nextCursor: initialNextCursor,
+}: {
+  posts: LogListItem[];
+  counts: Record<string, number>;
+  currentUserId?: string;
+  nextCursor?: string | null;
+}) {
   const [cat, setCat] = useState("ALL");
   const [viewMode, setViewMode] = useViewMode("ipnak_view_log");
+  const [posts, setPosts] = useState<LogListItem[]>(initialPosts);
+  const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const visible = useMemo(() => (cat === "ALL" ? posts : posts.filter((p) => (p.boardCategory ?? "WALKING") === cat)), [posts, cat]);
+
+  async function loadMore() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/posts/log?cursor=${cursor}&limit=20`);
+      const data = await res.json();
+      if (data.posts?.length) {
+        setPosts((prev) => [...prev, ...data.posts]);
+      }
+      setCursor(data.nextCursor ?? null);
+    } catch {
+      // 실패 시 무시
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <div className="min-h-screen">
@@ -69,9 +100,24 @@ export function LogBoard({ posts, counts, currentUserId }: { posts: LogListItem[
           ))}
         </div>
       ) : (
-        <ul className="mt-2 flex flex-col gap-2.5 px-3 pb-10">
+        <ul className="mt-2 flex flex-col gap-2.5 px-3 pb-4">
           {visible.map((p) => <LogRow key={p.id} post={p} />)}
         </ul>
+      )}
+
+      {/* 더 보기 버튼 */}
+      {cursor && (
+        <div className="flex justify-center py-6">
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="inline-flex items-center gap-2 rounded-full border border-navy-200 bg-[#122030] px-5 py-2.5 text-[13px] font-semibold text-navy-400 transition-colors hover:bg-[#1a2d3e] disabled:opacity-50"
+          >
+            {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <ChevronDown size={15} />}
+            {loadingMore ? "불러오는 중..." : "더 보기"}
+          </button>
+        </div>
       )}
     </div>
   );
