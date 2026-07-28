@@ -461,14 +461,22 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
           // 실패/인식 안 됨 → 오버레이 제거 (스펙: 카메라 화면만 유지)
           successRef.current = null;
           setDet(null);
-          // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 —
-          // API가 "no-ball"을 반환하면 기준물이 화면에 없는 것이므로 카운터를 올린다
-          if (data?.reason === "no-ball") {
-            refMissRef.current += 1;
-            if (refMissRef.current >= REF_MISS_LIMIT) goStage("no-ref-warning");
-          } else {
+          if (data?.ok === false && data?.reason === "no-ball") {
+            // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 —
+            // 물고기는 보이는데 기준물만 없는 경우에만 카운트한다.
+            // 아무것도 없는 빈 화면(구도 잡는 중)은 카운트하지 않는다.
+            // fishFound는 API가 동봉하는 플래그, scanStatus "locked"는 클라이언트 윤곽 감지 폴백.
+            const fishVisible = data?.fishFound === true || scanStatusRef.current === "locked";
+            if (fishVisible) {
+              refMissRef.current += 1;
+              if (refMissRef.current >= REF_MISS_LIMIT) goStage("no-ref-warning");
+            }
+          } else if (data && (data.ok === true || data.ballFound === true || data.reason === "no-fish")) {
+            // 기준물이 실제로 화면에 잡힌 확정 응답(자세/신뢰도 미달 포함) → 연속 미감지 아님, 카운터 리셋
             refMissRef.current = 0;
           }
+          // 그 외(429 레이트리밋, 타임아웃, AI 오류, 파싱 실패 등 판정 불가 응답)는 카운터를 유지한다 —
+          // 일시적 오류가 '연속 미감지' 카운트를 끊어 종료 안내가 영영 뜨지 않던 문제 방지
         }
       } catch {
         if (!stopped) { successRef.current = null; setDet(null); }
