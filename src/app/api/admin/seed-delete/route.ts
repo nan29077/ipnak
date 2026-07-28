@@ -40,8 +40,8 @@ export async function POST(req: Request) {
           prisma.postImage.deleteMany({ where: { post: { authorId: { in: dummyIds } } } }),
         ]);
         await prisma.$transaction([
-          prisma.catchRecord.deleteMany({ where: { userId: { in: dummyIds } } }).catch(() => {}),
-          prisma.fishingPoint.deleteMany({ where: { userId: { in: dummyIds } } }).catch(() => {}),
+          prisma.catchRecord.deleteMany({ where: { userId: { in: dummyIds } } }),
+          prisma.fishingPoint.deleteMany({ where: { userId: { in: dummyIds } } }),
           prisma.post.deleteMany({ where: { authorId: { in: dummyIds } } }),
         ]);
         const listings = await prisma.marketListing.findMany({ where: { sellerId: { in: dummyIds } }, select: { id: true } });

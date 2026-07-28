@@ -4,9 +4,9 @@
     {
       "name": "ipnak-dev",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev"],
+      "runtimeArgs": ["next", "dev", "-p", "3010"],
       "port": 3010,
-      "autoPort": true
+      "autoPort": false
     }
   ]
 }

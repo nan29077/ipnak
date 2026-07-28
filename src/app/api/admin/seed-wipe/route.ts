@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(req as any);
+    const user = await requireUser();
     if (!user || user.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "권한 없음" }, { status: 403 });
     }

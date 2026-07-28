@@ -15,6 +15,13 @@ echo.
 
 set "PORT=3010"
 
+REM --- 0) Free the port: kill whatever is listening on 3010 ---
+echo [ipnak] Releasing port %PORT% if it is in use ...
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr ":%PORT% " ^| findstr "LISTENING"') do (
+  taskkill /PID %%P /F >nul 2>&1
+)
+echo.
+
 REM --- 1) Check Node.js / npm ---
 where node >nul 2>&1
 if errorlevel 1 (

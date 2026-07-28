@@ -101,7 +101,7 @@ PE 5호 + 카본 목줄 25호의 강력한 채비로 갯바위 틈새를 공략�
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(req as any);
+    const user = await requireUser();
     if (!user || user.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "권한 없음" }, { status: 403 });
     }
