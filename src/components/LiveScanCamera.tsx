@@ -522,11 +522,17 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
   /* ── 윤슬 한 바퀴 완료 → 자동으로 측정 확정 ── */
   const handleShimmerComplete = useCallback(() => { confirm(); }, [confirm]);
 
-  /* ── 기준물 미감지 안내 '확인' → 카메라 닫고 선택 화면 복귀 ── */
+  /* ── 기준물 미감지 안내 '예' → 카메라 닫고 선택 화면 복귀 ── */
   const closeAfterRefMissing = useCallback(() => {
     cleanupStream();
     onClose();
   }, [cleanupStream, onClose]);
+
+  /* ── 기준물 미감지 안내 '아니오' → 팝업만 닫고 카메라 유지 (미감지 카운터 리셋) ── */
+  const keepScanningAfterRefMissing = useCallback(() => {
+    refMissRef.current = 0;
+    goStage("scan");
+  }, [goStage]);
 
   // effectiveLandscape: 실제로 가로 UI를 표시할지 여부
   const effectiveLandscape = isLandscape || browserIsLandscape;
@@ -538,15 +544,15 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
   /* ── 윤곽 감지 상태별 안내 문구 ── */
   const scanGuide: { main: string; sub: string; locked: boolean } =
     scanStatus === "locked"
-      ? { main: "물고기 윤곽 인식됨 · 측정 중...", sub: "입낚볼이 함께 보이면 길이가 더 정확해요", locked: true }
+      ? { main: "물고기 윤곽 인식됨 · 측정 중...", sub: "입낚볼과 함께 촬영해 주세요", locked: true }
       : scanStatus === "too-small"
       ? { main: "물고기가 너무 작게 보여요", sub: "조금 더 가까이에서 비춰주세요", locked: false }
       : scanStatus === "too-large"
       ? { main: "물고기가 화면에 꽉 찼어요", sub: "조금 더 멀리서 비춰주세요", locked: false }
       : { main: "물고기를 화면 중앙에 놓아주세요", sub: "바닥에 옆으로 눕히고 입낚볼도 함께 보이게 맞춰주세요", locked: false };
 
-  /* ── 안내 텍스트 (세로/가로 공용) ── */
-  const guidance = stage === "shimmer" ? (
+  /* ── 안내 문구 본문 (세로/가로 공용) — 단계별로 하나만 렌더 ── */
+  const guidanceBody = stage === "shimmer" ? (
     <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-yellow-300">
       <ScanLine size={15} strokeWidth={2.2} />
       인식 완료 — 측정 중이에요...
@@ -566,6 +572,14 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
         {scanGuide.main}
       </p>
       <p className="text-[11px] text-white/55">{scanGuide.sub}</p>
+    </div>
+  );
+
+  /* ── 안내 텍스트 컨테이너 ──
+     카메라 영상이나 뒤쪽 오버레이의 글자가 비쳐 보이지 않도록 불투명 배경 위에 표시한다 */
+  const guidance = (
+    <div className="mx-auto w-max max-w-[92%] rounded-2xl bg-[#0b1e2e] px-4 py-2.5 shadow-lg ring-1 ring-white/10">
+      {guidanceBody}
     </div>
   );
 
@@ -747,7 +761,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
       {/* ── 안내 오버레이 — 가로 모드 시 카메라 왼쪽 영역 중앙 ── */}
       {camStatus !== "error" && effectiveLandscape && (
         <div
-          className="pointer-events-none absolute inset-y-0 left-0 z-20 flex flex-col items-center justify-center"
+          className="pointer-events-none absolute inset-y-0 left-0 z-30 flex flex-col items-center justify-center"
           style={{
             // CSS 회전: safe-area-inset-bottom(=landscape right)
             // 네이티브 가로: safe-area-inset-right(=landscape right)
@@ -795,7 +809,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
 
     {/* ── 기준물 미감지 안내 ──
         물고기는 인식됐지만 기준물(입낚볼·입낚키링·인쇄 기준물)이 없으면 측정 불가 →
-        '확인' 시 카메라를 닫고 이전 선택 화면으로 복귀.
+        '예' 시 카메라를 닫고 이전 선택 화면으로 복귀 / '아니오' 시 카메라를 그대로 유지.
         회전된 카메라 컨테이너 밖에 fixed 로 배치 → 항상 세로(portrait) 방향 표시 */}
     {stage === "ref-missing" && (
       <div
@@ -811,20 +825,27 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
             <div className="mb-4 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
               <AlertTriangle size={30} strokeWidth={1.6} className="text-orange-400" />
             </div>
-            <p className="text-[17px] font-extrabold tracking-tight text-white">기준물이 인식되지 않았어요</p>
+            <p className="text-center text-[16px] font-extrabold leading-relaxed tracking-tight text-white">
+              입낚볼 등이 인식되지 않아<br />AI카메라가 종료됩니다.
+            </p>
             <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
-              기준물(입낚볼·입낚키링·인쇄 기준물)이 인식되지 않았습니다.
-              <br />
-              기준물을 함께 놓고 다시 촬영해주세요.
+              종료하시겠습니까?
             </p>
           </div>
-          <div className="px-4 pb-6 pt-1">
+          <div className="flex gap-2 px-4 pb-6 pt-1">
+            <button
+              type="button"
+              onClick={keepScanningAfterRefMissing}
+              className="flex-1 rounded-2xl bg-white/10 py-3.5 text-[15px] font-bold text-white/80 transition-all active:scale-[0.98] active:bg-white/20"
+            >
+              아니오
+            </button>
             <button
               type="button"
               onClick={closeAfterRefMissing}
-              className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+              className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
             >
-              확인
+              예
             </button>
           </div>
         </div>
