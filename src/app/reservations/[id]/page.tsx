@@ -12,11 +12,9 @@ import { getAvatarUrl } from "@/lib/avatarUtils";
 export const dynamic = "force-dynamic";
 
 export default async function ReservationDetailPage({ params }: { params: { id: string } }) {
-  // 서로 독립적인 조회 병렬화 — 비로그인 시에도 안전하게, 조회 실패는 null 처리
-  const [reservationEnabled, user] = await Promise.all([
-    getBoolSetting("reservation_enabled"),
-    getCurrentUser().catch(() => null),
-  ]);
+  const reservationEnabled = await getBoolSetting("reservation_enabled");
+  // 비로그인 시에도 안전하게 — 조회 실패는 null 처리
+  const user = await getCurrentUser().catch(() => null);
   // 예약 기능 OFF 여도 SUPER_ADMIN은 상품 미리보기 가능
   if (!reservationEnabled && user?.role !== "SUPER_ADMIN") {
     return (

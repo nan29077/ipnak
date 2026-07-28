@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   const b = await req.json().catch(() => ({}));
   // 쇼핑 태그 OFF 시: 403 대신 태그만 무효화해 글 작성 자체는 정상 처리
   if (!shopTagEnabled) { b.productTags = []; b.productIds = []; }
-  const kind = b.kind === "LOG" ? "LOG" : b.kind === "WALKING" ? "WALKING" : b.kind === "GENERAL" ? "GENERAL" : "FEED";
+  const kind = b.kind === "LOG" ? "LOG" : b.kind === "WALKING" ? "WALKING" : "FEED";
 
   // LOG·WALKING은 사진 없이도 가능. 피싱 피드(FEED)는 사진이 없으면 더미 1장 보강.
   const rawImages: string[] = Array.isArray(b.images) ? b.images.filter(Boolean) : [];
@@ -66,13 +66,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "조행기는 DB 업데이트가 필요합니다. 터미널에서 npm run db:push 실행 후 다시 시도해주세요." }, { status: 503 });
     }
     const { kind: _k, title: _t, body: _b, boardCategory: _bc, ...legacy } = data;
-    try {
-      const post = await prisma.post.create({ data: legacy });
-      const earned = await awardPostReward(user.id, post.id);
-      return NextResponse.json({ ok: true, id: post.id, pointsEarned: earned ?? 0 });
-    } catch {
-      // 레거시 재시도까지 실패(FK 위반 등) → 원시 500 대신 정돈된 에러 응답
-      return NextResponse.json({ error: "글 작성 중 오류가 발생했습니다." }, { status: 500 });
-    }
+    const post = await prisma.post.create({ data: legacy });
+    const earned = await awardPostReward(user.id, post.id);
+    return NextResponse.json({ ok: true, id: post.id, pointsEarned: earned ?? 0 });
   }
 }

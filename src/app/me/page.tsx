@@ -32,72 +32,66 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
     getBoolSetting("shop_tag_enabled"),
   ]);
   const anglerLabel = user.role === "ANGLER" && bassOnly ? "앵글러" : ROLE_LABELS[user.role];
+  const pointBalance = pEnabled ? await getBalance(user.id) : 0;
 
-  // 서로 독립적인 쿼리들을 병렬 실행 (기존 직렬 waterfall 제거 — 동작/결과 동일)
-  const [
-    pointBalance,
-    bookingsRaw,
-    tripCount,
-    recentTripsRaw,
-    myWalkingPosts,
-    [marketSellCount, marketBuyCount, marketFavCount, marketChatCount],
-    sellerChatsRaw,
-    myGroupMembers,
-  ] = await Promise.all([
-    pEnabled ? getBalance(user.id) : Promise.resolve(0),
-    prisma.booking.findMany({
-      where: { userId: user.id }, include: { listing: true }, orderBy: { createdAt: "desc" }, take: 10,
-    }),
-    prisma.fishingTrip.count({ where: { userId: user.id, endedAt: { not: null } } }),
-    prisma.fishingTrip.findMany({
-      where: { userId: user.id, endedAt: { not: null } },
-      orderBy: { startedAt: "desc" },
-      take: 3,
-      select: {
-        id: true, title: true, region: true, distanceM: true,
-        durationSec: true, startedAt: true, catchCount: true,
-        routePoints: {
-          select: { lat: true, lng: true, order: true },
-          orderBy: { order: "asc" },
-          take: 200,
-        },
-        fishingPoints: {
-          select: { lat: true, lng: true },
-          take: 50,
-        },
+  const bookingsRaw = await prisma.booking.findMany({
+    where: { userId: user.id }, include: { listing: true }, orderBy: { createdAt: "desc" }, take: 10,
+  });
+
+  const tripCount = await prisma.fishingTrip.count({ where: { userId: user.id, endedAt: { not: null } } });
+
+  const recentTripsRaw = await prisma.fishingTrip.findMany({
+    where: { userId: user.id, endedAt: { not: null } },
+    orderBy: { startedAt: "desc" },
+    take: 3,
+    select: {
+      id: true, title: true, region: true, distanceM: true,
+      durationSec: true, startedAt: true, catchCount: true,
+      routePoints: {
+        select: { lat: true, lng: true, order: true },
+        orderBy: { order: "asc" },
+        take: 200,
       },
-    }),
-    getWalkingFeedPosts(user.id, { authorId: user.id }, 6),
-    Promise.all([
-      prisma.marketListing.count({ where: { sellerId: user.id } }),
-      prisma.marketChat.count({ where: { buyerId: user.id } }),
-      prisma.marketFavorite.count({ where: { userId: user.id } }),
-      prisma.marketChat.count({ where: { OR: [{ buyerId: user.id }, { listing: { sellerId: user.id } }] } }),
-    ]),
-    prisma.marketChat.findMany({
-      where: { listing: { sellerId: user.id } },
-      include: {
-        messages: { orderBy: { createdAt: "desc" }, take: 1 },
-        buyer: { select: { id: true, nickname: true, avatarUrl: true } },
-        listing: { select: { id: true, title: true, images: { take: 1, orderBy: { order: "asc" } } } },
+      fishingPoints: {
+        select: { lat: true, lng: true },
+        take: 50,
       },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.$queryRawUnsafe<any[]>(
-      `SELECT m.role, g.id, g.name, g.category, g.region, g.fishSpecies,
-              COUNT(gm.id) as memberCount
-       FROM "GroupMember" m
-       LEFT JOIN "Group" g ON g.id = m.groupId
-       LEFT JOIN "GroupMember" gm ON gm.groupId = g.id AND gm.role IN ('leader','member')
-       WHERE m.userId = ? AND m.role IN ('leader','member')
-       GROUP BY g.id
-       ORDER BY m.joinedAt DESC
-       LIMIT 5`,
-      user.id
-    ),
+    },
+  });
+
+  const myWalkingPosts = await getWalkingFeedPosts(user.id, { authorId: user.id }, 6);
+
+  const [marketSellCount, marketBuyCount, marketFavCount, marketChatCount] = await Promise.all([
+    prisma.marketListing.count({ where: { sellerId: user.id } }),
+    prisma.marketChat.count({ where: { buyerId: user.id } }),
+    prisma.marketFavorite.count({ where: { userId: user.id } }),
+    prisma.marketChat.count({ where: { OR: [{ buyerId: user.id }, { listing: { sellerId: user.id } }] } }),
   ]);
+
+  const sellerChatsRaw = await prisma.marketChat.findMany({
+    where: { listing: { sellerId: user.id } },
+    include: {
+      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      buyer: { select: { id: true, nickname: true, avatarUrl: true } },
+      listing: { select: { id: true, title: true, images: { take: 1, orderBy: { order: "asc" } } } },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
   const needsReplyChatsRaw = sellerChatsRaw.filter(
     (c) => c.messages.length > 0 && c.messages[0].senderId !== user.id && !c.messages[0].body.startsWith("[시스템]")
+  );
+
+  const myGroupMembers = await prisma.$queryRawUnsafe<any[]>(
+    `SELECT m.role, g.id, g.name, g.category, g.region, g.fishSpecies,
+            COUNT(gm.id) as memberCount
+     FROM "GroupMember" m
+     LEFT JOIN "Group" g ON g.id = m.groupId
+     LEFT JOIN "GroupMember" gm ON gm.groupId = g.id AND gm.role IN ('leader','member')
+     WHERE m.userId = ? AND m.role IN ('leader','member')
+     GROUP BY g.id
+     ORDER BY m.joinedAt DESC
+     LIMIT 5`,
+    user.id
   );
 
   // 직렬화: Date → ISO string

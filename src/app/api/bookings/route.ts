@@ -15,15 +15,8 @@ export async function POST(req: Request) {
   const listing = await prisma.reservationListing.findUnique({ where: { id: b.listingId } });
   if (!listing) return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 });
   const people = Math.max(1, Number(b.people) || 1);
-  // 잘못된 날짜 문자열이 Prisma로 전달되어 500이 나지 않도록 검증 (Invalid Date 방지)
-  const parsedDate = new Date(b.date || Date.now());
-  const date = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
-  try {
-    const booking = await prisma.booking.create({
-      data: { listingId: listing.id, userId: user.id, date, people, totalPrice: listing.price * people, status: "REQUESTED" },
-    });
-    return NextResponse.json({ ok: true, id: booking.id });
-  } catch {
-    return NextResponse.json({ error: "예약 처리 중 오류가 발생했습니다." }, { status: 500 });
-  }
+  const booking = await prisma.booking.create({
+    data: { listingId: listing.id, userId: user.id, date: new Date(b.date || Date.now()), people, totalPrice: listing.price * people, status: "REQUESTED" },
+  });
+  return NextResponse.json({ ok: true, id: booking.id });
 }

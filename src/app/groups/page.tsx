@@ -30,20 +30,14 @@ export default function GroupsPage() {
 
   async function load() {
     setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (region) params.set("region", region);
-      if (fishSpecies) params.set("fishSpecies", fishSpecies);
-      if (search) params.set("search", search);
-      const res = await fetch(`/api/groups?${params}`);
-      const data = await res.json();
-      setGroups(data.groups || []);
-    } catch {
-      // 네트워크 오류 시에도 스피너가 영구 고착되지 않도록 보호
-      setGroups([]);
-    } finally {
-      setLoading(false);
-    }
+    const params = new URLSearchParams();
+    if (region) params.set("region", region);
+    if (fishSpecies) params.set("fishSpecies", fishSpecies);
+    if (search) params.set("search", search);
+    const res = await fetch(`/api/groups?${params}`);
+    const data = await res.json();
+    setGroups(data.groups || []);
+    setLoading(false);
   }
 
   useEffect(() => { load(); }, [region, fishSpecies, search]);

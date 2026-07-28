@@ -3,7 +3,7 @@ import { memo, useState } from "react";
 import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { kstFormat } from "@/lib/utils";
-import { Card, Chip, Button, EmptyState } from "@/components/ui";
+import { Card, Chip, Button } from "@/components/ui";
 import { TOURNAMENT_TYPES, isBassOnlySpecies } from "@/lib/taxonomy";
 import { useAppSettings } from "@/lib/appSettingsContext";
 
@@ -90,9 +90,6 @@ export function TournamentList({ tournaments }: { tournaments: T[] }) {
         ))}
       </div>
       <div className="space-y-3 px-4 pb-10">
-        {visible.length === 0 && (
-          <EmptyState title="표시할 대회가 없습니다" desc="필터를 변경하거나 새 대회가 열릴 때까지 기다려 주세요." />
-        )}
         {visible.map((t) => (
           <TournamentCard key={t.id} t={t} />
         ))}

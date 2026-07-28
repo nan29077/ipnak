@@ -51,24 +51,21 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       `INSERT INTO "GroupMember" ("id","groupId","userId","role","joinedAt") VALUES (?,?,?,?,?)`,
       memberId, params.id, user.id, "pending", now
     );
-  } catch {
+  } catch (e) {
     // 신청 등록에 실패했다면 선차감한 가입 비용을 되돌린다
-    if (paidJoin) await refundGroupJoin(user.id, params.id).catch(() => {});
-    // throw 대신 정돈된 500 응답 (raw 500 방지)
-    return NextResponse.json({ error: "가입 신청 처리 중 오류가 발생했습니다." }, { status: 500 });
+    if (paidJoin) await refundGroupJoin(user.id, params.id);
+    throw e;
   }
 
-  // 리더에게 알림 — 알림 실패가 이미 완료된 가입 신청을 500으로 만들지 않도록 보호
-  try {
-    const notiId = createId();
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "Notification" ("id","userId","type","body","link","read","createdAt")
-       VALUES (?,?,?,?,?,0,?)`,
-      notiId, group.leaderId, "GROUP_JOIN_REQUEST",
-      `${user.nickname}님이 [${group.name}] 낚시단 가입을 신청했습니다.`,
-      `/groups/${params.id}/manage`, now
-    );
-  } catch { /* 알림 실패는 무시 */ }
+  // 리더에게 알림
+  const notiId = createId();
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "Notification" ("id","userId","type","body","link","read","createdAt")
+     VALUES (?,?,?,?,?,0,?)`,
+    notiId, group.leaderId, "GROUP_JOIN_REQUEST",
+    `${user.nickname}님이 [${group.name}] 낚시단 가입을 신청했습니다.`,
+    `/groups/${params.id}/manage`, now
+  );
 
   return NextResponse.json({ ok: true });
 }

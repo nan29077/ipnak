@@ -10,7 +10,7 @@ import {
   MessageSquare, ThumbsUp, Users2, Megaphone, Satellite,
   UserX, Loader2,
 } from "lucide-react";
-import { MeDiaryButton } from "@/components/MeDiaryButton";
+import { DiarySheet } from "@/components/DiarySheet";
 import { MyBallManager } from "@/components/BallLinkSection";
 import TripMemoInline from "@/components/TripMemoInline";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
@@ -271,6 +271,7 @@ export function MePageTabs({
   const activeTab = (rawTab === "market" || rawTab === "settings") ? rawTab : "fishing";
   const [settingsSubTab, setSettingsSubTab] = useState<"ball" | "config">("ball");
   const [showBallNotifPanel, setShowBallNotifPanel] = useState(false);
+  const [diaryOpen, setDiaryOpen] = useState(false);
   const [withdrawStep, setWithdrawStep] = useState<0 | 1 | 2>(0);
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
@@ -341,13 +342,26 @@ export function MePageTabs({
                 <p className="text-[13px] font-bold text-navy-700">낚시 활동</p>
               </div>
               <div className="p-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <Link href="/trip"><Button variant="outline" full>낚시 기록 전체보기</Button></Link>
-                  <MeDiaryButton />
+                {/* 한 줄 탭 UI */}
+                <div className="flex overflow-hidden rounded-xl border border-navy-100/20">
+                  <Link href="/trip" className="flex flex-1 flex-col items-center gap-1 py-3 text-center transition-colors hover:bg-white/5 active:bg-white/10 border-r border-navy-100/20">
+                    <Route size={16} className="text-aqua-400" strokeWidth={1.8} />
+                    <span className="text-[11px] font-semibold text-navy-600">낚시기록</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setDiaryOpen(true)}
+                    className="flex flex-1 flex-col items-center gap-1 py-3 text-center transition-colors hover:bg-white/5 active:bg-white/10 border-r border-navy-100/20"
+                  >
+                    <Navigation size={16} className="text-orange-400" strokeWidth={1.8} />
+                    <span className="text-[11px] font-semibold text-navy-600">계측일지</span>
+                  </button>
+                  <Link href={`/profile/${user.id}`} className="flex flex-1 flex-col items-center gap-1 py-3 text-center transition-colors hover:bg-white/5 active:bg-white/10">
+                    <Fish size={16} className="text-navy-500" strokeWidth={1.8} />
+                    <span className="text-[11px] font-semibold text-navy-600">낚시방</span>
+                  </Link>
                 </div>
-                <div className="mt-2">
-                  <Link href={`/profile/${user.id}`}><Button variant="outline" full>내낚시방</Button></Link>
-                </div>
+                <DiarySheet open={diaryOpen} onClose={() => setDiaryOpen(false)} groupByDate />
 
                 {/* 최근 스마트피싱 */}
                 {recentTrips.length > 0 && (
@@ -636,7 +650,7 @@ export function MePageTabs({
             {/* 서브탭: 입낚볼 */}
             {settingsSubTab === "ball" && (
               <div className="space-y-2">
-                {user.role === "ANGLER" && ballEnabled ? (
+                {(user.role === "ANGLER" || user.role === "SUPER_ADMIN") && ballEnabled ? (
                   <>
                     <IpnakBallPurchase
                       price={ballPriceRaw}

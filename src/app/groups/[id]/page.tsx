@@ -137,33 +137,23 @@ export default function GroupDetailPage() {
 
   async function join() {
     setJoining(true); setJoinError("");
-    try {
-      const res = await fetch(`/api/groups/${id}/join`, { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setJoinError(data.error || "오류가 발생했습니다."); return; }
-      setJoined(true);
-    } catch {
-      setJoinError("네트워크 오류가 발생했습니다.");
-    } finally {
-      setJoining(false);
-    }
+    const res = await fetch(`/api/groups/${id}/join`, { method: "POST" });
+    const data = await res.json();
+    setJoining(false);
+    if (!res.ok) { setJoinError(data.error || "오류가 발생했습니다."); return; }
+    setJoined(true);
   }
 
   // 승인 대기 중인 내 가입 신청 취소 (차감된 포인트는 환불)
   async function cancelJoin() {
     if (!userId || cancelling) return;
     setCancelling(true); setJoinError("");
-    try {
-      const res = await fetch(`/api/groups/${id}/members/${userId}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setJoinError(data.error || "오류가 발생했습니다."); return; }
-      setJoined(false);
-      setGroup((g) => (g ? { ...g, myRole: null } : g));
-    } catch {
-      setJoinError("네트워크 오류가 발생했습니다.");
-    } finally {
-      setCancelling(false);
-    }
+    const res = await fetch(`/api/groups/${id}/members/${userId}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    setCancelling(false);
+    if (!res.ok) { setJoinError(data.error || "오류가 발생했습니다."); return; }
+    setJoined(false);
+    setGroup((g) => (g ? { ...g, myRole: null } : g));
   }
 
   if (loading) return (
@@ -368,16 +358,11 @@ function CommunityTab({ groupId }: { groupId: string }) {
 
   useEffect(() => {
     (async () => {
-      try {
-        const res = await fetch(`/api/groups/${groupId}/posts`);
-        const data = await res.json();
-        if (res.ok) setPosts(data.posts || []);
-        else setError(data.error || "피드를 불러오지 못했습니다.");
-      } catch {
-        setError("피드를 불러오지 못했습니다.");
-      } finally {
-        setLoading(false);
-      }
+      const res = await fetch(`/api/groups/${groupId}/posts`);
+      const data = await res.json();
+      if (res.ok) setPosts(data.posts || []);
+      else setError(data.error || "피드를 불러오지 못했습니다.");
+      setLoading(false);
     })();
   }, [groupId]);
 
@@ -478,13 +463,10 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
   async function toggleLike() {
     if (liking) return;
     setLiking(true);
-    try {
-      const res = await fetch(`/api/groups/${groupId}/posts/${post.id}/like`, { method: "POST" });
-      const data = await res.json();
-      if (res.ok) onUpdate({ ...post, liked: data.liked, likeCount: data.likeCount });
-    } catch { /* 네트워크 오류 무시 — 버튼 잠김 방지 */ } finally {
-      setLiking(false);
-    }
+    const res = await fetch(`/api/groups/${groupId}/posts/${post.id}/like`, { method: "POST" });
+    const data = await res.json();
+    setLiking(false);
+    if (res.ok) onUpdate({ ...post, liked: data.liked, likeCount: data.likeCount });
   }
 
   async function openComments() {
@@ -492,33 +474,27 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
     setShowComments(next);
     if (next && comments.length === 0) {
       setCommentsLoading(true);
-      try {
-        const res = await fetch(`/api/groups/${groupId}/posts/${post.id}/comments`);
-        const data = await res.json();
-        if (res.ok) setComments(data.comments || []);
-      } catch { /* 네트워크 오류 무시 — 스피너 고착 방지 */ } finally {
-        setCommentsLoading(false);
-      }
+      const res = await fetch(`/api/groups/${groupId}/posts/${post.id}/comments`);
+      const data = await res.json();
+      setCommentsLoading(false);
+      if (res.ok) setComments(data.comments || []);
     }
   }
 
   async function submitComment() {
     if (!commentInput.trim() || commentSubmitting) return;
     setCommentSubmitting(true);
-    try {
-      const res = await fetch(`/api/groups/${groupId}/posts/${post.id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: commentInput.trim() }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setComments((prev) => [...prev, data.comment]);
-        setCommentInput("");
-        onUpdate({ ...post, commentCount: post.commentCount + 1 });
-      }
-    } catch { /* 네트워크 오류 무시 — 버튼 잠김 방지 */ } finally {
-      setCommentSubmitting(false);
+    const res = await fetch(`/api/groups/${groupId}/posts/${post.id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: commentInput.trim() }),
+    });
+    const data = await res.json();
+    setCommentSubmitting(false);
+    if (res.ok) {
+      setComments((prev) => [...prev, data.comment]);
+      setCommentInput("");
+      onUpdate({ ...post, commentCount: post.commentCount + 1 });
     }
   }
 
@@ -1153,16 +1129,11 @@ function MembersTab({ groupId, isLeader }: { groupId: string; isLeader: boolean 
 
   useEffect(() => {
     (async () => {
-      try {
-        const res = await fetch(`/api/groups/${groupId}/members`);
-        const data = await res.json();
-        if (res.ok) setMembers(data.members || []);
-        else setError(data.error || "회원 목록을 불러오지 못했습니다.");
-      } catch {
-        setError("회원 목록을 불러오지 못했습니다.");
-      } finally {
-        setLoading(false);
-      }
+      const res = await fetch(`/api/groups/${groupId}/members`);
+      const data = await res.json();
+      if (res.ok) setMembers(data.members || []);
+      else setError(data.error || "회원 목록을 불러오지 못했습니다.");
+      setLoading(false);
     })();
   }, [groupId]);
 

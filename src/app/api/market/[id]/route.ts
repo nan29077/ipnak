@@ -25,13 +25,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof b.condition === "string" && (b.condition === "NEW" || b.condition === "USED")) data.condition = b.condition;
   if (typeof b.tradeMethod === "string" && TRADE_METHODS.includes(b.tradeMethod)) data.tradeMethod = b.tradeMethod;
 
-  if (Object.keys(data).length === 0) return NextResponse.json({ ok: true, status: listing.status });
-  try {
-    const updated = await prisma.marketListing.update({ where: { id: params.id }, data });
-    return NextResponse.json({ ok: true, status: updated.status });
-  } catch {
-    return NextResponse.json({ error: "판매글 수정 중 오류가 발생했습니다." }, { status: 500 });
-  }
+  const updated = await prisma.marketListing.update({ where: { id: params.id }, data });
+  return NextResponse.json({ ok: true, status: updated.status });
 }
 
 // 판매글 삭제 — 판매자 본인만
@@ -40,11 +35,6 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   const listing = await prisma.marketListing.findUnique({ where: { id: params.id } });
   if (!listing) return NextResponse.json({ error: "판매글을 찾을 수 없습니다." }, { status: 404 });
   if (listing.sellerId !== user.id) return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
-  try {
-    await prisma.marketListing.delete({ where: { id: params.id } });
-    return NextResponse.json({ ok: true });
-  } catch {
-    // 이미 삭제된 경우(P2025) 등 → 원시 500 대신 정돈된 에러 응답
-    return NextResponse.json({ error: "판매글 삭제 중 오류가 발생했습니다." }, { status: 500 });
-  }
+  await prisma.marketListing.delete({ where: { id: params.id } });
+  return NextResponse.json({ ok: true });
 }

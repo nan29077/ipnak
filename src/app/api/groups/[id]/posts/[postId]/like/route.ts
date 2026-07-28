@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import {
-  readGroupPosts, addGroupLike, removeGroupLike, groupLikeExists, groupLikeCount,
+  readGroupPosts, readGroupLikes, writeGroupLikes,
   getGroupRole, isApprovedRole,
 } from "@/lib/groupPosts";
 
@@ -15,20 +15,21 @@ export async function POST(_req: Request, { params }: { params: { id: string; po
     return NextResponse.json({ error: "낚시단 회원만 이용할 수 있습니다." }, { status: 403 });
   }
 
-  const allPosts = await readGroupPosts();
-  const post = allPosts.find((p) => p.id === params.postId && p.groupId === params.id);
+  const post = readGroupPosts().find((p) => p.id === params.postId && p.groupId === params.id);
   if (!post) return NextResponse.json({ error: "글을 찾을 수 없습니다." }, { status: 404 });
 
-  const already = await groupLikeExists(params.postId, user.id);
+  let likes = readGroupLikes();
+  const existing = likes.find((l) => l.postId === params.postId && l.userId === user.id);
   let liked: boolean;
-  if (already) {
-    await removeGroupLike(params.postId, user.id);
+  if (existing) {
+    likes = likes.filter((l) => !(l.postId === params.postId && l.userId === user.id));
     liked = false;
   } else {
-    await addGroupLike(params.postId, user.id);
+    likes.push({ postId: params.postId, userId: user.id, createdAt: new Date().toISOString() });
     liked = true;
   }
+  writeGroupLikes(likes);
 
-  const likeCount = await groupLikeCount(params.postId);
+  const likeCount = likes.filter((l) => l.postId === params.postId).length;
   return NextResponse.json({ liked, likeCount });
 }

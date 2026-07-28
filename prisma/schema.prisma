@@ -58,9 +58,6 @@ model User {
   ballOrders        BallOrder[]
   ipnakBallOrders       IpnakBallOrder[]
   notificationSettings  NotificationSettings?
-  groupPosts        GroupPost[]
-  groupComments     GroupComment[]
-  groupPostLikes    GroupPostLike[]
 }
 
 // ===== 포인트 제도 =====
@@ -117,13 +114,13 @@ model Session {
 // ===== 게시글 / 피드 =====
 // postType: GENERAL | FISHING_POINT | TOURNAMENT
 // visibility: PUBLIC | FOLLOWERS | PRIVATE | BLURRED
-// kind: FEED(피싱 피드 — 사진 위주 인스타형) | LOG(조행기 — 카페형 게시판 글) | GENERAL(일상 피드 — 자유 게시글)
+// kind: FEED(피싱 피드 — 사진 위주 인스타형) | LOG(조행기 — 카페형 게시판 글)
 model Post {
   id            String   @id @default(cuid())
   authorId      String
   author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   postType      String   @default("GENERAL")
-  kind          String   @default("FEED") // FEED | LOG | GENERAL
+  kind          String   @default("FEED") // FEED | LOG
   title         String? // 조행기 제목
   body          String? // 조행기 본문(긴 글)
   boardCategory String? // 조행기 게시판 카테고리 slug
@@ -780,7 +777,6 @@ model Group {
   leader      User          @relation("GroupLeader", fields: [leaderId], references: [id])
   members     GroupMember[]
   points      GroupPoint[]
-  groupPosts  GroupPost[]
 }
 
 model GroupMember {
@@ -808,48 +804,4 @@ model GroupPoint {
   createdAt   DateTime @default(now())
   group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   author      User     @relation("GroupPointAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-}
-
-// ===== 낚시단 커뮤니티 게시글 / 댓글 / 좋아요 =====
-// 기존 JSON 파일 저장 방식을 대체하는 DB 모델
-model GroupPost {
-  id        String         @id @default(cuid())
-  groupId   String
-  group     Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  content   String
-  imageUrl  String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  comments  GroupComment[]
-  likes     GroupPostLike[]
-
-  @@index([groupId])
-  @@index([authorId])
-}
-
-model GroupComment {
-  id        String    @id @default(cuid())
-  postId    String
-  post      GroupPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  content   String
-  parentId  String?
-  createdAt DateTime  @default(now())
-
-  @@index([postId])
-}
-
-model GroupPostLike {
-  id        String    @id @default(cuid())
-  postId    String
-  post      GroupPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
-
-  @@unique([postId, userId])
-  @@index([postId])
 }

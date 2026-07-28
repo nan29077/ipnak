@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowUpDown, Check, ChevronDown, MapPin, Heart, SlidersHorizontal, MessageCircle, ShoppingBag } from "lucide-react";
 import { won, timeAgo, cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui";
@@ -105,7 +104,7 @@ export function MarketList({ items }: { items: MarketItem[] }) {
             return (
               <Link key={it.id} href={`/market/${it.id}`} className="relative aspect-square overflow-hidden bg-[#1a2a38]">
                 {it.thumbnail ? (
-                  <Image src={it.thumbnail} alt={it.title} fill sizes="33vw"
+                  <img src={it.thumbnail} alt={it.title} loading="lazy"
                     className={cn("h-full w-full object-cover", sold && "opacity-40 grayscale")} />
                 ) : (
                   <div className="flex h-full items-center justify-center">
@@ -142,11 +141,11 @@ export function MarketList({ items }: { items: MarketItem[] }) {
                 {/* 썸네일 */}
                 <div className="relative h-[110px] w-[110px] shrink-0 overflow-hidden rounded-2xl bg-navy-100/20">
                   {it.thumbnail ? (
-                    <Image
+                    <img
                       src={it.thumbnail}
                       alt={it.title}
-                      fill
-                      sizes="110px"
+                      loading="lazy"
+                      decoding="async"
                       className={cn("h-full w-full object-cover transition-transform duration-300 group-hover:scale-105", sold && "opacity-50 grayscale")}
                     />
                   ) : (

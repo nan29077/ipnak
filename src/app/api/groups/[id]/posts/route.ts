@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import {
-  readGroupPosts, writeGroupPost, readGroupLikes, readGroupComments,
-  newId, getGroupRole, isApprovedRole, serializePost,
+  readGroupPosts, writeGroupPosts, readGroupLikes, readGroupComments,
+  newId, getGroupRole, isApprovedRole, serializePost, type StoredGroupPost,
 } from "@/lib/groupPosts";
 
 // GET /api/groups/[id]/posts — 낚시단 피드 목록 (승인된 회원만)
@@ -15,13 +15,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "낚시단 회원만 이용할 수 있습니다." }, { status: 403 });
   }
 
-  const [likes, comments, allPosts] = await Promise.all([
-    readGroupLikes(),
-    readGroupComments(),
-    readGroupPosts(),
-  ]);
-
-  const posts = allPosts
+  const likes = readGroupLikes();
+  const comments = readGroupComments();
+  const posts = readGroupPosts()
     .filter((p) => p.groupId === params.id)
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     .map((p) => serializePost(p, likes, comments, user.id));
@@ -46,31 +42,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
   }
 
-  const id = newId();
-  const createdAt = new Date().toISOString();
-
-  await writeGroupPost({
-    id,
-    groupId: params.id,
-    authorId: user.id,
-    content,
-    imageUrl,
-    createdAt,
-  });
-
-  const post = {
-    id,
+  const post: StoredGroupPost = {
+    id: newId(),
     groupId: params.id,
     authorId: user.id,
     authorNickname: user.nickname,
     authorAvatar: user.avatarUrl ?? null,
     content,
     imageUrl,
-    createdAt,
-    likeCount: 0,
-    commentCount: 0,
-    liked: false,
+    createdAt: new Date().toISOString(),
   };
 
-  return NextResponse.json({ post });
+  const posts = readGroupPosts();
+  posts.push(post);
+  writeGroupPosts(posts);
+
+  return NextResponse.json({ post: { ...post, likeCount: 0, commentCount: 0, liked: false } });
 }
