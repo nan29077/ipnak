@@ -59,11 +59,12 @@ type Cam = "loading" | "ready" | "error";
 
 /**
  * 스캔 단계
- * - scan        : 물고기/기준물 탐색 중 (윤곽선은 그리지 않음)
- * - shimmer     : 물고기 + 기준물 모두 인식됨 → 윤슬 한 바퀴 후 자동 측정
- * - ref-missing : 물고기는 인식됐으나 기준물 미감지 → 안내 후 카메라 종료
+ * - scan            : 물고기/기준물 탐색 중 (윤곽선은 그리지 않음)
+ * - shimmer         : 물고기 + 기준물 모두 인식됨 → 윤슬 한 바퀴 후 자동 측정
+ * - no-ref-warning  : 기준물 미감지 → "찾을 수 없습니다" 메시지 표시 (1.5초)
+ * - ref-missing     : no-ref-warning 후 → "종료하시겠습니까?" 모달 표시
  */
-type Stage = "scan" | "shimmer" | "ref-missing";
+type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing";
 
 type Detection = {
   ballN: NormBall;
@@ -377,7 +378,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
   /* ── 프레임 캡처 → /api/measure/scan 폴링 ──
      stage 가 scan 일 때만 동작한다 (윤슬 진행 중/기준물 안내 중에는 정지) */
   useEffect(() => {
-    if (camStatus !== "ready" || !videoHasData || stage !== "scan") return;
+    if (camStatus !== "ready" || !videoHasData || (stage !== "scan")) return;
     let stopped = false;
 
     const runScan = async () => {
@@ -461,10 +462,10 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
           successRef.current = null;
           setDet(null);
           // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 —
-          // 물고기가 locked 로 인식된 상태에서만 안내 대상으로 센다
-          if (data?.reason === "no-ball" && scanStatusRef.current === "locked") {
+          // API가 "no-ball"을 반환하면 기준물이 화면에 없는 것이므로 카운터를 올린다
+          if (data?.reason === "no-ball") {
             refMissRef.current += 1;
-            if (refMissRef.current >= REF_MISS_LIMIT) goStage("ref-missing");
+            if (refMissRef.current >= REF_MISS_LIMIT) goStage("no-ref-warning");
           } else {
             refMissRef.current = 0;
           }
@@ -521,6 +522,13 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
 
   /* ── 윤슬 한 바퀴 완료 → 자동으로 측정 확정 ── */
   const handleShimmerComplete = useCallback(() => { confirm(); }, [confirm]);
+
+  /* ── no-ref-warning → 1.5초 후 자동으로 ref-missing 모달로 전환 ── */
+  useEffect(() => {
+    if (stage !== "no-ref-warning") return;
+    const t = setTimeout(() => goStage("ref-missing"), 1500);
+    return () => clearTimeout(t);
+  }, [stage, goStage]);
 
   /* ── 기준물 미감지 안내 '예' → 카메라 닫고 선택 화면 복귀 ── */
   const closeAfterRefMissing = useCallback(() => {
@@ -807,8 +815,28 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
 
     </div>
 
-    {/* ── 기준물 미감지 안내 ──
-        물고기는 인식됐지만 기준물(입낚볼·입낚키링·인쇄 기준물)이 없으면 측정 불가 →
+    {/* ── 기준물 미감지 1단계: "찾을 수 없습니다" 메시지 오버레이 (1.5초) ──
+        회전된 카메라 컨테이너 밖에 fixed 로 배치 → 항상 세로(portrait) 방향 표시 */}
+    {stage === "no-ref-warning" && (
+      <div
+        className="fixed inset-0 z-[460] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)" }}
+      >
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-orange-500/20 ring-1 ring-orange-500/35">
+            <AlertTriangle size={32} strokeWidth={1.6} className="text-orange-400" />
+          </div>
+          <div>
+            <p className="text-[18px] font-extrabold leading-snug tracking-tight text-white">
+              입낚볼 / 입낚키링 /<br />입낚인쇄물을 찾을 수 없습니다
+            </p>
+            <p className="mt-2 text-[13px] text-white/50">잠시 후 종료 여부를 확인합니다...</p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── 기준물 미감지 2단계: 종료 여부 확인 모달 ──
         '예' 시 카메라를 닫고 이전 선택 화면으로 복귀 / '아니오' 시 카메라를 그대로 유지.
         회전된 카메라 컨테이너 밖에 fixed 로 배치 → 항상 세로(portrait) 방향 표시 */}
     {stage === "ref-missing" && (
@@ -826,10 +854,10 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
               <AlertTriangle size={30} strokeWidth={1.6} className="text-orange-400" />
             </div>
             <p className="text-center text-[16px] font-extrabold leading-relaxed tracking-tight text-white">
-              입낚볼 등이 인식되지 않아<br />AI카메라가 종료됩니다.
+              AI 카메라를<br />종료하시겠습니까?
             </p>
             <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
-              종료하시겠습니까?
+              입낚볼 / 입낚키링 / 입낚인쇄물이<br />인식되지 않았어요
             </p>
           </div>
           <div className="flex gap-2 px-4 pb-6 pt-1">
