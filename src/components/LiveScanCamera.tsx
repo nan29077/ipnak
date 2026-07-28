@@ -54,6 +54,7 @@ const SHIMMER_MS = 1800;       // 윤슬(빛 포인트)이 물고기 외곽을 �
 // 물고기는 인식됐는데 기준물만 연속으로 못 잡은 횟수 — 이 횟수를 넘으면 안내 후 카메라 종료
 // (AI 응답 한 번의 실수로 카메라가 닫히지 않도록 2회 연속을 요구)
 const REF_MISS_LIMIT = 2;
+const FISH_MISS_LIMIT = 4; // 물고기 연속 미감지 횟수 (기준물보다 여유있게)
 
 type Cam = "loading" | "ready" | "error";
 
@@ -63,8 +64,10 @@ type Cam = "loading" | "ready" | "error";
  * - shimmer         : 물고기 + 기준물 모두 인식됨 → 윤슬 한 바퀴 후 자동 측정
  * - no-ref-warning  : 기준물 미감지 → "찾을 수 없습니다" 메시지 표시 (1.5초)
  * - ref-missing     : no-ref-warning 후 → "종료하시겠습니까?" 모달 표시
+ * - no-fish-warning : 물고기 미감지 → "물고기를 찾을 수 없습니다" 메시지 표시 (1.5초)
+ * - fish-missing    : no-fish-warning 후 → "종료하시겠습니까?" 모달 표시
  */
-type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing";
+type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing" | "no-fish-warning" | "fish-missing";
 
 type Detection = {
   ballN: NormBall;
@@ -98,7 +101,8 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
   const scanStatusRef = useRef<ContourStatus>("idle"); // 폴링 콜백에서 최신 상태 참조
   const [stage, setStage] = useState<Stage>("scan");
   const stageRef = useRef<Stage>("scan");
-  const refMissRef = useRef(0); // 기준물 연속 미감지 횟수
+  const refMissRef = useRef(0);  // 기준물 연속 미감지 횟수
+  const fishMissRef = useRef(0); // 물고기 연속 미감지 횟수
 
   /** FishScanGlow 감지 상태 수신 (state + ref 동시 갱신) */
   const handleScanStatus = useCallback((s: ContourStatus) => {
@@ -464,19 +468,28 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
           if (data?.ok === false && data?.reason === "no-ball") {
             // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 —
             // 물고기는 보이는데 기준물만 없는 경우에만 카운트한다.
-            // 아무것도 없는 빈 화면(구도 잡는 중)은 카운트하지 않는다.
-            // fishFound는 API가 동봉하는 플래그, scanStatus "locked"는 클라이언트 윤곽 감지 폴백.
             const fishVisible = data?.fishFound === true || scanStatusRef.current === "locked";
             if (fishVisible) {
+              fishMissRef.current = 0; // 물고기는 있으므로 물고기 카운터 리셋
               refMissRef.current += 1;
               if (refMissRef.current >= REF_MISS_LIMIT) goStage("no-ref-warning");
+            } else {
+              // 물고기도 기준물도 없음 → 물고기 미감지 카운터 증가
+              refMissRef.current = 0;
+              fishMissRef.current += 1;
+              if (fishMissRef.current >= FISH_MISS_LIMIT) goStage("no-fish-warning");
             }
-          } else if (data && (data.ok === true || data.ballFound === true || data.reason === "no-fish")) {
-            // 기준물이 실제로 화면에 잡힌 확정 응답(자세/신뢰도 미달 포함) → 연속 미감지 아님, 카운터 리셋
+          } else if (data?.ok === false && data?.reason === "no-fish") {
+            // 물고기 자체가 없음
             refMissRef.current = 0;
+            fishMissRef.current += 1;
+            if (fishMissRef.current >= FISH_MISS_LIMIT) goStage("no-fish-warning");
+          } else if (data && (data.ok === true || data.ballFound === true)) {
+            // 기준물이 실제로 화면에 잡힌 확정 응답 → 두 카운터 모두 리셋
+            refMissRef.current = 0;
+            fishMissRef.current = 0;
           }
-          // 그 외(429 레이트리밋, 타임아웃, AI 오류, 파싱 실패 등 판정 불가 응답)는 카운터를 유지한다 —
-          // 일시적 오류가 '연속 미감지' 카운트를 끊어 종료 안내가 영영 뜨지 않던 문제 방지
+          // 그 외(429 레이트리밋, 타임아웃, AI 오류, 파싱 실패 등 판정 불가 응답)는 카운터를 유지한다
         }
       } catch {
         if (!stopped) { successRef.current = null; setDet(null); }
@@ -538,6 +551,13 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
     return () => clearTimeout(t);
   }, [stage, goStage]);
 
+  /* ── no-fish-warning → 1.5초 후 자동으로 fish-missing 모달로 전환 ── */
+  useEffect(() => {
+    if (stage !== "no-fish-warning") return;
+    const t = setTimeout(() => goStage("fish-missing"), 1500);
+    return () => clearTimeout(t);
+  }, [stage, goStage]);
+
   /* ── 기준물 미감지 안내 '예' → 카메라 닫고 선택 화면 복귀 ── */
   const closeAfterRefMissing = useCallback(() => {
     cleanupStream();
@@ -547,6 +567,18 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
   /* ── 기준물 미감지 안내 '아니오' → 팝업만 닫고 카메라 유지 (미감지 카운터 리셋) ── */
   const keepScanningAfterRefMissing = useCallback(() => {
     refMissRef.current = 0;
+    goStage("scan");
+  }, [goStage]);
+
+  /* ── 물고기 미감지 안내 '예' → 카메라 닫고 선택 화면 복귀 ── */
+  const closeAfterFishMissing = useCallback(() => {
+    cleanupStream();
+    onClose();
+  }, [cleanupStream, onClose]);
+
+  /* ── 물고기 미감지 안내 '아니오' → 팝업만 닫고 카메라 유지 ── */
+  const keepScanningAfterFishMissing = useCallback(() => {
+    fishMissRef.current = 0;
     goStage("scan");
   }, [goStage]);
 
@@ -839,6 +871,68 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
               입낚볼 / 입낚키링 /<br />입낚인쇄물을 찾을 수 없습니다
             </p>
             <p className="mt-2 text-[13px] text-white/50">잠시 후 종료 여부를 확인합니다...</p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── 물고기 미감지 1단계: "물고기를 찾을 수 없습니다" 메시지 (1.5초) ── */}
+    {stage === "no-fish-warning" && (
+      <div
+        className="fixed inset-0 z-[460] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)" }}
+      >
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-orange-500/20 ring-1 ring-orange-500/35">
+            <AlertTriangle size={32} strokeWidth={1.6} className="text-orange-400" />
+          </div>
+          <div>
+            <p className="text-[18px] font-extrabold leading-snug tracking-tight text-white">
+              물고기를 찾을 수 없습니다
+            </p>
+            <p className="mt-2 text-[13px] text-white/50">잠시 후 종료 여부를 확인합니다...</p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── 물고기 미감지 2단계: 종료 여부 확인 모달 ── */}
+    {stage === "fish-missing" && (
+      <div
+        className="fixed inset-0 z-[460] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.84)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }}
+      >
+        <div
+          className="w-full max-w-[340px] overflow-hidden rounded-[24px] shadow-2xl ring-1 ring-white/[0.1]"
+          style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#162434 60%,#1a2a3a 100%)" }}
+        >
+          <div className="h-[3px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400/90 to-orange-700/30" />
+          <div className="flex flex-col items-center px-6 pb-5 pt-7">
+            <div className="mb-4 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
+              <AlertTriangle size={30} strokeWidth={1.6} className="text-orange-400" />
+            </div>
+            <p className="text-center text-[16px] font-extrabold leading-relaxed tracking-tight text-white">
+              AI 카메라를<br />종료하시겠습니까?
+            </p>
+            <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
+              물고기가 인식되지 않았어요
+            </p>
+          </div>
+          <div className="flex gap-2 px-4 pb-6 pt-1">
+            <button
+              type="button"
+              onClick={keepScanningAfterFishMissing}
+              className="flex-1 rounded-2xl bg-white/10 py-3.5 text-[15px] font-bold text-white/80 transition-all active:scale-[0.98] active:bg-white/20"
+            >
+              아니오
+            </button>
+            <button
+              type="button"
+              onClick={closeAfterFishMissing}
+              className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+            >
+              예
+            </button>
           </div>
         </div>
       </div>
