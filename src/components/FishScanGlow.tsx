@@ -9,7 +9,8 @@
  *     ② dash offset 이 흐르는 점선
  *     ③ 윤곽을 한 바퀴 도는 혜성형 글로우 선
  *     ④ 랜덤하게 반짝이는 별/다이아몬드 파티클
- * - 윤곽을 못 찾은 동안에는 중앙 배치 가이드(코너 브라켓) + 스캔 스윕 라인만 표시
+ * - 물고기를 인식(locked)하기 전에는 오버레이에 아무것도 그리지 않는다
+ *   (searching / too-small / too-large / idle → 캔버스 비움 → 부모의 안내 문구만 노출)
  * - 감지 상태는 onStatusChange 로 부모에 전달 → 부모가 상황별 안내 문구를 배치
  * - requestAnimationFrame 기반, active=false 면 즉시 정지·정리
  */
@@ -37,8 +38,6 @@ const SPARKLE_COUNT = 14;        // 윤곽 위에서 반짝이는 파티클 개�
 const RUN_PERIOD_MS = 2600;      // 글로우 선이 윤곽 한 바퀴 도는 시간
 const RUN_SPAN = 0.13;           // 달리는 글로우 구간 길이 (경로 비율)
 const DASH_PERIOD_MS = 1800;     // 점선 흐름 주기
-const SWEEP_PERIOD_MS = 2200;    // 미감지 시 스윕 라인 주기
-const LOST_GRACE_MS = 450;       // 순간적 미검출에도 윤곽을 잠깐 유지 (깜빡임 방지)
 
 /** 시드 기반 의사난수 — 파티클 위치·주기를 매 프레임마다 흔들지 않기 위해 사용 */
 function seeded(i: number) {
@@ -88,7 +87,6 @@ export function FishScanGlow({
 
     // 검출 결과 (정규화 좌표) + 원본 프레임 크기
     let contour: Pt[] = [];
-    let contourAt = 0;
     let srcW = 0;
     let srcH = 0;
     let lastDetect = -Infinity;
@@ -133,14 +131,18 @@ export function FishScanGlow({
           emit(res.status);
           if (res.status === "locked" && res.points.length >= 12) {
             contour = res.points;
-            contourAt = now;
-          } else if (now - contourAt > LOST_GRACE_MS) {
+          } else {
+            // 인식 실패/부적합 → 즉시 윤곽 폐기 (미리 그려진 실루엣을 남기지 않는다)
             contour = [];
           }
         }
       }
 
-      /* ── ② 정규화 좌표 → 오버레이 캔버스 좌표 (object-fit 정합) ── */
+      /* ── ② 물고기 인식(locked) 전에는 아무것도 그리지 않는다 ──
+         카메라를 켜자마자 윤곽이 보이지 않도록, 안내 문구는 부모가 표시 */
+      if (status !== "locked" || contour.length < 12) return;
+
+      /* ── ③ 정규화 좌표 → 오버레이 캔버스 좌표 (object-fit 정합) ── */
       let sx = w;
       let sy = h;
       let ox = 0;
@@ -157,8 +159,8 @@ export function FishScanGlow({
       }
       const toCanvas = (p: Pt) => ({ x: ox + p.x * sx, y: oy + p.y * sy });
 
-      if (contour.length >= 12) drawContourGlow(ctx, contour.map(toCanvas), t);
-      else drawSearchGuide(ctx, w, h, t);
+      /* ── ④ 인식된 실제 윤곽 위에 글로우 + 파티클 ── */
+      drawContourGlow(ctx, contour.map(toCanvas), t);
     };
 
     frame(start); // 첫 프레임은 즉시 렌더 (rAF 대기 없이 표시) — 이후 자체적으로 루프
@@ -332,53 +334,6 @@ function drawContourGlow(ctx: CanvasRenderingContext2D, pts: Pt[], t: number) {
     ctx.closePath();
     ctx.fill();
   }
-  ctx.restore();
-}
-
-/** 윤곽 미감지 상태 — 중앙 배치 가이드(코너 브라켓) + 위아래로 훑는 스윕 라인 */
-function drawSearchGuide(ctx: CanvasRenderingContext2D, w: number, h: number, t: number) {
-  const bw = w * 0.74;
-  const bh = h * 0.6;
-  const x0 = (w - bw) / 2;
-  const y0 = (h - bh) / 2;
-  const arm = Math.min(bw, bh) * 0.14;
-  const stroke = Math.max(2, Math.min(w, h) * 0.006);
-
-  ctx.save();
-  ctx.strokeStyle = "rgba(186, 230, 253, 0.5)";
-  ctx.lineWidth = stroke;
-  ctx.shadowColor = "rgba(125, 211, 252, 0.7)";
-  ctx.shadowBlur = Math.max(6, stroke * 3);
-  const corner = (cx: number, cy: number, dx: number, dy: number) => {
-    ctx.beginPath();
-    ctx.moveTo(cx + dx * arm, cy);
-    ctx.lineTo(cx, cy);
-    ctx.lineTo(cx, cy + dy * arm);
-    ctx.stroke();
-  };
-  corner(x0, y0, 1, 1);
-  corner(x0 + bw, y0, -1, 1);
-  corner(x0, y0 + bh, 1, -1);
-  corner(x0 + bw, y0 + bh, -1, -1);
-  ctx.restore();
-
-  // 스윕 라인 (가이드 박스 안에서 위 → 아래 반복)
-  const u = (t % SWEEP_PERIOD_MS) / SWEEP_PERIOD_MS;
-  const sy = y0 + bh * u;
-  const grad = ctx.createLinearGradient(x0, 0, x0 + bw, 0);
-  grad.addColorStop(0, "rgba(125,211,252,0)");
-  grad.addColorStop(0.5, "rgba(224,242,255,0.9)");
-  grad.addColorStop(1, "rgba(125,211,252,0)");
-  ctx.save();
-  ctx.globalAlpha = Math.sin(Math.PI * u) * 0.9 + 0.1;
-  ctx.strokeStyle = grad;
-  ctx.lineWidth = Math.max(2, stroke * 1.2);
-  ctx.shadowColor = "rgba(255,255,255,0.8)";
-  ctx.shadowBlur = Math.max(8, stroke * 4);
-  ctx.beginPath();
-  ctx.moveTo(x0, sy);
-  ctx.lineTo(x0 + bw, sy);
-  ctx.stroke();
   ctx.restore();
 }
 

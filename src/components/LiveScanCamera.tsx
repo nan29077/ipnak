@@ -6,14 +6,13 @@
  * - 감지 성공(입낚볼 + 머리/꼬리 + pose=flat + 신뢰도 충분) 시:
  *     캔버스 오버레이(입낚볼 원 + 머리/꼬리 점 + 연결선) + 길이 미리보기 + "측정하기" 활성화
  * - "측정하기": 마지막 성공 프레임 + 감지 좌표를 부모로 넘겨 기존 결과 파이프라인 재사용
- * - "직접 측정": 스트림 종료 → 부모의 수동 점찍기 모드로 전환 (onSwitchToManual)
- * - 권한 거부 등 어떤 에러도 수동 모드로 폴백 가능하도록 설계
+ * - 권한 거부 등 에러는 재시도 / 닫기로만 처리 (닫으면 측정 페이지 초기 화면)
  * - 세로/가로 방향 모두 풀스크린. 가로 모드는 우측 세로 사이드바로 UI 재배치
  *
  * ⚠️ 오버레이 정렬을 위해 video / overlay 모두 object-cover 사용 (동일 크롭 → 좌표 일치)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, Camera, Loader2, RefreshCw, ScanLine, Check, Ruler, RotateCw } from "lucide-react";
+import { X, Camera, Loader2, RefreshCw, ScanLine, Check, RotateCw } from "lucide-react";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 import { FishScanGlow } from "./FishScanGlow";
 import type { ContourStatus } from "@/lib/fishContour";
@@ -43,7 +42,6 @@ export type LiveScanResult = {
 
 type Props = {
   onConfirm: (result: LiveScanResult) => void; // "측정하기" — 결과 화면으로
-  onSwitchToManual: (frame?: HTMLCanvasElement | null) => void; // "직접 측정" / 권한 거부 — 현재 프레임 함께 전달
   onClose: () => void;                          // X — 닫기
 };
 
@@ -64,7 +62,7 @@ type Detection = {
   widthCm: number | null;
 };
 
-export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) {
+export function LiveScanCamera({ onConfirm, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -486,41 +484,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
   // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우
   const needsCssRotation = effectiveLandscape && !browserIsLandscape;
 
-  /* ── "직접 측정" / 권한 거부: 현재 프레임 캡처 후 스트림 종료 → 부모로 ── */
-  const switchToManual = useCallback(() => {
-    // 현재 비디오 프레임을 캡처해서 부모에 전달 (수동 탭 모드에서 바로 사용)
-    let frame: HTMLCanvasElement | null = null;
-    try {
-      const v = videoRef.current;
-      if (v && v.readyState >= 2 && v.videoWidth > 0) {
-        const s = Math.min(1, SCAN_MAX_PX / Math.max(v.videoWidth, v.videoHeight));
-        const src = document.createElement("canvas");
-        src.width = Math.max(1, Math.round(v.videoWidth * s));
-        src.height = Math.max(1, Math.round(v.videoHeight * s));
-        src.getContext("2d")!.drawImage(v, 0, 0, src.width, src.height);
-
-        // CSS 회전 모드(가로 UI지만 스트림은 세로): 사용자가 본 화면과 동일하게
-        // 캔버스를 90° 반시계방향 회전해서 전달해야 직접 측정 페이지에서 올바르게 표시됨
-        if (needsCssRotation) {
-          const rot = document.createElement("canvas");
-          rot.width = src.height;
-          rot.height = src.width;
-          const ctx = rot.getContext("2d")!;
-          ctx.translate(rot.width / 2, rot.height / 2);
-          ctx.rotate(-Math.PI / 2);
-          ctx.drawImage(src, -src.width / 2, -src.height / 2);
-          frame = rot;
-        } else {
-          frame = src;
-        }
-      }
-    } catch {
-      frame = null;
-    }
-    cleanupStream();
-    onSwitchToManual(frame);
-  }, [cleanupStream, onSwitchToManual, needsCssRotation]);
-
   const canConfirm = !!det;
 
   /* ── 윤곽 감지 상태별 안내 문구 ── */
@@ -570,18 +533,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         <span>측정하기</span>
       </button>
     </div>
-  );
-
-  /* ── 직접 측정 버튼 (세로 모드 — 노란색 반투명) ── */
-  const manualButton = (
-    <button
-      type="button"
-      onClick={switchToManual}
-      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-yellow-400/30 py-3 text-[13px] font-semibold text-yellow-100/90 transition-colors hover:bg-yellow-400/45 hover:text-yellow-50"
-    >
-      <Ruler size={15} strokeWidth={1.9} />
-      직접 측정
-    </button>
   );
 
   // CSS 회전 트릭 필요 시 컨테이너 스타일
@@ -713,12 +664,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
               <RefreshCw size={15} /> 재시도
             </button>
             <button
-              onClick={switchToManual}
-              className="inline-flex items-center gap-1.5 rounded-[14px] bg-aqua-500 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-aqua-600"
-            >
-              <Ruler size={15} /> 직접 측정
-            </button>
-            <button
               onClick={onClose}
               className="rounded-[14px] bg-white/10 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20"
             >
@@ -733,7 +678,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
           <div className="mb-3">{guidance}</div>
           {measureButton}
-          <div className="mt-2">{manualButton}</div>
         </div>
       )}
 
@@ -781,15 +725,6 @@ export function LiveScanCamera({ onConfirm, onSwitchToManual, onClose }: Props) 
             <span>측정하기</span>
           </button>
           <div className="flex-[2]" />
-          {/* 직접측정 (원형, 노란색 반투명) */}
-          <button
-            type="button"
-            onClick={switchToManual}
-            className="mb-6 flex h-[48px] w-[48px] flex-col items-center justify-center gap-0.5 rounded-full bg-yellow-400/30 text-[9px] font-semibold text-yellow-100/85 transition-colors hover:bg-yellow-400/45 hover:text-yellow-50 active:scale-[0.93]"
-          >
-            <Ruler size={15} strokeWidth={1.9} />
-            <span>직접측정</span>
-          </button>
         </div>
       )}
 

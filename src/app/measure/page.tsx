@@ -1,9 +1,9 @@
 "use client";
 /**
  * AI 카메라 측정 페이지
- * 상태 머신: IDLE → ANALYZING → (ERROR | MANUAL_HEAD → MANUAL_TAIL | RESULT) → SAVING → SAVED
+ * 상태 머신: IDLE → ANALYZING → CHOICE → SCANNING → (SCAN_FAILED | RESULT) → SAVING → SAVED
  * - 입낚볼(40mm) 또는 ArUco 마커(20mm)를 기준으로 픽셀→실측 변환
- * - AI 모델 미탑재 시 머리/꼬리 수동 탭 측정 (목 모드)
+ * - 측정은 AI 자동 스캔으로만 진행 (수동 점찍기 모드 제거)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -12,7 +12,7 @@ import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { useUser } from "@/lib/userContext";
 import {
   Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
-  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, Ruler, ChevronRight, FolderOpen, X, Smartphone, QrCode,
+  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, ChevronRight, FolderOpen, X, Smartphone, QrCode,
 } from "lucide-react";
 import { PageHeader, Button, Chip } from "@/components/ui";
 import { useToast } from "@/components/Toast";
@@ -34,10 +34,8 @@ type Phase =
   | "ANALYZING"
   | "CHOICE"       // 사진 로드 후: 자동 스캔 / 수동 점찍기 선택
   | "SCANNING"     // AI 자동 스캔 진행 중
-  | "SCAN_FAILED"  // 자동 스캔 실패 → 잠시 안내 후 수동 전환
+  | "SCAN_FAILED"  // 자동 스캔 실패 → 잠시 안내 후 선택 화면 복귀
   | "ERROR"
-  | "MANUAL_HEAD"
-  | "MANUAL_TAIL"
   | "RESULT"
   | "SAVING"
   | "SAVED";
@@ -70,9 +68,6 @@ export default function MeasurePage() {
   const [scanFailMsg, setScanFailMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [ball, setBall] = useState<any>(null);
-  const [isMockFish, setIsMockFish] = useState(false);
-  const [showNoBallPopup, setShowNoBallPopup] = useState(false);
-  const [proceedWithoutBall, setProceedWithoutBall] = useState(false);
   const [head, setHead] = useState<Point | null>(null);
   const [tail, setTail] = useState<Point | null>(null);
   // 몸통 최대 너비 양 끝점 (AI 자동 스캔에서만 감지 — 수동 측정 시 null)
@@ -137,8 +132,6 @@ export default function MeasurePage() {
     setTail(null);
     setWidthPts(null);
     setResult(null);
-    setIsMockFish(false);
-    setProceedWithoutBall(false);
     setPhase("ANALYZING");
     setLoadingMsg("사진 준비 중...");
 
@@ -171,7 +164,7 @@ export default function MeasurePage() {
   /* ── 자동 스캔: AI로 입낚볼·물고기 머리/꼬리 인식 (12초 하드 타임아웃) ── */
   async function autoScan() {
     const work = workCanvasRef.current;
-    if (!work) { startManual(); return; }
+    if (!work) { setPhase("IDLE"); return; }
 
     // 이전 스캔 정리
     scanAbortRef.current?.abort();
@@ -183,7 +176,6 @@ export default function MeasurePage() {
     setTail(null);
     setWidthPts(null);
     setResult(null);
-    setIsMockFish(false);
     setPhase("SCANNING");
     setLoadingMsg("물고기와 입낚볼을 인식 중이에요...");
 
@@ -240,17 +232,16 @@ export default function MeasurePage() {
           : null;
 
       setBall(ballObj);
-      setIsMockFish(false);
       setHead(headP);
       setTail(tailP);
       setWidthPts(widthP);
       setPhase("RESULT"); // 길이·너비 계산은 result useEffect가 처리
     } catch {
-      // 어떤 실패든 수동 모드로 폴백
-      scanFailToManual();
+      // 어떤 실패든 안내 후 선택 화면으로 복귀
+      scanFailToChoice();
     } finally {
-      // 하드 타임아웃 타이머만 정리한다. 실패 폴백(scanFailToManual)이 catch에서
-      // scanTimerRef에 '2초 후 수동 전환' 타이머를 새로 걸어두므로, 그 타이머까지
+      // 하드 타임아웃 타이머만 정리한다. 실패 폴백(scanFailToChoice)이 catch에서
+      // scanTimerRef에 '2초 후 선택 화면 복귀' 타이머를 새로 걸어두므로, 그 타이머까지
       // null 처리하지 않도록 이 로컬 timeoutId 기준으로만 정리한다.
       clearTimeout(timeoutId);
       if (scanTimerRef.current === timeoutId) scanTimerRef.current = null;
@@ -258,48 +249,15 @@ export default function MeasurePage() {
     }
   }
 
-  /* ── 자동 스캔 실패 → 안내 후 2초 뒤 수동 모드 ── */
-  function scanFailToManual() {
-    setScanFailMsg("자동 측정이 어려운 사진이에요. 머리 끝과 꼬리 끝을 직접 연결해 주세요.");
+  /* ── 자동 스캔 실패 → 안내 후 2초 뒤 선택 화면 복귀 ── */
+  function scanFailToChoice() {
+    setScanFailMsg("자동 측정이 어려운 사진이에요. 물고기를 옆으로 눕히고 입낚볼과 함께 다시 촬영해 주세요.");
     setPhase("SCAN_FAILED");
     if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
     scanTimerRef.current = setTimeout(() => {
       setScanFailMsg(null);
-      startManual();
+      setPhase("CHOICE");
     }, 2000);
-  }
-
-  /* ── 수동 모드 시작: 기존 방식(입낚볼 감지 → 머리/꼬리 탭) 그대로 ── */
-  function startManual() {
-    const work = workCanvasRef.current;
-    if (!work) { setPhase("IDLE"); return; }
-    setScanFailMsg(null);
-    setPhase("ANALYZING");
-    setLoadingMsg("40mm 입낚볼·인쇄 로고 기준물을 찾는 중...");
-    // analyze는 동기에 가깝지만 방어적으로 await
-    analyze(work).catch(() => {
-      // 기준물 감지 실패해도 수동 진행 가능하도록 폴백
-      setBall(null);
-      setIsMockFish(true);
-      setPhase("MANUAL_HEAD");
-      setShowNoBallPopup(true);
-    });
-  }
-
-  /* ── (미사용) 실시간 카메라 촬영본 핸들러 — 네이티브 카메라로 대체 ── */
-  async function handleLiveCapture(work: HTMLCanvasElement) {
-    setErrorMsg(null);
-    setBall(null);
-    setHead(null);
-    setTail(null);
-    setWidthPts(null);
-    setResult(null);
-    setIsMockFish(false);
-    workCanvasRef.current = work;
-    setHasImage(true);
-    setPhase("ANALYZING");
-    setLoadingMsg("촬영본 분석 중...");
-    await analyze(work);
   }
 
   /* ── 실시간 AI 스캐너 "측정하기" 확정 → 기존 결과 파이프라인 재사용 ──
@@ -309,11 +267,9 @@ export default function MeasurePage() {
     setErrorMsg(null);
     setScanFailMsg(null);
     setResult(null);
-    setProceedWithoutBall(false);
     workCanvasRef.current = res.work;
     setHasImage(true);
     setBall(res.ball);
-    setIsMockFish(false);
     setHead(res.head);
     setTail(res.tail);
     setWidthPts(res.width ?? null);
@@ -321,83 +277,12 @@ export default function MeasurePage() {
     setPhase("RESULT");
   }
 
-  /* ── 실시간 스캐너 "직접 측정"/권한 거부: 현재 프레임 있으면 바로 수동 탭 모드, 없으면 갤러리 ── */
-  function handleLiveScanSwitchToManual(frame?: HTMLCanvasElement | null) {
-    setLiveScanOpen(false);
-    if (frame && frame.width > 0 && frame.height > 0) {
-      // 현재 카메라 프레임으로 바로 수동 점찍기 모드 진입
-      workCanvasRef.current = frame;
-      setHasImage(true);
-      setErrorMsg(null);
-      setScanFailMsg(null);
-      setBall(null);
-      setHead(null);
-      setTail(null);
-      setWidthPts(null);
-      setResult(null);
-      setIsMockFish(true); // 볼 감지 없이 진행
-      setProceedWithoutBall(true);
-      setPhase("MANUAL_HEAD");
-    } else {
-      // 프레임 없음 → 갤러리에서 사진 선택 (기존 폴백)
-      setTimeout(() => {
-        galleryInputRef.current?.click();
-      }, 150);
-    }
-  }
-
-  async function analyze(_work: HTMLCanvasElement) {
-    setLoadingMsg("40mm 입낚볼·인쇄 로고 기준물을 찾는 중...");
-
-    // OpenCV.js init()을 await하면 7MB CDN 스크립트 파싱으로 메인 스레드가 블록됨
-    // → 이미 로드·초기화된 경우에만 감지 시도, 미로드면 즉시 팝업
-    // OpenCV.js는 7MB CDN 스크립트 — 모바일에서 파싱 시 메인 스레드 완전 블록
-    // init() 호출 자체를 금지하고, 이미 로드된 경우에만 감지 실행
-    const cvReady = typeof window !== "undefined" && !!(window as any).cv?.Mat;
-
-    let reference: any = null;
-    if (cvReady) {
-      try {
-        reference = engines().ball.detectBest(_work);
-      } catch {
-        reference = null;
-      }
-    }
-    // cvReady = false: init() 일절 호출하지 않고 즉시 팝업으로 이동
-
-    if (reference?.found) {
-      // 실물 입낚볼과 A4 인쇄물의 진한 노랑색 원형 로고는 모두 지름 40mm 기준으로 계산한다.
-      setBall(reference);
-      setIsMockFish(false);
-      setPhase("MANUAL_HEAD");
-    } else {
-      setBall(null);
-      setIsMockFish(true);
-      setPhase("MANUAL_HEAD"); // 캔버스 표시 유지
-      setShowNoBallPopup(true); // 기준물 미발견 팝업 즉시 표시
-    }
-  }
-
-  function handleNoBallConfirm() {
-    setShowNoBallPopup(false);
-    setProceedWithoutBall(true);
-    // phase는 이미 MANUAL_HEAD — 그대로 진행
-  }
-
-  function handleNoBallCancel() {
-    setShowNoBallPopup(false);
-    reset();
-  }
-
   /* ── 측정값 계산 ── */
   useEffect(() => {
     if (!head || !tail) { setResult(null); return; }
     if (!ball) {
-      // 볼 없음 — 길이 계산 불가. 기준물 없이 진행한 경우 "계측 실패"로 표시
-      const gradeLabel = proceedWithoutBall ? "계측 실패" : "사진 기록";
-      const gradeColor = proceedWithoutBall ? "#ff6b6b" : "#888";
-      const gradeCode  = proceedWithoutBall ? "FAIL"    : "N/A";
-      setResult({ lengthCm: null, widthCm: null, weightG: null, grade: { label: gradeLabel, color: gradeColor, grade: gradeCode }, legal: null });
+      // 볼 없음 — 길이 계산 불가 (자동 스캔은 항상 볼을 요구하므로 방어적 처리)
+      setResult({ lengthCm: null, widthCm: null, weightG: null, grade: { label: "사진 기록", color: "#888", grade: "N/A" }, legal: null });
       return;
     }
     const eng = engines();
@@ -417,7 +302,7 @@ export default function MeasurePage() {
       legal,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ball, head, tail, widthPts, species, proceedWithoutBall]);
+  }, [ball, head, tail, widthPts, species]);
 
   /* ── 오버레이 렌더 ── */
   useEffect(() => {
@@ -432,40 +317,24 @@ export default function MeasurePage() {
       tailPoint: tail,
       widthPoints: result?.widthCm != null ? widthPts : null,
       selectedSpecies: species,
-      isMockMode: isMockFish && phase !== "SAVED",
+      isMockMode: false,
     });
-  }, [hasImage, ball, result, head, tail, widthPts, species, isMockFish, phase]);
+  }, [hasImage, ball, result, head, tail, widthPts, species, phase]);
 
-  /* ── 캔버스 탭: 머리 → 꼬리 지정 / 결과 화면에서는 가까운 점 이동 ── */
+  /* ── 캔버스 탭: 결과 화면에서 AI가 잡은 머리/꼬리 점 미세조정 ── */
   function onCanvasTap(e: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (phase !== "RESULT" || !head || !tail) return;
     const rect = canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
     const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
     const p = { x, y };
 
-    if (phase === "MANUAL_HEAD") {
-      setHead(p);
-      setPhase("MANUAL_TAIL");
-    } else if (phase === "MANUAL_TAIL") {
-      // 이미 찍힌 빨간 점(head) 근처 탭 → head 재설정 (파란 점처럼 자유롭게 수정)
-      if (head) {
-        const threshold = canvas.width * 0.12; // 캔버스 너비 12% 이내면 head 재선택
-        const dHead = Math.hypot(p.x - head.x, p.y - head.y);
-        if (dHead < threshold) {
-          setHead(p);
-          return; // MANUAL_TAIL 페이즈 유지 — 꼬리 탭 대기
-        }
-      }
-      setTail(p);
-      setPhase("RESULT");
-    } else if (phase === "RESULT" && head && tail) {
-      const dHead = Math.hypot(p.x - head.x, p.y - head.y);
-      const dTail = Math.hypot(p.x - tail.x, p.y - tail.y);
-      if (dHead <= dTail) setHead(p);
-      else setTail(p);
-    }
+    const dHead = Math.hypot(p.x - head.x, p.y - head.y);
+    const dTail = Math.hypot(p.x - tail.x, p.y - tail.y);
+    if (dHead <= dTail) setHead(p);
+    else setTail(p);
   }
 
   /* ── 저장 ── */
@@ -615,9 +484,6 @@ export default function MeasurePage() {
     setTail(null);
     setWidthPts(null);
     setResult(null);
-    setIsMockFish(false);
-    setShowNoBallPopup(false);
-    setProceedWithoutBall(false);
     workCanvasRef.current = null;
   }
 
@@ -633,14 +499,6 @@ export default function MeasurePage() {
     scanAbortRef.current = null;
     if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null; }
     setScanFailMsg(null);
-    setPhase("CHOICE");
-  }
-
-  /* ── 수동 측정 취소 → CHOICE 복귀 ── */
-  function cancelManual() {
-    setHead(null);
-    setTail(null);
-    setWidthPts(null);
     setPhase("CHOICE");
   }
 
@@ -829,7 +687,7 @@ export default function MeasurePage() {
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-bold text-navy-900">입낚볼 기준 AI 자동 계측</p>
-                <p className="text-[11px] text-navy-400">입낚볼 없이 머리·꼬리를 직접 탭해도 측정 가능</p>
+                <p className="text-[11px] text-navy-400">물고기를 옆으로 눕혀 입낚볼과 함께 촬영하세요</p>
               </div>
             </div>
 
@@ -929,21 +787,6 @@ export default function MeasurePage() {
               <ChevronRight size={18} className="ml-auto shrink-0 text-navy-300" />
             </button>
 
-            <button
-              type="button"
-              onClick={startManual}
-              className="flex w-full items-center gap-3 rounded-2xl border-2 border-navy-200 bg-surface-200 px-4 py-3.5 text-left transition-colors hover:border-aqua-400 active:scale-[0.98]"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-aqua-500/15 text-aqua-400">
-                <Ruler size={20} strokeWidth={1.8} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[14px] font-bold text-navy-900">직접 점 찍어 측정</span>
-                <span className="block text-[11px] text-navy-400">머리·꼬리 끝을 직접 탭해서 측정</span>
-              </span>
-              <ChevronRight size={18} className="ml-auto shrink-0 text-navy-300" />
-            </button>
-
             <div className="flex justify-center py-2">
               <button
                 type="button"
@@ -965,28 +808,6 @@ export default function MeasurePage() {
           </div>
         )}
 
-        {/* ── 수동 탭 안내 + 취소 ── */}
-        {(phase === "MANUAL_HEAD" || phase === "MANUAL_TAIL") && (
-          <div className="flex items-center gap-2">
-            <div className="flex flex-1 items-center gap-2 rounded-2xl border border-aqua-500/30 bg-aqua-500/10 px-3 py-2">
-              <Fish size={16} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
-              <p className="text-[13px] font-medium text-aqua-300">
-                {phase === "MANUAL_HEAD"
-                  ? "물고기 머리(입) 끝을 탭해 주세요"
-                  : "이번엔 꼬리 끝을 탭해 주세요"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={cancelManual}
-              className="flex shrink-0 items-center gap-1 rounded-2xl border border-navy-200 px-3 py-2 text-[12px] font-semibold text-navy-400 transition-colors hover:border-navy-300 hover:text-navy-500 active:scale-[0.98]"
-            >
-              <X size={13} strokeWidth={2} />
-              취소
-            </button>
-          </div>
-        )}
-
         {/* ── 에러 ── */}
         {phase === "ERROR" && errorMsg && (
           <div className="rounded-card border border-red-500/30 bg-red-500/10 p-4">
@@ -1004,7 +825,7 @@ export default function MeasurePage() {
         )}
 
         {/* ── 어종 선택 + 결과 ── */}
-        {(phase === "RESULT" || phase === "SAVING" || phase === "MANUAL_TAIL") && (
+        {(phase === "RESULT" || phase === "SAVING") && (
           <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
             {FISH_SPECIES.map((s: any) => (
               <Chip key={s.key} size="sm" active={species === s.key} onClick={() => setSpecies(s.key)}>
@@ -1143,52 +964,6 @@ export default function MeasurePage() {
         )}
       </div>
 
-      {/* ── 기준물 미발견 팝업 ── */}
-      {showNoBallPopup && createPortal(
-        <div
-          className="fixed inset-0 z-[9000] flex items-end justify-center px-4 pb-12 sm:items-center sm:pb-0"
-          style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(4px)" }}
-        >
-          <div className="w-full max-w-[360px] overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#122030] shadow-2xl">
-            <div className="h-[2px] bg-gradient-to-r from-orange-700/30 via-orange-400 to-orange-700/30" />
-            <div className="px-6 pb-7 pt-8 text-center">
-              {/* 아이콘 */}
-              <div className="mx-auto mb-5 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
-                <AlertTriangle size={28} className="text-orange-400" strokeWidth={1.7} />
-              </div>
-              <h2 className="text-[19px] font-extrabold tracking-tight text-white">기준물을 찾지 못했어요</h2>
-              <p className="mx-auto mt-2.5 max-w-[280px] text-[13px] leading-[1.7] text-white/50">
-                입낚볼·인쇄 기준물이 사진에서 인식되지 않아 정확한 길이 측정이 어렵습니다.
-              </p>
-              <div className="mt-3 rounded-2xl bg-orange-500/10 px-3.5 py-2.5 text-[12px] leading-relaxed text-orange-300 ring-1 ring-orange-500/20">
-                기준물 없이 진행하면 측정 기록에<br />
-                <span className="font-bold">사이즈가 계측 실패로 표시</span>됩니다
-              </div>
-              <p className="mt-4 text-[14px] font-semibold text-white/80">
-                기준물 없이 촬영을 진행하시겠습니까?
-              </p>
-              <div className="mt-5 grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={handleNoBallCancel}
-                  className="rounded-2xl bg-white/[0.06] py-3.5 text-[14px] font-semibold text-white/60 ring-1 ring-white/10 transition-colors hover:bg-white/10 active:scale-[0.98]"
-                >
-                  아니요
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNoBallConfirm}
-                  className="rounded-2xl bg-orange-500 py-3.5 text-[14px] font-bold text-white shadow-lg shadow-orange-500/20 transition-colors hover:bg-orange-600 active:scale-[0.98]"
-                >
-                  예, 계속할게요
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
       {/* ── 첫 방문 튜토리얼 오버레이 ── */}
       {tutorialOpen && (
         <AiMeasureTutorial
@@ -1297,7 +1072,6 @@ export default function MeasurePage() {
     {liveScanOpen && typeof window !== "undefined" && createPortal(
       <LiveScanCamera
         onConfirm={handleLiveScanConfirm}
-        onSwitchToManual={handleLiveScanSwitchToManual}
         onClose={() => setLiveScanOpen(false)}
       />,
       document.body
@@ -1313,20 +1087,20 @@ const TUTORIAL_STEPS = [
   {
     icon: <CircleDashed size={36} strokeWidth={1.6} className="text-orange-400" />,
     title: "입낚볼과 함께 촬영하세요",
-    desc: "40mm 입낚볼을 물고기 옆에 놓고 함께 촬영하면\n길이가 자동으로 계산됩니다.\n입낚볼이 없어도 직접 탭해서 측정할 수 있어요.",
+    desc: "40mm 입낚볼을 물고기 옆에 놓고 함께 촬영하면\n길이가 자동으로 계산됩니다.",
     hint: "입낚볼 ≈ 40mm",
   },
   {
     icon: <Fish size={36} strokeWidth={1.6} className="text-aqua-400" />,
-    title: "물고기 머리를 탭하세요",
-    desc: "촬영 후 사진에서 물고기 머리(입) 끝부분을\n손가락으로 탭하세요.\n드래그로 미세 조정도 가능합니다.",
-    hint: "1번 탭 → 머리 지정",
+    title: "물고기를 옆으로 눕혀 주세요",
+    desc: "바닥에 물고기를 옆으로 눕히고\n머리부터 꼬리까지 화면에 모두 들어오게 맞춰주세요.\n인식되면 물고기 윤곽선이 반짝입니다.",
+    hint: "인식되면 윤곽선 반짝임",
   },
   {
-    icon: <Ruler size={36} strokeWidth={1.6} className="text-aqua-400" />,
-    title: "꼬리 끝을 탭하세요",
-    desc: "이어서 물고기 꼬리 끝을 탭하면\n전장(cm)이 자동으로 계산됩니다.\n탭한 점을 다시 탭해 위치를 조정할 수 있어요.",
-    hint: "2번 탭 → 꼬리 지정 → 계산",
+    icon: <ScanLine size={36} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "'측정하기'를 누르세요",
+    desc: "'물고기 인식됨' 배지가 뜨면\n측정하기 버튼을 눌러 전장(cm)을 확정합니다.\n결과 화면에서 점을 탭해 미세 조정도 가능해요.",
+    hint: "인식 완료 → 측정하기",
   },
   {
     icon: <Save size={36} strokeWidth={1.6} className="text-orange-400" />,
