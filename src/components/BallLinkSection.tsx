@@ -254,7 +254,7 @@ export function BallLinkSection() {
             onClick={() => setBallExampleOpen(true)}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-500/35 bg-orange-500/10 py-3 text-[13px] font-bold text-orange-300 active:scale-[0.98]"
           >
-            <ImageIcon size={16} /> 입낚볼 사용 예시보기
+            <ImageIcon size={16} /> 입낚볼/입낚키링 사용 예시보기
           </button>
         </div>
       </Sheet>
@@ -279,7 +279,7 @@ export function BallLinkSection() {
         </div>
       </Sheet>
 
-      <Sheet open={ballExampleOpen} onClose={() => setBallExampleOpen(false)} title="입낚볼 사용 예시" size="diary">
+      <Sheet open={ballExampleOpen} onClose={() => setBallExampleOpen(false)} title="입낚볼/입낚키링 사용 예시" size="diary">
         <div className="space-y-4 pb-2">
           <UsageExample
             src="/ipnak-ball-handheld-bass-example.png"
@@ -290,6 +290,11 @@ export function BallLinkSection() {
             src="/ipnak-ball-flat-bass-example.png"
             title="배스를 바닥에 놓고 주변에 입낚볼 배치"
             desc="배스와 입낚볼을 가능한 한 같은 평면에 놓고 위에서 촬영하면 가장 안정적으로 길이를 계산할 수 있어요."
+          />
+          <UsageExample
+            src="/ipnak-keyring-usage-example.svg"
+            title="입낚키링을 물고기 주변 어디든 놓고 촬영"
+            desc="입낚키링은 고리 없이 디스크만 물고기 옆 바닥에 놓으면 돼요. 프레임 안 어느 위치에 있어도 인식할 수 있어요."
           />
         </div>
       </Sheet>
