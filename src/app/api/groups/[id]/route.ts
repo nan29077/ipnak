@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { refundGroupJoin } from "@/lib/points";
 
 // GET /api/groups/[id] — myRole 포함 (null | "pending" | "member" | "sub_leader" | "leader")
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -70,6 +71,14 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   );
   if (!group) return NextResponse.json({ error: "낚시단을 찾을 수 없습니다." }, { status: 404 });
   if (group.leaderId !== user.id) return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+
+  // 승인 대기 중인 신청자는 차감했던 가입 비용(1,000P)을 환불한다
+  const pendings = await prisma.$queryRawUnsafe<any[]>(
+    `SELECT "userId" FROM "GroupMember" WHERE "groupId" = ? AND "role" = 'pending'`, params.id
+  );
+  for (const p of pendings) {
+    await refundGroupJoin(p.userId, params.id);
+  }
 
   // 멤버 먼저 삭제 후 그룹 삭제
   await prisma.$executeRawUnsafe(`DELETE FROM "GroupMember" WHERE "groupId" = ?`, params.id);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { pointsEnabled, groupPointsRequired, getBalance, chargeGroupCreate, POINT_RULES } from "@/lib/points";
+import { pointsEnabled, groupPointsRequired, getBalance, chargeGroupCreate, refundGroupCreate, POINT_RULES } from "@/lib/points";
 
 function createId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -62,8 +62,9 @@ export async function POST(req: Request) {
 
   // 포인트 제도 OFF 이면 유료 개설 설정과 무관하게 포인트를 사용하지 않는다.
   // (개설 기능 자체는 그대로 이용 가능 — 차감 로직만 건너뛴다)
+  // 최고관리자는 유료 개설이 켜져 있어도 포인트를 차감하지 않는다.
   const [enabled, requirePoints] = await Promise.all([pointsEnabled(), groupPointsRequired()]);
-  const paidCreate = enabled && requirePoints;
+  const paidCreate = enabled && requirePoints && user.role !== "SUPER_ADMIN";
 
   // 낚시단 유료 개설 ON 이면 10,000P 필요 — 개설 전 잔액 확인
   if (paidCreate) {
@@ -75,25 +76,35 @@ export async function POST(req: Request) {
   const id = createId();
   const now = new Date().toISOString();
 
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "Group" ("id","name","description","leaderId","category","region","fishSpecies","tags","isPublic","imageUrl","createdAt","updatedAt")
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-    id, name.trim(), description || null, user.id, category.trim(),
-    region || null, fishSpecies || null,
-    tags ? JSON.stringify(tags) : null,
-    isPublic !== false ? 1 : 0,
-    imageUrl || null, now, now
-  );
-
-  const memberId = createId();
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "GroupMember" ("id","groupId","userId","role","joinedAt") VALUES (?,?,?,?,?)`,
-    memberId, id, user.id, "leader", now
-  );
-
-  // 개설 비용 차감 (유료 개설 ON)
+  // 개설 비용 선차감 — 차감에 실패하면 낚시단을 만들지 않는다(무료 개설 방지)
   if (paidCreate) {
-    try { await chargeGroupCreate(user.id, id); } catch { /* 잔액 확인을 통과했으므로 실패 가능성 낮음 */ }
+    try {
+      await chargeGroupCreate(user.id, id);
+    } catch {
+      return NextResponse.json({ error: "포인트가 부족합니다." }, { status: 400 });
+    }
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "Group" ("id","name","description","leaderId","category","region","fishSpecies","tags","isPublic","imageUrl","createdAt","updatedAt")
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      id, name.trim(), description || null, user.id, category.trim(),
+      region || null, fishSpecies || null,
+      tags ? JSON.stringify(tags) : null,
+      isPublic !== false ? 1 : 0,
+      imageUrl || null, now, now
+    );
+
+    const memberId = createId();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "GroupMember" ("id","groupId","userId","role","joinedAt") VALUES (?,?,?,?,?)`,
+      memberId, id, user.id, "leader", now
+    );
+  } catch (e) {
+    // 생성에 실패했다면 선차감한 개설 비용을 되돌린다
+    if (paidCreate) await refundGroupCreate(user.id, id);
+    throw e;
   }
 
   const [group] = await prisma.$queryRawUnsafe<any[]>(

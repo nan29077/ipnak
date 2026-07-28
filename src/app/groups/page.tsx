@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, Users, MapPin, Fish, Plus, ChevronRight } from "lucide-react";
+import { Search, Users, MapPin, Fish, Plus, ChevronRight, Coins } from "lucide-react";
+import { useAppSettings } from "@/lib/appSettingsContext";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES = ["전체", "어종별", "지역별", "장르별", "동행"];
@@ -16,6 +17,9 @@ type Group = {
 };
 
 export default function GroupsPage() {
+  // 낚시단 유료 개설(포인트 제도 ON + 유료 개설 ON)일 때만 개설 비용 안내
+  const { pointsEnabled, groupPointsRequired } = useAppSettings();
+  const showCreateCost = pointsEnabled && groupPointsRequired;
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState("전체");
@@ -45,9 +49,16 @@ export default function GroupsPage() {
       <div className="sticky top-0 z-20 border-b border-navy-100/20 bg-[#0d1b2a]/95 backdrop-blur-md">
         <div className="flex items-center gap-2 px-3.5 py-3">
           <h1 className="text-lg font-extrabold text-navy-900">낚시단</h1>
-          <Link href="/groups/new" className="ml-auto flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-[13px] font-bold text-white shadow-soft">
-            <Plus size={15} /> 만들기
-          </Link>
+          <div className="ml-auto flex items-center gap-2">
+            {showCreateCost && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-2 py-1 text-[11px] font-bold text-amber-300">
+                <Coins size={12} strokeWidth={1.8} /> 10,000P 필요
+              </span>
+            )}
+            <Link href="/groups/new" className="flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-[13px] font-bold text-white shadow-soft">
+              <Plus size={15} /> 만들기
+            </Link>
+          </div>
         </div>
         {/* 검색바 */}
         <div className="px-3.5 pb-2">

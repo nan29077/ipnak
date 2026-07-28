@@ -110,6 +110,7 @@ export default function GroupDetailPage() {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [joinError, setJoinError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("home");
@@ -123,6 +124,17 @@ export default function GroupDetailPage() {
     })();
   }, [id]);
 
+  // 가입 신청 취소에 필요한 내 회원 id
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json().catch(() => ({}));
+        setUserId(data.user?.id ?? null);
+      } catch { /* noop */ }
+    })();
+  }, []);
+
   async function join() {
     setJoining(true); setJoinError("");
     const res = await fetch(`/api/groups/${id}/join`, { method: "POST" });
@@ -130,6 +142,18 @@ export default function GroupDetailPage() {
     setJoining(false);
     if (!res.ok) { setJoinError(data.error || "오류가 발생했습니다."); return; }
     setJoined(true);
+  }
+
+  // 승인 대기 중인 내 가입 신청 취소 (차감된 포인트는 환불)
+  async function cancelJoin() {
+    if (!userId || cancelling) return;
+    setCancelling(true); setJoinError("");
+    const res = await fetch(`/api/groups/${id}/members/${userId}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    setCancelling(false);
+    if (!res.ok) { setJoinError(data.error || "오류가 발생했습니다."); return; }
+    setJoined(false);
+    setGroup((g) => (g ? { ...g, myRole: null } : g));
   }
 
   if (loading) return (
@@ -248,8 +272,15 @@ export default function GroupDetailPage() {
               <CheckCircle size={18} /> 가입된 낚시단입니다
             </div>
           ) : group.myRole === "pending" || joined ? (
-            <div className="flex items-center gap-2 rounded-2xl bg-navy-50/10 px-4 py-3.5 text-[14px] font-semibold text-navy-400">
-              <Clock size={18} strokeWidth={1.5} /> 가입 승인 대기 중입니다. 단장의 승인을 기다려주세요.
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 rounded-2xl bg-navy-50/10 px-4 py-3.5 text-[14px] font-semibold text-navy-400">
+                <Clock size={18} strokeWidth={1.5} /> 가입 승인 대기 중입니다. 단장의 승인을 기다려주세요.
+              </div>
+              <button onClick={cancelJoin} disabled={cancelling || !userId}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-navy-100/20 bg-navy-50/10 py-3.5 text-[15px] font-extrabold text-navy-400 transition-colors hover:text-navy-600 disabled:opacity-60">
+                {cancelling ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
+                {cancelling ? "취소 중..." : "신청 취소"}
+              </button>
             </div>
           ) : (
             <div className="space-y-2">

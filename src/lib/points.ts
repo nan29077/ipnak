@@ -232,7 +232,16 @@ async function hasUnrefundedJoinCharge(userId: string, groupId: string): Promise
   }
 }
 
-/** 가입 거절 시 차감했던 1,000P 환불(차감 이력이 있을 때만) */
+/** 낚시단 개설이 실패했을 때 선차감한 10,000P 원복 */
+export async function refundGroupCreate(userId: string, groupId: string) {
+  try {
+    await changePoints(userId, POINT_RULES.GROUP_CREATE_COST, "REFUND", "낚시단 개설 취소 환불", { postId: groupId });
+  } catch {
+    /* noop */
+  }
+}
+
+/** 가입 거절/신청 취소 시 차감했던 1,000P 환불(차감 이력이 있을 때만) */
 export async function refundGroupJoin(userId: string, groupId: string) {
   try {
     if (!(await hasUnrefundedJoinCharge(userId, groupId))) return;

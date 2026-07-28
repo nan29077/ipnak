@@ -252,6 +252,11 @@ export async function POST(req: Request) {
           const shopMenuEnabled = await getBoolSetting("shop_menu_enabled");
           if (!shopMenuEnabled) value = "false";
         }
+        // 포인트 기능이 꺼져 있으면 낚시단 유료 개설은 켤 수 없다.
+        if (key === "group_points_required" && value === "true") {
+          const pointsOn = await getBoolSetting("points_enabled");
+          if (!pointsOn) value = "false";
+        }
         await prisma.setting.upsert({
           where: { key },
           update: { value },

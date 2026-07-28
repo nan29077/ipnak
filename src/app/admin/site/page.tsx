@@ -136,7 +136,7 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           <PointsToggle initial={pointsEnabled} />
-          <GroupPointsToggle initial={groupPointsRequired} />
+          <GroupPointsToggle initial={groupPointsRequired} pointsEnabled={pointsEnabled} />
           <ShopToggle initial={shopEnabled} />
           <ShopTagToggle initial={shopTagEnabled} shopMenuEnabled={shopEnabled} />
           <BassOnlyToggle initial={bassOnlyMode} />

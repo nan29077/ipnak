@@ -1,18 +1,20 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Users } from "lucide-react";
+import { AlertCircle, Loader2, Users } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
 
 // 낚시단 유료 포인트 개설 스위치
 // ON: 낚시단 개설 10,000P 차감 · 가입 신청 시 1,000P 차감(승인 시 단장 500P 적립, 거절 시 환불)
 // OFF: 낚시단 무료 개설 · 가입 신청 시 포인트 차감 없음
-export function GroupPointsToggle({ initial }: { initial: boolean }) {
+export function GroupPointsToggle({ initial, pointsEnabled }: { initial: boolean; pointsEnabled: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [on, setOn] = useState(initial);
   const [loading, setLoading] = useState(false);
+  // 포인트 기능이 OFF면 낚시단 유료 개설은 사용할 수 없다.
+  const blocked = !pointsEnabled;
 
   async function toggle() {
     const next = !on;
@@ -48,7 +50,7 @@ export function GroupPointsToggle({ initial }: { initial: boolean }) {
         </div>
         <button
           onClick={toggle}
-          disabled={loading}
+          disabled={loading || blocked}
           role="switch"
           aria-checked={on}
           aria-label="낚시단 유료 포인트 개설"
@@ -69,6 +71,12 @@ export function GroupPointsToggle({ initial }: { initial: boolean }) {
           <><Users size={16} className="text-navy-300" /> 현재: <span className="text-navy-400">무료 개설</span></>
         )}
       </div>
+      {blocked && (
+        <div className="mt-2 flex items-start gap-2 rounded-xl bg-navy-50/60 px-3 py-2.5 text-[13px] font-semibold text-navy-500">
+          <AlertCircle size={16} className="mt-px shrink-0 text-navy-400" />
+          <span>포인트 기능이 비활성화 상태입니다. 먼저 포인트 사용 가능을 활성화해 주세요.</span>
+        </div>
+      )}
     </div>
   );
 }

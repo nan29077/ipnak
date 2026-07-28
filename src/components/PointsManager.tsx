@@ -6,6 +6,7 @@ import { useToast } from "@/components/Toast";
 import { Sheet } from "@/components/ui";
 import { notifyPointsChanged } from "@/components/PointsBadge";
 import { ChargePanel } from "@/components/ChargePanel";
+import { useAppSettings } from "@/lib/appSettingsContext";
 import { cn } from "@/lib/utils";
 
 export type PointTx = {
@@ -36,6 +37,9 @@ export function PointsManager({
 }) {
   const router = useRouter();
   const toast = useToast();
+  // 낚시단 유료 개설이 켜져 있을 때만 낚시단 개설·가입 비용을 안내한다
+  const { groupPointsRequired } = useAppSettings();
+  const showGroupCost = enabled && groupPointsRequired;
   const [balance, setBalance] = useState(initialBalance);
   const [txs, setTxs] = useState<PointTx[]>(initialTx);
   const [filter, setFilter] = useState<"all" | "earn" | "spend">("all");
@@ -108,7 +112,7 @@ export function PointsManager({
           <li>• 각종 피드 글 올리기 — 하루 최대 5회, 회당 100P</li>
           <li>• 내 워킹 피드를 다른 회원이 열람 시 100P 적립</li>
           <li>• 워킹 피드 열람 시 200P 사용</li>
-          <li>• 낚시단 개설 10,000P · 가입 신청 1,000P (유료 개설 시)</li>
+          {showGroupCost && <li>• 낚시단 개설 10,000P · 가입 신청 1,000P</li>}
         </ul>
       </div>
 

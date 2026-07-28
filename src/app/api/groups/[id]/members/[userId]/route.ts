@@ -27,6 +27,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string; us
   const now = new Date().toISOString();
 
   if (action === "approve") {
+    // 승인 대기 상태가 아니면 승인할 수 없다 (반복 호출로 단장 적립이 중복되는 것 방지)
+    if (member.role !== "pending")
+      return NextResponse.json({ error: "승인 대기 중인 신청이 아닙니다." }, { status: 400 });
     await prisma.$executeRawUnsafe(
       `UPDATE "GroupMember" SET "role" = 'member' WHERE "groupId" = ? AND "userId" = ?`,
       params.id, params.userId
@@ -98,4 +101,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string; us
   }
 
   return NextResponse.json({ error: "잘못된 action입니다." }, { status: 400 });
+}
+
+// DELETE /api/groups/[id]/members/[userId] — 본인의 가입 신청 취소 (차감했던 1,000P 환불)
+export async function DELETE(_req: Request, { params }: { params: { id: string; userId: string } }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "로그인 필요" }, { status: 401 });
+  if (params.userId !== user.id) return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+
+  const [member] = await prisma.$queryRawUnsafe<any[]>(
+    `SELECT * FROM "GroupMember" WHERE "groupId" = ? AND "userId" = ?`, params.id, user.id
+  );
+  if (!member) return NextResponse.json({ error: "가입 신청 내역이 없습니다." }, { status: 404 });
+  if (member.role !== "pending")
+    return NextResponse.json({ error: "승인 대기 중인 신청만 취소할 수 있습니다." }, { status: 400 });
+
+  // 차감했던 가입 비용 환불 후 신청 삭제
+  await refundGroupJoin(user.id, params.id);
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM "GroupMember" WHERE "groupId" = ? AND "userId" = ?`, params.id, user.id
+  );
+
+  return NextResponse.json({ ok: true, action: "cancelled" });
 }

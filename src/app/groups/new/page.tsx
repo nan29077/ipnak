@@ -110,7 +110,7 @@ export default function NewGroupPage() {
         {showCreateCost && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/[0.08] px-3.5 py-2.5 text-[12px] leading-relaxed text-amber-300">
             <Coins size={14} strokeWidth={1.8} className="mt-0.5 shrink-0" />
-            <span>개설 시 <b className="font-extrabold">10,000P</b>가 차감됩니다.</span>
+            <span>개설 시 <b className="font-extrabold">10,000P</b>가 차감됩니다. (해산 시 환불 불가)</span>
           </div>
         )}
 
