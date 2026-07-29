@@ -49,11 +49,12 @@ function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): Nav
 }
 
 // 글쓰기 FAB 숨김 경로 (맵·측정·로그인·관리자 등)
-const FAB_HIDDEN_PREFIXES = ["/login", "/signup", "/admin", "/map", "/measure", "/diary", "/trip", "/catch"];
+const FAB_HIDDEN_PREFIXES = ["/login", "/signup", "/forgot-password", "/admin", "/map", "/measure", "/diary", "/trip", "/catch"];
 
 export function AppShell({ user, shopEnabled = true, reservationEnabled = true, pointsEnabled = false, pcMarginBg, children }: { user: SessionUser; shopEnabled?: boolean; reservationEnabled?: boolean; pointsEnabled?: boolean; pcMarginBg?: string; children: React.ReactNode }) {
   const pathname = usePathname() || "/";
-  const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/admin") || pathname.startsWith("/print") || pathname.startsWith("/landing") || pathname.startsWith("/about");
+  // 비밀번호 찾기도 로그인·회원가입과 같은 인증 화면이라 앱 헤더/내비 없이 전체 화면으로 보여준다.
+  const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/forgot-password") || pathname.startsWith("/admin") || pathname.startsWith("/print") || pathname.startsWith("/landing") || pathname.startsWith("/about");
   const MOBILE_NAV = buildMobileNav(shopEnabled);
   const DESKTOP_NAV = buildDesktopNav(shopEnabled, reservationEnabled);
   const showFab =
