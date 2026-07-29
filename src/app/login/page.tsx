@@ -124,6 +124,11 @@ export default function LoginPage() {
             회원가입
           </Link>
         </p>
+        <p className="mt-2 text-center text-[12px]">
+          <Link href="/forgot-password" className="text-white/30 hover:text-white/60">
+            비밀번호를 잊으셨나요?
+          </Link>
+        </p>
       </div>
     </div>
   );
