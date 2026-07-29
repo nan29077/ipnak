@@ -153,26 +153,45 @@ export default function NewCatchPage() {
 
   const envOptions = waterType === "민물낚시" ? FRESH_ENVIRONMENTS : SEA_ENVIRONMENTS;
 
-  function handleCameraCapture(dataUrl: string, estimatedCm: number) {
+  async function handleCameraCapture(dataUrl: string, estimatedCm: number) {
     setShowCameraCapture(false);
-    const seed = `camera-${Date.now()}`;
-    setPhotos((prev) => [...prev, { preview: dataUrl, submitUrl: `https://picsum.photos/seed/${seed}/800/800` }].slice(0, 3));
+    let submitUrl = "";
+    try {
+      const blob = await fetch(dataUrl).then((r) => r.blob());
+      const form = new FormData();
+      form.append("file", blob, "capture.jpg");
+      const up = await fetch("/api/upload", { method: "POST", body: form });
+      if (up.ok) {
+        const upData = await up.json();
+        submitUrl = upData.url ?? "";
+      }
+    } catch { /* 업로드 실패 시 빈 URL */ }
+    setPhotos((prev) => [...prev, { preview: dataUrl, submitUrl }].slice(0, 3));
     // 패스 배지 기준으로 추정된 크기 자동 입력 (기존 값 없을 때만)
     if (!size) setSize(String(estimatedCm));
   }
 
-  function handlePhotoFiles(files: FileList | null) {
+  async function handlePhotoFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const next: PickedPhoto[] = [];
-    Array.from(files).slice(0, 3 - photos.length).forEach((f, i) => {
-      try {
-        const preview = URL.createObjectURL(f);
-        const seed = `${f.name.replace(/\W/g, "")}-${Date.now()}-${i}`;
-        next.push({ preview, submitUrl: `https://picsum.photos/seed/${seed}/800/800` });
-      } catch { /* ignore */ }
-    });
-    if (next.length > 0) setPhotos((prev) => [...prev, ...next].slice(0, 3));
     setPhotoSheetOpen(false);
+    const fileArr = Array.from(files).slice(0, 3 - photos.length);
+    const next: PickedPhoto[] = await Promise.all(
+      fileArr.map(async (f) => {
+        const preview = URL.createObjectURL(f);
+        let submitUrl = "";
+        try {
+          const form = new FormData();
+          form.append("file", f);
+          const up = await fetch("/api/upload", { method: "POST", body: form });
+          if (up.ok) {
+            const upData = await up.json();
+            submitUrl = upData.url ?? "";
+          }
+        } catch { /* 업로드 실패 */ }
+        return { preview, submitUrl };
+      })
+    );
+    if (next.length > 0) setPhotos((prev) => [...prev, ...next].slice(0, 3));
   }
 
   return (

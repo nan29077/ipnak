@@ -26,7 +26,8 @@ function parseProductOptions(optionsJson: string | null) {
   }
 }
 
-export default async function ShopProductPage({ params }: { params: { id: string } }) {
+export default async function ShopProductPage({ params, searchParams }: { params: { id: string }; searchParams?: { qty?: string } }) {
+  const initialQuantity = Math.max(1, parseInt(searchParams?.qty ?? "1", 10) || 1);
   const [p, refundPolicy, shippingGuide] = await Promise.all([
     prisma.product.findUnique({ where: { id: params.id }, include: { seller: { select: { id: true, nickname: true, avatarUrl: true } } } }),
     getSetting("refund_policy"),
@@ -76,7 +77,7 @@ export default async function ShopProductPage({ params }: { params: { id: string
           <div className="mt-2 flex items-center gap-3">
             <p className="text-2xl font-extrabold text-navy-800">{won(p.price)}</p>
             <div className="ml-auto">
-              <ProductPurchaseBar product={productForClient} />
+              <ProductPurchaseBar product={productForClient} initialQuantity={initialQuantity} />
             </div>
           </div>
 

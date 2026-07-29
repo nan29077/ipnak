@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { ChevronRight, Flame, BadgeCheck, Route, Trophy, Clock, Lock, Sparkles } from "lucide-react";
 import { useAppSettings } from "@/lib/appSettingsContext";
 import { isBassOnlyPost, isBassOnlySpecies } from "@/lib/taxonomy";
@@ -76,10 +77,13 @@ export function CurationHome({
     <div className="min-h-screen pb-6">
       {/* 히어로 큐레이션 — 실제 바다 낚시 사진 배너 + 그라디언트 오버레이로 텍스트 가독성 확보 */}
       <section className="relative overflow-hidden pb-5 pt-6">
-        <img
+        <Image
           src="/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 배경이미지1-화이트와펜.png"
           alt=""
           aria-hidden
+          fill
+          priority
+          sizes="100vw"
           className="absolute inset-0 h-full w-full object-cover"
         />
         {/* 반투명 오버레이: 위는 살짝, 아래로 갈수록 페이지 배경(#0d1b2a)과 자연스럽게 이어진다 */}

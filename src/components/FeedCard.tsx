@@ -659,6 +659,7 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
   const toast = useToast();
   const [comments, setComments] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [sending, setSending] = useState(false);
   const [text, setText] = useState("");
   // 답글 대상(항상 최상위 댓글에 붙임 — 대댓글 깊이 1단계)
   const [replyTo, setReplyTo] = useState<{ parentId: string; nickname: string } | null>(null);
@@ -685,6 +686,8 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
 
   async function postComment(body: string, parentId?: string) {
     if (!body.trim()) return false;
+    if (sending) return false; // 중복 제출 방지 (Enter 연타 등)
+    setSending(true);
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -698,6 +701,8 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
     } catch {
       toast("댓글 등록에 실패했습니다", "error");
       return false;
+    } finally {
+      setSending(false);
     }
   }
 
@@ -724,7 +729,7 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
         placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
         className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-[16px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#252525] focus:ring-2 focus:ring-aqua-100"
       />
-      <button onClick={send} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press transition-colors hover:bg-orange-600"><Send size={16} /></button>
+      <button onClick={send} disabled={sending} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press transition-colors hover:bg-orange-600 disabled:opacity-60"><Send size={16} /></button>
     </div>
   );
 

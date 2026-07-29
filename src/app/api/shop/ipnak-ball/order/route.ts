@@ -43,11 +43,14 @@ export async function POST(req: Request) {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    // 주문 생성 + 재고 차감
-    await prisma.$executeRawUnsafe(
+    // 주문 생성 + 재고 차감 (조건부 UPDATE의 영향 행 수를 확인해 동시 주문 시 재고 초과 판매 방지)
+    const affected = await prisma.$executeRawUnsafe(
       `UPDATE "IpnakBallProduct" SET "stock" = "stock" - ?, "updatedAt" = ? WHERE "id" = ? AND "stock" >= ?`,
       qty, now, productId, qty
     );
+    if (affected === 0) {
+      return NextResponse.json({ error: "재고가 부족합니다." }, { status: 409 });
+    }
     await prisma.$executeRawUnsafe(
       `INSERT INTO "IpnakBallOrder" ("id","userId","productId","quantity","totalPrice","status","addressName","address","addressDetail","phone","memo","createdAt","updatedAt")
        VALUES (?,?,?,?,?,'pending',?,?,?,?,?,?,?)`,

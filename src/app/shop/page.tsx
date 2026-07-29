@@ -1,23 +1,20 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ShoppingBag, Tag, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getBoolSetting } from "@/lib/settings";
-import { PageHeader, EmptyState, LinkButton, Badge } from "@/components/ui";
-import { won } from "@/lib/utils";
-import { productCategoryLabel } from "@/lib/taxonomy";
+import { PageHeader, EmptyState, LinkButton } from "@/components/ui";
 import { MarketTabs } from "@/components/market/MarketTabs";
 import { MarketIntroBanner } from "@/components/market/MarketIntroBanner";
 import { BassOnlyBanner } from "@/components/BassOnlyBanner";
+import { ShopSectionPicker } from "@/components/shop/ShopSectionPicker";
 
 export const dynamic = "force-dynamic";
 
 type Section = { key: string; label: string; color: string };
 const SECTIONS: Section[] = [
-  { key: "TODAY", label: "오늘의 상품", color: "orange" },
-  { key: "WEEKLY", label: "이번 주 추천", color: "aqua" },
-  { key: "MONTHLY", label: "이번 달 추천", color: "amber" },
-  { key: "BEST", label: "베스트 상품", color: "rose" },
+  { key: "TODAY", label: "오늘의 추천상품", color: "orange" },
+  { key: "WEEKLY", label: "이번주 추천상품", color: "aqua" },
+  { key: "MONTHLY", label: "이번달 추천상품", color: "amber" },
+  { key: "BEST", label: "베스트 추천상품", color: "rose" },
 ];
 
 type RawFeatured = {
@@ -77,8 +74,13 @@ export default async function ShopPage() {
     featured = [];
   }
 
-  const bySection = (key: string) =>
-    featured.filter((item) => item.section === key).slice(0, 5);
+  const sectionData = SECTIONS.map((section) => ({
+    ...section,
+    products: featured
+      .filter((item) => item.section === section.key)
+      .slice(0, 10)
+      .map(({ product }) => product),
+  }));
 
   return (
     <div className="pb-28">
@@ -97,82 +99,10 @@ export default async function ShopPage() {
           action={<LinkButton href="/">홈으로 돌아가기</LinkButton>}
         />
       ) : (
-        <div className="space-y-8 px-4">
-          {SECTIONS.map((section) => {
-            const items = bySection(section.key);
-            if (items.length === 0) return null;
-
-            return (
-              <section key={section.key}>
-                <div className="mb-3 flex items-center gap-2">
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      section.color === "orange"
-                        ? "bg-orange-500"
-                        : section.color === "aqua"
-                          ? "bg-aqua-400"
-                          : section.color === "amber"
-                            ? "bg-amber-400"
-                            : "bg-rose-500"
-                    }`}
-                  />
-                  <h2 className="text-[16px] font-extrabold text-navy-800">
-                    {section.label}
-                  </h2>
-                  <span className="ml-auto text-[12px] text-navy-400">
-                    {items.length}개
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {items.map(({ product }) => (
-                    <Link
-                      key={product.id}
-                      href={`/shop/${product.id}`}
-                      className="group flex items-center gap-3 rounded-2xl border border-navy-100 bg-[#162538] p-3 shadow-card transition-all duration-150 hover:shadow-cardhover active:scale-[0.98]"
-                    >
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-navy-50">
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            loading="lazy"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <ShoppingBag size={22} className="text-navy-300" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <Badge tone="aqua" className="mb-1 w-fit text-[10px]">
-                          <Tag size={9} /> {productCategoryLabel(product.category)}
-                        </Badge>
-                        <p className="line-clamp-1 text-sm font-semibold leading-snug text-navy-800">
-                          {product.name}
-                        </p>
-                        {product.brand && (
-                          <p className="text-xs text-navy-400">{product.brand}</p>
-                        )}
-                        <p className="mt-0.5 text-base font-extrabold text-orange-500">
-                          {won(product.price)}
-                        </p>
-                      </div>
-                      <ChevronRight
-                        size={18}
-                        className="shrink-0 text-navy-300 transition-colors group-hover:text-navy-600"
-                      />
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+        <ShopSectionPicker sections={sectionData} />
       )}
 
-      <p className="px-4 py-4 text-center text-[11px] text-navy-300">
+      <p className="mt-6 px-4 pb-4 text-center text-[11px] text-navy-400">
         상품을 선택하면 구매 페이지로 이동합니다.
       </p>
     </div>

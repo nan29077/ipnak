@@ -214,6 +214,8 @@ interface Props {
   pEnabled: boolean;
   ballEnabled: boolean;
   ballPriceRaw: number;
+  keyringEnabled: boolean;
+  keyringPriceRaw: number;
   openBallOnMount: boolean;
   pointBalance: number;
   recentTrips: Array<{
@@ -261,7 +263,7 @@ const tabs = [
 ];
 
 export function MePageTabs({
-  user, isAdmin, shopEnabled, shopTagEnabled, reservationEnabled, pEnabled, ballEnabled, ballPriceRaw, openBallOnMount, pointBalance, recentTrips, myWalkingPosts,
+  user, isAdmin, shopEnabled, shopTagEnabled, reservationEnabled, pEnabled, ballEnabled, ballPriceRaw, keyringEnabled, keyringPriceRaw, openBallOnMount, pointBalance, recentTrips, myWalkingPosts,
   marketSellCount, marketBuyCount, marketFavCount, marketChatCount,
   needsReplyChats, myGroupMembers, bookings, posts, points, entries, bio,
 }: Props) {
@@ -650,12 +652,15 @@ export function MePageTabs({
             {/* 서브탭: 입낚볼 */}
             {settingsSubTab === "ball" && (
               <div className="space-y-2">
-                {(user.role === "ANGLER" || user.role === "SUPER_ADMIN") && ballEnabled ? (
+                {(user.role === "ANGLER" || user.role === "SUPER_ADMIN") && (ballEnabled || keyringEnabled) ? (
                   <>
                     <IpnakBallPurchase
                       price={ballPriceRaw}
                       buyer={{ name: user.nickname, email: user.email }}
                       openOnMount={openBallOnMount}
+                      ballEnabled={ballEnabled}
+                      keyringEnabled={keyringEnabled}
+                      keyringPrice={keyringPriceRaw}
                     />
                     <MyBallManager />
                   </>

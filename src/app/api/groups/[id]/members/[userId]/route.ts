@@ -85,18 +85,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string; us
   if (action === "transfer") {
     if (member.role === "pending")
       return NextResponse.json({ error: "승인되지 않은 회원에게 양도할 수 없습니다." }, { status: 400 });
-    await prisma.$executeRawUnsafe(
-      `UPDATE "Group" SET "leaderId" = ? WHERE "id" = ?`, params.userId, params.id
-    );
-    // 기존 리더 → member, 새 리더 → leader
-    await prisma.$executeRawUnsafe(
-      `UPDATE "GroupMember" SET "role" = 'member' WHERE "groupId" = ? AND "userId" = ?`,
-      params.id, user.id
-    );
-    await prisma.$executeRawUnsafe(
-      `UPDATE "GroupMember" SET "role" = 'leader' WHERE "groupId" = ? AND "userId" = ?`,
-      params.id, params.userId
-    );
+    // 세 개의 UPDATE를 트랜잭션으로 묶어 중간 실패 시 리더가 사라진 그룹이 생기지 않도록 보장
+    try {
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(
+          `UPDATE "Group" SET "leaderId" = ? WHERE "id" = ?`, params.userId, params.id
+        ),
+        // 기존 리더 → member, 새 리더 → leader
+        prisma.$executeRawUnsafe(
+          `UPDATE "GroupMember" SET "role" = 'member' WHERE "groupId" = ? AND "userId" = ?`,
+          params.id, user.id
+        ),
+        prisma.$executeRawUnsafe(
+          `UPDATE "GroupMember" SET "role" = 'leader' WHERE "groupId" = ? AND "userId" = ?`,
+          params.id, params.userId
+        ),
+      ]);
+    } catch {
+      return NextResponse.json({ error: "리더 양도 처리 중 오류가 발생했습니다." }, { status: 500 });
+    }
     return NextResponse.json({ ok: true, action: "transferred" });
   }
 

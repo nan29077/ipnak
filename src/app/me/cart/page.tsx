@@ -139,15 +139,15 @@ export default function CartPage() {
               <span className="text-[16px] text-orange-400">{won(totalAmount)}</span>
             </div>
             <div className="flex gap-2 pt-1">
-              {items.map((item) => (
+              {items.slice(0, 1).map((item) => (
                 <Link
                   key={item.id}
-                  href={`/shop/${item.id}`}
+                  href={`/shop/${item.id}?qty=${item.quantity}`}
                   className="flex-1 text-center rounded-xl bg-orange-500 py-3 text-[14px] font-bold text-white hover:bg-orange-600 transition-colors"
                 >
                   구매하기 ({totalItems}개)
                 </Link>
-              )).slice(0, 1)}
+              ))}
             </div>
           </div>
         </div>

@@ -1,31 +1,41 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureIpnakRawColumns, normalizeProductType } from "@/lib/ipnakProduct";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED_STATUSES = ["pending", "confirmed", "shipped", "delivered", "cancelled"];
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await requireUser();
     if (user.role !== "SUPER_ADMIN")
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    await ensureIpnakRawColumns();
+
+    // ?type=ball | keyring — 상품(IpnakBallProduct)의 type으로 필터링, 없으면 전체
+    const rawType = new URL(req.url).searchParams.get("type");
+    const type = rawType ? normalizeProductType(rawType) : null;
 
     // IpnakBallOrder + User + IpnakBallProduct JOIN (raw SQL, Prisma client 미재생성 대응)
-    const orders = await prisma.$queryRawUnsafe<any[]>(`
+    const sql = `
       SELECT
         o.id, o."userId", o."productId", o.quantity, o."totalPrice",
         o.status, o."trackingNumber", o."addressName", o.address, o."addressDetail",
         o.phone, o.memo, o."createdAt", o."updatedAt",
         u.nickname AS "userNickname", u.email AS "userEmail",
-        p.name AS "productName", p.price AS "productPrice"
+        p.name AS "productName", p.price AS "productPrice", p."type" AS "productType"
       FROM "IpnakBallOrder" o
       JOIN "User" u ON u.id = o."userId"
       JOIN "IpnakBallProduct" p ON p.id = o."productId"
+      ${type ? `WHERE p."type" = ?` : ""}
       ORDER BY o."createdAt" DESC
       LIMIT 200
-    `);
+    `;
+    const orders = type
+      ? await prisma.$queryRawUnsafe<any[]>(sql, type)
+      : await prisma.$queryRawUnsafe<any[]>(sql);
 
     return NextResponse.json({ orders });
   } catch (e: any) {

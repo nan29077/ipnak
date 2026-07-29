@@ -399,35 +399,48 @@ export default function MeasurePage() {
       toast(MEASURE_ERRORS.SAVE_SUCCESS, "success");
       syncService.syncPendingMeasurements(); // 백그라운드 (서버 준비 전엔 스킵)
 
+      // 이미지를 서버에 업로드 (base64 → /api/upload → URL)
+      let uploadedPhotoUrl: string | null = null;
+      try {
+        const blob = await fetch(imageBase64).then((r) => r.blob());
+        const form = new FormData();
+        form.append("file", blob, "measure.jpg");
+        const up = await fetch("/api/upload", { method: "POST", body: form });
+        if (up.ok) {
+          const upData = await up.json();
+          uploadedPhotoUrl = upData.url ?? null;
+        }
+      } catch { /* 업로드 실패 시 photoUrl null 로 저장 */ }
+
+      const catchLat = tags?.location?.latitude ?? lastPoint?.lat ?? null;
+      const catchLng = tags?.location?.longitude ?? lastPoint?.lng ?? null;
+
+      // 스마트피싱 여부와 무관하게 항상 서버 DB에 저장
+      fetch("/api/catch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          speciesName: species,
+          sizeCm: result?.lengthCm ?? null,
+          bodyWidth: result?.widthCm ?? null,
+          estimatedWeight: result?.weightG ?? null,
+          photoUrl: uploadedPhotoUrl,
+          lat: catchLat,
+          lng: catchLng,
+          tripId: sessionId ?? null,
+          shareToFeed: false,
+          pointVisibility: "EXACT",
+        }),
+      }).catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
+
       // 스마트피싱 기록 중이면 catches에 추가 (워킹 피드 공유 + 피쉬 숫자 표시용)
       if (recStatus === "tracking" || recStatus === "paused") {
-        const catchLat = tags?.location?.latitude ?? lastPoint?.lat ?? null;
-        const catchLng = tags?.location?.longitude ?? lastPoint?.lng ?? null;
         addCatchToRecording({
-          photoUrl: imageBase64,
+          photoUrl: uploadedPhotoUrl ?? imageBase64,
           speciesName: species,
           lat: catchLat,
           lng: catchLng,
         });
-        // DB에도 FishingPoint 저장 (tripId 연결 필수 — 상세 페이지 피쉬 기록 표시용)
-        if (sessionId) {
-          fetch("/api/catch", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              speciesName: species,
-              sizeCm: result?.lengthCm ?? null,
-              bodyWidth: result?.widthCm ?? null,
-              estimatedWeight: result?.weightG ?? null,
-              photoUrl: imageBase64,
-              lat: catchLat,
-              lng: catchLng,
-              tripId: sessionId,
-              shareToFeed: false, // 워킹피드에서 별도 공유 — 여기선 피드 미공개
-              pointVisibility: "EXACT",
-            }),
-          }).catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
-        }
       }
 
       setPhase("SAVED");

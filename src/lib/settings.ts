@@ -37,9 +37,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   points_enabled: "false",
   // 낚시단 유료 개설: true 이면 낚시단 개설 10,000P·가입 신청 1,000P 차감
   group_points_required: "false",
-  // 입낚볼 판매 카드 노출 및 현재 판매가
+  // 입낚볼 / 입낚키링 판매 스위치 (구매 바텀시트의 상품 탭 노출 여부).
+  // 판매가는 설정이 아니라 IpnakBallProduct.price 를 단일 기준으로 사용한다.
   ipnak_ball_enabled: "true",
-  ipnak_ball_price: "39000",
+  ipnak_keyring_enabled: "false",
   // 쇼핑 상품 상세페이지 정책 안내
   refund_policy: "상품 수령 후 7일 이내 환불 가능합니다. 단, 사용/훼손된 상품은 환불이 불가합니다.",
   shipping_guide: "주문 후 1-3일 내 발송됩니다. 도서산간 지역은 추가 배송비가 발생할 수 있습니다.",

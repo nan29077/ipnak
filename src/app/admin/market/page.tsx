@@ -47,10 +47,13 @@ export default async function AdminMarketPage({ searchParams }: { searchParams: 
     take: 200,
   });
 
-  const total = await prisma.marketListing.count();
-  const selling = await prisma.marketListing.count({ where: { status: "SELLING" } });
-  const reserved = await prisma.marketListing.count({ where: { status: "RESERVED" } });
-  const sold = await prisma.marketListing.count({ where: { status: "SOLD" } });
+  // 독립 count 쿼리 병렬화 (결과 동일)
+  const [total, selling, reserved, sold] = await Promise.all([
+    prisma.marketListing.count(),
+    prisma.marketListing.count({ where: { status: "SELLING" } }),
+    prisma.marketListing.count({ where: { status: "RESERVED" } }),
+    prisma.marketListing.count({ where: { status: "SOLD" } }),
+  ]);
 
   return (
     <div>

@@ -34,6 +34,8 @@ export function SideDrawer({
   // 예약 노출 여부: prop 우선, 전달되지 않으면 AppSettings context 값으로 폴백
   const appSettings = useAppSettings();
   const reservationVisible = reservationEnabled ?? appSettings.reservationEnabled;
+  // 쇼핑태그 스위치 OFF 시 피싱태그 수익 메뉴 숨김 (context의 shopTagEnabled 사용)
+  const shopTagVisible = appSettings.shopTagEnabled;
 
   // 드로어 열림 동안 배경 스크롤 잠금
   useEffect(() => {
@@ -71,8 +73,8 @@ export function SideDrawer({
   ];
   const account: Item[] = [
     { href: "/me", label: "마이페이지", icon: UserRound },
-    // 쇼핑 메뉴 OFF 시 피싱태그 수익 메뉴 숨김
-    ...(shopEnabled ? [{ href: "/referral", label: "피싱태그 수익", icon: Tag } as Item] : []),
+    // 쇼핑태그 스위치 OFF 시 피싱태그 수익 메뉴 숨김
+    ...(shopTagVisible ? [{ href: "/referral", label: "피싱태그 수익", icon: Tag } as Item] : []),
   ];
 
   return (

@@ -124,9 +124,30 @@ function ImageUrlsField({ urls, onChange, inputCls }: { urls: string[]; onChange
   );
 }
 
-export function IpnakBallProductForm() {
+/* 등록 폼 안내 문구는 상품 타입별로 다르게 보여준다(실제 입력값 아님). */
+const PLACEHOLDERS = {
+  ball: {
+    name: "입낚볼 NFC 스마트 계측볼",
+    price: "29900",
+    description: "NFC 연동으로 어획 기록을 간편하게",
+    optionOnePrice: "29900",
+    optionTwoPrice: "49900",
+    optionExample: null as string | null,
+  },
+  keyring: {
+    name: "예) 입낚 NFC 키링",
+    price: "19900",
+    description: "예) NFC 태그로 낚시 기록을 간편하게 공유하는 입낚 키링입니다.",
+    optionOnePrice: "19900",
+    optionTwoPrice: "29900",
+    optionExample: "예) 기본가 19,900원 → 옵션 미선택 시 / 1개입 선택 → 19,900원 / 2개입 선택 → 29,900원",
+  },
+} as const;
+
+export function IpnakBallProductForm({ type = "ball", label = "입낚볼" }: { type?: "ball" | "keyring"; label?: string }) {
   const router = useRouter();
   const toast = useToast();
+  const ph = PLACEHOLDERS[type];
   const [form, setForm] = useState({
     name: "", price: "", description: "", stock: "0", isActive: true,
     optionEnabled: false,
@@ -145,6 +166,7 @@ export function IpnakBallProductForm() {
     setLoading(true);
     try {
       const body: Record<string, unknown> = {
+        type,
         name: form.name,
         price: Number(form.price),
         description: form.description,
@@ -181,17 +203,17 @@ export function IpnakBallProductForm() {
 
   return (
     <form onSubmit={handleSubmit} className="rounded-xl border border-navy-100 bg-[#162538] p-4 space-y-3">
-      <p className="text-sm font-bold text-navy-700">새 상품 등록</p>
+      <p className="text-sm font-bold text-navy-700">{label} 새 상품 등록</p>
 
       <label className="block">
         <span className="mb-1 block text-xs font-semibold text-navy-400">상품명 *</span>
-        <input required value={form.name} onChange={(e) => set("name", e.target.value)} className={inputCls} placeholder="입낚볼 NFC 스마트 계측볼" />
+        <input required value={form.name} onChange={(e) => set("name", e.target.value)} className={inputCls} placeholder={ph.name} />
       </label>
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold text-navy-400">기본가 (원) *</span>
-          <input required type="number" min="100" step="100" value={form.price} onChange={(e) => set("price", e.target.value)} className={inputCls} placeholder="29900" />
+          <input required type="number" min="100" step="100" value={form.price} onChange={(e) => set("price", e.target.value)} className={inputCls} placeholder={ph.price} />
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-semibold text-navy-400">재고 수량</span>
@@ -201,7 +223,7 @@ export function IpnakBallProductForm() {
 
       <label className="block">
         <span className="mb-1 block text-xs font-semibold text-navy-400">설명 (선택)</span>
-        <input value={form.description} onChange={(e) => set("description", e.target.value)} className={inputCls} placeholder="NFC 연동으로 어획 기록을 간편하게" />
+        <input value={form.description} onChange={(e) => set("description", e.target.value)} className={inputCls} placeholder={ph.description} />
       </label>
 
       <ImageUrlsField urls={imageUrls} onChange={setImageUrls} inputCls={inputCls} />
@@ -226,7 +248,7 @@ export function IpnakBallProductForm() {
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-navy-400">1개입 가격 (원)</span>
-                <input type="number" min="0" step="100" value={form.optionOnePrice} onChange={(e) => set("optionOnePrice", e.target.value)} className={inputCls} placeholder="29900" />
+                <input type="number" min="0" step="100" value={form.optionOnePrice} onChange={(e) => set("optionOnePrice", e.target.value)} className={inputCls} placeholder={ph.optionOnePrice} />
               </label>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -236,10 +258,13 @@ export function IpnakBallProductForm() {
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-navy-400">2개입 가격 (원)</span>
-                <input type="number" min="0" step="100" value={form.optionTwoPrice} onChange={(e) => set("optionTwoPrice", e.target.value)} className={inputCls} placeholder="49900" />
+                <input type="number" min="0" step="100" value={form.optionTwoPrice} onChange={(e) => set("optionTwoPrice", e.target.value)} className={inputCls} placeholder={ph.optionTwoPrice} />
               </label>
             </div>
             <p className="text-[11px] text-navy-400/70">* 기본가는 옵션 미선택 시 사용됩니다. 옵션 활성화 시에는 위 옵션 가격이 우선 적용됩니다.</p>
+            {ph.optionExample && (
+              <p className="rounded-lg bg-aqua-500/10 px-3 py-2 text-[11px] leading-relaxed text-aqua-400">{ph.optionExample}</p>
+            )}
           </div>
         )}
       </div>

@@ -82,7 +82,7 @@ function CardInput({ label, value, onChange, placeholder, maxLen }: { label: str
   );
 }
 
-export function ProductPurchaseBar({ product }: { product: ProductForPurchase }) {
+export function ProductPurchaseBar({ product, initialQuantity }: { product: ProductForPurchase; initialQuantity?: number }) {
   const toast = useToast();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pgOpen, setPgOpen] = useState(false);
@@ -90,7 +90,7 @@ export function ProductPurchaseBar({ product }: { product: ProductForPurchase })
   const [pgLoading, setPgLoading] = useState(false);
 
   // 구매 바텀시트 state
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(Math.max(1, initialQuantity ?? 1));
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -138,6 +138,15 @@ export function ProductPurchaseBar({ product }: { product: ProductForPurchase })
   }
 
   function openPg() {
+    // 배송지 미선택 차단
+    if (!selectedAddressId) {
+      if (addresses.length === 0) {
+        toast("배송지를 먼저 등록해 주세요.", "error");
+      } else {
+        toast("배송지를 선택해 주세요.", "error");
+      }
+      return;
+    }
     setCardNum(["", "", "", ""]);
     setExpiry("");
     setCvc("");

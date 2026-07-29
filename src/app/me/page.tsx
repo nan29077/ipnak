@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { getProfileData } from "@/lib/profile";
 import { getWalkingFeedPosts } from "@/lib/queries";
 import { prisma } from "@/lib/prisma";
-import { getBoolSetting, getSetting } from "@/lib/settings";
+import { getBoolSetting } from "@/lib/settings";
+import { getIpnakPrices } from "@/lib/ipnakProduct";
 import { getBalance, pointsEnabled } from "@/lib/points";
 import { MePageTabs } from "@/components/MePageTabs";
 import { WeightInfoModal } from "@/components/WeightInfoModal";
@@ -22,76 +23,84 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
   const data = await getProfileData(user.id, user.id);
   if (!data) redirect("/login");
   const { stats } = data;
-  const [shopEnabled, reservationEnabled, pEnabled, ballEnabled, ballPriceRaw, bassOnly, shopTagEnabled] = await Promise.all([
+  // 판매가는 각 상품 레코드(IpnakBallProduct.price)에서 타입별로 독립 조회한다.
+  const [shopEnabled, reservationEnabled, pEnabled, ballEnabled, keyringEnabled, ipnakPrices, bassOnly, shopTagEnabled] = await Promise.all([
     getBoolSetting("shop_menu_enabled"),
     getBoolSetting("reservation_enabled"),
     pointsEnabled(),
     getBoolSetting("ipnak_ball_enabled"),
-    getSetting("ipnak_ball_price"),
+    getBoolSetting("ipnak_keyring_enabled"),
+    getIpnakPrices(),
     getBoolSetting("bass_only_mode"),
     getBoolSetting("shop_tag_enabled"),
   ]);
   const anglerLabel = user.role === "ANGLER" && bassOnly ? "앵글러" : ROLE_LABELS[user.role];
-  const pointBalance = pEnabled ? await getBalance(user.id) : 0;
 
-  const bookingsRaw = await prisma.booking.findMany({
-    where: { userId: user.id }, include: { listing: true }, orderBy: { createdAt: "desc" }, take: 10,
-  });
-
-  const tripCount = await prisma.fishingTrip.count({ where: { userId: user.id, endedAt: { not: null } } });
-
-  const recentTripsRaw = await prisma.fishingTrip.findMany({
-    where: { userId: user.id, endedAt: { not: null } },
-    orderBy: { startedAt: "desc" },
-    take: 3,
-    select: {
-      id: true, title: true, region: true, distanceM: true,
-      durationSec: true, startedAt: true, catchCount: true,
-      routePoints: {
-        select: { lat: true, lng: true, order: true },
-        orderBy: { order: "asc" },
-        take: 200,
+  // 서로 독립적인 쿼리들을 병렬 실행 (기존 직렬 waterfall 제거 — 동작/결과 동일)
+  const [
+    pointBalance,
+    bookingsRaw,
+    tripCount,
+    recentTripsRaw,
+    myWalkingPosts,
+    [marketSellCount, marketBuyCount, marketFavCount, marketChatCount],
+    sellerChatsRaw,
+    myGroupMembers,
+  ] = await Promise.all([
+    pEnabled ? getBalance(user.id) : Promise.resolve(0),
+    prisma.booking.findMany({
+      where: { userId: user.id }, include: { listing: true }, orderBy: { createdAt: "desc" }, take: 10,
+    }),
+    prisma.fishingTrip.count({ where: { userId: user.id, endedAt: { not: null } } }),
+    prisma.fishingTrip.findMany({
+      where: { userId: user.id, endedAt: { not: null } },
+      orderBy: { startedAt: "desc" },
+      take: 3,
+      select: {
+        id: true, title: true, region: true, distanceM: true,
+        durationSec: true, startedAt: true, catchCount: true,
+        routePoints: {
+          select: { lat: true, lng: true, order: true },
+          orderBy: { order: "asc" },
+          take: 200,
+        },
+        fishingPoints: {
+          select: { lat: true, lng: true },
+          take: 50,
+        },
       },
-      fishingPoints: {
-        select: { lat: true, lng: true },
-        take: 50,
+    }),
+    getWalkingFeedPosts(user.id, { authorId: user.id }, 6),
+    Promise.all([
+      prisma.marketListing.count({ where: { sellerId: user.id } }),
+      prisma.marketChat.count({ where: { buyerId: user.id } }),
+      prisma.marketFavorite.count({ where: { userId: user.id } }),
+      prisma.marketChat.count({ where: { OR: [{ buyerId: user.id }, { listing: { sellerId: user.id } }] } }),
+    ]),
+    prisma.marketChat.findMany({
+      where: { listing: { sellerId: user.id } },
+      include: {
+        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        buyer: { select: { id: true, nickname: true, avatarUrl: true } },
+        listing: { select: { id: true, title: true, images: { take: 1, orderBy: { order: "asc" } } } },
       },
-    },
-  });
-
-  const myWalkingPosts = await getWalkingFeedPosts(user.id, { authorId: user.id }, 6);
-
-  const [marketSellCount, marketBuyCount, marketFavCount, marketChatCount] = await Promise.all([
-    prisma.marketListing.count({ where: { sellerId: user.id } }),
-    prisma.marketChat.count({ where: { buyerId: user.id } }),
-    prisma.marketFavorite.count({ where: { userId: user.id } }),
-    prisma.marketChat.count({ where: { OR: [{ buyerId: user.id }, { listing: { sellerId: user.id } }] } }),
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.$queryRawUnsafe<any[]>(
+      `SELECT m.role, g.id, g.name, g.category, g.region, g.fishSpecies,
+              COUNT(gm.id) as memberCount
+       FROM "GroupMember" m
+       LEFT JOIN "Group" g ON g.id = m.groupId
+       LEFT JOIN "GroupMember" gm ON gm.groupId = g.id AND gm.role IN ('leader','member')
+       WHERE m.userId = ? AND m.role IN ('leader','member')
+       GROUP BY g.id
+       ORDER BY m.joinedAt DESC
+       LIMIT 5`,
+      user.id
+    ),
   ]);
-
-  const sellerChatsRaw = await prisma.marketChat.findMany({
-    where: { listing: { sellerId: user.id } },
-    include: {
-      messages: { orderBy: { createdAt: "desc" }, take: 1 },
-      buyer: { select: { id: true, nickname: true, avatarUrl: true } },
-      listing: { select: { id: true, title: true, images: { take: 1, orderBy: { order: "asc" } } } },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
   const needsReplyChatsRaw = sellerChatsRaw.filter(
     (c) => c.messages.length > 0 && c.messages[0].senderId !== user.id && !c.messages[0].body.startsWith("[시스템]")
-  );
-
-  const myGroupMembers = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT m.role, g.id, g.name, g.category, g.region, g.fishSpecies,
-            COUNT(gm.id) as memberCount
-     FROM "GroupMember" m
-     LEFT JOIN "Group" g ON g.id = m.groupId
-     LEFT JOIN "GroupMember" gm ON gm.groupId = g.id AND gm.role IN ('leader','member')
-     WHERE m.userId = ? AND m.role IN ('leader','member')
-     GROUP BY g.id
-     ORDER BY m.joinedAt DESC
-     LIMIT 5`,
-    user.id
   );
 
   // 직렬화: Date → ISO string
@@ -188,7 +197,9 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
         reservationEnabled={reservationEnabled}
         pEnabled={pEnabled}
         ballEnabled={ballEnabled}
-        ballPriceRaw={Number(ballPriceRaw)}
+        ballPriceRaw={ipnakPrices.ball}
+        keyringEnabled={keyringEnabled}
+        keyringPriceRaw={ipnakPrices.keyring}
         openBallOnMount={searchParams?.ipnakBallPurchase === "1"}
         pointBalance={pointBalance}
         recentTrips={recentTrips}

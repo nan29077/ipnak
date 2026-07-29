@@ -1,9 +1,18 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getSetting } from "@/lib/settings";
+import { getSettings } from "@/lib/settings";
 import { AdminTitle, StatusBadge, Table } from "@/components/admin/ui";
 import { BallPriceForm, BallStatusActions } from "@/components/admin/IpnakBallAdminActions";
+import { IpnakSaleToggle } from "@/components/admin/IpnakBallToggle";
 import { IpnakBallProductForm, IpnakBallProductToggle, IpnakBallProductDelete, IpnakBallProductEditModal } from "@/components/admin/IpnakBallProductForm";
+import {
+  IPNAK_ENABLED_KEY,
+  IPNAK_PRODUCT_TYPES,
+  IPNAK_TYPE_LABEL,
+  IpnakProductType,
+  ensureIpnakRawColumns,
+  normalizeProductType,
+} from "@/lib/ipnakProduct";
 import { cn, kstFormat } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
@@ -29,37 +38,87 @@ function imageCount(raw?: string | null): number {
   return 1;
 }
 
-export default async function BallAdmin({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function BallAdmin({ searchParams }: { searchParams: { tab?: string; kind?: string } }) {
   const tab = tabs.some(t => t.key === searchParams.tab) ? searchParams.tab! : "requests";
-  const price = Number(await getSetting("ipnak_ball_price"));
+  const kind: IpnakProductType = normalizeProductType(searchParams.kind);
+  await ensureIpnakRawColumns();
+  const settings = await getSettings(IPNAK_PRODUCT_TYPES.map(t => IPNAK_ENABLED_KEY[t]));
   const where = tab === "requests" ? { status: { in: ["REQUESTED", "PAID"] } } : tab === "payments" ? { paymentStatus: { in: ["READY", "PAID", "CANCELLED", "REFUNDED"] } } : tab === "shipping" ? { status: { in: ["PREPARING", "SHIPPED", "DELIVERED"] } } : {};
-  const orders = (tab === "price" || tab === "products") ? [] : await prisma.ballOrder.findMany({ where, include: { user: { select: { nickname: true, email: true } } }, orderBy: { createdAt: "desc" }, take: 200 });
-  const products = tab === "products" ? await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "IpnakBallProduct" ORDER BY "createdAt" DESC`) : [];
+  // productType은 Prisma가 모르는 raw 컬럼이라, 해당 타입의 주문 id를 먼저 뽑아 필터로 넘긴다.
+  let orders: any[] = [];
+  if (tab !== "price" && tab !== "products") {
+    const idRows = await prisma.$queryRawUnsafe<{ id: string }[]>(`SELECT "id" FROM "BallOrder" WHERE "productType" = ?`, kind);
+    const ids = idRows.map(r => r.id);
+    orders = ids.length === 0 ? [] : await prisma.ballOrder.findMany({
+      where: { ...where, id: { in: ids } },
+      include: { user: { select: { nickname: true, email: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+  }
+  const products = (tab === "products" || tab === "price")
+    ? await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "IpnakBallProduct" WHERE "type" = ? ORDER BY "createdAt" DESC`, kind)
+    : [];
+  const label = IPNAK_TYPE_LABEL[kind];
 
   return (
     <div>
-      <AdminTitle title="입낚볼 관리" desc="구매 요청부터 결제 승인, 주문 처리, 배송 완료까지 통합 관리합니다." />
+      <AdminTitle title="입낚볼 관리" desc="입낚볼·입낚키링의 상품 등록부터 결제 승인, 주문 처리, 배송 완료까지 통합 관리합니다." />
+
+      {/* 상품 종류 탭 — 아래 모든 메뉴가 선택한 상품 기준으로 동작한다 */}
+      <div className="mb-4 flex gap-2">
+        {IPNAK_PRODUCT_TYPES.map(t => (
+          <Link
+            key={t}
+            href={`/admin/ipnak-ball?tab=${tab}&kind=${t}`}
+            className={cn(
+              "flex-1 rounded-xl border px-4 py-2.5 text-center text-sm font-bold transition-colors",
+              kind === t ? "border-orange-500 bg-orange-500 text-white" : "border-navy-100 text-navy-400 hover:border-orange-400/60 hover:text-orange-400"
+            )}
+          >
+            {IPNAK_TYPE_LABEL[t]}
+          </Link>
+        ))}
+      </div>
+
       <div className="mb-5 flex flex-wrap gap-1.5 border-b border-navy-100">
         {tabs.map(t => (
-          <Link key={t.key} href={`/admin/ipnak-ball?tab=${t.key}`} className={cn("border-b-2 px-3 py-2.5 text-[13px] font-semibold", tab === t.key ? "border-orange-500 text-orange-500" : "border-transparent text-navy-400")}>
+          <Link key={t.key} href={`/admin/ipnak-ball?tab=${t.key}&kind=${kind}`} className={cn("border-b-2 px-3 py-2.5 text-[13px] font-semibold", tab === t.key ? "border-orange-500 text-orange-500" : "border-transparent text-navy-400")}>
             {t.label}
           </Link>
         ))}
       </div>
 
-      {tab === "price" && <BallPriceForm initial={price} />}
+      {/* key={kind} — 상품 탭을 바꿀 때 클라이언트 컴포넌트를 새로 마운트해
+          이전 상품의 입력값이 그대로 남는 것을 막는다. */}
+      {tab === "price" && (
+        <BallPriceForm
+          key={kind}
+          initial={Number(products[0]?.price ?? 0)}
+          productId={products[0]?.id ?? null}
+          label={label}
+        />
+      )}
 
       {tab === "products" && (
         <div className="space-y-5">
+          {/* 판매 스위치 — 켜면 구매 바텀시트에 해당 탭이 노출된다 */}
+          <IpnakSaleToggle
+            key={kind}
+            settingKey={IPNAK_ENABLED_KEY[kind]}
+            label={IPNAK_TYPE_LABEL[kind]}
+            initial={settings[IPNAK_ENABLED_KEY[kind]] === "true"}
+          />
+
           {products.length === 0 ? (
-            <IpnakBallProductForm />
+            <IpnakBallProductForm key={kind} type={kind} label={IPNAK_TYPE_LABEL[kind]} />
           ) : (
             <div className="rounded-xl border border-orange-400/30 bg-orange-500/5 px-4 py-3 text-sm text-orange-400">
-              상품이 이미 1개 등록되어 있습니다. 수정하거나 삭제 후 새로 등록하세요.
+              {IPNAK_TYPE_LABEL[kind]} 상품이 이미 1개 등록되어 있습니다. 수정하거나 삭제 후 새로 등록하세요.
             </div>
           )}
           <div>
-            <p className="mb-3 text-sm font-bold text-navy-600">등록된 상품 ({products.length}개)</p>
+            <p className="mb-3 text-sm font-bold text-navy-600">등록된 {IPNAK_TYPE_LABEL[kind]} 상품 ({products.length}개)</p>
             {products.length === 0 ? (
               <p className="py-8 text-center text-navy-400">등록된 상품이 없습니다.</p>
             ) : (
@@ -161,7 +220,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
             <Summary label="배송 중" value={`${orders.filter(o => o.status === "SHIPPED").length}건`} />
           </div>
           <Table head={["주문번호·일시", "구매자", "배송지", "상품금액", "결제", "주문/배송", "관리"]}>
-            {orders.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-navy-400">해당 내역이 없습니다.</td></tr>}
+            {orders.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-navy-400">{label} 주문 내역이 없습니다.</td></tr>}
             {orders.map(o => (
               <tr key={o.id}>
                 <td className="whitespace-nowrap px-4 py-3"><p className="font-semibold text-navy-800">{o.orderNo}</p><p className="text-xs text-navy-400">{kstFormat(o.createdAt, "yyyy.MM.dd HH:mm")}</p></td>

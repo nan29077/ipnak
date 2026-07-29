@@ -53,16 +53,26 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
     <div>
       <AdminTitle title="사이트 관리" desc="배너·공지, 사용자 앱 메뉴 노출 등 사이트 전반 설정" />
 
-      {/* 탭 — 모바일에서 flex-wrap 허용 */}
-      <div className="mb-5 flex flex-wrap gap-1.5 border-b border-navy-100">
+      {/* 탭 — 아이콘 + 텍스트 카드형 버튼 */}
+      <div className="mb-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
         {TABS.map((t) => {
           const Icon = t.icon;
           const on = tab === t.key;
           return (
-            <Link key={t.key} href={`/admin/site?tab=${t.key}`}
-              className={cn("flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition-colors",
-                on ? "border-orange-500 text-orange-500" : "border-transparent text-navy-400 hover:text-navy-700")}>
-              <Icon size={15} /> {t.label}
+            <Link
+              key={t.key}
+              href={`/admin/site?tab=${t.key}`}
+              className={cn(
+                "flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold transition-all",
+                on
+                  ? "border-orange-500/60 bg-orange-500/10 text-orange-400 shadow-sm"
+                  : "border-navy-100/40 bg-[#162538] text-navy-400 hover:border-navy-100/70 hover:text-navy-600"
+              )}
+            >
+              <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", on ? "bg-orange-500/15 text-orange-400" : "bg-navy-50/50 text-navy-400")}>
+                <Icon size={15} />
+              </span>
+              {t.label}
             </Link>
           );
         })}
