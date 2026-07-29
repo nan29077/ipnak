@@ -348,7 +348,7 @@ export default function AboutPage() {
 
         {/* 로고 */}
         <img
-          src="/logo-ipnak-dark.png"
+          src="/logo-ipnak-master-transparent-v2.png"
           alt="입낚"
           className="h-10 drop-shadow-lg"
         />
@@ -376,7 +376,7 @@ export default function AboutPage() {
         <div className="relative z-10 flex max-w-2xl flex-col items-center gap-6 text-center">
           {/* 히어로 로고 */}
           <img
-            src="/logo-ipnak-dark.png"
+            src="/logo-ipnak-master-transparent-v2.png"
             alt="입낚"
             className="h-20 drop-shadow-[0_4px_24px_rgba(234,179,8,0.7)]"
           />

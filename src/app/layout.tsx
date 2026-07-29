@@ -11,7 +11,7 @@ import { AppSettingsProvider } from "@/lib/appSettingsContext";
 
 const SHARE_TITLE = "입낚 — 낚시인의 모든 순간을 기록하다";
 const SHARE_DESCRIPTION = "조황 기록, 피싱포인트, 스마트 계측, 낚시 커뮤니티를 입낚에서 한 번에 만나보세요.";
-const SHARE_IMAGE = "/og-ipnak-share-v5.png";
+const SHARE_IMAGE = "/og-ipnak-share-v6.png";
 
 // 카카오톡 등 외부 크롤러가 개발 미리보기 주소에서도 이미지를 찾을 수 있도록
 // 현재 요청 호스트를 기준으로 OG 이미지와 공유 URL을 절대경로로 만든다.
@@ -29,7 +29,11 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: SHARE_TITLE, template: "%s | 입낚" },
     description: SHARE_DESCRIPTION,
     keywords: ["입낚", "낚시", "낚시 커뮤니티", "조황", "피싱 포인트", "낚시 대회", "낚시 예약"],
-    icons: { icon: "/favicon-ipnak.png", apple: "/favicon-ipnak.png", shortcut: "/favicon-ipnak.png" },
+    icons: {
+      icon: "/favicon-ipnak-circle-navy-v4.png",
+      apple: "/apple-touch-icon-ipnak-circle-navy-v4.png",
+      shortcut: "/favicon-ipnak-circle-navy-v4.png",
+    },
     alternates: { canonical: metadataBase },
     openGraph: {
       title: SHARE_TITLE,

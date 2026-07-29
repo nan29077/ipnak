@@ -33,10 +33,10 @@ export function AppHeader({
         {/* 다크 배경용 로고: 검정 픽셀을 흰색으로 처리한 버전 사용 */}
         <Link href="/" aria-label="입낚 홈" className="flex items-center">
           <Image
-            src="/logo-ipnak-bear-exact.png"
+            src="/logo-ipnak-master-transparent-v2.png"
             alt="입낚"
-            width={1330}
-            height={620}
+            width={1569}
+            height={625}
             priority
             className="h-10 w-auto"
           />

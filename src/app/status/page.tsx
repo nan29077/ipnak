@@ -7,7 +7,7 @@ export default function StatusPage() {
         <ul style={{lineHeight:"2",color:"#ccc"}}>
           <li>낚시단 기능 구현 (생성/목록/상세/관리)</li>
           <li>AppHeader.tsx 빌드 에러 수정</li>
-          <li>로고 수정 (입 글자 흰색, 오렌지 유지 - logo-ipnak-dark.png)</li>
+          <li>로고 교체 (투명 배경 불곰 로고 - logo-ipnak-master-transparent-v2.png)</li>
           <li>알림 기능 확장, 관리자 낚시단 관리</li>
         </ul>
       </div>

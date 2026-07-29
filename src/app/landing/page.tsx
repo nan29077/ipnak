@@ -251,7 +251,7 @@ export default function LandingPage() {
             }}
           >
             <img
-              src="/logo-ipnak.png"
+              src="/logo-ipnak-master-transparent-v2.png"
               alt="입낚"
               className="h-10 transition-all duration-500 md:h-12"
               style={{

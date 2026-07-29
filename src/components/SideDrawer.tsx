@@ -104,10 +104,10 @@ export function SideDrawer({
           <div className="flex h-14 items-center justify-between pl-4 pr-3">
             <Link href="/" onClick={onClose} aria-label="입낚 홈" className="flex items-center">
               <Image
-                src="/logo-ipnak-bear-exact.png"
+                src="/logo-ipnak-master-transparent-v2.png"
                 alt="입낚"
-                width={1330}
-                height={620}
+                width={1569}
+                height={625}
                 className="h-9 w-auto"
               />
             </Link>
