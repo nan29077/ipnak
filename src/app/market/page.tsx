@@ -9,23 +9,27 @@ import { MarketIntroBanner } from "@/components/market/MarketIntroBanner";
 import { BassOnlyBanner } from "@/components/BassOnlyBanner";
 import { MarketSearchButton } from "@/components/market/MarketSearchButton";
 import { getBoolSetting } from "@/lib/settings";
+import { excludeVirtualWhere } from "@/lib/virtualVisibility";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketPage() {
   // 쇼핑 메뉴 노출 OFF: 쇼핑 탭이 없으므로 제목을 "중고 마켓"으로 표시
   // 서로 독립적인 조회 3개 병렬화 (결과 동일)
-  const [user, shopEnabled, listings] = await Promise.all([
+  const [user, shopEnabled, sellerWhere] = await Promise.all([
     getCurrentUser(),
     getBoolSetting("shop_menu_enabled"),
-    prisma.marketListing.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        images: { orderBy: { order: "asc" }, take: 1 },
-        _count: { select: { favorites: true, chats: true } },
-      },
-    }),
+    // 가상회원 글로벌 스위치 OFF → 가상회원 판매글 제외
+    excludeVirtualWhere("seller"),
   ]);
+  const listings = await prisma.marketListing.findMany({
+    where: sellerWhere,
+    orderBy: { createdAt: "desc" },
+    include: {
+      images: { orderBy: { order: "asc" }, take: 1 },
+      _count: { select: { favorites: true, chats: true } },
+    },
+  });
 
   const items: MarketItem[] = listings.map((listing) => ({
     id: listing.id,

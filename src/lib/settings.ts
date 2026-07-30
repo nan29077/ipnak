@@ -42,7 +42,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   ipnak_ball_enabled: "true",
   ipnak_keyring_enabled: "false",
   // ===== AI 가상회원 동적 활동 =====
-  // 전체 활동 on/off. 켜져 있고 OpenAI 키가 등록되어 있을 때만 스케줄러가 활동을 생성한다.
+  // 글로벌 스위치(마스터). OFF 면 스케줄러가 완전히 멈추고, 가상회원이 쓴 글·댓글·중고글이
+  // 일반 사용자 화면에서 전부 숨는다(삭제가 아니라 조회 시 필터링).
+  virtual_member_active: "false",
+  // 활동 생성 on/off. 글로벌 스위치가 ON 이고 OpenAI 키가 등록되어 있을 때만 활동을 만든다.
   virtual_member_enabled: "false",
   // 활동 주기(시간). 1~24 사이 값만 허용한다.
   virtual_member_interval_hours: "2",

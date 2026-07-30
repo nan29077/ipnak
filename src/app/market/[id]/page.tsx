@@ -12,6 +12,7 @@ import { MarketOwnerActions } from "@/components/market/MarketOwnerActions";
 import { MarketGallery } from "@/components/market/MarketGallery";
 import { MarketStats } from "@/components/market/MarketStats";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { isVirtualHiddenListing } from "@/lib/virtualVisibility";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
     },
   });
   if (!l) notFound();
+  // 가상회원 글로벌 스위치 OFF → 목록에서 숨긴 판매글은 직접 URL 로도 열리지 않게 막는다(본인 글은 예외).
+  if (await isVirtualHiddenListing(l, user?.id)) notFound();
 
   // 조회수 증가 (best-effort) — 업데이트된 값으로 viewCount 갱신
   const updated = await prisma.marketListing.update({

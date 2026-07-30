@@ -1,5 +1,6 @@
 import "server-only";
 import { getVirtualActivityConfig, runVirtualActivityCycle } from "@/lib/virtualActivity";
+import { virtualMembersActive } from "@/lib/virtualVisibility";
 
 // 가상회원 활동 스케줄러.
 // Next.js 서버 프로세스 기동 시 instrumentation.ts(register)에서 한 번 시작하고,
@@ -23,6 +24,9 @@ async function tick() {
   if (!state || state.running) return;
 
   try {
+    // 글로벌 스위치가 꺼져 있으면 설정을 더 볼 것도 없이 멈춘다.
+    if (!(await virtualMembersActive())) return;
+
     const config = await getVirtualActivityConfig();
     if (!config.enabled) return;
 

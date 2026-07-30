@@ -2,10 +2,12 @@ export const dynamic = "force-dynamic"; // 프로덕션 빌드 시 정적 캐싱
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { excludeVirtualWhere } from "@/lib/virtualVisibility";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const comments = await prisma.comment.findMany({
-    where: { postId: params.id, hidden: false },
+    // 가상회원 글로벌 스위치 OFF → 가상회원이 남긴 댓글은 숨긴다.
+    where: { postId: params.id, hidden: false, ...(await excludeVirtualWhere("author")) },
     include: { author: { select: { id: true, nickname: true, avatarUrl: true } } },
     orderBy: { createdAt: "asc" },
   });

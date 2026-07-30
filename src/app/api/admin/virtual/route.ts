@@ -9,6 +9,7 @@ import {
 import { resetVirtualMembers, seedVirtualMembers } from "@/lib/virtualMemberSeed";
 import { seedVirtualContent } from "@/lib/virtualSeedContent";
 import { resetToSuperAdminOnly } from "@/lib/dataReset";
+import { VIRTUAL_ACTIVE_KEY, virtualMembersActive } from "@/lib/virtualVisibility";
 
 export const dynamic = "force-dynamic";
 
@@ -31,14 +32,16 @@ export async function GET() {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: forbidden ? 403 : 401 });
   }
 
-  const [config, ai, memberCount] = await Promise.all([
+  const [config, ai, memberCount, active] = await Promise.all([
     getVirtualActivityConfig(),
     getAiConnectionStatus(),
     prisma.virtualMember.count(),
+    virtualMembersActive(),
   ]);
 
   return NextResponse.json({
     config: {
+      active,
       enabled: config.enabled,
       intervalHours: config.intervalHours,
       dailyLimit: config.dailyLimit,
@@ -132,6 +135,7 @@ export async function POST(req: Request) {
         const result = await runVirtualActivityCycle({ force: true });
         if (!result.ok) {
           const reasons: Record<string, string> = {
+            inactive: "AI 가상회원이 비활성화되어 있습니다. 상단의 'AI 가상회원 활성화' 스위치를 먼저 켜주세요.",
             "no-key": "OpenAI API 키가 등록되지 않았습니다.",
             "no-members": "가상회원이 없습니다. 먼저 100명을 생성하세요.",
             "quota-exhausted": "오늘의 일일 호출 한도를 모두 사용했습니다.",
@@ -144,6 +148,19 @@ export async function POST(req: Request) {
           ok: true,
           message: `활동 생성 완료 — 글 ${result.posts}건 · 댓글 ${result.comments}건 · 좋아요 ${result.likes}건 (API 호출 ${result.calls}회, 오늘 잔여 ${result.remaining}회)`,
           result,
+        });
+      }
+
+      case "SET_ACTIVE": {
+        // 글로벌 스위치 — 스케줄러 가동과 일반 화면 노출을 함께 제어한다.
+        const value = b.value === true || b.value === "true" ? "true" : "false";
+        await setSetting(VIRTUAL_ACTIVE_KEY, value);
+        await log("VIRTUAL_SET_ACTIVE", VIRTUAL_ACTIVE_KEY, value);
+        return NextResponse.json({
+          ok: true,
+          message: value === "true"
+            ? "AI 가상회원을 활성화했습니다. 가상회원 콘텐츠가 일반 화면에 노출됩니다."
+            : "AI 가상회원을 비활성화했습니다. 스케줄러가 멈추고 가상회원 콘텐츠가 일반 화면에서 숨겨집니다.",
         });
       }
 

@@ -8,6 +8,7 @@ import {
   SPOT_STYLE_LABEL, spotsForRegion,
 } from "@/lib/fishingSpots";
 import { findPersonality, type VirtualContentArea } from "@/lib/virtualMembers";
+import { virtualMembersActive } from "@/lib/virtualVisibility";
 
 // AI 가상회원 동적 활동 엔진.
 // - 성격 유형별 프롬프트로 OpenAI(기본 gpt-4o-mini)를 호출해 글/댓글 본문을 생성한다.
@@ -517,7 +518,7 @@ async function pressLike(member: MemberWithUser, candidateIds: string[]): Promis
 
 export type RunResult = {
   ok: boolean;
-  reason?: "disabled" | "no-key" | "no-members" | "quota-exhausted";
+  reason?: "inactive" | "disabled" | "no-key" | "no-members" | "quota-exhausted";
   posts: number;
   comments: number;
   likes: number;
@@ -535,6 +536,12 @@ export type RunResult = {
 export async function runVirtualActivityCycle(options?: { force?: boolean; maxMembers?: number }): Promise<RunResult> {
   const config = await getVirtualActivityConfig();
   const empty = { posts: 0, comments: 0, likes: 0, calls: 0 };
+
+  // 글로벌 스위치가 꺼져 있으면 스케줄러를 완전히 멈춘다.
+  // 이 상태에서는 만들어도 일반 화면에 보이지 않으므로 force(관리자 "지금 실행")도 막는다.
+  if (!(await virtualMembersActive())) {
+    return { ok: false, reason: "inactive", ...empty, remaining: await remainingQuota(config) };
+  }
 
   if (!config.enabled && !options?.force) {
     return { ok: false, reason: "disabled", ...empty, remaining: await remainingQuota(config) };

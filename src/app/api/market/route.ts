@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { excludeVirtualWhere } from "@/lib/virtualVisibility";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ export async function GET(req: Request) {
   if (region && region !== "ALL") where.region = region;
   if (q) where.title = { contains: q };
   if (sellerId) where.sellerId = sellerId;
+  // 특정 판매자를 지정한 조회(내 판매글 등)가 아니면 가상회원 판매글을 스위치 상태에 따라 제외
+  else Object.assign(where, await excludeVirtualWhere("seller"));
 
   const orderBy =
     sort === "price_asc" ? { price: "asc" as const }

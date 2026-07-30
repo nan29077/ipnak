@@ -3,6 +3,10 @@ import { blurCoord, safeJson } from "./utils";
 import { logCategoryLabel } from "./taxonomy";
 import { buildLocationStaticMapUrl, STATIC_MAP_DOMAIN } from "./map";
 import { pointsEnabled, walkingUnlockedSet } from "./points";
+import {
+  excludeVirtualCountWhere, excludeVirtualLikeCountWhere,
+  excludeVirtualWhere, isVirtualHiddenPost,
+} from "./virtualVisibility";
 
 export type FeedProductTag = {
   id: string; posX: number; posY: number;
@@ -87,8 +91,26 @@ const feedInclude = (userId?: string) => ({
   _count: { select: { likes: true, comments: true } },
 });
 
+/**
+ * feedInclude 와 같지만 좋아요·댓글 수에서 가상회원이 남긴 것을 제외한다.
+ * 글로벌 스위치가 OFF 일 때 카드에 표시되는 숫자와 실제 보이는 댓글 수를 일치시킨다.
+ * (스위치가 ON 이면 필터 조각이 true 가 되어 기존과 완전히 동일한 쿼리가 된다.)
+ */
+async function feedIncludeFiltered(userId?: string) {
+  const [commentCountWhere, likeCountWhere] = await Promise.all([
+    excludeVirtualCountWhere(),
+    excludeVirtualLikeCountWhere(),
+  ]);
+  return {
+    ...feedInclude(userId),
+    _count: { select: { likes: likeCountWhere, comments: commentCountWhere } },
+  } as ReturnType<typeof feedInclude>;
+}
+
 export async function getFeedPosts(userId?: string, opts?: { authorId?: string; postType?: string; savedBy?: string; kind?: string | null }) {
-  const baseWhere: any = { hidden: false };
+  // 가상회원 글로벌 스위치가 OFF 면 가상회원 작성분을 제외한다.
+  // 단, 특정 작성자를 지정한 조회(본인 프로필 등)는 그 사람 글을 보러 온 것이므로 그대로 둔다.
+  const baseWhere: any = { hidden: false, ...(opts?.authorId ? {} : await excludeVirtualWhere("author")) };
   if (opts?.postType) baseWhere.postType = opts.postType;
   else baseWhere.postType = { notIn: ["WALKING_FEED", "FISHING_POINT"] };
   if (opts?.savedBy) baseWhere.bookmarks = { some: { userId: opts.savedBy } };
@@ -118,12 +140,13 @@ export async function getFeedPosts(userId?: string, opts?: { authorId?: string; 
 
   const useKind = opts?.kind !== null;
   const where = useKind ? { ...baseWhere, kind: opts?.kind ?? "FEED" } : baseWhere;
+  const include = await feedIncludeFiltered(userId);
   try {
-    const posts = await prisma.post.findMany({ where, include: feedInclude(userId), orderBy: { createdAt: "desc" }, take: 60 });
+    const posts = await prisma.post.findMany({ where, include, orderBy: { createdAt: "desc" }, take: 60 });
     return Promise.all(posts.map((p) => toFeedPost(p, userId)));
   } catch (e) {
     if (!useKind) throw e;
-    const posts = await prisma.post.findMany({ where: baseWhere, include: feedInclude(userId), orderBy: { createdAt: "desc" }, take: 60 });
+    const posts = await prisma.post.findMany({ where: baseWhere, include, orderBy: { createdAt: "desc" }, take: 60 });
     return Promise.all(posts.map((p) => toFeedPost(p, userId)));
   }
 }
@@ -161,9 +184,10 @@ export async function getPersonalizedFeedPosts(
         postType: { notIn: ["WALKING_FEED"] },
         // 맞춤 추천 피드에서도 비공개/팔로워전용 글은 미노출
         visibility: { in: ["PUBLIC", "BLURRED"] },
+        ...(await excludeVirtualWhere("author")),
         OR: orConditions,
       },
-      include: feedInclude(userId),
+      include: await feedIncludeFiltered(userId),
       orderBy: [{ likes: { _count: "desc" } }, { createdAt: "desc" }],
       take: 20,
     });
@@ -174,8 +198,10 @@ export async function getPersonalizedFeedPosts(
 }
 
 export async function getPost(id: string, userId?: string) {
-  const p = await prisma.post.findUnique({ where: { id }, include: feedInclude(userId) });
+  const p = await prisma.post.findUnique({ where: { id }, include: await feedIncludeFiltered(userId) });
   if (!p) return null;
+  // 목록에서만 숨기면 링크·검색으로 뚫리므로 상세 진입도 막는다(본인 글은 예외).
+  if (await isVirtualHiddenPost(p, userId)) return null;
   const locks = await computeWalkingLocks([p], userId);
   return toFeedPost(p, userId, locks.get(p.id) ?? false);
 }
@@ -192,9 +218,9 @@ export async function getWalkingFeedPosts(userId?: string, opts?: { authorId?: s
         ...(userId
           ? { OR: [{ visibility: { in: ["PUBLIC", "BLURRED"] } }, { authorId: userId }] }
           : { visibility: { in: ["PUBLIC", "BLURRED"] } }),
-        ...(opts?.authorId ? { authorId: opts.authorId } : {}),
+        ...(opts?.authorId ? { authorId: opts.authorId } : await excludeVirtualWhere("author")),
       },
-      include: feedInclude(userId),
+      include: await feedIncludeFiltered(userId),
       orderBy: { createdAt: "desc" },
       take: limit,
     });
@@ -243,8 +269,14 @@ export async function getLogPosts(opts?: { category?: string | null; authorId?: 
   const where: any = { hidden: false, kind: "LOG" };
   if (opts?.category) where.boardCategory = opts.category;
   if (opts?.authorId) where.authorId = opts.authorId;
+  else Object.assign(where, await excludeVirtualWhere("author"));
   try {
-    const posts = await prisma.post.findMany({ where, include: logListInclude, orderBy: { createdAt: "desc" }, take: 80 });
+    const posts = await prisma.post.findMany({
+      where,
+      include: { ...logListInclude, _count: { select: { likes: await excludeVirtualLikeCountWhere(), comments: await excludeVirtualCountWhere() } } },
+      orderBy: { createdAt: "desc" },
+      take: 80,
+    });
     return (posts as any[]).map(toLogListItem);
   } catch {
     // prisma db push 전: kind/boardCategory 미존재 → 빈 목록으로 graceful 처리
@@ -255,10 +287,12 @@ export async function getLogPosts(opts?: { category?: string | null; authorId?: 
 // 조행기 상세 — 조회수 1 증가 후 반환
 export async function getLogPost(id: string, userId?: string): Promise<FeedPost | null> {
   try {
-    const exists = await prisma.post.findUnique({ where: { id }, select: { id: true } });
+    const exists = await prisma.post.findUnique({ where: { id }, select: { id: true, authorId: true } });
     if (!exists) return null;
+    // 숨김 대상이면 조회수도 올리지 않고 바로 막는다.
+    if (await isVirtualHiddenPost(exists, userId)) return null;
     await prisma.post.update({ where: { id }, data: ({ viewCount: { increment: 1 } } as any) }).catch(() => {});
-    const p = await prisma.post.findUnique({ where: { id }, include: feedInclude(userId) });
+    const p = await prisma.post.findUnique({ where: { id }, include: await feedIncludeFiltered(userId) });
     if (!p) return null;
     return toFeedPost(p, userId);
   } catch {
@@ -269,7 +303,7 @@ export async function getLogPost(id: string, userId?: string): Promise<FeedPost 
 export async function getLogCategoryCounts(): Promise<Record<string, number>> {
   const rows = await (prisma.post as any).groupBy({
     by: ["boardCategory"],
-    where: { hidden: false, kind: "LOG" },
+    where: { hidden: false, kind: "LOG", ...(await excludeVirtualWhere("author")) },
     _count: { _all: true },
   }).catch(() => [] as any[]);
   const out: Record<string, number> = {};
@@ -307,15 +341,17 @@ export async function getFeedPostsPage(
   }
 
   if (opts?.authorId) baseWhere.authorId = opts.authorId;
+  else Object.assign(baseWhere, await excludeVirtualWhere("author"));
 
   const useKind = opts?.kind !== null;
   const where = useKind ? { ...baseWhere, kind: opts?.kind ?? "FEED" } : baseWhere;
   // 유니온({cursor,skip} | {})으로 추론되면 스프레드 시 findMany 인자 타입이 깨진다 → 선택 필드로 명시
   const cursorClause: { cursor?: { id: string }; skip?: number } = cursor ? { cursor: { id: cursor }, skip: 1 } : {};
+  const include = await feedIncludeFiltered(userId);
 
   const fetchAndPaginate = async (w: any) => {
     const raw = await prisma.post.findMany({
-      where: w, include: feedInclude(userId), orderBy: { createdAt: "desc" },
+      where: w, include, orderBy: { createdAt: "desc" },
       take: limit + 1, ...cursorClause,
     });
     const hasMore = raw.length > limit;
@@ -342,11 +378,14 @@ export async function getLogPostsPage(
   const where: any = { hidden: false, kind: "LOG" };
   if (opts?.category) where.boardCategory = opts.category;
   if (opts?.authorId) where.authorId = opts.authorId;
+  else Object.assign(where, await excludeVirtualWhere("author"));
   // 유니온({cursor,skip} | {})으로 추론되면 스프레드 시 findMany 인자 타입이 깨진다 → 선택 필드로 명시
   const cursorClause: { cursor?: { id: string }; skip?: number } = cursor ? { cursor: { id: cursor }, skip: 1 } : {};
   try {
     const raw = await prisma.post.findMany({
-      where, include: logListInclude, orderBy: { createdAt: "desc" },
+      where,
+      include: { ...logListInclude, _count: { select: { likes: await excludeVirtualLikeCountWhere(), comments: await excludeVirtualCountWhere() } } },
+      orderBy: { createdAt: "desc" },
       take: limit + 1, ...cursorClause,
     });
     const hasMore = raw.length > limit;
@@ -375,9 +414,9 @@ export async function getWalkingFeedPostsPage(
         ...(userId
           ? { OR: [{ visibility: { in: ["PUBLIC", "BLURRED"] } }, { authorId: userId }] }
           : { visibility: { in: ["PUBLIC", "BLURRED"] } }),
-        ...(opts?.authorId ? { authorId: opts.authorId } : {}),
+        ...(opts?.authorId ? { authorId: opts.authorId } : await excludeVirtualWhere("author")),
       },
-      include: feedInclude(userId),
+      include: await feedIncludeFiltered(userId),
       orderBy: { createdAt: "desc" },
       take: limit + 1,
       ...cursorClause,

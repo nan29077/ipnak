@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { logCategoryLabel } from "./taxonomy";
+import { excludeVirtualWhere, virtualMembersActive } from "./virtualVisibility";
 
 // CurationFeature 모델은 prisma generate 이후 타입에 반영된다. 접근 경계에서만 캐스팅.
 const db = prisma as any;
@@ -74,6 +75,9 @@ function sinceFor(period?: string): Date | null {
 export async function getRankedPosts(opts: RankOpts = {}): Promise<CurationCardPost[]> {
   const limit = opts.limit ?? 12;
   const where: any = { hidden: false };
+  // 가상회원 글로벌 스위치 OFF → 메인 큐레이션·랭킹에서도 가상회원 글을 제외한다.
+  // (관리자 큐레이션 후보 조회는 getCurationCandidates 를 쓰므로 영향받지 않는다.)
+  if (!opts.authorId) Object.assign(where, await excludeVirtualWhere("author"));
   if (opts.kind && opts.kind !== "all") where.kind = opts.kind;
   if (opts.species) where.speciesName = opts.species;
   if (opts.authorId) where.authorId = opts.authorId;
@@ -205,7 +209,12 @@ export const sectionLabel = (key: string) => DEFAULT_SECTIONS.find((s) => s.key 
 async function resolveSectionPosts(key: string, autoOpts: RankOpts, limit: number): Promise<CurationCardPost[]> {
   let featured: CurationCardPost[] = [];
   try {
-    const rows = await db.curationFeature.findMany({ where: { section: key, visible: true }, orderBy: { order: "asc" }, include: featureInclude, take: 40 });
+    // 관리자가 고정한 글이라도 가상회원 작성분이면 스위치 OFF 상태에서는 노출하지 않는다.
+    const postWhere = await excludeVirtualWhere("author");
+    const rows = await db.curationFeature.findMany({
+      where: { section: key, visible: true, ...(Object.keys(postWhere).length ? { post: postWhere } : {}) },
+      orderBy: { order: "asc" }, include: featureInclude, take: 40,
+    });
     featured = (rows as any[]).map((r) => r.post).filter(Boolean).map(toCard);
   } catch { /* 모델 미존재 → featured 없음 */ }
   if (featured.length >= limit) return featured.slice(0, limit);

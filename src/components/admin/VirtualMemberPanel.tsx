@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle, Bot, ChevronDown, Clock, Eye, EyeOff, Gauge, History, KeyRound, Loader2,
-  Pause, Play, RefreshCw, Sparkles, Trash2, Users,
+  Pause, Play, Power, PowerOff, RefreshCw, Sparkles, Trash2, Users,
 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -41,6 +41,8 @@ type ContentRow = {
 };
 
 type Config = {
+  /** 글로벌 스위치 — 스케줄러 가동 + 일반 화면 노출을 함께 제어 */
+  active: boolean;
   enabled: boolean;
   intervalHours: number;
   dailyLimit: number;
@@ -162,6 +164,16 @@ export function VirtualMemberPanel({
     await run("seed", { type: "SEED" });
   }
 
+  async function toggleActive() {
+    // 끄는 쪽은 일반 화면에서 콘텐츠가 사라지는 동작이라 한 번 확인한다.
+    if (config.active && !await doConfirm({
+      title: "AI 가상회원 비활성화",
+      message: "스케줄러가 멈추고 가상회원이 작성한 모든 콘텐츠가 일반 사용자 화면에서 숨겨집니다. 데이터는 삭제되지 않으며 다시 켜면 복구됩니다.",
+      confirmLabel: "비활성화",
+    })) return;
+    await run("active", { type: "SET_ACTIVE", value: !config.active });
+  }
+
   async function seedContent() {
     if (!await doConfirm({
       title: "초기 시드 데이터 생성",
@@ -206,6 +218,56 @@ export function VirtualMemberPanel({
 
   return (
     <div className="space-y-5">
+      {/* 글로벌 스위치 — AI 가상회원 활성화 */}
+      <div
+        className={cn(
+          "flex flex-col gap-3 rounded-2xl border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between",
+          config.active ? "border-green-500/40 bg-green-500/[0.07]" : "border-navy-100/25 bg-[#162538]",
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white transition-colors",
+              config.active ? "bg-green-600" : "bg-navy-100/25 text-navy-400",
+            )}
+          >
+            {config.active ? <Power size={19} /> : <PowerOff size={19} />}
+          </span>
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 text-[15px] font-bold text-navy-800">
+              AI 가상회원 활성화
+              <Badge tone={config.active ? "green" : "gray"}>{config.active ? "ON" : "OFF"}</Badge>
+            </p>
+            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">
+              {config.active
+                ? "동적 활동 스케줄러가 동작하고, 가상회원이 작성한 피드·조행기·워킹피드·중고마켓 글과 댓글이 일반 사용자 화면에 노출됩니다."
+                : "스케줄러가 완전히 멈추고, 가상회원이 작성한 모든 콘텐츠가 일반 사용자 화면에서 숨겨집니다. 데이터는 삭제되지 않고 조회할 때만 걸러지므로 다시 켜면 그대로 복구됩니다."}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => toggleActive()}
+          disabled={busy}
+          role="switch"
+          aria-checked={config.active}
+          aria-label="AI 가상회원 활성화"
+          className={cn(
+            "relative inline-flex h-9 w-[68px] shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+            config.active ? "bg-green-600" : "bg-navy-100/40",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute flex h-7 w-7 items-center justify-center rounded-full bg-white shadow transition-all",
+              config.active ? "left-[36px]" : "left-1",
+            )}
+          >
+            {loading === "active" && <Loader2 size={13} className="animate-spin text-navy-500" />}
+          </span>
+        </button>
+      </div>
+
       {/* OpenAI 키 미등록 경고 */}
       {!openaiConfigured && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-400/10 p-4">
@@ -225,13 +287,16 @@ export function VirtualMemberPanel({
         <StatCard icon={Gauge} label="오늘 API 호출" value={`${usage.usedToday}회`} sub={`잔여 ${usage.remainingToday}회 / 한도 ${config.dailyLimit}회`} />
         <StatCard icon={Clock} label="활동 주기" value={`${config.intervalHours}시간`} sub={config.lastRun ? `최근 ${kstFormat(config.lastRun, "MM.dd HH:mm")}` : "실행 이력 없음"} />
         <div className="flex flex-col justify-between gap-2 rounded-2xl border border-navy-100/20 bg-[#162538] p-4">
-          <p className="text-[12px] text-navy-400">전체 활동</p>
+          <p className="text-[12px] text-navy-400">
+            활동 생성{!config.active && <span className="text-navy-500"> (비활성화됨)</span>}
+          </p>
           <button
             onClick={() => run("enabled", { type: "SET_ENABLED", value: !config.enabled })}
-            disabled={busy}
+            disabled={busy || !config.active}
+            title={!config.active ? "AI 가상회원 활성화 스위치를 먼저 켜주세요." : undefined}
             className={cn(
               "inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-[13px] font-bold text-white transition-all active:scale-[0.97] disabled:opacity-50",
-              config.enabled ? "bg-green-600 hover:bg-green-700" : "bg-navy-100/30 text-navy-300 hover:bg-navy-100/40",
+              config.enabled && config.active ? "bg-green-600 hover:bg-green-700" : "bg-navy-100/30 text-navy-300 hover:bg-navy-100/40",
             )}
           >
             {loading === "enabled" ? <Loader2 size={14} className="animate-spin" /> : config.enabled ? <Play size={14} /> : <Pause size={14} />}
@@ -250,7 +315,8 @@ export function VirtualMemberPanel({
           className="inline-flex items-center gap-1.5 rounded-xl bg-aqua-500/90 px-3.5 py-2.5 text-[12.5px] font-semibold text-white transition-all hover:bg-aqua-500 active:scale-[0.97] disabled:opacity-50">
           {loading === "seedcontent" ? <Loader2 size={14} className="animate-spin" /> : <History size={14} />} 초기 시드 데이터 생성
         </button>
-        <button onClick={() => run("runnow", { type: "RUN_NOW" })} disabled={busy || members.length === 0}
+        <button onClick={() => run("runnow", { type: "RUN_NOW" })} disabled={busy || members.length === 0 || !config.active}
+          title={!config.active ? "AI 가상회원 활성화 스위치를 먼저 켜주세요." : undefined}
           className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2.5 text-[12.5px] font-semibold text-white transition-all hover:bg-orange-600 active:scale-[0.97] disabled:opacity-50">
           {loading === "runnow" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} 지금 활동 생성
         </button>

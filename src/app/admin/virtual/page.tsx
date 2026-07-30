@@ -8,6 +8,7 @@ import { getVirtualActivityConfig, kstDateKey, remainingQuota } from "@/lib/virt
 import {
   personalityLabel, regionGroupLabel, VIRTUAL_MEMBER_TOTAL,
 } from "@/lib/virtualMembers";
+import { virtualMembersActive } from "@/lib/virtualVisibility";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,11 @@ export default async function AdminVirtualMembersPage() {
   const viewer = await getCurrentUser();
   if (!viewer || viewer.role !== "SUPER_ADMIN") redirect("/login");
 
-  const [config, ai] = await Promise.all([getVirtualActivityConfig(), getAiConnectionStatus()]);
+  const [config, ai, active] = await Promise.all([
+    getVirtualActivityConfig(),
+    getAiConnectionStatus(),
+    virtualMembersActive(),
+  ]);
 
   const [members, activityTotal, remaining] = await Promise.all([
     prisma.virtualMember.findMany({
@@ -45,6 +50,7 @@ export default async function AdminVirtualMembersPage() {
       <VirtualMemberPanel
         openaiConfigured={ai.openaiConfigured}
         config={{
+          active,
           enabled: config.enabled,
           intervalHours: config.intervalHours,
           dailyLimit: config.dailyLimit,
