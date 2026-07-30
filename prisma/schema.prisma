@@ -61,6 +61,7 @@ model User {
   groupPosts        GroupPost[]
   groupComments     GroupComment[]
   groupPostLikes    GroupPostLike[]
+  virtualMember     VirtualMember?
 }
 
 // ===== 포인트 제도 =====
@@ -852,4 +853,44 @@ model GroupPostLike {
 
   @@unique([postId, userId])
   @@index([postId])
+}
+
+// ===== AI 가상회원 (동적 활동 시스템) =====
+// 실제 앱 회원(User, role=ANGLER)과 1:1로 연결되며, 스케줄러가 성격 유형별 프롬프트로
+// OpenAI를 호출해 피드·조행기·중고마켓 글과 댓글·좋아요를 생성한다.
+// personality: ACTIVE(활발형) | INFO(정보공유형) | EMOTION(감성형) | QUESTION(질문형) | OBSERVER(관찰형)
+// regionGroup: 지역 분배 그룹 키 (CAPITAL | BUSAN_GN | DAEGU_GB | GWANGJU_JN | DAEJEON_CC | GANGWON | JEONBUK | JEJU | ETC)
+model VirtualMember {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personality   String
+  regionGroup   String
+  active        Boolean   @default(true) // 개별 회원 활동 여부
+  activityCount Int       @default(0)
+  lastActiveAt  DateTime?
+  createdAt     DateTime  @default(now())
+
+  activities VirtualActivity[]
+
+  @@index([personality])
+  @@index([regionGroup])
+}
+
+// 가상회원이 만든 활동 이력. 생성된 콘텐츠를 관리자 화면에서 조회·개별 삭제하는 근거가 된다.
+// kind: FEED(피싱 피드) | GENERAL(일상 피드) | LOG(조행기) | WALKING(워킹 피드) | MARKET(중고마켓) | COMMENT(댓글) | LIKE(좋아요)
+// targetType: POST | MARKET_LISTING | COMMENT | LIKE
+model VirtualActivity {
+  id         String        @id @default(cuid())
+  memberId   String
+  member     VirtualMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  kind       String
+  targetType String
+  targetId   String?
+  summary    String? // 목록에 보여줄 한 줄 요약(제목·캡션 앞부분)
+  createdAt  DateTime      @default(now())
+
+  @@index([memberId])
+  @@index([kind])
+  @@index([createdAt])
 }

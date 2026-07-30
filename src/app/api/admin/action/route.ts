@@ -256,6 +256,8 @@ export async function POST(req: Request) {
         if (String(b.key || "").startsWith("ai_connection_")) return NextResponse.json({ error: "AI 키는 AI API 연결 메뉴에서만 변경할 수 있습니다." }, { status: 400 });
         // 비밀번호 찾기 인증번호는 Setting에 저장된다 — 관리자라도 임의로 만들 수 없어야 한다.
         if (String(b.key || "").startsWith("pwreset_")) return NextResponse.json({ error: "변경할 수 없는 설정입니다." }, { status: 400 });
+        // 가상회원 일일 호출 집계는 시스템이 관리한다 — 한도 우회를 막기 위해 직접 수정을 금지한다.
+        if (String(b.key || "").startsWith("virtual_member_usage")) return NextResponse.json({ error: "변경할 수 없는 설정입니다." }, { status: 400 });
         if (!b.key || typeof b.value === "undefined") return NextResponse.json({ error: "key와 value가 필요합니다." }, { status: 400 });
         const key = String(b.key);
         let value = String(b.value);

@@ -41,6 +41,20 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   // 판매가는 설정이 아니라 IpnakBallProduct.price 를 단일 기준으로 사용한다.
   ipnak_ball_enabled: "true",
   ipnak_keyring_enabled: "false",
+  // ===== AI 가상회원 동적 활동 =====
+  // 전체 활동 on/off. 켜져 있고 OpenAI 키가 등록되어 있을 때만 스케줄러가 활동을 생성한다.
+  virtual_member_enabled: "false",
+  // 활동 주기(시간). 1~24 사이 값만 허용한다.
+  virtual_member_interval_hours: "2",
+  // 일일 최대 OpenAI 호출 수. 초과하면 그날은 활동을 건너뛴다.
+  virtual_member_daily_limit: "200",
+  // 사용 모델 (비용 대비 품질 기준 기본값)
+  virtual_member_model: "gpt-4o-mini",
+  // 일일 호출 수 집계 (KST 날짜 + 카운트) — 관리자가 직접 수정할 수 없다.
+  virtual_member_usage_date: "",
+  virtual_member_usage_count: "0",
+  // 마지막 실행 시각(ISO) — 관리자 화면 표시용
+  virtual_member_last_run: "",
   // 쇼핑 상품 상세페이지 정책 안내
   refund_policy: "상품 수령 후 7일 이내 환불 가능합니다. 단, 사용/훼손된 상품은 환불이 불가합니다.",
   shipping_guide: "주문 후 1-3일 내 발송됩니다. 도서산간 지역은 추가 배송비가 발생할 수 있습니다.",

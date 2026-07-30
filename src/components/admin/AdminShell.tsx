@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, FileImage, MessageCircle, Flag, Trophy, ClipboardCheck,
   Anchor, CalendarDays, ShoppingBag, Fish, SlidersHorizontal, Settings, Shield,
-  LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins, Store, DatabaseZap, Package,
+  LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins, Store, DatabaseZap, Package, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -33,6 +33,7 @@ const GROUPS: MenuGroup[] = [
     title: "회원",
     items: [
       { href: "/admin/members", label: "회원 목록", icon: Users },
+      { href: "/admin/virtual", label: "가상회원 관리", icon: Bot },
       { href: "/admin/points", label: "포인트 관리", icon: Coins },
       { href: "/admin/groups", label: "낚시단 관리", icon: UsersRound },
       { href: "/admin/pros", label: "프로 · 유튜버", icon: BadgeCheck },
