@@ -7,13 +7,8 @@ import { CommunityTabs } from "@/components/CommunityTabs";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
 import { EmptyState, LinkButton } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { noImageSrc } from "@/lib/noImage";
 import type { FeedPost } from "@/lib/queries";
-
-const STICKERS = [
-  "/입낚_NoImage_물고기.svg",
-  "/입낚_NoImage_바늘.svg",
-  "/입낚_NoImage_찌.svg",
-] as const;
 
 export function useViewMode(key: string): ["list" | "card", (m: "list" | "card") => void] {
   const [mode, setMode] = useState<"list" | "card">("list");
@@ -106,7 +101,7 @@ export function FeedList({
                 {thumb ? (
                   <img src={thumb} alt={p.speciesName || "피드"} loading="lazy" className="h-full w-full object-cover" />
                 ) : (
-                  <img src={STICKERS[p.id.charCodeAt(0) % 3]} alt="" className="h-full w-full object-contain p-6 opacity-30" />
+                  <img src={noImageSrc(p.id)} alt="" className="h-full w-full object-contain p-6 opacity-30" />
                 )}
                 {p.sizeCm != null && (
                   <span className="absolute bottom-1 left-1 flex items-center gap-0.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-bold text-white">

@@ -21,14 +21,9 @@ import { FishingTagCards } from "@/components/FishingTagCards";
 import { timeAgo, cn, km, duration } from "@/lib/utils";
 import type { FeedPost } from "@/lib/queries";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { noImageSrc } from "@/lib/noImage";
 
 type BadgeTone = "navy" | "aqua" | "amber" | "red" | "green" | "gray";
-
-const STICKERS = [
-  "/입낚_NoImage_물고기.svg",
-  "/입낚_NoImage_바늘.svg",
-  "/입낚_NoImage_찌.svg",
-] as const;
 
 const TYPE_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
   FISHING_POINT: { label: "피싱 포인트", tone: "aqua" },
@@ -366,7 +361,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
       >
         {slides.length === 0 ? (
           <img
-            src={STICKERS[post.id.charCodeAt(0) % 3]}
+            src={noImageSrc(post.id)}
             alt="이미지 없음"
             decoding="async"
             className="h-full w-full object-contain p-10 opacity-50"

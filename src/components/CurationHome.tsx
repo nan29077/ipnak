@@ -15,6 +15,7 @@ import { FishingInterestPopup } from "@/components/FishingInterestPopup";
 import type { FeedPost } from "@/lib/queries";
 import type { CurationCardPost, ResolvedSection } from "@/lib/curation";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { noImageSrc } from "@/lib/noImage";
 
 const SECTION_ICON: Record<string, React.ReactNode> = {
   member_pick: <IconStar size={16} className="text-orange-400" />,
@@ -299,9 +300,14 @@ function FeedRailCard({ post }: { post: FeedPost }) {
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1c2c3e] to-[#0d1b2a]">
-            <IconFish size={30} className="text-navy-300" />
-          </div>
+          /* 이미지 없음 — 입낚 전용 노이미지 이미지로 썸네일 영역을 채운다 */
+          <img
+            src={noImageSrc(post.id)}
+            alt="이미지 없음"
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
         )}
         {post.speciesName && (
           <span className="absolute left-2 top-2 inline-flex items-center gap-0.5 rounded-full bg-aqua-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur">
@@ -356,7 +362,8 @@ function CurationCard({ post, rank }: { post: CurationCardPost; rank?: number })
       <div className="relative h-32 w-full bg-navy-50">
         {post.thumbnail
           ? <img src={post.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
-          : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#1c2c3e] to-[#0d1b2a] text-navy-300"><IconFish size={26} /></div>}
+          /* 이미지 없음 — 입낚 전용 노이미지 이미지로 썸네일 영역을 채운다 */
+          : <img src={noImageSrc(post.id)} alt="이미지 없음" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
         {rank != null && <RankBadge rank={rank} />}
         {post.boardLabel
           ? <span className="absolute right-2.5 top-2.5 inline-flex items-center rounded-md bg-aqua-500/90 px-2 py-0.5 text-[11px] font-bold text-white shadow">{post.boardLabel}</span>
