@@ -34,12 +34,18 @@ export default async function AdminVirtualMembersPage() {
   ]);
 
   // 생성된 글 목록 — 피드·조행기·워킹·중고마켓 등 콘텐츠 활동만 (댓글·좋아요 제외)
-  const contentActivities = await prisma.virtualActivity.findMany({
-    where: { kind: { in: ["FEED", "GENERAL", "LOG", "WALKING", "MARKET"] } },
-    include: { member: { include: { user: { select: { nickname: true } } } } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  // 종류별 필터를 프론트에서 처리하므로, 특정 종류가 빠지지 않을 만큼 넉넉히 불러온다.
+  // (100건만 받으면 최신 구간에 없는 종류가 0건으로 보여 필터가 고장난 것처럼 읽힌다.)
+  const CONTENT_KINDS = ["FEED", "GENERAL", "LOG", "WALKING", "MARKET"];
+  const [contentActivities, contentTotal] = await Promise.all([
+    prisma.virtualActivity.findMany({
+      where: { kind: { in: CONTENT_KINDS } },
+      include: { member: { include: { user: { select: { nickname: true } } } } },
+      orderBy: { createdAt: "desc" },
+      take: 1000,
+    }),
+    prisma.virtualActivity.count({ where: { kind: { in: CONTENT_KINDS } } }),
+  ]);
 
   return (
     <div>
@@ -72,6 +78,7 @@ export default async function AdminVirtualMembersPage() {
           activityCount: m.activityCount,
           lastActiveAt: m.lastActiveAt ? m.lastActiveAt.toISOString() : null,
         }))}
+        contentTotal={contentTotal}
         contents={contentActivities.map((a) => ({
           id: a.id,
           kind: a.kind,

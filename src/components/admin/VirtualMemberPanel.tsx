@@ -69,6 +69,10 @@ const KIND_LABEL: Record<string, string> = {
   LIKE: "좋아요",
 };
 
+// "생성된 글" 탭의 종류 필터. 서버는 콘텐츠 활동(FEED~MARKET)만 내려주므로 이 5종으로 충분하다.
+const CONTENT_KINDS = ["FEED", "GENERAL", "LOG", "WALKING", "MARKET"] as const;
+type ContentKindFilter = "ALL" | (typeof CONTENT_KINDS)[number];
+
 const PERSONALITY_TONE: Record<string, "navy" | "aqua" | "amber" | "red" | "green" | "gray"> = {
   ACTIVE: "amber",
   INFO: "aqua",
@@ -78,13 +82,15 @@ const PERSONALITY_TONE: Record<string, "navy" | "aqua" | "amber" | "red" | "gree
 };
 
 export function VirtualMemberPanel({
-  openaiConfigured, config, usage, members, contents,
+  openaiConfigured, config, usage, members, contents, contentTotal,
 }: {
   openaiConfigured: boolean;
   config: Config;
   usage: { usedToday: number; remainingToday: number };
   members: MemberRow[];
   contents: ContentRow[];
+  /** 콘텐츠 활동 전체 건수 — 목록이 잘렸을 때 안내용 */
+  contentTotal?: number;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -98,6 +104,7 @@ export function VirtualMemberPanel({
   const [keyVisible, setKeyVisible] = useState(false);
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, ActivityDetail[]>>({});
+  const [kindFilter, setKindFilter] = useState<ContentKindFilter>("ALL");
 
   async function run(key: string, payload: Record<string, unknown>, successFallback = "완료") {
     setLoading(key);
@@ -216,20 +223,31 @@ export function VirtualMemberPanel({
   const busy = loading !== null;
   const activeCount = members.filter((m) => m.active).length;
 
+  // 종류별 건수(칩 배지용)와 현재 필터가 적용된 목록 — 프론트에서만 걸러 API 호출이 없다.
+  const kindCounts = contents.reduce<Record<string, number>>((acc, c) => {
+    acc[c.kind] = (acc[c.kind] ?? 0) + 1;
+    return acc;
+  }, {});
+  const filteredContents = kindFilter === "ALL" ? contents : contents.filter((c) => c.kind === kindFilter);
+
   return (
     <div className="space-y-5">
       {/* 글로벌 스위치 — AI 가상회원 활성화 */}
+      {/* OFF 상태에서 카드·트랙 색이 관리자 카드 배경(#162538)과 대비 1.05 수준으로 묻혀
+          스위치가 없는 것처럼 보였다. OFF 일 때는 빨간 계열로 명확히 구분한다. */}
       <div
         className={cn(
-          "flex flex-col gap-3 rounded-2xl border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between",
-          config.active ? "border-green-500/40 bg-green-500/[0.07]" : "border-navy-100/25 bg-[#162538]",
+          "flex flex-col gap-3 rounded-2xl border-2 p-4 transition-colors sm:flex-row sm:items-center sm:justify-between",
+          config.active
+            ? "border-green-500/50 bg-green-500/[0.07]"
+            : "border-red-500/80 bg-red-500/[0.16]",
         )}
       >
         <div className="flex items-start gap-3">
           <span
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white transition-colors",
-              config.active ? "bg-green-600" : "bg-navy-100/25 text-navy-400",
+              config.active ? "bg-green-600" : "bg-red-600",
             )}
           >
             {config.active ? <Power size={19} /> : <PowerOff size={19} />}
@@ -237,7 +255,7 @@ export function VirtualMemberPanel({
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-2 text-[15px] font-bold text-navy-800">
               AI 가상회원 활성화
-              <Badge tone={config.active ? "green" : "gray"}>{config.active ? "ON" : "OFF"}</Badge>
+              <Badge tone={config.active ? "green" : "red"}>{config.active ? "ON" : "OFF"}</Badge>
             </p>
             <p className="mt-1 text-[12px] leading-relaxed text-navy-400">
               {config.active
@@ -246,26 +264,35 @@ export function VirtualMemberPanel({
             </p>
           </div>
         </div>
-        <button
-          onClick={() => toggleActive()}
-          disabled={busy}
-          role="switch"
-          aria-checked={config.active}
-          aria-label="AI 가상회원 활성화"
-          className={cn(
-            "relative inline-flex h-9 w-[68px] shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
-            config.active ? "bg-green-600" : "bg-navy-100/40",
-          )}
-        >
-          <span
+        <div className="flex shrink-0 items-center gap-2.5 self-start sm:self-auto">
+          <span className={cn("text-[12px] font-bold", config.active ? "text-green-400" : "text-red-400")}>
+            {config.active ? "켜짐" : "꺼짐"}
+          </span>
+          <button
+            onClick={() => toggleActive()}
+            disabled={busy}
+            role="switch"
+            aria-checked={config.active}
+            aria-label="AI 가상회원 활성화"
             className={cn(
-              "absolute flex h-7 w-7 items-center justify-center rounded-full bg-white shadow transition-all",
-              config.active ? "left-[36px]" : "left-1",
+              // 반투명(navy-100/40)이나 붉은 계열 트랙은 카드 배경과 합성되면 사실상 같은 색이 된다.
+              // OFF 는 중립 회색(navy-300)으로 두어 카드(2.98:1)와 흰 노브(5.04:1) 양쪽에 대비를 확보한다.
+              "relative inline-flex h-9 w-[68px] shrink-0 items-center rounded-full ring-1 ring-inset transition-colors disabled:opacity-50",
+              config.active
+                ? "bg-green-600 ring-green-300/50"
+                : "bg-navy-300 ring-red-400/70",
             )}
           >
-            {loading === "active" && <Loader2 size={13} className="animate-spin text-navy-500" />}
-          </span>
-        </button>
+            <span
+              className={cn(
+                "absolute flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-md transition-all",
+                config.active ? "left-[36px]" : "left-1",
+              )}
+            >
+              {loading === "active" && <Loader2 size={13} className="animate-spin text-navy-500" />}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* OpenAI 키 미등록 경고 */}
@@ -391,12 +418,37 @@ export function VirtualMemberPanel({
 
       {tab === "contents" && (
         <>
+          {/* 피드 종류별 필터 */}
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="피드 종류 필터">
+            <KindChip
+              label="전체"
+              count={contents.length}
+              active={kindFilter === "ALL"}
+              onClick={() => setKindFilter("ALL")}
+            />
+            {CONTENT_KINDS.map((k) => (
+              <KindChip
+                key={k}
+                label={KIND_LABEL[k]}
+                count={kindCounts[k] ?? 0}
+                active={kindFilter === k}
+                onClick={() => setKindFilter(k)}
+              />
+            ))}
+          </div>
+          {/* 목록이 잘린 경우에만 안내 — 칩의 건수가 전체가 아님을 분명히 한다 */}
+          {contentTotal != null && contentTotal > contents.length && (
+            <p className="text-[11.5px] text-navy-400">
+              전체 {contentTotal.toLocaleString()}건 중 최신 {contents.length.toLocaleString()}건을 표시합니다. 위 건수도 표시된 범위 기준입니다.
+            </p>
+          )}
+
           <div className="hidden md:block">
             <Table head={["영역", "내용", "작성자", "생성 시각", "관리"]}>
-              {contents.length === 0 && (
-                <tr><td colSpan={5} className="p-0"><EmptyState title="생성된 글이 없습니다" desc="'지금 활동 생성'을 눌러 첫 글을 만들어 보세요." /></td></tr>
+              {filteredContents.length === 0 && (
+                <tr><td colSpan={5} className="p-0"><EmptyState title={kindFilter === "ALL" ? "생성된 글이 없습니다" : `${KIND_LABEL[kindFilter]} 글이 없습니다`} desc={kindFilter === "ALL" ? "'지금 활동 생성'을 눌러 첫 글을 만들어 보세요." : "다른 종류를 선택해 보세요."} /></td></tr>
               )}
-              {contents.map((c) => (
+              {filteredContents.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-3"><Badge tone="aqua">{KIND_LABEL[c.kind] ?? c.kind}</Badge></td>
                   <td className="max-w-[420px] px-4 py-3"><p className="truncate text-navy-700">{c.summary || "-"}</p></td>
@@ -414,8 +466,10 @@ export function VirtualMemberPanel({
           </div>
 
           <div className="space-y-2 md:hidden">
-            {contents.length === 0 && <EmptyState title="생성된 글이 없습니다" />}
-            {contents.map((c) => (
+            {filteredContents.length === 0 && (
+              <EmptyState title={kindFilter === "ALL" ? "생성된 글이 없습니다" : `${KIND_LABEL[kindFilter]} 글이 없습니다`} />
+            )}
+            {filteredContents.map((c) => (
               <div key={c.id} className="rounded-2xl border border-navy-100/20 bg-[#162538] p-3.5">
                 <div className="flex items-center gap-2">
                   <Badge tone="aqua">{KIND_LABEL[c.kind] ?? c.kind}</Badge>
@@ -539,6 +593,34 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: typeof Users; label
       <p className="text-[20px] font-extrabold text-navy-900">{value}</p>
       <p className="text-[11.5px] text-navy-400">{sub}</p>
     </div>
+  );
+}
+
+function KindChip({
+  label, count, active, onClick,
+}: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition-colors",
+        active
+          ? "border-orange-500 bg-orange-500 text-white"
+          : "border-navy-100/40 text-navy-400 hover:bg-white/[0.06] hover:text-navy-700",
+      )}
+    >
+      {label}
+      <span
+        className={cn(
+          "rounded-full px-1.5 text-[11px] font-bold",
+          active ? "bg-white/25 text-white" : "bg-navy-100/25 text-navy-400",
+        )}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 
