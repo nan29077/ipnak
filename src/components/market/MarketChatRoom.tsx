@@ -180,7 +180,7 @@ export function MarketChatRoom({
     // flex-1 min-h-0: 부모(fixed inset-0 flex-col)의 남은 공간을 모두 차지하고 내부 스크롤 허용
     <div className="flex flex-1 min-h-0 flex-col">
       {/* 메시지 목록 — 이 영역만 스크롤 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto py-3 pl-3.5 pr-5 md:pr-6">
         {messages.length === 0 && (
           <p className="py-12 text-center text-[13px] text-navy-300">
             대화를 시작해보세요.{"\n"}서로 배려하는 거래 문화를 만들어요.
@@ -210,10 +210,10 @@ export function MarketChatRoom({
                 </div>
               ) : (
                 <div className={cn("flex mb-0.5", mine ? "justify-end" : "justify-start", isFirst ? "mt-3" : "mt-0.5")}>
-                  <div className={cn("flex max-w-[76%] flex-col gap-0.5", mine ? "items-end" : "items-start")}>
+                  <div className={cn("flex min-w-0 max-w-[76%] flex-col gap-0.5", mine ? "items-end" : "items-start")}>
                     <div
                       className={cn(
-                        "px-3.5 py-2.5 text-[14px] leading-relaxed",
+                        "max-w-full whitespace-pre-wrap break-words px-3.5 py-2.5 text-[14px] leading-relaxed",
                         mine
                           ? "bg-orange-500 text-white"
                           : "bg-[#1e3148] text-navy-800",

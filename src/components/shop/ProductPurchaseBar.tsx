@@ -6,6 +6,7 @@ import { ShoppingCart, ShoppingBag, X, Minus, Plus, ChevronRight, Loader2, Check
 import { useToast } from "@/components/Toast";
 import { won } from "@/lib/utils";
 import Link from "next/link";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 interface ProductForPurchase {
   id: string;
@@ -243,9 +244,12 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
 
   const buySheet = sheetOpen && typeof document !== "undefined" && createPortal(
     <>
-      <div className="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-[4px]" onClick={() => setSheetOpen(false)} />
       <div
-        className="fixed inset-x-0 bottom-0 z-[9999] flex flex-col rounded-t-[28px] overflow-hidden"
+        className="fixed inset-0 z-[9998] bg-black/70 backdrop-blur-[4px] md:inset-y-0 md:left-[calc(50%-372px)] md:right-auto md:w-[640px]"
+        onClick={() => setSheetOpen(false)}
+      />
+      <div
+        className="fixed inset-x-0 bottom-0 z-[9999] flex flex-col overflow-hidden rounded-t-[28px] md:left-[calc(50%-372px)] md:right-auto md:w-[640px]"
         style={{ background: "linear-gradient(160deg,#0c1e2e 0%,#0d1b2a 100%)", maxHeight: "90dvh" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -259,7 +263,11 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
         <div className="overflow-y-auto overscroll-contain px-5 pb-6 space-y-4">
           {/* 상품 요약 */}
           <div className="flex items-center gap-3 rounded-2xl border border-navy-100/20 bg-white/[0.03] p-3">
-            {product.imageUrl && <img src={product.imageUrl} alt="" className="h-14 w-14 rounded-xl object-cover shrink-0" />}
+            <img
+              src={product.imageUrl || NO_IMAGE_SRC}
+              alt={product.imageUrl ? product.name : "이미지 없음"}
+              className="h-14 w-14 shrink-0 rounded-xl object-cover"
+            />
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold text-white truncate">{product.name}</p>
               <p className="text-[15px] font-extrabold text-orange-400 mt-0.5">{won(product.price)}</p>

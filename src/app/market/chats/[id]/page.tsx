@@ -9,6 +9,7 @@ import { marketStatusLabel } from "@/lib/taxonomy";
 import { MarketChatRoom } from "@/components/market/MarketChatRoom";
 import { MarketChatLayout } from "@/components/market/MarketChatLayout";
 import { ChatPageHeader } from "@/components/market/ChatPageHeader";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export default async function MarketChatRoomPage({ params }: { params: { id: str
             className="h-14 w-14 rounded-xl object-cover shadow-md"
           />
         ) : (
-          <div className="h-14 w-14 rounded-xl bg-navy-50/20 shadow-md" />
+          <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-14 w-14 rounded-xl object-cover shadow-md" />
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-bold text-navy-800">{chat.listing.title}</p>

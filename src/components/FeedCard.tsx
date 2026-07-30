@@ -364,7 +364,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
             src={noImageSrc(post.id)}
             alt="이미지 없음"
             decoding="async"
-            className="h-full w-full object-contain p-10 opacity-50"
+            className="h-full w-full object-cover"
           />
         ) : (
           /* 슬라이드 트랙 — 가로 flex, CSS transform으로 자연스러운 슬라이드 전환 */

@@ -29,13 +29,9 @@ export async function POST(req: Request) {
   if (!shopTagEnabled) { b.productTags = []; b.productIds = []; }
   const kind = b.kind === "LOG" ? "LOG" : b.kind === "WALKING" ? "WALKING" : b.kind === "GENERAL" ? "GENERAL" : "FEED";
 
-  // LOG·WALKING은 사진 없이도 가능. 피싱 피드(FEED)는 사진이 없으면 더미 1장 보강.
+  // 사진이 없으면 이미지 레코드를 만들지 않고 화면에서 공용 노이미지 에셋을 표시한다.
   const rawImages: string[] = Array.isArray(b.images) ? b.images.filter(Boolean) : [];
-  const images: string[] = rawImages.length
-    ? rawImages
-    : kind === "FEED"
-      ? [`https://picsum.photos/seed/post-${Date.now()}/800/800`]
-      : [];
+  const images: string[] = rawImages;
 
   if (kind === "LOG" && !String(b.title || "").trim()) {
     return NextResponse.json({ error: "제목을 입력해주세요." }, { status: 400 });

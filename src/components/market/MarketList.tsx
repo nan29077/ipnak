@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpDown, Check, ChevronDown, MapPin, Heart, SlidersHorizontal, MessageCircle, ShoppingBag } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, MapPin, Heart, SlidersHorizontal, MessageCircle } from "lucide-react";
 import { won, timeAgo, cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
@@ -11,6 +11,7 @@ import {
   MARKET_CATEGORIES, MARKET_REGIONS, MARKET_SORTS,
   marketCategoryLabel, marketStatusLabel,
 } from "@/lib/taxonomy";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 export type MarketItem = {
   id: string;
@@ -106,11 +107,10 @@ export function MarketList({ items }: { items: MarketItem[] }) {
               <Link key={it.id} href={`/market/${it.id}`} className="relative aspect-square overflow-hidden bg-[#1a2a38]">
                 {it.thumbnail ? (
                   <Image src={it.thumbnail} alt={it.title} fill sizes="33vw"
-                    className={cn("h-full w-full object-cover", sold && "opacity-40 grayscale")} />
+                    className={cn("h-full w-full object-cover", sold && "opacity-40 grayscale")}
+                    onError={(e) => { e.currentTarget.src = NO_IMAGE_SRC; }} />
                 ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <ShoppingBag size={22} className="text-navy-400" strokeWidth={1.3} />
-                  </div>
+                  <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-full w-full object-cover" />
                 )}
                 {it.status !== "SELLING" && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/35">
@@ -148,11 +148,10 @@ export function MarketList({ items }: { items: MarketItem[] }) {
                       fill
                       sizes="110px"
                       className={cn("h-full w-full object-cover transition-transform duration-300 group-hover:scale-105", sold && "opacity-50 grayscale")}
+                      onError={(e) => { e.currentTarget.src = NO_IMAGE_SRC; }}
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-navy-300">
-                      <SlidersHorizontal size={28} />
-                    </div>
+                    <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-full w-full object-cover" />
                   )}
                   {it.status !== "SELLING" && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">

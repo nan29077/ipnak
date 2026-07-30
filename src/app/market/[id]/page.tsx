@@ -13,6 +13,7 @@ import { MarketGallery } from "@/components/market/MarketGallery";
 import { MarketStats } from "@/components/market/MarketStats";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { isVirtualHiddenListing } from "@/lib/virtualVisibility";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
 
   const isOwner = !!user && user.id === l.sellerId;
 
-  const images = l.images.length ? l.images.map((i) => i.url) : ["https://picsum.photos/seed/market/800/800"];
+  const images = l.images.length ? l.images.map((i) => i.url) : [NO_IMAGE_SRC];
 
   // 서로 독립적인 후속 쿼리 4개 병렬화 (기존 직렬 waterfall 제거 — 결과 동일)
   const [favoriteRow, otherListings, sellerSoldCount, buyerChats] = await Promise.all([
@@ -249,7 +250,7 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
                       {ol.images[0] ? (
                         <img src={ol.images[0].url} alt={ol.title} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-navy-300"><Package size={16} /></div>
+                        <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-full w-full object-cover" />
                       )}
                     </div>
                     <p className="line-clamp-1 text-[11px] font-medium text-navy-700">{ol.title}</p>

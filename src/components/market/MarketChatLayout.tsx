@@ -31,7 +31,7 @@ export function MarketChatLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={ref}
-      className="fixed inset-x-0 top-0 z-[60] flex flex-col bg-[#0d1b2a]"
+      className="fixed inset-x-0 top-0 z-[60] flex flex-col bg-[#0d1b2a] md:left-[calc(50%-372px)] md:right-auto md:w-[640px]"
       style={{ height: "100dvh" }}
     >
       {children}

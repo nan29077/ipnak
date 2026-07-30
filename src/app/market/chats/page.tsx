@@ -6,6 +6,7 @@ import { PageHeader, EmptyState, LinkButton, Badge } from "@/components/ui";
 import { won, timeAgo } from "@/lib/utils";
 import { marketStatusLabel } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 export const dynamic = "force-dynamic";
 
@@ -105,7 +106,7 @@ export default async function MarketChatsPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="h-14 w-14 rounded-xl bg-navy-50/20" />
+                    <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-14 w-14 rounded-xl object-cover" />
                   )}
                   <p className="text-[12px] font-bold text-navy-800">{won(c.listing.price)}</p>
                 </div>

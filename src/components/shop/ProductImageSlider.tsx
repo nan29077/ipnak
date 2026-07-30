@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 interface ProductImageSliderProps {
   images: string[];
@@ -26,9 +27,11 @@ export function ProductImageSlider({ images }: ProductImageSliderProps) {
 
   if (images.length === 0) {
     return (
-      <div className="aspect-square w-full bg-[#162538] flex items-center justify-center">
-        <span className="text-navy-300 text-sm">이미지 없음</span>
-      </div>
+      <img
+        src={NO_IMAGE_SRC}
+        alt="이미지 없음"
+        className="aspect-square w-full object-cover"
+      />
     );
   }
 
@@ -51,6 +54,10 @@ export function ProductImageSlider({ images }: ProductImageSliderProps) {
               alt={`상품 이미지 ${i + 1}`}
               decoding="async"
               className="h-full w-full object-cover"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = NO_IMAGE_SRC;
+              }}
             />
           </div>
         ))}

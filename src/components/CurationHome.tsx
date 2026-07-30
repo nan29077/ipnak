@@ -297,7 +297,10 @@ function FeedRailCard({ post }: { post: FeedPost }) {
             alt={thumb.alt || "조황"}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = noImageSrc(post.id);
+            }}
           />
         ) : (
           /* 이미지 없음 — 입낚 전용 노이미지 이미지로 썸네일 영역을 채운다 */
@@ -359,11 +362,11 @@ function RankBadge({ rank }: { rank: number }) {
 function CurationCard({ post, rank }: { post: CurationCardPost; rank?: number }) {
   return (
     <Link href={post.href} className="block w-[250px] shrink-0 overflow-hidden rounded-2xl border border-navy-100 bg-[#162538] shadow-card transition-colors hover:border-orange-500/40">
-      <div className="relative h-32 w-full bg-navy-50">
+      <div className="relative h-32 w-full bg-[#f9e9cc]">
         {post.thumbnail
           ? <img src={post.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
-          /* 이미지 없음 — 입낚 전용 노이미지 이미지로 썸네일 영역을 채운다 */
-          : <img src={noImageSrc(post.id)} alt="이미지 없음" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
+          /* 가로형 카드에서는 정사각형 원본 전체를 보여 NO IMAGE 문구가 잘리지 않게 한다. */
+          : <img src={noImageSrc(post.id)} alt="이미지 없음" loading="lazy" decoding="async" className="h-full w-full bg-[#f9e9cc] object-contain" />}
         {rank != null && <RankBadge rank={rank} />}
         {post.boardLabel
           ? <span className="absolute right-2.5 top-2.5 inline-flex items-center rounded-md bg-aqua-500/90 px-2 py-0.5 text-[11px] font-bold text-white shadow">{post.boardLabel}</span>

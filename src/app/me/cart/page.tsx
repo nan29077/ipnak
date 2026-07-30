@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { won } from "@/lib/utils";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 interface CartItem {
   id: string;
@@ -80,9 +81,7 @@ export default function CartPage() {
               {item.imageUrl ? (
                 <img src={item.imageUrl} alt={item.name} className="h-20 w-20 shrink-0 rounded-xl object-cover" />
               ) : (
-                <div className="h-20 w-20 shrink-0 rounded-xl bg-[#0d1b2a] flex items-center justify-center">
-                  <ShoppingBag size={20} className="text-navy-400" />
-                </div>
+                <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-20 w-20 shrink-0 rounded-xl object-cover" />
               )}
               <div className="min-w-0 flex-1">
                 <Link href={`/shop/${item.id}`} className="block truncate text-[13px] font-semibold text-navy-800 hover:text-orange-400">

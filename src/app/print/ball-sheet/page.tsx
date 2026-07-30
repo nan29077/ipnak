@@ -39,9 +39,9 @@ export default function BallSheetPrintPage() {
             <span className="hd-title">입낚볼 40mm 인쇄 기준물</span>
           </div>
           <div className="hd-actions">
-            <a href="/ipnak-ball-40mm-bear-logo-print-sheet-a4-v2.png"
-               download="ipnak-ball-40mm-bear-logo-print-sheet-a4-v2.png"
-               className="btn ghost" title="SVG 파일 저장">
+            <a href="/ipnak-ball-40mm-hook-arrow-print-sheet-a4.png"
+               download="ipnak-ball-40mm-hook-arrow-print-sheet-a4.png"
+               className="btn ghost" title="PNG 파일 저장">
               <Download size={14} /><span>저장</span>
             </a>
             <button type="button" onClick={handleShare} className="btn ghost" title="링크 공유">
@@ -66,8 +66,8 @@ export default function BallSheetPrintPage() {
         {/* A4 미리보기 */}
         <main className="preview">
           <div className="paper">
-            <img src="/ipnak-ball-40mm-bear-logo-print-sheet-a4-v2.png"
-                 alt="입낚볼 40mm 인쇄 기준물 A4"
+            <img src="/ipnak-ball-40mm-hook-arrow-print-sheet-a4.png"
+                 alt="노란색 원형 낚시바늘 화살표 입낚볼 40mm 인쇄 기준물 A4"
                  className="paper-img" />
           </div>
           <p className="caption">A4 (210 × 297 mm) · 로고 9개</p>
@@ -76,8 +76,8 @@ export default function BallSheetPrintPage() {
 
       {/* ── 인쇄 전용 ─────────────────────────────────── */}
       <div className="print-only">
-        <img src="/ipnak-ball-40mm-bear-logo-print-sheet-a4-v2.png"
-             alt="입낚볼 40mm 인쇄 기준물"
+        <img src="/ipnak-ball-40mm-hook-arrow-print-sheet-a4.png"
+             alt="노란색 원형 낚시바늘 화살표 입낚볼 40mm 인쇄 기준물"
              className="print-img" />
       </div>
 

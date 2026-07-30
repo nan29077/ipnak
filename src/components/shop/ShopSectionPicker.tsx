@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingBag, Tag, ChevronRight } from "lucide-react";
+import { Tag, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { won } from "@/lib/utils";
 import { productCategoryLabel } from "@/lib/taxonomy";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 type ProductCard = {
   id: string;
@@ -94,9 +95,7 @@ export function ShopSectionPicker({ sections }: { sections: SectionData[] }) {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <ShoppingBag size={26} className="text-navy-400" />
-                </div>
+                <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-full w-full object-cover" />
               )}
             </div>
 

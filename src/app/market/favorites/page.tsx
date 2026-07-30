@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { PageHeader, EmptyState, LinkButton, Badge } from "@/components/ui";
 import { won, timeAgo } from "@/lib/utils";
 import { marketStatusLabel, marketCategoryLabel } from "@/lib/taxonomy";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +63,7 @@ export default async function FavoritesPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-navy-300">
-                      <Heart size={28} strokeWidth={1.5} />
-                    </div>
+                    <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-full w-full object-cover" />
                   )}
                   {isSold && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50">

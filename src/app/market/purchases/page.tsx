@@ -6,6 +6,7 @@ import { PageHeader, EmptyState, LinkButton, Badge } from "@/components/ui";
 import { won, timeAgo } from "@/lib/utils";
 import { marketStatusLabel } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function PurchasesPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="h-full w-full bg-navy-50" />
+                    <img src={NO_IMAGE_SRC} alt="이미지 없음" className="h-full w-full object-cover" />
                   )}
                   {isSold && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50">

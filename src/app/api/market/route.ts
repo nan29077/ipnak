@@ -51,9 +51,7 @@ export async function POST(req: Request) {
   const rawImages: string[] = Array.isArray(b.images)
     ? b.images.filter((u: unknown) => typeof u === "string" && u).slice(0, 10)
     : [];
-  const images: string[] = rawImages.length
-    ? rawImages
-    : [`https://picsum.photos/seed/market-${Date.now()}/800/800`];
+  const images: string[] = rawImages;
 
   try {
     const listing = await prisma.marketListing.create({
@@ -67,7 +65,9 @@ export async function POST(req: Request) {
         description: b.description || null,
         tradeMethod: TRADE_METHODS.includes(b.tradeMethod) ? b.tradeMethod : null,
         status: "SELLING",
-        images: { create: images.map((url: string, i: number) => ({ url, order: i })) },
+        images: images.length
+          ? { create: images.map((url: string, i: number) => ({ url, order: i })) }
+          : undefined,
       },
     });
     return NextResponse.json({ ok: true, id: listing.id });

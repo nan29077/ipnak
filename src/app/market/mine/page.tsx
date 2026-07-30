@@ -7,6 +7,7 @@ import { PageHeader, EmptyState, LinkButton, Badge } from "@/components/ui";
 import { won, timeAgo } from "@/lib/utils";
 import { marketCategoryLabel, marketStatusLabel } from "@/lib/taxonomy";
 import { MyListingControls } from "@/components/market/MyListingControls";
+import { NO_IMAGE_SRC } from "@/lib/noImage";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,11 @@ export default async function MyMarketPage() {
             <div key={l.id} className="rounded-2xl border border-navy-100 bg-[#162538] p-2.5 shadow-card">
               <div className="flex gap-3">
                 <Link href={`/market/${l.id}`} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-navy-50">
-                  {l.images[0] && <img src={l.images[0].url} alt={l.title} className="h-full w-full object-cover" />}
+                  <img
+                    src={l.images[0]?.url ?? NO_IMAGE_SRC}
+                    alt={l.images[0] ? l.title : "이미지 없음"}
+                    className="h-full w-full object-cover"
+                  />
                 </Link>
                 <Link href={`/market/${l.id}`} className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
