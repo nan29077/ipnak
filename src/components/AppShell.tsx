@@ -254,17 +254,33 @@ function DesktopRightNav({ pathname, user, nav }: { pathname: string; user: Sess
         <div className="mt-2 flex w-full flex-col items-center gap-1 px-2">
           <div className="my-1 h-px w-8 bg-white/10" />
           {user ? (
-            <Link
-              href="/me"
-              className="flex w-full flex-col items-center gap-1 rounded-2xl py-2 transition-colors hover:bg-white/5"
-            >
-              <img
-                src={getAvatarUrl(user.id, user.avatarUrl)}
-                alt=""
-                className="h-9 w-9 rounded-full object-cover ring-2 ring-white/15"
-              />
-              <span className="max-w-[84px] truncate text-[10px] font-medium text-white/70">{user.nickname}</span>
-            </Link>
+            <>
+              {/* 로그아웃 */}
+              <button
+                type="button"
+                onClick={async () => {
+                  await fetch("/api/auth/logout", { method: "POST" });
+                  window.location.href = "/";
+                }}
+                className="flex w-full flex-col items-center gap-1 rounded-2xl py-2 text-[11px] font-medium text-navy-300 transition-colors hover:bg-white/5 hover:text-red-400"
+                title="로그아웃"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                로그아웃
+              </button>
+              {/* 프로필 */}
+              <Link
+                href="/me"
+                className="flex w-full flex-col items-center gap-1 rounded-2xl py-2 transition-colors hover:bg-white/5"
+              >
+                <img
+                  src={getAvatarUrl(user.id, user.avatarUrl)}
+                  alt=""
+                  className="h-9 w-9 rounded-full object-cover ring-2 ring-white/15"
+                />
+                <span className="max-w-[84px] truncate text-[10px] font-medium text-white/70">{user.nickname}</span>
+              </Link>
+            </>
           ) : (
             <Link
               href="/login"
