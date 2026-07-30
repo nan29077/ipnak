@@ -7,6 +7,7 @@ import {
   remainingQuota, runVirtualActivityCycle,
 } from "@/lib/virtualActivity";
 import { resetVirtualMembers, seedVirtualMembers } from "@/lib/virtualMemberSeed";
+import { seedVirtualContent } from "@/lib/virtualSeedContent";
 import { resetToSuperAdminOnly } from "@/lib/dataReset";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +78,32 @@ export async function POST(req: Request) {
           ok: true,
           message: `가상회원 ${summary.total}명 준비 완료 (신규 ${summary.created}명 · 갱신 ${summary.updated}명)`,
           summary,
+        });
+      }
+
+      case "SEED_CONTENT": {
+        // 초기 시드 콘텐츠 — 이미 콘텐츠가 있는 회원은 건너뛴다(중복 방지).
+        const days = Math.max(7, Math.min(365, Number(b.days) || 60));
+        const memberCount = await prisma.virtualMember.count();
+        if (memberCount === 0) {
+          return NextResponse.json({ error: "가상회원이 없습니다. 먼저 100명을 생성하세요." }, { status: 400 });
+        }
+        const s = await seedVirtualContent({ days });
+        await log("VIRTUAL_SEED_CONTENT", "virtual_member", `members=${s.members} posts=${s.feed + s.general + s.log + s.walking} market=${s.market}`);
+        if (s.members === 0) {
+          return NextResponse.json({
+            ok: true,
+            message: `이미 콘텐츠가 있는 회원 ${s.skipped}명은 건너뛰었습니다. 새로 채울 회원이 없습니다.`,
+            summary: s,
+          });
+        }
+        return NextResponse.json({
+          ok: true,
+          message:
+            `${s.members}명에게 최근 ${days}일치 활동을 생성했습니다 — ` +
+            `조황 ${s.feed} · 일상 ${s.general} · 조행기 ${s.log} · 워킹 ${s.walking} · 중고 ${s.market} · 댓글 ${s.comments} · 좋아요 ${s.likes}` +
+            (s.skipped > 0 ? ` (기존 콘텐츠 보유 ${s.skipped}명 건너뜀)` : ""),
+          summary: s,
         });
       }
 

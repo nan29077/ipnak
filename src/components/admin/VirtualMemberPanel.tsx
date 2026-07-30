@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, Bot, ChevronDown, Clock, Eye, EyeOff, Gauge, KeyRound, Loader2,
-  Pause, Play, RefreshCw, Sparkles, Trash2, UserRound, Users,
+  AlertTriangle, Bot, ChevronDown, Clock, Eye, EyeOff, Gauge, History, KeyRound, Loader2,
+  Pause, Play, RefreshCw, Sparkles, Trash2, Users,
 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -162,6 +162,15 @@ export function VirtualMemberPanel({
     await run("seed", { type: "SEED" });
   }
 
+  async function seedContent() {
+    if (!await doConfirm({
+      title: "초기 시드 데이터 생성",
+      message: "가상회원들이 최근 60일간 활동한 것처럼 조황·일상 피드, 조행기, 워킹 피드(동선·어획 좌표 포함), 중고마켓 글과 댓글·좋아요를 생성합니다. 이미 콘텐츠가 있는 회원은 건너뜁니다. 3천 건 이상이 생성되어 3~5분 걸릴 수 있습니다.",
+      confirmLabel: "생성",
+    })) return;
+    await run("seedcontent", { type: "SEED_CONTENT", days: 60 });
+  }
+
   async function resetMembers() {
     if (!await doConfirm({
       title: "가상회원 데이터 전체 초기화",
@@ -236,6 +245,10 @@ export function VirtualMemberPanel({
         <button onClick={seed} disabled={busy}
           className="inline-flex items-center gap-1.5 rounded-xl bg-purple-500 px-3.5 py-2.5 text-[12.5px] font-semibold text-white transition-all hover:bg-purple-600 active:scale-[0.97] disabled:opacity-50">
           {loading === "seed" ? <Loader2 size={14} className="animate-spin" /> : <Users size={14} />} 가상회원 100명 생성
+        </button>
+        <button onClick={seedContent} disabled={busy || members.length === 0}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-aqua-500/90 px-3.5 py-2.5 text-[12.5px] font-semibold text-white transition-all hover:bg-aqua-500 active:scale-[0.97] disabled:opacity-50">
+          {loading === "seedcontent" ? <Loader2 size={14} className="animate-spin" /> : <History size={14} />} 초기 시드 데이터 생성
         </button>
         <button onClick={() => run("runnow", { type: "RUN_NOW" })} disabled={busy || members.length === 0}
           className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2.5 text-[12.5px] font-semibold text-white transition-all hover:bg-orange-600 active:scale-[0.97] disabled:opacity-50">

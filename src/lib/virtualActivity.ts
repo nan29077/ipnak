@@ -2,7 +2,11 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getAiCredentials } from "@/lib/aiCredentials";
 import { getSettings } from "@/lib/settings";
-import { FRESH_SPECIES, LOG_CATEGORIES, MARKET_CATEGORIES, SEA_SPECIES } from "@/lib/taxonomy";
+import { logCategoryLabel, MARKET_CATEGORIES } from "@/lib/taxonomy";
+import {
+  buildWalkingRoute, logCategoryForSpot, pickCatchMarkers,
+  SPOT_STYLE_LABEL, spotsForRegion,
+} from "@/lib/fishingSpots";
 import { findPersonality, type VirtualContentArea } from "@/lib/virtualMembers";
 
 // AI 가상회원 동적 활동 엔진.
@@ -170,7 +174,7 @@ const AREA_INSTRUCTION: Record<VirtualContentArea, { user: (ctx: PromptContext) 
   FEED: {
     maxTokens: 300,
     user: (c) =>
-      `${c.region} 지역에서 ${c.species} 낚시를 다녀온 조황 피드를 씁니다.\n` +
+      `${c.region}의 '${c.spotName}'(${c.spotStyleLabel})에서 ${c.species} 낚시를 다녀온 조황 피드를 씁니다.\n` +
       `JSON 형식: {"caption": "2~4문장 캡션", "hashtags": ["해시태그", "3개"], "sizeCm": 숫자}\n` +
       `sizeCm 은 잡은 크기(cm)로 15~60 사이의 현실적인 값. 조황이 없었다면 0.`,
   },
@@ -178,21 +182,23 @@ const AREA_INSTRUCTION: Record<VirtualContentArea, { user: (ctx: PromptContext) 
     maxTokens: 300,
     user: (c) =>
       `낚시 일상·장비·동출 이야기로 일상 피드 글을 씁니다. 조황 자랑이 아니어도 됩니다.\n` +
+      `가끔 '${c.spotName}' 같은 주변 포인트를 언급해도 좋습니다.\n` +
       `JSON 형식: {"caption": "2~4문장 본문", "hashtags": ["해시태그", "2~3개"]}`,
   },
   LOG: {
     maxTokens: 900,
     user: (c) =>
-      `${c.region}에서 ${c.species}를 노린 조행기(게시판형 긴 글)를 씁니다. 카테고리는 '${c.logCategoryLabel}'.\n` +
+      `${c.region}의 '${c.spotName}'(${c.spotStyleLabel})에서 ${c.species}를 노린 조행기(게시판형 긴 글)를 씁니다. 카테고리는 '${c.logCategoryLabel}'.\n` +
       `물때·수온·채비·미끼·포인트 특징을 구체적으로 담고 2~3개 단락으로 나눕니다.\n` +
       `JSON 형식: {"title": "25자 이내 제목", "body": "400~700자 본문", "hashtags": ["해시태그", "3개"]}`,
   },
   WALKING: {
     maxTokens: 300,
     user: (c) =>
-      `${c.region}을 걸어다니며 낚시한 '워킹 피드' 글을 씁니다. 이동거리와 소요시간 느낌을 담습니다.\n` +
-      `JSON 형식: {"caption": "2~3문장 캡션", "distanceM": 숫자, "durationMin": 숫자, "catchCount": 숫자, "hashtags": ["해시태그", "2개"]}\n` +
-      `distanceM 은 1000~9000, durationMin 은 60~360, catchCount 는 0~8 사이의 현실적인 값.`,
+      `${c.region}의 '${c.spotName}'(${c.spotStyleLabel}) 일대를 걸어다니며 ${c.species}를 노린 '워킹 피드' 글을 씁니다.\n` +
+      `출조 날짜 느낌·이동거리·소요시간·조황·채비·날씨가 드러나게 씁니다.\n` +
+      `JSON 형식: {"caption": "2~3문장 캡션", "distanceM": 숫자, "durationMin": 숫자, "catchCount": 숫자, "sizeCm": 숫자, "hashtags": ["해시태그", "2개"]}\n` +
+      `distanceM 은 1500~8500, durationMin 은 60~360, catchCount 는 0~8, sizeCm 은 15~60 사이의 현실적인 값.`,
   },
   MARKET: {
     maxTokens: 400,
@@ -206,6 +212,8 @@ const AREA_INSTRUCTION: Record<VirtualContentArea, { user: (ctx: PromptContext) 
 type PromptContext = {
   region: string;
   species: string;
+  spotName: string;
+  spotStyleLabel: string;
   logCategoryLabel: string;
   marketCategoryLabel: string;
 };
@@ -228,13 +236,15 @@ function toHashtags(v: unknown, fallback: string[]): string {
   return JSON.stringify(Array.from(new Set(tags)));
 }
 
-/** 지역 문자열로 바다/민물 어종 풀을 고른다 (내륙 지역은 민물 비중을 높인다) */
-function speciesFor(region: string) {
-  const inland = ["충북", "세종", "대구/경북"];
-  if (inland.includes(region)) return Math.random() < 0.75 ? pick(FRESH_SPECIES) : pick(SEA_SPECIES);
-  if (region === "서울" || region === "경기") return Math.random() < 0.6 ? pick(FRESH_SPECIES) : pick(SEA_SPECIES);
-  if (region === "제주") return pick(SEA_SPECIES);
-  return Math.random() < 0.3 ? pick(FRESH_SPECIES) : pick(SEA_SPECIES);
+/**
+ * 회원 지역의 실제 낚시터 하나를 고른다.
+ * 어종도 그 포인트에서 실제로 노리는 것 중에서 뽑아, 지역·포인트·어종이 어긋나지 않게 한다.
+ * (예: 제주 회원은 제주 갯바위에서 벵에돔, 강원 회원은 계류에서 산천어)
+ */
+function pickSpot(region: string, opts?: { walkable?: boolean }) {
+  const all = spotsForRegion(region);
+  const pool = opts?.walkable ? all.filter((s) => s.style !== "BOAT") : all;
+  return pick(pool.length > 0 ? pool : all);
 }
 
 /** 성격의 areaWeights 를 가중 추첨해 글 영역을 고른다 */
@@ -284,14 +294,20 @@ async function writePost(
   const personality = findPersonality(member.personality);
   const area = pickArea(personality.areaWeights);
   const region = member.user.region || "경기";
-  const logCategory = pick(LOG_CATEGORIES);
   const marketCategory = pick(MARKET_CATEGORIES);
-  const species = speciesFor(region);
+  // 지역의 실제 낚시터와 그 포인트의 대상어를 함께 고른다 (워킹은 걸어서 가는 포인트만).
+  const spot = pickSpot(region, { walkable: area === "WALKING" });
+  const species = pick(spot.species);
+  // 조행기 카테고리는 임의로 고르지 않고 포인트 유형에서 결정한다 (갯바위 → 바다조행기 등).
+  const logCategoryKey = logCategoryForSpot(spot.style);
+  const spotStyleLabel = SPOT_STYLE_LABEL[spot.style];
 
   const ctx: PromptContext = {
     region,
     species,
-    logCategoryLabel: logCategory.label,
+    spotName: spot.name,
+    spotStyleLabel,
+    logCategoryLabel: logCategoryLabel(logCategoryKey),
     marketCategoryLabel: marketCategory.label,
   };
 
@@ -343,7 +359,7 @@ async function writePost(
         postType: "GENERAL",
         title,
         body,
-        boardCategory: logCategory.key,
+        boardCategory: logCategoryKey,
         region,
         speciesName: species,
         visibility: "PUBLIC",
@@ -361,18 +377,32 @@ async function writePost(
     const distanceM = clampNumber(data.distanceM, 500, 12000, 3000);
     const durationSec = clampNumber(data.durationMin, 20, 480, 120) * 60;
     const catchCount = clampNumber(data.catchCount, 0, 12, 1);
+    // 실제 낚시터 좌표를 출발점으로 동선과 어획 지점을 만든다.
+    // 이 JSON 이 FeedCard 의 MiniRouteMap 에서 경로 선·물고기 핀으로 렌더된다.
+    const seed = Math.floor(Math.random() * 1_000_000);
+    const routePoints = buildWalkingRoute(spot, distanceM, seed);
+    const catchMarkers = pickCatchMarkers(routePoints, catchCount, seed);
     const post = await prisma.post.create({
       data: {
         authorId,
         kind: "WALKING",
         postType: "WALKING_FEED",
         caption,
-        // 워킹 피드 카드가 파싱하는 통계 JSON — 동선(route)은 생성하지 않는다.
-        body: JSON.stringify({ routePoints: [], distanceM, durationSec, points: 0, catchCount, catchMarkers: [] }),
+        // 워킹 피드 카드가 파싱하는 동선·통계 JSON
+        body: JSON.stringify({
+          routePoints,
+          distanceM,
+          durationSec,
+          points: routePoints.length,
+          catchCount,
+          catchMarkers,
+        }),
         region,
         speciesName: catchCount > 0 ? species : null,
+        lat: spot.lat,
+        lng: spot.lng,
         visibility: "PUBLIC",
-        hashtags: toHashtags(data.hashtags, ["워킹낚시", region]),
+        hashtags: toHashtags(data.hashtags, ["워킹낚시", spot.name.replace(/\s/g, "")]),
       },
     });
     await recordActivity(member.id, { kind: "WALKING", targetType: "POST", targetId: post.id, summary: caption });
@@ -391,8 +421,17 @@ async function writePost(
       region,
       speciesName: isFishing ? species : null,
       sizeCm: isFishing && sizeCm > 0 ? sizeCm : null,
+      // 조황 피드는 어느 포인트인지 알 수 있게 낚시터 좌표·유형을 함께 남긴다.
+      ...(isFishing
+        ? {
+            lat: spot.lat,
+            lng: spot.lng,
+            fishingType: spotStyleLabel,
+            categoryPath: `${spot.water === "SEA" ? "바다낚시" : "민물낚시"} > ${spotStyleLabel}`,
+          }
+        : {}),
       visibility: "PUBLIC",
-      hashtags: toHashtags(data.hashtags, isFishing ? [region, species] : ["낚시일상", region]),
+      hashtags: toHashtags(data.hashtags, isFishing ? [species, spot.name.replace(/\s/g, "")] : ["낚시일상", region]),
     },
   });
   await recordActivity(member.id, { kind: isFishing ? "FEED" : "GENERAL", targetType: "POST", targetId: post.id, summary: caption });
