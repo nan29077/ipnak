@@ -35,10 +35,12 @@ function loadScript(src) {
 class BallDetector {
   constructor() {
     this.BALL_REAL_DIAMETER_MM = 40
-    // OpenCV HSV (H: 0~180) — 형광 오렌지 범위
+    // OpenCV HSV (H: 0~180) — 입낚볼 노란색(#eab308, golden yellow) 범위
+    // #eab308 → HSV(OpenCV): H≈23, S≈246, V≈234
+    // 조명 변화·그림자를 감안해 H:18~32, S:100+, V:80+ 로 넉넉하게 설정
     this.ORANGE_HSV = {
-      lower: [5, 120, 120],
-      upper: [25, 255, 255],
+      lower: [18, 100, 80],
+      upper: [32, 255, 255],
     }
     this.isReady = false
     this._readyPromise = null
@@ -93,7 +95,7 @@ class BallDetector {
     return this.detect(imageElement)
   }
 
-  /** 오렌지 볼 감지 (컨투어 우선 → Hough 폴백) */
+  /** 노란 볼 감지 (컨투어 우선 → Hough 폴백) */
   detect(imageElement) {
     if (!this.isReady || !window.cv) {
       return { found: false, errorMessage: 'OpenCV 초기화 중입니다. 잠시 후 다시 시도해주세요.' }
@@ -177,7 +179,7 @@ class BallDetector {
     }
   }
 
-  /** HSV 오렌지 마스크 + 모폴로지 정리 */
+  /** HSV 노란색 마스크 + 모폴로지 정리 */
   filterOrange(hsvMat) {
     const cv = window.cv
     const mask = new cv.Mat()
@@ -263,7 +265,7 @@ class BallDetector {
       if (w <= 0 || h <= 0) continue
 
       const roi = maskMat.roi(new cv.Rect(x0, y0, w, h))
-      const orange = cv.countNonZero(roi)
+      const orange = cv.countNonZero(roi) // yellow ball pixel count
       roi.delete()
       const ratio = orange / (Math.PI * r * r)
       if (ratio < 0.5) continue

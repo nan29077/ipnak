@@ -46,8 +46,8 @@ type Props = {
   onClose: () => void;                          // X — 닫기
 };
 
-const POLL_INTERVAL_MS = 2000; // 스캔 폴링 주기
-const SCAN_MAX_PX = 1024;      // 전송 프레임 최대 해상도 (속도/정확도 균형)
+const POLL_INTERVAL_MS = 1000; // 스캔 폴링 주기 (1초 — 빠른 감지)
+const SCAN_MAX_PX = 800;       // 전송 프레임 최대 해상도 (768→800, 속도/정확도 균형)
 const REQ_TIMEOUT_MS = 9000;   // 개별 요청 하드 타임아웃
 const CONFIDENCE_MIN = 0.7;    // 이 미만이면 실패 처리 (measure 페이지와 동일 기준)
 const SHIMMER_MS = 1800;       // 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 도는 시간
