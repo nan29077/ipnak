@@ -51,9 +51,9 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
     prisma.booking.findMany({
       where: { userId: user.id }, include: { listing: true }, orderBy: { createdAt: "desc" }, take: 10,
     }),
-    prisma.fishingTrip.count({ where: { userId: user.id, endedAt: { not: null } } }),
+    prisma.fishingTrip.count({ where: { userId: user.id, endedAt: { not: null }, NOT: { AND: [{ distanceM: 0 }, { durationSec: 0 }, { catchCount: 0 }] } } }),
     prisma.fishingTrip.findMany({
-      where: { userId: user.id, endedAt: { not: null } },
+      where: { userId: user.id, endedAt: { not: null }, NOT: { AND: [{ distanceM: 0 }, { durationSec: 0 }, { catchCount: 0 }] } },
       orderBy: { startedAt: "desc" },
       take: 3,
       select: {

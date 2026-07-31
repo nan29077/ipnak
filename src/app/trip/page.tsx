@@ -13,7 +13,10 @@ export default async function TripPage() {
   if (!user) redirect("/login");
 
   const trips = await prisma.fishingTrip.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      NOT: { AND: [{ distanceM: 0 }, { durationSec: 0 }, { catchCount: 0 }] },
+    },
     include: {
       routePoints: { orderBy: { order: "asc" } },
       fishingPoints: { orderBy: { createdAt: "asc" } },

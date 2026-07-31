@@ -9,7 +9,11 @@ export async function GET() {
   let user;
   try { user = await requireUser(); } catch { return NextResponse.json({ trips: [] }); }
   const trips = await prisma.fishingTrip.findMany({
-    where: { userId: user.id, endedAt: { not: null } },
+    where: {
+      userId: user.id,
+      endedAt: { not: null },
+      NOT: { AND: [{ distanceM: 0 }, { durationSec: 0 }, { catchCount: 0 }] },
+    },
     orderBy: { startedAt: "desc" },
     take: 30,
     include: { _count: { select: { routePoints: true } } },
