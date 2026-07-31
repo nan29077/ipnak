@@ -334,31 +334,31 @@ export default function AboutPage() {
 
       {/* ── 고정 상단 내비 ── */}
       <nav
-        className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between px-8 py-5"
+        className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between px-4 py-3 md:px-8 md:py-5"
         style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)" }}
       >
         {/* 돌아가기 버튼 */}
         <button
           onClick={() => { if (window.history.length > 1) router.back(); else router.replace("/home"); }}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-base font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white md:gap-2 md:px-4 md:text-base"
         >
-          <ArrowLeft size={20} />
-          돌아가기
+          <ArrowLeft size={18} />
+          <span className="hidden md:inline">돌아가기</span>
         </button>
 
         {/* 로고 */}
         <img
           src="/logo-ipnak-master-transparent-v2.png"
           alt="입낚"
-          className="h-10 drop-shadow-lg"
+          className="h-8 drop-shadow-lg md:h-10"
         />
 
         {/* 버전 입장 버튼 */}
         <button
           onClick={enterApp}
-          className="rounded-full bg-orange-500 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-orange-500/30 transition hover:bg-orange-400 active:scale-95"
+          className="rounded-full bg-[#eab308] px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-yellow-500/30 transition hover:bg-yellow-400 active:scale-95 md:px-6 md:py-2.5 md:text-sm"
         >
-          <span className="md:hidden">모바일버전 입장 →</span>
+          <span className="md:hidden">입장 →</span>
           <span className="hidden md:inline">PC 버전 입장 →</span>
         </button>
       </nav>
