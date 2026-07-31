@@ -327,7 +327,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     const snapSession = sessionRef.current;
     const snapCatches = [...activeCatches];
 
-    const hasData = snapRoute.length > 0 || finalElapsed >= 1;
+    const hasData = snapRoute.length >= 2 || finalElapsed >= 60;
 
     // 상태 초기화 (영속화 제거)
     baseElapsed.current = 0;

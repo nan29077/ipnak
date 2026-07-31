@@ -34,9 +34,9 @@ export async function createWalkingFeedPost(tripId: string, userId: string) {
     },
   });
   if (!trip) return null;
-  if (trip.distanceM <= 0 && trip.durationSec <= 0) return null;
 
   const routePoints = trip.routePoints.map((p) => ({ lat: p.lat, lng: p.lng }));
+  if (routePoints.length < 2) return null;
   const catches = trip.fishingPoints;
   const catchCount = Math.max(trip.catchCount, catches.length);
 
