@@ -53,9 +53,6 @@ type RecordingCtx = {
   sessionId: string | null;
   /** 직전 세션 ID — 종료 후 30분 내 피쉬 기록 제출 시 tripId로 사용 */
   lastSessionId: string | null;
-  /** GPS 좌표 부족으로 세션이 폐기됐을 때 true */
-  gpsWarning: boolean;
-  dismissGpsWarning: () => void;
   start: () => void;
   pause: () => void;
   finish: () => void;
@@ -84,7 +81,6 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [savedTrips, setSavedTrips] = useState<TripRec[]>([]);
   const [activeCatches, setActiveCatches] = useState<TripCatch[]>([]);
-  const [gpsWarning, setGpsWarning] = useState(false);
 
   const baseElapsed = useRef(0);
   const segmentStartMs = useRef<number | null>(null);
@@ -357,8 +353,6 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ id: snapSession }),
         }).catch(() => {});
       }
-      // GPS 좌표가 부족하여 기록이 저장되지 않음 — 바텀시트로 안내
-      if (snapRoute.length < 2) setGpsWarning(true);
       return;
     }
 
@@ -480,8 +474,6 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [toast]);
 
-  const dismissGpsWarning = useCallback(() => setGpsWarning(false), []);
-
   const value: RecordingCtx = {
     status,
     route,
@@ -493,8 +485,6 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     activeCatches,
     sessionId,
     lastSessionId: (lastSessionExpiry.current && Date.now() < lastSessionExpiry.current) ? lastSessionId : null,
-    gpsWarning,
-    dismissGpsWarning,
     start,
     pause,
     finish,

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Navigation, Clock, Fish, MapPin, Thermometer, Wind,
-  CloudRain, Sun, Cloud, Zap, CloudSnow, CloudDrizzle, Ruler, X, ZoomIn, ArrowLeft,
+  CloudRain, Sun, Cloud, Zap, CloudSnow, CloudDrizzle, Ruler, X, ZoomIn, ArrowLeft, Loader2,
 } from "lucide-react";
 import { Sheet, LoadingState } from "@/components/ui";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
@@ -182,6 +182,8 @@ export type TripDetail = {
   endedAt?: string | null;
   routePoints: { lat: number; lng: number }[];
   catches: CatchItem[];
+  walkingFeedPostId?: string | null;
+  walkingFeedPublished?: boolean;
 };
 
 // WMO 날씨코드 → 한국어 설명
@@ -246,6 +248,10 @@ export function TripDetailSheet({
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("default");
   const [selectedCatch, setSelectedCatch] = useState<CatchItem | null>(null);
+  const [walkingFeedPublished, setWalkingFeedPublished] = useState<boolean>(
+    initial?.walkingFeedPublished ?? false
+  );
+  const [publishingFeed, setPublishingFeed] = useState(false);
   // default로 돌아올 때 최상단 스크롤 복구에 쓰는 sentinel ref
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const prevViewModeRef = useRef<ViewMode>("default");
@@ -258,7 +264,12 @@ export function TripDetailSheet({
       if (!initial) setLoading(true);
       fetch(`/api/trips/${tripId}`)
         .then((r) => r.json())
-        .then((d) => { if (!cancelled && d?.trip) setData(d.trip); })
+        .then((d) => {
+          if (!cancelled && d?.trip) {
+            setData(d.trip);
+            setWalkingFeedPublished(d.trip.walkingFeedPublished ?? false);
+          }
+        })
         .catch(() => {})
         .finally(() => { if (!cancelled) setLoading(false); });
     }
@@ -308,6 +319,8 @@ export function TripDetailSheet({
       setWeather(null);
       setViewMode("default");
       setSelectedCatch(null);
+      setWalkingFeedPublished(false);
+      setPublishingFeed(false);
     }
   }, [open]);
 
@@ -321,6 +334,24 @@ export function TripDetailSheet({
     }
     prevViewModeRef.current = viewMode;
   }, [viewMode]);
+
+  async function handlePublishFeed() {
+    if (!data || publishingFeed) return;
+    setPublishingFeed(true);
+    try {
+      const res = await fetch(`/api/trips/${data.id}/publish`, { method: "POST" });
+      if (res.ok) {
+        setWalkingFeedPublished(true);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || "워킹피드 게시에 실패했습니다.");
+      }
+    } catch {
+      alert("오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+      setPublishingFeed(false);
+    }
+  }
 
   // ── 핵심 수정: 비-default 모드에서 X버튼/backdrop/스와이프 → default로 복귀
   // default 모드에서만 실제 onClose(시트 닫기) 호출
@@ -615,6 +646,29 @@ export function TripDetailSheet({
                   </div>
                 )}
               </div>
+
+              {/* ── 워킹피드 게시 버튼 (routePoints < 2이면 숨김) ── */}
+              {data.routePoints.length >= 2 && (
+                walkingFeedPublished ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-aqua-400/40 bg-aqua-400/10 py-3 text-[14px] font-semibold text-aqua-400 disabled:opacity-70"
+                  >
+                    워킹피드 게시됨
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePublishFeed}
+                    disabled={publishingFeed}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-50"
+                  >
+                    {publishingFeed && <Loader2 size={16} className="animate-spin" />}
+                    {publishingFeed ? "게시 중..." : "워킹피드에 올리기"}
+                  </button>
+                )
+              )}
 
             </div>
           )}

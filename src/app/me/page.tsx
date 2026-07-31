@@ -103,12 +103,26 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
     (c) => c.messages.length > 0 && c.messages[0].senderId !== user.id && !c.messages[0].body.startsWith("[시스템]")
   );
 
+  // 최근 스마트피싱 기록의 워킹 피드 게시 여부 조회
+  const recentTripIds = recentTripsRaw.map((t) => t.id);
+  const walkingFeedPostsForTrips = recentTripIds.length > 0
+    ? await prisma.post.findMany({
+        where: { tripId: { in: recentTripIds }, postType: "WALKING_FEED" },
+        select: { id: true, tripId: true, visibility: true },
+      })
+    : [];
+  const walkingFeedByTripId = Object.fromEntries(
+    walkingFeedPostsForTrips.filter((p) => p.tripId).map((p) => [p.tripId!, p])
+  );
+
   // 직렬화: Date → ISO string
   const recentTrips = recentTripsRaw.map((t) => ({
     ...t,
     startedAt: t.startedAt.toISOString(),
     routePoints: t.routePoints.map((p) => ({ lat: p.lat, lng: p.lng })),
     catchPoints: t.fishingPoints.map((p) => ({ lat: p.lat, lng: p.lng })),
+    walkingFeedPostId: walkingFeedByTripId[t.id]?.id ?? null,
+    walkingFeedPublished: walkingFeedByTripId[t.id]?.visibility === "PUBLIC",
   }));
   const bookings = bookingsRaw.map((b) => ({
     id: b.id,

@@ -228,6 +228,8 @@ interface Props {
     catchCount: number;
     routePoints: { lat: number; lng: number }[];
     catchPoints: { lat: number; lng: number }[];
+    walkingFeedPostId: string | null;
+    walkingFeedPublished: boolean;
   }>;
   myWalkingPosts: Array<{ id: string; body: string | null }>;
   marketSellCount: number;
@@ -274,6 +276,14 @@ export function MePageTabs({
   const [settingsSubTab, setSettingsSubTab] = useState<"ball" | "config">("ball");
   const [showBallNotifPanel, setShowBallNotifPanel] = useState(false);
   const [diaryOpen, setDiaryOpen] = useState(false);
+  const [publishedTrips, setPublishedTrips] = useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+    for (const t of recentTrips) {
+      if (t.walkingFeedPublished) map[t.id] = true;
+    }
+    return map;
+  });
+  const [publishingTrip, setPublishingTrip] = useState<string | null>(null);
   const [withdrawStep, setWithdrawStep] = useState<0 | 1 | 2>(0);
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
@@ -288,6 +298,24 @@ export function MePageTabs({
     "서비스 불만족",
     "기타",
   ];
+
+  async function handleTripPublish(tripId: string) {
+    if (publishingTrip) return;
+    setPublishingTrip(tripId);
+    try {
+      const res = await fetch(`/api/trips/${tripId}/publish`, { method: "POST" });
+      if (res.ok) {
+        setPublishedTrips((prev) => ({ ...prev, [tripId]: true }));
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || "워킹피드 게시에 실패했습니다.");
+      }
+    } catch {
+      alert("오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+      setPublishingTrip(null);
+    }
+  }
 
   async function handleWithdraw() {
     setWithdrawing(true);
@@ -372,18 +400,46 @@ export function MePageTabs({
                       <p className="text-[12px] font-bold text-navy-500">최근 스마트피싱</p>
                       <Link href="/trip" className="text-[11px] text-orange-400">전체보기 →</Link>
                     </div>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {recentTrips.map((t) => (
-                        <Link key={t.id} href={`/trip/${t.id}`} className="relative aspect-square overflow-hidden rounded-xl bg-[#1b2b3a]">
-                          <MiniRouteMap points={t.routePoints} catchPoints={t.catchPoints} />
-                          {t.catchCount > 0 && (
-                            <div className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5">
-                              <Fish size={9} className="text-aqua-300" />
-                              <span className="text-[9px] font-bold text-white">{t.catchCount}</span>
+                    <div className="space-y-2">
+                      {recentTrips.map((t) => {
+                        const isPublished = publishedTrips[t.id] ?? false;
+                        const isPublishing = publishingTrip === t.id;
+                        const noRoute = t.routePoints.length < 2;
+                        const distKm = t.distanceM >= 1000
+                          ? `${(t.distanceM / 1000).toFixed(1)}km`
+                          : `${Math.round(t.distanceM)}m`;
+                        const h = Math.floor(t.durationSec / 3600);
+                        const m = Math.floor((t.durationSec % 3600) / 60);
+                        const dur = h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+                        return (
+                          <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-navy-100/15 bg-[#0d1b2a] p-2">
+                            <Link href={`/trip/${t.id}`} className="relative h-[60px] w-[60px] shrink-0 overflow-hidden rounded-lg bg-[#1b2b3a]">
+                              <MiniRouteMap points={t.routePoints} catchPoints={t.catchPoints} />
+                            </Link>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[12px] font-bold text-navy-700">스마트피싱 기록</p>
+                              <p className="mt-0.5 text-[11px] text-navy-400">
+                                {distKm} · {dur} · 피쉬 {t.catchCount}
+                              </p>
+                              {noRoute ? null : isPublished ? (
+                                <span className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-aqua-400/40 px-2 py-0.5 text-[10px] font-semibold text-aqua-400">
+                                  워킹피드 게시됨
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={isPublishing}
+                                  onClick={() => handleTripPublish(t.id)}
+                                  className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-orange-400/60 px-2 py-0.5 text-[10px] font-semibold text-orange-400 transition-colors hover:bg-orange-400/10 disabled:opacity-50"
+                                >
+                                  {isPublishing && <Loader2 size={10} className="animate-spin" />}
+                                  {isPublishing ? "게시 중..." : "워킹피드에 올리기"}
+                                </button>
+                              )}
                             </div>
-                          )}
-                        </Link>
-                      ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

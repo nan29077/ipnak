@@ -17,6 +17,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
   if (!trip) return NextResponse.json({ error: "기록을 찾을 수 없습니다." }, { status: 404 });
 
+  const walkingFeedPost = await prisma.post.findFirst({
+    where: { tripId: params.id, postType: "WALKING_FEED" },
+    select: { id: true, visibility: true },
+  });
+
   // tripId로 직접 연결된 피쉬 기록
   let fishPoints = trip.fishingPoints;
 
@@ -65,6 +70,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       createdAt: trip.startedAt.toISOString(),
       routePoints: trip.routePoints.map((p) => ({ lat: p.lat, lng: p.lng, order: p.order })),
       catches: fishPoints.map(mapPoint),
+      walkingFeedPostId: walkingFeedPost?.id ?? null,
+      walkingFeedPublished: walkingFeedPost?.visibility === "PUBLIC",
     },
   });
 }
