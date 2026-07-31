@@ -77,6 +77,7 @@ export async function POST(req: Request) {
   const id = randomUUID();
   const now = new Date().toISOString();
 
+  let stockDecremented = false;
   try {
     // 재고 차감 (stock > 0 인 경우만) + 주문 INSERT — 재고 부족 시 차감이 실패해 주문도 막힘
     if (currentStock > 0) {
@@ -87,6 +88,7 @@ export async function POST(req: Request) {
       if (updated.count === 0) {
         return NextResponse.json({ error: "재고가 부족합니다. 다시 시도해 주세요." }, { status: 400 });
       }
+      stockDecremented = true;
     }
     await prisma.$executeRawUnsafe(
       `INSERT INTO "Order" ("id","userId","productId","productName","price","quantity","shippingFee","totalAmount","shippingAddressId","status","paymentMethod","createdAt")
@@ -96,6 +98,13 @@ export async function POST(req: Request) {
       shippingAddressId ?? null, "PAID", paymentMethod ?? "CARD", now,
     );
   } catch {
+    // INSERT 실패 시 차감한 재고를 원복한다
+    if (stockDecremented) {
+      await prisma.product.update({
+        where: { id: String(productId) },
+        data: { stock: { increment: qty } },
+      }).catch(() => {});
+    }
     return NextResponse.json({ error: "주문 처리 중 오류가 발생했습니다." }, { status: 500 });
   }
 

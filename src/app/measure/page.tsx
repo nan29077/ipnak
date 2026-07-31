@@ -17,7 +17,7 @@ import {
 import { PageHeader, Button, Chip } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { MEASURE_ERRORS, FISH_SPECIES } from "@/constants/errorMessages";
-import { BallDetector, FishDetector, MeasurementCalculator, AROverlay } from "@/utils";
+import { MeasurementCalculator, AROverlay } from "@/utils";
 import { dbService } from "@/services/DatabaseService";
 import autoTagService from "@/services/AutoTagService";
 import syncService from "@/services/SyncService";
@@ -121,8 +121,8 @@ export default function MeasurePage() {
   function engines() {
     if (!enginesRef.current) {
       enginesRef.current = {
-        ball: new BallDetector(),
-        fish: new FishDetector(),
+        ball: null, // 미사용 (서버사이드 AI 스캔으로 대체)
+        fish: null, // 미사용 (서버사이드 AI 스캔으로 대체)
         calc: new MeasurementCalculator(),
         overlay: new AROverlay(),
       };

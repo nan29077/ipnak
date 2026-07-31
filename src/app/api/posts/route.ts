@@ -37,10 +37,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "제목을 입력해주세요." }, { status: 400 });
   }
 
+  // 일반 회원은 WALKING_FEED / FISHING_POINT 타입을 직접 지정할 수 없다.
+  // (워킹 피드는 스마트피싱 기록 종료 시 시스템이 자동 생성, 낚시 포인트도 별도 API에서만 생성)
+  const ALLOWED_POST_TYPES = ["GENERAL", "TOURNAMENT"];
+  const requestedType = b.postType || "GENERAL";
+  if (!ALLOWED_POST_TYPES.includes(requestedType) && user.role !== "SUPER_ADMIN") {
+    return NextResponse.json({ error: "허용되지 않는 글 종류입니다." }, { status: 400 });
+  }
+
   const altText = b.title || b.caption || "낚시 사진";
   // 신규 스키마 필드(kind/title/body/boardCategory) 포함 — 빌드 시 prisma generate 이후 타입 일치
   const data: any = {
-    authorId: user.id, postType: b.postType || "GENERAL", kind,
+    authorId: user.id, postType: requestedType, kind,
     title: b.title || null, body: b.body || null,
     boardCategory: kind === "LOG" ? (b.boardCategory || "FREE") : null,
     caption: b.caption || null,

@@ -146,6 +146,8 @@ model Post {
   fishingPoint      FishingPoint? @relation(fields: [fishingPointId], references: [id])
   tournamentEntryId String?
   tripId            String? // 스마트피싱 기록에서 자동 생성된 워킹 피드 글의 원본 Trip
+  sharedGroupId     String? // 낚시단에 공유된 워킹 피드의 낚시단 ID (단원은 무료 열람)
+  sharedGroup       Group?  @relation("GroupSharedWalkingFeeds", fields: [sharedGroupId], references: [id], onDelete: SetNull)
 
   images           PostImage[]
   comments         Comment[]
@@ -778,10 +780,11 @@ model Group {
   imageUrl    String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
-  leader      User          @relation("GroupLeader", fields: [leaderId], references: [id])
-  members     GroupMember[]
-  points      GroupPoint[]
-  groupPosts  GroupPost[]
+  leader              User          @relation("GroupLeader", fields: [leaderId], references: [id])
+  members             GroupMember[]
+  points              GroupPoint[]
+  groupPosts          GroupPost[]
+  sharedWalkingFeeds  Post[]        @relation("GroupSharedWalkingFeeds")
 }
 
 model GroupMember {

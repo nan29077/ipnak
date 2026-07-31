@@ -36,15 +36,28 @@ async function toFeedPost(p: any, userId?: string, walkingLocked = false): Promi
     const b = blurCoord(p.lat, p.lng, "BLUR_500");
     lat = b.lat; lng = b.lng; blurRadius = b.radius;
   }
+
+  // 워킹 피드 잠금: 서버에서 본문/이미지를 차단한다 (클라이언트 렌더링만으로는 우회 가능하므로)
+  const isLockedWalking = walkingLocked && p.postType === "WALKING_FEED";
+
   return {
     id: p.id, postType: p.postType, kind: p.kind ?? "FEED", caption: p.caption, speciesName: p.speciesName,
     fishingType: p.fishingType, categoryPath: p.categoryPath, sizeCm: p.sizeCm,
-    region: p.region, lat, lng, blurRadius, visibility: p.visibility,
-    title: p.title ?? null, body: p.body ?? null, boardCategory: p.boardCategory ?? null, viewCount: p.viewCount ?? 0,
+    region: p.region,
+    // 잠긴 워킹피드: 정확한 좌표 대신 지역 정보만 제공
+    lat: isLockedWalking ? null : lat,
+    lng: isLockedWalking ? null : lng,
+    blurRadius, visibility: p.visibility,
+    title: p.title ?? null,
+    // 잠긴 워킹피드: 본문 차단
+    body: isLockedWalking ? null : (p.body ?? null),
+    boardCategory: p.boardCategory ?? null, viewCount: p.viewCount ?? 0,
     createdAt: p.createdAt.toISOString(), hashtags: safeJson<string[]>(p.hashtags, []),
     author: { id: p.author.id, nickname: p.author.nickname, avatarUrl: p.author.avatarUrl, role: p.author.role },
     images: (() => {
       let imgs = p.images.map((im: any) => ({ id: im.id, url: im.url, alt: im.alt })) as { id: string; url: string; alt: string | null }[];
+      // 잠긴 워킹피드: 첫 번째 썸네일만 미리보기로 제공, 나머지는 차단
+      if (isLockedWalking) return imgs.slice(0, 1);
       // FISHING_POINT 포스트 — lat/lng 존재 & 첫 이미지가 정적맵이 아니면 지도 URL 소급 삽입
       if (p.postType === "FISHING_POINT" && lat != null && lng != null) {
         if (!imgs[0]?.url?.includes(STATIC_MAP_DOMAIN)) {
@@ -73,9 +86,25 @@ async function computeWalkingLocks(posts: any[], userId?: string): Promise<Map<s
   if (walking.length === 0) return map;
   if (!(await pointsEnabled())) return map; // 제도 OFF → 전부 열람 가능
   const unlocked = await walkingUnlockedSet(userId, walking.map((p) => p.id));
+
+  // 낚시단 공유 워킹 피드: 해당 낚시단 단원(또는 단장)이면 무료 열람
+  let memberGroupIds = new Set<string>();
+  if (userId) {
+    try {
+      const memberships = await prisma.groupMember.findMany({
+        where: { userId, role: { in: ["leader", "member"] } },
+        select: { groupId: true },
+      });
+      memberGroupIds = new Set(memberships.map((m) => m.groupId));
+    } catch { /* 테이블 미생성 등 → 무료 열람 없이 계속 진행 */ }
+  }
+
   for (const p of walking) {
     const isAuthor = userId && p.authorId === userId;
-    map.set(p.id, !isAuthor && !unlocked.has(p.id));
+    const alreadyUnlocked = unlocked.has(p.id);
+    // 낚시단에 공유된 워킹 피드이고 해당 낚시단 소속 단원이면 무료 열람
+    const isGroupFree = p.sharedGroupId != null && memberGroupIds.has(p.sharedGroupId);
+    map.set(p.id, !isAuthor && !alreadyUnlocked && !isGroupFree);
   }
   return map;
 }
@@ -202,6 +231,19 @@ export async function getPost(id: string, userId?: string) {
   if (!p) return null;
   // 목록에서만 숨기면 링크·검색으로 뚫리므로 상세 진입도 막는다(본인 글은 예외).
   if (await isVirtualHiddenPost(p, userId)) return null;
+
+  // F-C1: 공개범위·숨김 검증 (URL 직접 접근 우회 방지)
+  const post = p as any;
+  if (post.hidden && post.authorId !== userId) return null;
+  if (post.visibility === "PRIVATE" && post.authorId !== userId) return null;
+  if (post.visibility === "FOLLOWERS" && post.authorId !== userId) {
+    if (!userId) return null;
+    const follow = await prisma.follow.findUnique({
+      where: { followerId_followingId: { followerId: userId, followingId: post.authorId } },
+    });
+    if (!follow) return null;
+  }
+
   const locks = await computeWalkingLocks([p], userId);
   return toFeedPost(p, userId, locks.get(p.id) ?? false);
 }
@@ -265,11 +307,27 @@ function toLogListItem(p: any): LogListItem {
   };
 }
 
-export async function getLogPosts(opts?: { category?: string | null; authorId?: string }): Promise<LogListItem[]> {
+export async function getLogPosts(opts?: { category?: string | null; authorId?: string }, userId?: string): Promise<LogListItem[]> {
   const where: any = { hidden: false, kind: "LOG" };
   if (opts?.category) where.boardCategory = opts.category;
   if (opts?.authorId) where.authorId = opts.authorId;
   else Object.assign(where, await excludeVirtualWhere("author"));
+
+  // 공개범위 필터 (authorId 지정 시 본인 프로필이므로 필터 생략)
+  if (!opts?.authorId) {
+    if (userId) {
+      const following = await prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } });
+      const followingIds = following.map((f) => f.followingId);
+      where.OR = [
+        { visibility: { in: ["PUBLIC", "BLURRED"] } },
+        { AND: [{ visibility: "FOLLOWERS" }, { authorId: { in: followingIds } }] },
+        { authorId: userId },
+      ];
+    } else {
+      where.visibility = { in: ["PUBLIC", "BLURRED"] };
+    }
+  }
+
   try {
     const posts = await prisma.post.findMany({
       where,
@@ -287,10 +345,26 @@ export async function getLogPosts(opts?: { category?: string | null; authorId?: 
 // 조행기 상세 — 조회수 1 증가 후 반환
 export async function getLogPost(id: string, userId?: string): Promise<FeedPost | null> {
   try {
-    const exists = await prisma.post.findUnique({ where: { id }, select: { id: true, authorId: true } });
+    const exists = await prisma.post.findUnique({
+      where: { id },
+      select: { id: true, authorId: true, visibility: true, hidden: true },
+    });
     if (!exists) return null;
     // 숨김 대상이면 조회수도 올리지 않고 바로 막는다.
     if (await isVirtualHiddenPost(exists, userId)) return null;
+
+    // 공개범위 검증 (조행기도 피드와 동일한 가시성 규칙 적용)
+    const e = exists as any;
+    if (e.hidden && e.authorId !== userId) return null;
+    if (e.visibility === "PRIVATE" && e.authorId !== userId) return null;
+    if (e.visibility === "FOLLOWERS" && e.authorId !== userId) {
+      if (!userId) return null;
+      const follow = await prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: userId, followingId: e.authorId } },
+      });
+      if (!follow) return null;
+    }
+
     await prisma.post.update({ where: { id }, data: ({ viewCount: { increment: 1 } } as any) }).catch(() => {});
     const p = await prisma.post.findUnique({ where: { id }, include: await feedIncludeFiltered(userId) });
     if (!p) return null;
@@ -373,12 +447,29 @@ export async function getFeedPostsPage(
 export async function getLogPostsPage(
   opts?: { category?: string | null; authorId?: string },
   cursor?: string,
-  limit = 20
+  limit = 20,
+  userId?: string,
 ): Promise<{ posts: LogListItem[]; nextCursor: string | null }> {
   const where: any = { hidden: false, kind: "LOG" };
   if (opts?.category) where.boardCategory = opts.category;
   if (opts?.authorId) where.authorId = opts.authorId;
   else Object.assign(where, await excludeVirtualWhere("author"));
+
+  // 공개범위 필터 (authorId 지정 시 본인 프로필이므로 필터 생략)
+  if (!opts?.authorId) {
+    if (userId) {
+      const following = await prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } });
+      const followingIds = following.map((f) => f.followingId);
+      where.OR = [
+        { visibility: { in: ["PUBLIC", "BLURRED"] } },
+        { AND: [{ visibility: "FOLLOWERS" }, { authorId: { in: followingIds } }] },
+        { authorId: userId },
+      ];
+    } else {
+      where.visibility = { in: ["PUBLIC", "BLURRED"] };
+    }
+  }
+
   // 유니온({cursor,skip} | {})으로 추론되면 스프레드 시 findMany 인자 타입이 깨진다 → 선택 필드로 명시
   const cursorClause: { cursor?: { id: string }; skip?: number } = cursor ? { cursor: { id: cursor }, skip: 1 } : {};
   try {

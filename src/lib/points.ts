@@ -71,11 +71,16 @@ export async function applyPoints(
   description: string,
   related?: Related,
 ): Promise<number> {
-  const u = await tx.user.findUnique({ where: { id: userId }, select: { points: true } });
-  if (!u) throw new Error("USER_NOT_FOUND");
-  const next = (u.points ?? 0) + amount;
+  const exists = await tx.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!exists) throw new Error("USER_NOT_FOUND");
+  // 원자적 증감: 읽기-쓰기 race condition 방지
+  const updated = await tx.user.update({
+    where: { id: userId },
+    data: { points: { increment: amount } },
+    select: { points: true },
+  });
+  const next = updated.points ?? 0;
   if (next < 0) throw new Error("INSUFFICIENT_POINTS");
-  await tx.user.update({ where: { id: userId }, data: { points: next } });
   await tx.pointTransaction.create({
     data: {
       userId,
@@ -176,9 +181,20 @@ export async function giftPoints(fromUserId: string, toIdentifier: string, amoun
   if (!Number.isFinite(amt) || amt <= 0) throw new Error("INVALID_AMOUNT");
   const ident = String(toIdentifier || "").trim();
   if (!ident) throw new Error("USER_NOT_FOUND");
-  const to = await prisma.user.findFirst({
-    where: { OR: [{ email: ident }, { nickname: ident }] },
-  });
+
+  // 이메일이면 이메일로만, 닉네임이면 닉네임으로만 검색 (중복 닉네임 오전송 방지)
+  const isEmail = ident.includes("@");
+  let to;
+  if (isEmail) {
+    to = await prisma.user.findUnique({ where: { email: ident } });
+  } else {
+    const candidates = await prisma.user.findMany({
+      where: { nickname: ident },
+      select: { id: true, nickname: true, email: true },
+    });
+    if (candidates.length > 1) throw new Error("DUPLICATE_NICKNAME");
+    to = candidates[0] ?? null;
+  }
   if (!to) throw new Error("USER_NOT_FOUND");
   if (to.id === fromUserId) throw new Error("SELF_GIFT");
   const fromUser = await prisma.user.findUnique({ where: { id: fromUserId }, select: { nickname: true } });

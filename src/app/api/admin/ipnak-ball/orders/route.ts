@@ -54,6 +54,20 @@ export async function PATCH(req: Request) {
     if (!id || !ALLOWED_STATUSES.includes(status))
       return NextResponse.json({ error: "올바른 요청이 아닙니다." }, { status: 400 });
 
+    // 취소 전환 시 재고 복원
+    if (status === "cancelled") {
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT o.status, o.quantity, o."productId" FROM "IpnakBallOrder" o WHERE o.id = ?`, id
+      );
+      const order = rows[0];
+      if (order && order.status !== "cancelled" && order.productId && order.quantity) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "IpnakBallProduct" SET "stock" = "stock" + ?, "updatedAt" = ? WHERE "id" = ?`,
+          order.quantity, new Date().toISOString(), order.productId
+        ).catch(() => {});
+      }
+    }
+
     const now = new Date().toISOString();
     if (trackingNumber !== undefined) {
       await prisma.$executeRawUnsafe(
