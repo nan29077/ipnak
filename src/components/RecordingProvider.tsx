@@ -67,6 +67,10 @@ type RecordingCtx = {
 const LS_KEY = "ipnak_rec_v1";
 const Ctx = createContext<RecordingCtx | null>(null);
 
+function medianOfThree(a: number, b: number, c: number) {
+  return a + b + c - Math.min(a, b, c) - Math.max(a, b, c);
+}
+
 export function useRecording() {
   const c = useContext(Ctx);
   if (!c) throw new Error("useRecording must be used within RecordingProvider");
@@ -93,6 +97,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const watchId = useRef<number | null>(null);
   const mockTimer = useRef<any>(null);
   const mockIdx = useRef(0);
+  const recentGpsPoints = useRef<LatLng[]>([]);
 
   // 최신 값 참조 (watcher/heartbeat 콜백의 stale closure 방지)
   const routeRef = useRef<LatLng[]>([]);
@@ -118,6 +123,32 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // A three-point median removes one-off GPS jumps without flattening sustained
+  // walking movement or slow boat drift. Sustained movement is delayed by only
+  // one location sample.
+  const addStabilizedGpsPoint = useCallback((p: LatLng) => {
+    if (recentGpsPoints.current.length === 0) {
+      const lastRecorded = routeRef.current[routeRef.current.length - 1];
+      if (lastRecorded) {
+        recentGpsPoints.current = [lastRecorded, lastRecorded];
+      } else {
+        recentGpsPoints.current = [p, p];
+        addPoint(p);
+        return;
+      }
+    }
+
+    recentGpsPoints.current.push(p);
+    if (recentGpsPoints.current.length > 3) recentGpsPoints.current.shift();
+    if (recentGpsPoints.current.length < 3) return;
+
+    const [a, b, c] = recentGpsPoints.current;
+    addPoint({
+      lat: medianOfThree(a.lat, b.lat, c.lat),
+      lng: medianOfThree(a.lng, b.lng, c.lng),
+    });
+  }, [addPoint]);
+
   const startMock = useCallback(() => {
     const seed = routeRef.current[routeRef.current.length - 1] || { lat: KOREA_SPOTS[0].lat, lng: KOREA_SPOTS[0].lng };
     const path = mockRoute(seed);
@@ -135,7 +166,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       watchId.current = navigator.geolocation.watchPosition(
         (pos) => {
           if (pos.coords.accuracy > 30) return; // 정확도 30m 초과 신호 무시 (노이즈 필터)
-          addPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          addStabilizedGpsPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         },
         () => { startMock(); toast("위치 권한이 없어 시뮬레이션 경로로 진행합니다", "info"); },
         { enableHighAccuracy: true, maximumAge: 0 }
@@ -143,13 +174,14 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     } else {
       startMock();
     }
-  }, [addPoint, startMock, toast]);
+  }, [addStabilizedGpsPoint, startMock, toast]);
 
   const stopWatchers = useCallback(() => {
     if (watchId.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchId.current);
     watchId.current = null;
     if (mockTimer.current) clearInterval(mockTimer.current);
     mockTimer.current = null;
+    recentGpsPoints.current = [];
   }, []);
 
   // ---- 영속화 ----
@@ -291,6 +323,8 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     // idle → 새 기록
     baseElapsed.current = 0;
     segmentStartMs.current = Date.now();
+    routeRef.current = [];
+    recentGpsPoints.current = [];
     setRoute([]);
     setDistance(0);
     setElapsed(0);
