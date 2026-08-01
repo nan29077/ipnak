@@ -28,7 +28,7 @@ export function MapScreen({ userId }: { userId?: string }) {
   const loggedIn = !!userId;
   const [loginModal, setLoginModal] = useState(false);
   // 기록 세션은 전역(RecordingProvider)에서 관리 — 페이지를 벗어나거나 새로고침/재실행해도 유지됨
-  const { status, route, distance, elapsed, savedTrips, activeCatches, start, pause, finish, postToFeed, removeTrip, lastPoint } = useRecording();
+  const { status, route, distance, elapsed, savedTrips, activeCatches, start, pause, finish, postToFeed, removeTrip, lastPoint, gpsWarning, dismissGpsWarning } = useRecording();
   const [center, setCenter] = useState<LatLng>({ lat: KOREA_SPOTS[0].lat, lng: KOREA_SPOTS[0].lng });
   const [points, setPoints] = useState<any[]>([]);
   const [myPoints, setMyPoints] = useState<any[]>([]);
@@ -802,6 +802,16 @@ export function MapScreen({ userId }: { userId?: string }) {
           </div>
         </div>
       </div>
+
+      {/* GPS 부족 폐기 안내 시트 */}
+      <Sheet open={gpsWarning} onClose={dismissGpsWarning} title="스마트피싱 기록 실패" size="md">
+        <div className="flex flex-col items-center gap-5 py-6 px-2 text-center">
+          <p className="text-sm text-navy-400">
+            GPS 좌표가 부족하여 스마트피싱 기록이 저장되지 않았습니다.
+          </p>
+          <Button onClick={dismissGpsWarning} className="w-full">닫기</Button>
+        </div>
+      </Sheet>
 
       {/* 내 스마트피싱 기록 시트 */}
       <Sheet open={recordsOpen} onClose={() => setRecordsOpen(false)} title="내 스마트피싱 기록" size="md">

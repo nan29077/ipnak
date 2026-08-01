@@ -8,6 +8,7 @@ import { TournamentSubmit } from "@/components/TournamentSubmit";
 import { TOURNAMENT_TYPES } from "@/lib/taxonomy";
 import { cn, kstFormat } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { tournamentBannerSrc } from "@/lib/tournamentBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -31,20 +32,26 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
     <div className="pb-10">
       <PageHeader title={t.title} back />
       <div className="p-4">
-        {/* 그라데이션 헤더 카드 */}
+        {/* 어종별 불곰 마스코트 헤더 카드 */}
         <Card className="overflow-hidden p-0">
-          <div className="bg-gradient-to-br from-orange-500 to-aqua-500 p-4">
-            <div className="flex items-start justify-between">
-              <div className="min-w-0">
+          <div className="relative aspect-[12/5] min-h-[148px] overflow-hidden">
+            <img
+              src={tournamentBannerSrc(t.speciesName, t.bannerUrl)}
+              alt={`${t.speciesName ?? "낚시"} 낚시를 하는 입낚 불곰`}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#071522]/90 via-[#071522]/60 to-black/5" aria-hidden />
+            <div className="relative flex h-full min-h-[148px] items-start justify-between p-4">
+              <div className="min-w-0 max-w-[62%]">
                 <span className="mb-2 inline-block rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold text-white">
                   {typeLabel ?? (t.status === "ONGOING" ? "진행중" : t.status === "UPCOMING" ? "예정" : "종료")}
                 </span>
-                <h1 className="text-[16px] font-bold text-white">{t.title}</h1>
-                <p className="mt-1 text-[12px] text-white/60">
+                <h1 className="text-[16px] font-bold leading-snug text-white drop-shadow-md">{t.title}</h1>
+                <p className="mt-1 text-[12px] text-white/75 drop-shadow">
                   {kstFormat(t.startAt, "M월 d일")} ~ {kstFormat(t.endAt, "M월 d일")}
                 </p>
               </div>
-              <Trophy size={20} className="shrink-0 text-white" />
+              <Trophy size={20} className="shrink-0 text-white drop-shadow-md" />
             </div>
           </div>
           <div className="flex gap-4 p-3.5">
