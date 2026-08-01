@@ -745,6 +745,7 @@ model MarketMessage {
   senderId  String
   sender    User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
   body      String
+  readAt    DateTime?  // 수신자가 읽은 시각 (null = 미읽음)
   createdAt DateTime   @default(now())
 }
 

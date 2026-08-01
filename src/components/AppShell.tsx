@@ -49,7 +49,7 @@ function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): Nav
 }
 
 // 글쓰기 FAB 숨김 경로 (맵·측정·로그인·관리자 등)
-const FAB_HIDDEN_PREFIXES = ["/login", "/signup", "/forgot-password", "/admin", "/map", "/measure", "/diary", "/trip", "/catch"];
+const FAB_HIDDEN_PREFIXES = ["/login", "/signup", "/forgot-password", "/admin", "/map", "/measure", "/diary", "/trip", "/catch", "/market"];
 
 export function AppShell({ user, shopEnabled = true, reservationEnabled = true, pointsEnabled = false, pcMarginBg, children }: { user: SessionUser; shopEnabled?: boolean; reservationEnabled?: boolean; pointsEnabled?: boolean; pcMarginBg?: string; children: React.ReactNode }) {
   const pathname = usePathname() || "/";
@@ -59,7 +59,6 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
   const DESKTOP_NAV = buildDesktopNav(shopEnabled, reservationEnabled);
   const showFab =
     !bare &&
-    pathname !== "/market" &&
     !FAB_HIDDEN_PREFIXES.some((p) => pathname.startsWith(p));
 
   // 앱 안에 있을 때 랜딩 리다이렉트 방지 플래그 설정 (PC/모바일 구분)

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Users, MapPin, Fish, Settings, UserPlus, Loader2, CheckCircle, Clock, Crown, Heart, MessageCircle, Image as ImageIcon, Send, X, Lock, Navigation, Plus, Route, BookOpen, Search, Coins } from "lucide-react";
+import { ArrowLeft, Users, MapPin, Fish, Settings, UserPlus, Loader2, CheckCircle, Clock, Crown, Shield, Heart, MessageCircle, Image as ImageIcon, Send, X, Lock, Navigation, Plus, Route, BookOpen, Search, Coins } from "lucide-react";
 import { useAppSettings } from "@/lib/appSettingsContext";
 import { timeAgo } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -90,7 +90,10 @@ function isApproved(role: string | null) {
 }
 
 function Avatar({ name, url, size = 9 }: { name: string; url: string | null; size?: number }) {
-  const cls = size === 7 ? "h-7 w-7 text-[12px]" : "h-9 w-9 text-[14px]";
+  const cls =
+    size === 7 ? "h-7 w-7 text-[12px]" :
+    size === 10 ? "h-10 w-10 text-[15px]" :
+    "h-9 w-9 text-[14px]";
   return url ? (
     <img src={url} alt={name} className={`${cls} shrink-0 rounded-full object-cover`} />
   ) : (
@@ -195,10 +198,13 @@ export default function GroupDetailPage() {
       </div>
 
       {/* 배너 이미지 */}
-      {group.imageUrl && (
-        <div className="h-36 w-full overflow-hidden">
+      {group.imageUrl ? (
+        <div className="relative h-40 w-full overflow-hidden">
           <img src={group.imageUrl} alt={group.name} className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0d1b2a]/60 to-transparent" />
         </div>
+      ) : (
+        <div className="h-2 w-full bg-gradient-to-r from-orange-500/40 via-aqua-500/30 to-orange-500/20" />
       )}
 
       {/* 탭 */}
@@ -246,21 +252,35 @@ export default function GroupDetailPage() {
             )}
           </div>
 
-          {/* 단장 정보 */}
-          <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-4">
-            <p className="mb-2 text-[12px] font-bold text-navy-400">낚시단 단장</p>
-            <div className="flex items-center gap-2.5">
-              <img
-                src={getAvatarUrl(group.leaderId, group.leaderAvatar)}
-                alt={group.leaderNickname}
-                className="h-9 w-9 rounded-full object-cover"
-              />
-              <div className="min-w-0">
-                <p className="text-[14px] font-semibold text-navy-800">{group.leaderNickname}</p>
-                <p className="text-[11px] text-orange-400">{group.name} 단장</p>
+          {/* 단장 정보 — 클릭 시 프로필 이동 */}
+          <button
+            onClick={() => router.push(`/profile/${group.leaderId}`)}
+            className="w-full rounded-2xl border border-navy-100/20 bg-[#162538] p-4 text-left transition-all hover:border-orange-500/30 hover:bg-[#1a2d42] active:scale-[0.98]"
+          >
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-widest text-navy-400">낚시단 단장</p>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <img
+                  src={getAvatarUrl(group.leaderId, group.leaderAvatar)}
+                  alt={group.leaderNickname}
+                  className="h-11 w-11 rounded-full object-cover ring-2 ring-orange-500/40"
+                />
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 shadow-sm">
+                  <Crown size={10} strokeWidth={2} className="text-white" />
+                </span>
               </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-bold text-navy-800">{group.leaderNickname}</p>
+                <p className="text-[12px] text-orange-400">{group.name} 단장</p>
+              </div>
+              <svg className="h-4 w-4 shrink-0 text-navy-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
             </div>
-          </div>
+          </button>
+
+          {/* 단원 미리보기 */}
+          <MemberPreview groupId={id} onViewAll={() => setTab("members")} />
 
           {/* 가입 신청 */}
           {joinError && (
@@ -1146,7 +1166,65 @@ const ROLE_LABEL: Record<string, string> = {
   leader: "단장", sub_leader: "부단장", member: "단원", pending: "승인 대기",
 };
 
+/** 홈 탭 단원 미리보기 컴포넌트 */
+function MemberPreview({ groupId, onViewAll }: { groupId: string; onViewAll: () => void }) {
+  const router = useRouter();
+  const [members, setMembers] = useState<GroupMemberItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/groups/${groupId}/members`);
+        const data = await res.json();
+        if (res.ok) setMembers((data.members || []).filter((m: GroupMemberItem) => m.role !== "leader"));
+      } catch { /* 조회 실패 시 미표시 */ } finally {
+        setLoading(false);
+      }
+    })();
+  }, [groupId]);
+
+  if (loading || members.length === 0) return null;
+
+  const preview = members.slice(0, 8);
+
+  return (
+    <div className="rounded-2xl border border-navy-100/20 bg-[#162538] p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-navy-400">단원 ({members.length}명)</p>
+        <button onClick={onViewAll} className="text-[11px] font-semibold text-orange-400 hover:underline">
+          전체보기 →
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {preview.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => router.push(`/profile/${m.userId}`)}
+            className="flex flex-col items-center gap-1 transition-opacity hover:opacity-80 active:scale-95"
+          >
+            <Avatar name={m.nickname} url={getAvatarUrl(m.userId, m.avatarUrl)} size={10} />
+            <span className="max-w-[52px] truncate text-[10px] text-navy-400">{m.nickname}</span>
+          </button>
+        ))}
+        {members.length > 8 && (
+          <button
+            onClick={onViewAll}
+            className="flex flex-col items-center gap-1"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-navy-50/15 text-[11px] font-bold text-navy-400">
+              +{members.length - 8}
+            </div>
+            <span className="text-[10px] text-navy-400">더보기</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MembersTab({ groupId, isLeader }: { groupId: string; isLeader: boolean }) {
+  const router = useRouter();
   const [members, setMembers] = useState<GroupMemberItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1178,29 +1256,83 @@ function MembersTab({ groupId, isLeader }: { groupId: string; isLeader: boolean 
     </div>
   );
 
-  return (
-    <div className="p-4 space-y-2">
-      {members.map((m) => (
-        <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#162538] px-3.5 py-3">
-          <Avatar name={m.nickname} url={getAvatarUrl(m.userId, m.avatarUrl)} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <p className="truncate text-[13px] font-bold text-navy-800">{m.nickname}</p>
-              {isLeader && m.role && (
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                  m.role === "leader" ? "bg-orange-500/15 text-orange-400"
-                  : m.role === "sub_leader" ? "bg-aqua-500/15 text-aqua-400"
-                  : m.role === "pending" ? "bg-navy-50/15 text-navy-400"
-                  : "bg-navy-50/15 text-navy-300"
-                }`}>
-                  {ROLE_LABEL[m.role] || m.role}
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-navy-400">가입일 {new Date(m.joinedAt).toLocaleDateString("ko-KR")}</p>
-          </div>
+  const leaders = members.filter((m) => m.role === "leader" || m.role === "sub_leader");
+  const regular = members.filter((m) => m.role !== "leader" && m.role !== "sub_leader");
+
+  function RolePill({ role }: { role?: string }) {
+    if (!role || role === "member") return (
+      <span className="shrink-0 rounded-full bg-navy-50/15 px-2 py-0.5 text-[10px] font-semibold text-navy-300">단원</span>
+    );
+    if (role === "leader") return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-semibold text-orange-400">
+        <Crown size={9} strokeWidth={2} /> 단장
+      </span>
+    );
+    if (role === "sub_leader") return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-aqua-500/15 px-2 py-0.5 text-[10px] font-semibold text-aqua-400">
+        <Shield size={9} strokeWidth={2} /> 부단장
+      </span>
+    );
+    return null;
+  }
+
+  function MemberCard({ m }: { m: GroupMemberItem }) {
+    return (
+      <button
+        onClick={() => router.push(`/profile/${m.userId}`)}
+        className="flex w-full items-center gap-3 rounded-2xl border border-navy-100/20 bg-[#162538] px-3.5 py-3.5 text-left transition-all active:scale-[0.98] hover:border-orange-500/30 hover:bg-[#1a2d42]"
+      >
+        <div className="relative">
+          <Avatar name={m.nickname} url={getAvatarUrl(m.userId, m.avatarUrl)} size={10} />
+          {(m.role === "leader" || m.role === "sub_leader") && (
+            <span className={`absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full shadow-sm ${m.role === "leader" ? "bg-orange-500" : "bg-aqua-500"}`}>
+              {m.role === "leader"
+                ? <Crown size={8} strokeWidth={2} className="text-white" />
+                : <Shield size={8} strokeWidth={2} className="text-white" />}
+            </span>
+          )}
         </div>
-      ))}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-[13px] font-bold text-navy-800">{m.nickname}</p>
+            <RolePill role={m.role} />
+          </div>
+          <p className="text-[11px] text-navy-400">가입 {new Date(m.joinedAt).toLocaleDateString("ko-KR")}</p>
+        </div>
+        <svg className="h-4 w-4 shrink-0 text-navy-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* 회원 수 요약 */}
+      <div className="flex items-center justify-between rounded-2xl border border-navy-100/20 bg-[#162538] px-4 py-3">
+        <div className="flex items-center gap-2 text-[13px] text-navy-400">
+          <Users size={15} strokeWidth={1.5} />
+          <span>전체 회원</span>
+        </div>
+        <span className="text-[15px] font-extrabold text-orange-400">{members.length}명</span>
+      </div>
+
+      {/* 운영진 */}
+      {leaders.length > 0 && (
+        <div className="space-y-2">
+          <p className="px-1 text-[11px] font-bold uppercase tracking-widest text-navy-400">운영진</p>
+          {leaders.map((m) => <MemberCard key={m.id} m={m} />)}
+        </div>
+      )}
+
+      {/* 단원 */}
+      {regular.length > 0 && (
+        <div className="space-y-2">
+          <p className="px-1 text-[11px] font-bold uppercase tracking-widest text-navy-400">단원 ({regular.length}명)</p>
+          {regular.map((m) => <MemberCard key={m.id} m={m} />)}
+        </div>
+      )}
+
       {members.length === 0 && (
         <p className="py-10 text-center text-[13px] text-navy-400">회원이 없습니다.</p>
       )}

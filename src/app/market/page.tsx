@@ -47,12 +47,21 @@ export default async function MarketPage() {
 
   let needsReplyCount = 0;
   if (user) {
-    const sellerChats = await prisma.marketChat.findMany({
-      where: { listing: { sellerId: user.id } },
-      include: { messages: { orderBy: { createdAt: "desc" }, take: 1 } },
-    });
+    // 판매자 입장: 구매자가 마지막 메시지를 보낸 채팅
+    // 구매자 입장: 판매자가 마지막 메시지를 보낸 채팅
+    const [sellerChats, buyerChats] = await Promise.all([
+      prisma.marketChat.findMany({
+        where: { listing: { sellerId: user.id } },
+        include: { messages: { orderBy: { createdAt: "desc" }, take: 1 } },
+      }),
+      prisma.marketChat.findMany({
+        where: { buyerId: user.id },
+        include: { messages: { orderBy: { createdAt: "desc" }, take: 1 } },
+      }),
+    ]);
 
-    needsReplyCount = sellerChats.filter(
+    const allChats = [...sellerChats, ...buyerChats];
+    needsReplyCount = allChats.filter(
       (chat) =>
         chat.messages.length > 0 &&
         chat.messages[0].senderId !== user.id &&

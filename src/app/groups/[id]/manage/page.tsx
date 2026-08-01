@@ -2,9 +2,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useRef } from "react";
 import {
   ArrowLeft, Check, X, UserMinus, Loader2, Users, UserCheck, Crown, Shield,
-  Settings, BarChart3, AlertTriangle, ChevronDown, CheckCircle, Save, Trash2,
+  Settings, BarChart3, AlertTriangle, ChevronDown, CheckCircle, Save, Trash2, Image as ImageIcon,
 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -46,6 +47,9 @@ export default function GroupManagePage() {
   // 설정 폼
   const [form, setForm] = useState({ name: "", description: "", category: "어종별", region: "", fishSpecies: "", tagsInput: "" });
   const [saving, setSaving] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // 확인 모달
   const [transferTarget, setTransferTarget] = useState<Member | null>(null);
@@ -71,6 +75,7 @@ export default function GroupManagePage() {
     setMembers(mData.members || []);
     if (gData.group) {
       setGroup(gData.group);
+      setImageUrl(gData.group.imageUrl ?? null);
       setForm({
         name: gData.group.name || "",
         description: gData.group.description || "",
@@ -130,6 +135,7 @@ export default function GroupManagePage() {
         region: form.region,
         fishSpecies: form.fishSpecies,
         tags,
+        imageUrl: imageUrl ?? null,
       }),
     });
     setSaving(false);
@@ -307,6 +313,72 @@ export default function GroupManagePage() {
             {/* 탭 3: 낚시단 설정 */}
             {tab === "settings" && (
               <section className="space-y-5">
+                {/* 대표 이미지 업로드 */}
+                <div>
+                  <label className="mb-2 block text-[12px] font-bold text-navy-400">대표 이미지 (배너)</label>
+                  <div
+                    className="relative overflow-hidden rounded-2xl border border-navy-100/20 bg-[#162538] cursor-pointer"
+                    style={{ height: 120 }}
+                    onClick={() => imageInputRef.current?.click()}
+                  >
+                    {imageUrl ? (
+                      <>
+                        <img src={imageUrl} alt="대표 이미지" className="h-full w-full object-cover" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity">
+                          <div className="flex flex-col items-center gap-1 text-white">
+                            <ImageIcon size={20} strokeWidth={1.5} />
+                            <span className="text-[11px] font-semibold">이미지 변경</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setImageUrl(null); }}
+                          className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                        >
+                          <X size={13} />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center gap-1.5 text-navy-400">
+                        {imageUploading ? (
+                          <Loader2 size={20} className="animate-spin text-orange-500" />
+                        ) : (
+                          <>
+                            <ImageIcon size={22} strokeWidth={1.5} />
+                            <span className="text-[12px] font-semibold">낚시단 대표 이미지 추가</span>
+                            <span className="text-[11px] text-navy-300">탭하여 업로드 (최대 8MB)</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 8 * 1024 * 1024) { showToast("이미지는 8MB 이하만 업로드할 수 있습니다."); return; }
+                      setImageUploading(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append("file", file);
+                        const res = await fetch("/api/upload", { method: "POST", body: fd });
+                        const data = await res.json();
+                        if (res.ok && data.url) setImageUrl(data.url);
+                        else showToast(data.error || "이미지 업로드에 실패했습니다.");
+                      } catch {
+                        showToast("이미지 업로드 중 오류가 발생했습니다.");
+                      } finally {
+                        setImageUploading(false);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                </div>
+
                 <form onSubmit={saveSettings} className="space-y-4">
                   <Field label="낚시단 이름 *">
                     <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
