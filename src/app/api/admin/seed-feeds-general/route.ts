@@ -46,7 +46,7 @@ export async function POST() {
       const post = await prisma.post.create({
         data: {
           authorId: author.id,
-          kind: "FEED",
+          kind: "GENERAL",
           postType: "GENERAL",
           caption: feed.caption,
           region: feed.region,
