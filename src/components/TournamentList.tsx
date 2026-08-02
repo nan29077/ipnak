@@ -128,13 +128,13 @@ const TournamentCard = memo(function TournamentCard({ t, priority }: { t: T; pri
       {/* 액션 버튼 — 1:1 분할, 동일 높이 */}
       <div className="flex gap-2 border-t border-white/5 px-4 py-3">
         <Link
-          href={`/tournaments/${t.id}`}
+          href={`/tournaments/${t.id}#entry`}
           className="flex flex-1 items-center justify-center rounded-xl bg-[#eab308] px-3 py-2.5 text-[13px] font-bold text-black transition-colors hover:bg-[#ca9a04] active:scale-[0.97]"
         >
           대회 참가
         </Link>
         <Link
-          href={`/tournaments/${t.id}`}
+          href={`/tournaments/${t.id}#ranking`}
           className="flex flex-1 items-center justify-center rounded-xl bg-[#2a3546] px-3 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-[#354254] active:scale-[0.97]"
         >
           랭킹 순위

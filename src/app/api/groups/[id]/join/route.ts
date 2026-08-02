@@ -66,7 +66,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
        VALUES (?,?,?,?,?,0,?)`,
       notiId, group.leaderId, "GROUP_JOIN_REQUEST",
       `${user.nickname}님이 [${group.name}] 낚시단 가입을 신청했습니다.`,
-      `/groups/${params.id}/manage`, now
+      // createdAt 은 ISO 문자열이 아니라 unix ms(정수)로 넣는다 —
+      // Prisma 가 만든 알림 행은 정수로 저장되는데 여기만 TEXT 로 넣으면
+      // SQLite 가 storage class(정수 < 텍스트)를 먼저 비교해 최신순 정렬이 깨진다.
+      `/groups/${params.id}/manage`, Date.now()
     );
   } catch { /* 알림 실패는 무시 */ }
 

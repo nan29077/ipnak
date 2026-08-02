@@ -24,7 +24,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string; us
   if (!member) return NextResponse.json({ error: "회원을 찾을 수 없습니다." }, { status: 404 });
 
   const { action } = await req.json().catch(() => ({}));
-  const now = new Date().toISOString();
 
   if (action === "approve") {
     // 승인 대기 상태가 아니면 승인할 수 없다 (반복 호출로 단장 적립이 중복되는 것 방지)
@@ -43,7 +42,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string; us
        VALUES (?,?,?,?,?,0,?)`,
       notiId, params.userId, "GROUP_JOIN_APPROVED",
       `[${group.name}] 낚시단 가입이 승인되었습니다.`,
-      `/groups/${params.id}`, now
+      // createdAt 은 unix ms(정수) — TEXT 로 넣으면 SQLite 정렬에서 storage class 가
+      // 먼저 비교되어 알림 최신순이 깨진다 (Prisma 생성 행은 정수 저장)
+      `/groups/${params.id}`, Date.now()
     );
     return NextResponse.json({ ok: true, action: "approved" });
   }
@@ -63,7 +64,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string; us
          VALUES (?,?,?,?,?,0,?)`,
         notiId, params.userId, "GROUP_JOIN_REJECTED",
         `[${group.name}] 낚시단 가입신청이 거절되었습니다.`,
-        `/groups`, now
+        // createdAt 은 unix ms(정수) — 위 승인 알림과 같은 이유
+        `/groups`, Date.now()
       );
     }
     return NextResponse.json({ ok: true, action });

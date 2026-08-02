@@ -192,14 +192,19 @@ export default function LandingPage() {
         {/* ──────────────────────────────────────────────
             상단(모바일) / 좌측(PC): 입낚 소개
         ────────────────────────────────────────────── */}
-        <div
-          className="group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden"
+        {/* 키보드로도 진입할 수 있도록 네이티브 button — Tab 포커스·Enter/Space 활성화가 기본 제공된다 */}
+        <button
+          type="button"
+          aria-label="입낚 소개 보기"
+          className="group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden text-left focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[#eab308]"
           style={{
             flex: isTopActive ? "1.35" : "1",
             transition: "flex 0.6s cubic-bezier(0.4,0,0.2,1)",
           }}
           onMouseEnter={() => setHovered("left")}
           onMouseLeave={() => setHovered(null)}
+          onFocus={() => setHovered("left")}
+          onBlur={() => setHovered(null)}
           onClick={goAbout}
           onTouchStart={(e) => handleTouch(e, "top")}
           onTouchEnd={() => setTouched(null)}
@@ -288,7 +293,7 @@ export default function LandingPage() {
               입낚 소개 보기 →
             </span>
           </div>
-        </div>
+        </button>
 
         {/* ──────────────────────────────────────────────
             OR 구분선 — 모바일:가로, PC:세로

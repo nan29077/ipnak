@@ -41,7 +41,7 @@ export default async function AdminDashboard() {
     { label: "대회 수", value: tournaments, icon: Trophy, href: "/admin/tournaments" },
     { label: "예약 수", value: bookings, icon: CalendarDays, href: "/admin/bookings" },
     { label: "쇼핑 상품", value: products, icon: ShoppingBag, href: "/admin/products" },
-    { label: "중고 판매글", value: marketListings, icon: Store, href: "/admin/members" },
+    { label: "중고 판매글", value: marketListings, icon: Store, href: "/admin/market" },
   ];
 
   const todos = [

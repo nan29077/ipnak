@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { PageHeader, Card, Badge, SectionTitle } from "@/components/ui";
 import { TournamentSubmit } from "@/components/TournamentSubmit";
+import { HashScroll } from "@/components/HashScroll";
 import { TOURNAMENT_TYPES } from "@/lib/taxonomy";
 import { cn, kstFormat } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -163,8 +164,8 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
           </section>
         )}
 
-        {/* 리더보드 */}
-        <section>
+        {/* 리더보드 — 목록의 "랭킹 순위" 버튼이 #ranking 으로 들어온다 */}
+        <section id="ranking" className="scroll-mt-[124px]">
           <SectionTitle className="mb-2 flex items-center gap-1.5"><Medal size={14} /> 랭킹 순위</SectionTitle>
           {approved.length === 0 ? (
             <Card className="py-6 text-center text-sm text-navy-300">승인된 기록이 아직 없습니다</Card>
@@ -186,16 +187,20 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         </section>
 
         {/* 제출은 진행중일 때만 — 시작 전/종료 후에는 API 도 거부한다 */}
-        {status === "ONGOING" ? (
-          <TournamentSubmit tournamentId={t.id} species={t.speciesName} loggedIn={!!user} entryFee={t.entryFee} />
-        ) : (
-          <Card className="py-4 text-center text-sm text-navy-300">
-            {status === "UPCOMING"
-              ? `${kstFormat(t.startAt, "M월 d일")}부터 기록을 제출할 수 있습니다`
-              : "종료된 대회입니다"}
-          </Card>
-        )}
+        {/* 목록의 "대회 참가" 버튼이 #entry 로 들어온다 */}
+        <div id="entry" className="scroll-mt-[124px]">
+          {status === "ONGOING" ? (
+            <TournamentSubmit tournamentId={t.id} species={t.speciesName} loggedIn={!!user} entryFee={t.entryFee} />
+          ) : (
+            <Card className="py-4 text-center text-sm text-navy-300">
+              {status === "UPCOMING"
+                ? `${kstFormat(t.startAt, "M월 d일")}부터 기록을 제출할 수 있습니다`
+                : "종료된 대회입니다"}
+            </Card>
+          )}
+        </div>
       </div>
+      <HashScroll />
     </div>
   );
 }
