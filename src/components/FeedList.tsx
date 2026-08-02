@@ -1,11 +1,11 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { LayoutList, LayoutGrid, Ruler, Fish, MapPin, ChevronDown, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
-import { HashtagSearchInput, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
+import { HashtagSearchInput, SearchLoading, normalizeTagQuery, useDebouncedValue } from "@/components/FeedSearch";
 import { EmptyState, LinkButton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { noImageSrc } from "@/lib/noImage";
@@ -44,19 +44,58 @@ export function FeedList({
   const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [tagQuery, setTagQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
 
-  // 해시태그 검색 — 서버 재조회 없이 불러온 포스트만 클라이언트에서 걸러낸다
-  const searching = normalizeTagQuery(tagQuery) !== "";
-  const visible = useMemo(
-    () => (searching ? posts.filter((p) => matchesHashtag(p.hashtags, tagQuery)) : posts),
-    [posts, tagQuery, searching]
-  );
+  // 해시태그 서버사이드 검색 — 입력이 300ms 멈춘 뒤에만 요청을 보낸다
+  const activeTag = normalizeTagQuery(useDebouncedValue(tagQuery, 300));
+  const searching = activeTag !== "";
+
+  // 최초 렌더는 서버가 내려준 목록을 그대로 쓴다(불필요한 재요청 방지)
+  const mounted = useRef(false);
+  // 초기 목록은 서버 렌더 결과 그대로 — 검색어를 지웠을 때 되돌릴 기준값
+  const initialRef = useRef({ posts: initialPosts, cursor: initialNextCursor ?? null });
+
+  useEffect(() => {
+    const isFirst = !mounted.current;
+    mounted.current = true;
+    if (isFirst && !activeTag) return;
+
+    // 검색어를 지우면 서버 렌더 초기 목록(첫 페이지)으로 되돌린다
+    if (!activeTag) {
+      setSearchLoading(false);
+      setPosts(initialRef.current.posts);
+      setCursor(initialRef.current.cursor);
+      return;
+    }
+
+    let alive = true;
+    setSearchLoading(true);
+    const qs = new URLSearchParams({ limit: "20", kind: feedKind, tag: activeTag });
+    fetch(`/api/posts/feed?${qs.toString()}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!alive) return;
+        // 커서 초기화 + 기존 결과 교체
+        setPosts(data.posts ?? []);
+        setCursor(data.nextCursor ?? null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setPosts([]);
+        setCursor(null);
+      })
+      .finally(() => { if (alive) setSearchLoading(false); });
+    return () => { alive = false; };
+  }, [activeTag, feedKind]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/posts/feed?cursor=${cursor}&limit=20&kind=${feedKind}`);
+      // 검색 중이면 같은 tag 를 유지한 채 다음 페이지를 이어 받는다
+      const qs = new URLSearchParams({ cursor, limit: "20", kind: feedKind });
+      if (activeTag) qs.set("tag", activeTag);
+      const res = await fetch(`/api/posts/feed?${qs.toString()}`);
       const data = await res.json();
       if (data.posts?.length) {
         setPosts((prev) => [...prev, ...data.posts]);
@@ -102,9 +141,11 @@ export function FeedList({
         </div>
       </div>
 
-      {visible.length === 0 ? (
+      {searchLoading ? (
+        <SearchLoading />
+      ) : posts.length === 0 ? (
         searching ? (
-          <EmptyState title="검색 결과가 없습니다" desc={`#${normalizeTagQuery(tagQuery)} 해시태그가 달린 게시물이 없어요`} />
+          <EmptyState title="검색 결과가 없습니다" desc={`#${activeTag} 해시태그가 달린 게시물이 없어요`} />
         ) : feedKind === "GENERAL" ? (
           <EmptyState title="일상 피드가 없습니다" desc="첫 일상 사진을 올려보세요" action={<LinkButton href="/post/new?type=general">일상 피드 올리기</LinkButton>} />
         ) : (
@@ -112,7 +153,7 @@ export function FeedList({
         )
       ) : viewMode === "card" ? (
         <div className="grid grid-cols-3 gap-0.5">
-          {visible.map((p) => {
+          {posts.map((p) => {
             const thumb = p.images[0]?.url ?? null;
             return (
               <Link key={p.id} href={`/post/${p.id}`} className="relative aspect-square overflow-hidden bg-[#1b2b3a]">
@@ -142,12 +183,12 @@ export function FeedList({
         </div>
       ) : (
         <div className="md:py-3">
-          {visible.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
+          {posts.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
         </div>
       )}
 
       {/* 더 보기 버튼 */}
-      {cursor && (
+      {cursor && !searchLoading && (
         <div className="flex justify-center py-6">
           <button
             type="button"

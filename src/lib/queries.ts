@@ -8,6 +8,22 @@ import {
   excludeVirtualWhere, isVirtualHiddenPost,
 } from "./virtualVisibility";
 
+/**
+ * 해시태그 검색어 서버측 정규화.
+ * hashtags 는 SQLite 에 JSON 배열 문자열(["부산","배스"])로 저장되므로 LIKE 부분 일치로 찾는다.
+ * JSON 구분자(" \ [ ] ,)는 태그 값 안에 들어갈 수 없는 문자이므로 미리 걷어내
+ * 구분자를 넘나드는 오탐(예: `","` 로 전체 매칭)을 막는다.
+ */
+export function normalizeTagParam(tag?: string | null): string {
+  return (tag ?? "").trim().replace(/^#+/, "").replace(/["\\[\],]/g, "").trim();
+}
+
+/** 해시태그 검색 where 조각 — 검색어가 비면 빈 객체(=필터 없음) */
+function hashtagWhere(tag?: string | null): { hashtags?: { contains: string } } {
+  const key = normalizeTagParam(tag);
+  return key ? { hashtags: { contains: key } } : {};
+}
+
 export type FeedProductTag = {
   id: string; posX: number; posY: number;
   product: { id: string; name: string; brand: string | null; price: number; category: string; imageUrl: string | null; buyUrl: string | null };
@@ -403,7 +419,7 @@ export async function getLogCategoryCounts(): Promise<Record<string, number>> {
 /** 피싱피드 / 일상피드 페이지 단위 조회 */
 export async function getFeedPostsPage(
   userId?: string,
-  opts?: { authorId?: string; postType?: string; savedBy?: string; kind?: string | null },
+  opts?: { authorId?: string; postType?: string; savedBy?: string; kind?: string | null; tag?: string },
   cursor?: string,
   limit = 20
 ): Promise<{ posts: FeedPost[]; nextCursor: string | null }> {
@@ -429,6 +445,9 @@ export async function getFeedPostsPage(
 
   if (opts?.authorId) baseWhere.authorId = opts.authorId;
   else Object.assign(baseWhere, await excludeVirtualWhere("author"));
+
+  // 해시태그 서버사이드 검색 — 공개범위 OR 조건과는 AND 로 묶인다
+  Object.assign(baseWhere, hashtagWhere(opts?.tag));
 
   const useKind = opts?.kind !== null;
   const where = useKind ? { ...baseWhere, kind: opts?.kind ?? "FEED" } : baseWhere;
@@ -458,7 +477,7 @@ export async function getFeedPostsPage(
 
 /** 조행기 페이지 단위 조회 */
 export async function getLogPostsPage(
-  opts?: { category?: string | null; authorId?: string },
+  opts?: { category?: string | null; authorId?: string; tag?: string },
   cursor?: string,
   limit = 20,
   userId?: string,
@@ -483,6 +502,9 @@ export async function getLogPostsPage(
     }
   }
 
+  // 해시태그 서버사이드 검색
+  Object.assign(where, hashtagWhere(opts?.tag));
+
   // 유니온({cursor,skip} | {})으로 추론되면 스프레드 시 findMany 인자 타입이 깨진다 → 선택 필드로 명시
   const cursorClause: { cursor?: { id: string }; skip?: number } = cursor ? { cursor: { id: cursor }, skip: 1 } : {};
   try {
@@ -505,7 +527,7 @@ export async function getLogPostsPage(
 /** 워킹 피드 페이지 단위 조회 */
 export async function getWalkingFeedPostsPage(
   userId?: string,
-  opts?: { authorId?: string },
+  opts?: { authorId?: string; tag?: string },
   cursor?: string,
   limit = 12
 ): Promise<{ posts: FeedPost[]; nextCursor: string | null }> {
@@ -520,6 +542,8 @@ export async function getWalkingFeedPostsPage(
           ? { OR: [{ visibility: { in: ["PUBLIC", "BLURRED"] } }, { authorId: userId }] }
           : { visibility: { in: ["PUBLIC", "BLURRED"] } }),
         ...(opts?.authorId ? { authorId: opts.authorId } : await excludeVirtualWhere("author")),
+        // 해시태그 서버사이드 검색
+        ...hashtagWhere(opts?.tag),
       },
       include: await feedIncludeFiltered(userId),
       orderBy: { createdAt: "desc" },

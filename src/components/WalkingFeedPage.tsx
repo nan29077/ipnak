@@ -1,12 +1,12 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Route, Fish, Lock, ChevronDown, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
-import { HashtagSearchInput, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
+import { HashtagSearchInput, SearchLoading, normalizeTagQuery, useDebouncedValue } from "@/components/FeedSearch";
 import { km } from "@/lib/utils";
 import { WaterBodyBadge, useWaterBodyLabel } from "@/components/WaterBodyBadge";
 import type { FeedPost } from "@/lib/queries";
@@ -31,19 +31,57 @@ export function WalkingFeedPage({
   const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [tagQuery, setTagQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
 
-  // 해시태그 검색 — 불러온 포스트만 클라이언트에서 걸러낸다
-  const searching = normalizeTagQuery(tagQuery) !== "";
-  const visible = useMemo(
-    () => (searching ? posts.filter((p) => matchesHashtag(p.hashtags, tagQuery)) : posts),
-    [posts, tagQuery, searching]
-  );
+  // 해시태그 서버사이드 검색 — 입력이 300ms 멈춘 뒤에만 요청을 보낸다
+  const activeTag = normalizeTagQuery(useDebouncedValue(tagQuery, 300));
+  const searching = activeTag !== "";
+
+  // 최초 렌더는 서버가 내려준 목록을 그대로 쓴다(불필요한 재요청 방지)
+  const mounted = useRef(false);
+  // 검색어를 지웠을 때 되돌릴 기준값
+  const initialRef = useRef({ posts: initialPosts, cursor: initialNextCursor ?? null });
+
+  useEffect(() => {
+    const isFirst = !mounted.current;
+    mounted.current = true;
+    if (isFirst && !activeTag) return;
+
+    if (!activeTag) {
+      setSearchLoading(false);
+      setPosts(initialRef.current.posts);
+      setCursor(initialRef.current.cursor);
+      return;
+    }
+
+    let alive = true;
+    setSearchLoading(true);
+    const qs = new URLSearchParams({ limit: "12", tag: activeTag });
+    fetch(`/api/posts/walking?${qs.toString()}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!alive) return;
+        // 커서 초기화 + 기존 결과 교체
+        setPosts(data.posts ?? []);
+        setCursor(data.nextCursor ?? null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setPosts([]);
+        setCursor(null);
+      })
+      .finally(() => { if (alive) setSearchLoading(false); });
+    return () => { alive = false; };
+  }, [activeTag]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/posts/walking?cursor=${cursor}&limit=12`);
+      // 검색 중이면 같은 tag 를 유지한 채 다음 페이지를 이어 받는다
+      const qs = new URLSearchParams({ cursor, limit: "12" });
+      if (activeTag) qs.set("tag", activeTag);
+      const res = await fetch(`/api/posts/walking?${qs.toString()}`);
       const data = await res.json();
       if (data.posts?.length) {
         setPosts((prev) => [...prev, ...data.posts]);
@@ -74,15 +112,17 @@ export function WalkingFeedPage({
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>
-      {visible.length === 0 ? (
+      {searchLoading ? (
+        <SearchLoading />
+      ) : posts.length === 0 ? (
         searching ? (
-          <EmptyState title="검색 결과가 없습니다" desc={`#${normalizeTagQuery(tagQuery)} 해시태그가 달린 워킹 피드가 없어요`} />
+          <EmptyState title="검색 결과가 없습니다" desc={`#${activeTag} 해시태그가 달린 워킹 피드가 없어요`} />
         ) : (
           <EmptyState title="워킹 피드가 없습니다" desc="스마트피싱 기록 후 피드에 올려보세요" />
         )
       ) : viewMode === "card" ? (
         <div className="grid grid-cols-3 gap-0.5">
-          {visible.map((p) => {
+          {posts.map((p) => {
             let walkingData: { distanceM?: number; durationSec?: number; catchCount?: number } | null = null;
             try { walkingData = JSON.parse(p.body ?? "null"); } catch {}
             const thumb = p.images[0]?.url ?? null;
@@ -130,12 +170,12 @@ export function WalkingFeedPage({
         </div>
       ) : (
         <div className="md:py-3">
-          {visible.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
+          {posts.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
         </div>
       )}
 
       {/* 더 보기 버튼 */}
-      {cursor && (
+      {cursor && !searchLoading && (
         <div className="flex justify-center py-6">
           <button
             type="button"

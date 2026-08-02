@@ -1,5 +1,6 @@
 "use client";
-import { Search, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** 해시태그 검색어 정규화 — 사용자가 실수로 # 를 입력해도 무시하고 소문자로 맞춘다 */
@@ -7,16 +8,32 @@ export function normalizeTagQuery(q: string) {
   return q.trim().replace(/^#+/, "").trim().toLowerCase();
 }
 
-/** 해시태그 배열에 검색어가 포함되는지 (부분 일치, 대소문자 무시) — 검색어가 비면 항상 true */
-export function matchesHashtag(hashtags: string[] | null | undefined, q: string) {
-  const key = normalizeTagQuery(q);
-  if (!key) return true;
-  return (hashtags ?? []).some((tag) => tag.toLowerCase().includes(key));
-}
-
 /** 일반 텍스트 검색어 정규화 */
 export function normalizeTextQuery(q: string) {
   return q.trim().toLowerCase();
+}
+
+/**
+ * 입력이 멈춘 뒤 delay(ms) 가 지나야 값이 갱신되는 디바운스 값.
+ * 검색은 서버 요청이므로 타이핑 한 글자마다 요청이 나가지 않게 막는다.
+ */
+export function useDebouncedValue<T>(value: T, delay = 300): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+/** 서버 검색 응답을 기다리는 동안 보여줄 로딩 표시 — 빈 결과 문구가 깜빡이는 것을 막는다 */
+export function SearchLoading() {
+  return (
+    <div className="flex justify-center py-14" role="status" aria-live="polite">
+      <Loader2 size={20} strokeWidth={1.8} className="animate-spin text-aqua-400" />
+      <span className="sr-only">검색 중</span>
+    </div>
+  );
 }
 
 /**

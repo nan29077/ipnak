@@ -1,11 +1,11 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageSquare, Eye, ImageIcon, BookOpen, ChevronDown, Loader2 } from "lucide-react";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { Chip, EmptyState, LinkButton } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
-import { HashtagSearchInput, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
+import { HashtagSearchInput, SearchLoading, normalizeTagQuery, useDebouncedValue } from "@/components/FeedSearch";
 import { LOG_CATEGORIES } from "@/lib/taxonomy";
 import { timeAgo } from "@/lib/utils";
 import type { LogListItem } from "@/lib/queries";
@@ -29,16 +29,64 @@ export function LogBoard({
   const [cursors, setCursors] = useState<Record<string, string | null | undefined>>({ ALL: initialNextCursor ?? null });
   const [loadingMore, setLoadingMore] = useState(false);
   const [tagQuery, setTagQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
   const cursor = cursors[cat];
 
-  // 해시태그 검색 — 서버 재조회 없이 불러온 글만 클라이언트에서 걸러낸다
-  const searching = normalizeTagQuery(tagQuery) !== "";
+  // 해시태그 서버사이드 검색 — 입력이 300ms 멈춘 뒤에만 요청을 보낸다
+  const activeTag = normalizeTagQuery(useDebouncedValue(tagQuery, 300));
+  const searching = activeTag !== "";
   // 게시판 미지정(null) 글을 "워킹조행기"로 오분류하지 않는다 — 전체 탭에서만 보이게 한다
-  const visible = useMemo(() => {
-    const byCat = cat === "ALL" ? posts : posts.filter((p) => p.boardCategory === cat);
-    return searching ? byCat.filter((p) => matchesHashtag(p.hashtags, tagQuery)) : byCat;
-  }, [posts, cat, tagQuery, searching]);
+  const visible = useMemo(
+    () => (cat === "ALL" ? posts : posts.filter((p) => p.boardCategory === cat)),
+    [posts, cat]
+  );
   const catLabel = LOG_CATEGORIES.find((c) => c.key === cat)?.label ?? "조행기";
+
+  // 최초 렌더는 서버가 내려준 목록을 그대로 쓴다(불필요한 재요청 방지)
+  const mounted = useRef(false);
+  // 검색어를 지웠을 때 되돌릴 기준값
+  const initialRef = useRef({ posts: initialPosts, cursor: initialNextCursor ?? null });
+  // 검색 중일 때만 재조회 키에 게시판을 포함한다 — 검색어가 없으면 게시판 전환은 기존대로 클라이언트 필터
+  const searchKey = searching ? `${activeTag}::${cat}` : "";
+
+  useEffect(() => {
+    const isFirst = !mounted.current;
+    mounted.current = true;
+    if (isFirst && !searchKey) return;
+
+    // 검색어를 지우면 서버 렌더 초기 목록(첫 페이지)으로 되돌린다
+    if (!searchKey) {
+      setSearchLoading(false);
+      setPosts(initialRef.current.posts);
+      setCursors({ ALL: initialRef.current.cursor });
+      return;
+    }
+
+    // searchKey 는 "언제 다시 부를지"만 정한다 — 실제 값은 같은 렌더의 activeTag/cat 을 그대로 읽는다
+    const category = cat;
+    let alive = true;
+    setSearchLoading(true);
+    const qs = new URLSearchParams({ limit: "20", tag: activeTag });
+    if (category !== "ALL") qs.set("category", category);
+    fetch(`/api/posts/log?${qs.toString()}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!alive) return;
+        // 커서 초기화 + 기존 결과 교체
+        setPosts(data.posts ?? []);
+        setCursors({ [category]: data.nextCursor ?? null });
+      })
+      .catch(() => {
+        if (!alive) return;
+        setPosts([]);
+        setCursors({ [category]: null });
+      })
+      .finally(() => { if (alive) setSearchLoading(false); });
+    return () => { alive = false; };
+    // activeTag/cat 은 searchKey 로부터 만들어진 같은 렌더의 값이라 의도적으로 제외한다.
+    // (deps 에 cat 을 넣으면 검색어 없이 게시판만 바꿔도 목록이 초기화된다)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKey]);
 
   async function loadMore() {
     if (cursor === null || loadingMore) return;
@@ -49,6 +97,8 @@ export function LogBoard({
       const qs = new URLSearchParams({ limit: "20" });
       if (cursor) qs.set("cursor", cursor);
       if (cat !== "ALL") qs.set("category", cat);
+      // 검색 중이면 같은 tag 를 유지한 채 다음 페이지를 이어 받는다
+      if (activeTag) qs.set("tag", activeTag);
       const res = await fetch(`/api/posts/log?${qs.toString()}`);
       const data = await res.json();
       if (data.posts?.length) {
@@ -102,9 +152,11 @@ export function LogBoard({
         </div>
       </div>
 
-      {visible.length === 0 ? (
+      {searchLoading ? (
+        <SearchLoading />
+      ) : visible.length === 0 ? (
         searching ? (
-          <EmptyState title="검색 결과가 없습니다" desc={`#${normalizeTagQuery(tagQuery)} 해시태그가 달린 조행기가 없어요`} />
+          <EmptyState title="검색 결과가 없습니다" desc={`#${activeTag} 해시태그가 달린 조행기가 없어요`} />
         ) : cat === "ALL" ? (
           <EmptyState title="아직 조행기가 없어요" desc="첫 조행기를 남겨보세요" action={<LinkButton href={currentUserId ? "/log/new" : "/login"}>조행기 쓰기</LinkButton>} />
         ) : (
@@ -135,7 +187,7 @@ export function LogBoard({
       )}
 
       {/* 더 보기 버튼 — 커서가 null(마지막 페이지)일 때만 숨긴다 */}
-      {cursor !== null && (
+      {cursor !== null && !searchLoading && (
         <div className="flex justify-center py-6">
           <button
             type="button"

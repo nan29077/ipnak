@@ -7,10 +7,13 @@ export const dynamic = "force-dynamic";
 
 const TRADE_METHODS = ["DIRECT", "DELIVERY", "BOTH"];
 
-// 판매글 목록 (검색/필터/정렬) — 클라이언트 검색용 보조 API
+// 판매글 목록 (검색/필터/정렬) — 목록 화면의 서버사이드 키워드 검색 API
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  // q: 제목 + 본문 부분 일치 (목록 내 검색창)
   const q = (searchParams.get("q") || "").trim();
+  // titleQ: 제목만 부분 일치 (상단 헤더 검색창 — 기존 동작 유지)
+  const titleQ = (searchParams.get("titleQ") || "").trim();
   const category = searchParams.get("category") || "";
   const region = searchParams.get("region") || "";
   const sort = searchParams.get("sort") || "recent";
@@ -19,7 +22,11 @@ export async function GET(req: Request) {
   const where: any = {};
   if (category && category !== "ALL") where.category = category;
   if (region && region !== "ALL") where.region = region;
-  if (q) where.title = { contains: q };
+  // SQLite LIKE 부분 일치 — ASCII 대소문자는 구분하지 않는다
+  const and: any[] = [];
+  if (q) and.push({ OR: [{ title: { contains: q } }, { description: { contains: q } }] });
+  if (titleQ) and.push({ title: { contains: titleQ } });
+  if (and.length) where.AND = and;
   if (sellerId) where.sellerId = sellerId;
   // 특정 판매자를 지정한 조회(내 판매글 등)가 아니면 가상회원 판매글을 스위치 상태에 따라 제외
   else Object.assign(where, await excludeVirtualWhere("seller"));
@@ -36,7 +43,16 @@ export async function GET(req: Request) {
       _count: { select: { favorites: true, chats: true } },
     },
   });
-  return NextResponse.json({ listings });
+  // 목록 카드가 그대로 쓸 수 있도록 썸네일·집계 수를 평탄화해서 함께 내려준다
+  // (기존 소비자를 위해 images/_count 원본 필드도 그대로 유지)
+  return NextResponse.json({
+    listings: listings.map((l) => ({
+      ...l,
+      thumbnail: l.images[0]?.url ?? null,
+      favoriteCount: l._count.favorites,
+      chatCount: l._count.chats,
+    })),
+  });
 }
 
 // 판매글 등록

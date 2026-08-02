@@ -7,7 +7,7 @@ import { ArrowUpDown, Check, ChevronDown, MapPin, Heart, SlidersHorizontal, Mess
 import { won, timeAgo, cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
-import { TextSearchInput, normalizeTextQuery } from "@/components/FeedSearch";
+import { TextSearchInput, SearchLoading, normalizeTextQuery, useDebouncedValue } from "@/components/FeedSearch";
 import {
   MARKET_CATEGORIES, MARKET_REGIONS, MARKET_SORTS,
   marketCategoryLabel, marketStatusLabel,
@@ -22,7 +22,6 @@ export type MarketItem = {
   price: number;
   region: string | null;
   status: string;
-  /** 목록 검색(본문 매칭)용 — 없으면 제목으로만 검색한다 */
   description?: string | null;
   createdAt: string;
   thumbnail: string | null;
@@ -30,35 +29,70 @@ export type MarketItem = {
   chatCount: number;
 };
 
-export function MarketList({ items }: { items: MarketItem[] }) {
+export function MarketList({ items: initialItems }: { items: MarketItem[] }) {
   const searchParams = useSearchParams();
-  const q = searchParams.get("q") ?? "";
+  // 상단 헤더 검색창이 URL 에 남기는 검색어 — 서버에서 제목으로만 매칭한다
+  const headerQuery = (searchParams.get("q") ?? "").trim();
   const [category, setCategory] = useState("ALL");
   const [region, setRegion] = useState("ALL");
   const [sort, setSort] = useState("recent");
   const [hideSold, setHideSold] = useState(false);
   const [viewMode, setViewMode] = useViewMode("ipnak_view_market");
-  // 목록 내 검색 — 상품명/본문 기준 클라이언트 필터
+  // 목록 내 검색 — 상품명/본문 서버사이드 검색
   const [keyword, setKeyword] = useState("");
+  const [items, setItems] = useState<MarketItem[]>(initialItems);
+  const [searchLoading, setSearchLoading] = useState(false);
 
+  // 입력이 300ms 멈춘 뒤에만 서버에 요청한다
+  const activeKeyword = normalizeTextQuery(useDebouncedValue(keyword, 300));
+  const searching = activeKeyword !== "" || headerQuery !== "";
+
+  // 최초 렌더는 서버가 내려준 목록을 그대로 쓴다(불필요한 재요청 방지)
+  const mounted = useRef(false);
+  // 검색어를 지웠을 때 되돌릴 기준값
+  const initialRef = useRef(initialItems);
+
+  useEffect(() => {
+    const isFirst = !mounted.current;
+    mounted.current = true;
+    if (isFirst && !activeKeyword && !headerQuery) return;
+
+    // 검색어를 지우면 서버 렌더 초기 목록으로 되돌린다
+    if (!activeKeyword && !headerQuery) {
+      setSearchLoading(false);
+      setItems(initialRef.current);
+      return;
+    }
+
+    let alive = true;
+    setSearchLoading(true);
+    const qs = new URLSearchParams();
+    if (activeKeyword) qs.set("q", activeKeyword);       // 제목 + 본문
+    if (headerQuery) qs.set("titleQ", headerQuery);      // 제목만
+    fetch(`/api/market?${qs.toString()}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!alive) return;
+        setItems((data.listings ?? []) as MarketItem[]);
+      })
+      .catch(() => { if (alive) setItems([]); })
+      .finally(() => { if (alive) setSearchLoading(false); });
+    return () => { alive = false; };
+  }, [activeKeyword, headerQuery]);
+
+  // 카테고리·지역·판매상태·정렬은 기존대로 클라이언트에서 처리한다
   const visible = useMemo(() => {
-    const key = normalizeTextQuery(keyword);
-    let list = items.filter((it) =>
+    const list = items.filter((it) =>
       (category === "ALL" || it.category === category) &&
       (region === "ALL" || it.region === region) &&
-      (!hideSold || it.status !== "SOLD") &&
-      (q.trim() === "" || it.title.toLowerCase().includes(q.trim().toLowerCase())) &&
-      (key === "" ||
-        it.title.toLowerCase().includes(key) ||
-        (it.description ?? "").toLowerCase().includes(key))
+      (!hideSold || it.status !== "SOLD")
     );
-    list = [...list].sort((a, b) => {
+    return [...list].sort((a, b) => {
       if (sort === "price_asc") return a.price - b.price;
       if (sort === "price_desc") return b.price - a.price;
       return +new Date(b.createdAt) - +new Date(a.createdAt);
     });
-    return list;
-  }, [items, q, keyword, category, region, sort, hideSold]);
+  }, [items, category, region, sort, hideSold]);
 
   return (
     <div>
@@ -117,8 +151,14 @@ export function MarketList({ items }: { items: MarketItem[] }) {
         </div>
       </div>
 
-      {visible.length === 0 ? (
-        <EmptyState title="조건에 맞는 상품이 없습니다" desc="검색어나 필터를 바꿔보세요" />
+      {searchLoading ? (
+        <SearchLoading />
+      ) : visible.length === 0 ? (
+        searching ? (
+          <EmptyState title="검색 결과가 없습니다" desc={`'${activeKeyword || headerQuery}' 와 일치하는 상품이 없어요`} />
+        ) : (
+          <EmptyState title="조건에 맞는 상품이 없습니다" desc="검색어나 필터를 바꿔보세요" />
+        )
       ) : viewMode === "card" ? (
         <div className="grid grid-cols-3 gap-0.5 pb-10">
           {visible.map((it) => {
