@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutList, LayoutGrid, Ruler, Fish, ChevronDown, Loader2 } from "lucide-react";
+import { LayoutList, LayoutGrid, Ruler, Fish, MapPin, ChevronDown, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
@@ -115,6 +115,11 @@ export function FeedList({
                 {p.speciesName && (
                   <span className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-aqua-500/85 px-1.5 py-0.5 text-[9px] font-bold text-white">
                     <Fish size={9} />{p.speciesName}
+                  </span>
+                )}
+                {p.region && p.blurRadius === 0 && p.postType !== "WALKING_FEED" && (
+                  <span className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    <MapPin size={9} />{p.region}
                   </span>
                 )}
               </Link>

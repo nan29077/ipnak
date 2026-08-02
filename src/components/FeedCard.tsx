@@ -452,6 +452,12 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
             <Fish size={12} /> {post.speciesName}
           </span>
         )}
+        {/* 지역 배지 — 위치 흐림 OFF이고 WALKING_FEED가 아닐 때만 표시 */}
+        {post.region && post.blurRadius === 0 && post.postType !== "WALKING_FEED" && (
+          <span className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1 rounded-full bg-black/75 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur">
+            <MapPin size={11} /> {post.region}
+          </span>
+        )}
         {post.blurRadius > 0 && (
           <>
             {/* 위치 흐림 — 이미지 하단 블러 그라디언트 오버레이 */}
