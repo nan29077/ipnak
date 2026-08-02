@@ -3,15 +3,15 @@
   "configurations": [
     {
       "name": "ipnak-dev",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev", "-p", "3010"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 3010,
       "autoPort": false
     },
     {
       "name": "ipnak-dev-3011",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "set NEXT_DIST_DIR=.next-3011&& npx next dev -p 3011"],
+      "runtimeArgs": ["/c", "set NEXT_DIST_DIR=.next-3011&& node scripts/check-next-cache.mjs && npx next dev -p 3011"],
       "port": 3011,
       "autoPort": false
     }
