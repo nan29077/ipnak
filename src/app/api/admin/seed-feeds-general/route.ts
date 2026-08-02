@@ -36,11 +36,19 @@ export async function POST() {
       return NextResponse.json({ error: "ANGLER 계정이 없습니다. 먼저 낚시꾼 회원 더미를 생성하세요." }, { status: 400 });
     }
 
+    // 이미 심어둔 글은 caption 으로 걸러낸다 — 버튼을 여러 번 눌러도 중복 생성되지 않는다.
+    const existing = await prisma.post.findMany({
+      where: { kind: "GENERAL", caption: { in: DUMMY_GENERAL.map((f) => f.caption) } },
+      select: { caption: true },
+    });
+    const done = new Set(existing.map((e) => e.caption));
+
     const pick = <T,>(arr: T[], i: number) => arr[i % arr.length];
-    let created = 0;
+    let created = 0, skipped = 0;
 
     for (let i = 0; i < DUMMY_GENERAL.length; i++) {
       const feed = DUMMY_GENERAL[i];
+      if (done.has(feed.caption)) { skipped++; continue; }
       const author = pick(anglers, i);
 
       const post = await prisma.post.create({
@@ -74,7 +82,11 @@ export async function POST() {
       created++;
     }
 
-    return NextResponse.json({ message: `일상 피드 더미 ${created}개 생성 완료` });
+    return NextResponse.json({
+      message: skipped
+        ? `일상 피드 더미 ${created}개 생성 완료 (이미 있는 ${skipped}개는 건너뜀)`
+        : `일상 피드 더미 ${created}개 생성 완료`,
+    });
   } catch (e: any) {
     console.error(e);
     return NextResponse.json({ error: e.message || "서버 오류" }, { status: 500 });
