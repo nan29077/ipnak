@@ -5,7 +5,7 @@ import { MessageSquare, Eye, ImageIcon, BookOpen, ChevronDown, Loader2 } from "l
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { Chip, EmptyState, LinkButton } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
-import { ExpandableSearch, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
+import { HashtagSearchInput, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
 import { LOG_CATEGORIES } from "@/lib/taxonomy";
 import { timeAgo } from "@/lib/utils";
 import type { LogListItem } from "@/lib/queries";
@@ -84,16 +84,20 @@ export function LogBoard({
         </div>
       </div>
 
+      {/* 해시태그 검색 — 토글 버튼 줄과 분리된 별도 줄에 항상 표시한다 */}
+      <div className="px-4 pb-2 pt-4">
+        <HashtagSearchInput value={tagQuery} onChange={setTagQuery} className="w-full" />
+      </div>
+
       {/* 헤더 카피 */}
-      <div className="flex items-end justify-between px-4 pb-1 pt-4">
+      <div className="flex items-end justify-between px-4 pb-1">
         <div>
           <h1 className="flex items-center gap-1.5 text-[19px] font-extrabold tracking-tight text-navy-900">
             <BookOpen size={18} className="text-orange-500" /> 조행기
           </h1>
           <p className="mt-0.5 text-[12px] text-navy-400">출조 후기와 조행 정보를 글로 나눠요</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <ExpandableSearch value={tagQuery} onChange={setTagQuery} />
+        <div className="shrink-0">
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>

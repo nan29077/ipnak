@@ -6,7 +6,7 @@ import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
-import { ExpandableSearch, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
+import { HashtagSearchInput, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
 import { km } from "@/lib/utils";
 import { WaterBodyBadge, useWaterBodyLabel } from "@/components/WaterBodyBadge";
 import type { FeedPost } from "@/lib/queries";
@@ -59,15 +59,18 @@ export function WalkingFeedPage({
   return (
     <div className="bg-[#121212]">
       <CommunityTabs />
-      <div className="flex items-center justify-between px-4 pb-3 pt-2">
+      {/* 해시태그 검색 — 토글 버튼 줄과 분리된 별도 줄에 항상 표시한다 */}
+      <div className="px-4 pb-2 pt-2">
+        <HashtagSearchInput value={tagQuery} onChange={setTagQuery} className="w-full" />
+      </div>
+      <div className="flex items-center justify-between px-4 pb-3">
         <div>
           <h1 className="flex items-center gap-1.5 text-[17px] font-extrabold tracking-tight text-navy-900">
             <Route size={17} className="text-aqua-300" /> 워킹 피드
           </h1>
           <p className="mt-0.5 text-[12px] text-navy-400">스마트피싱 동선 기록을 모아봤어요</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <ExpandableSearch value={tagQuery} onChange={setTagQuery} />
+        <div className="shrink-0">
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>

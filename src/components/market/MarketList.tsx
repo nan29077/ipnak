@@ -71,7 +71,7 @@ export function MarketList({ items }: { items: MarketItem[] }) {
       </div>
 
       {/* 지역 / 정렬 / 판매완료 숨김 */}
-      <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
+      <div className="flex flex-wrap items-center gap-2 px-3 pb-2.5">
         <MarketFilterDropdown
           value={region}
           onChange={setRegion}
@@ -101,14 +101,18 @@ export function MarketList({ items }: { items: MarketItem[] }) {
         >
           <SlidersHorizontal size={13} /> 판매중만
         </button>
-        <div className="ml-auto flex items-center gap-2">
-          <TextSearchInput
-            value={keyword}
-            onChange={setKeyword}
-            placeholder="상품명·내용 검색"
-            label="상품 목록 검색"
-            className="w-[132px] sm:w-[168px]"
-          />
+      </div>
+
+      {/* 목록 검색 + 보기 모드 토글 — 검색창이 왼쪽 끝부터 토글 앞까지 가로폭을 채운다 */}
+      <div className="flex items-center gap-2 px-3 pb-3">
+        <TextSearchInput
+          value={keyword}
+          onChange={setKeyword}
+          placeholder="상품명·내용 검색"
+          label="상품 목록 검색"
+          className="flex-1"
+        />
+        <div className="shrink-0">
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>
