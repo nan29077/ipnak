@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { LayoutList, LayoutGrid, Ruler, Fish, MapPin, ChevronDown, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
+import { HashtagSearchInput, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
 import { EmptyState, LinkButton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { noImageSrc } from "@/lib/noImage";
@@ -42,6 +43,14 @@ export function FeedList({
   const [posts, setPosts] = useState<FeedPost[]>(initialPosts);
   const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [tagQuery, setTagQuery] = useState("");
+
+  // 해시태그 검색 — 서버 재조회 없이 불러온 포스트만 클라이언트에서 걸러낸다
+  const searching = normalizeTagQuery(tagQuery) !== "";
+  const visible = useMemo(
+    () => (searching ? posts.filter((p) => matchesHashtag(p.hashtags, tagQuery)) : posts),
+    [posts, tagQuery, searching]
+  );
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
@@ -85,20 +94,25 @@ export function FeedList({
         </div>
       )}
 
-      {/* 보기 모드 토글 */}
-      <div className="flex justify-end px-3 pb-2 pt-1">
-        <ViewToggle mode={viewMode} onChange={setViewMode} />
+      {/* 해시태그 검색 + 보기 모드 토글 */}
+      <div className="flex items-center gap-2 px-3 pb-2 pt-1">
+        <HashtagSearchInput value={tagQuery} onChange={setTagQuery} className="max-w-[220px] flex-1" />
+        <div className="ml-auto shrink-0">
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
-      {posts.length === 0 ? (
-        feedKind === "GENERAL" ? (
+      {visible.length === 0 ? (
+        searching ? (
+          <EmptyState title="검색 결과가 없습니다" desc={`#${normalizeTagQuery(tagQuery)} 해시태그가 달린 게시물이 없어요`} />
+        ) : feedKind === "GENERAL" ? (
           <EmptyState title="일상 피드가 없습니다" desc="첫 일상 사진을 올려보세요" action={<LinkButton href="/post/new?type=general">일상 피드 올리기</LinkButton>} />
         ) : (
           <EmptyState title="피싱 피드가 없습니다" desc="첫 조황 사진을 올려보세요" action={<LinkButton href="/post/new">피싱 피드 올리기</LinkButton>} />
         )
       ) : viewMode === "card" ? (
         <div className="grid grid-cols-3 gap-0.5">
-          {posts.map((p) => {
+          {visible.map((p) => {
             const thumb = p.images[0]?.url ?? null;
             return (
               <Link key={p.id} href={`/post/${p.id}`} className="relative aspect-square overflow-hidden bg-[#1b2b3a]">
@@ -128,7 +142,7 @@ export function FeedList({
         </div>
       ) : (
         <div className="md:py-3">
-          {posts.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
+          {visible.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
         </div>
       )}
 

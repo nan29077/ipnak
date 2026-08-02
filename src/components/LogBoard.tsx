@@ -5,6 +5,7 @@ import { MessageSquare, Eye, ImageIcon, BookOpen, ChevronDown, Loader2 } from "l
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { Chip, EmptyState, LinkButton } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
+import { ExpandableSearch, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
 import { LOG_CATEGORIES } from "@/lib/taxonomy";
 import { timeAgo } from "@/lib/utils";
 import type { LogListItem } from "@/lib/queries";
@@ -27,10 +28,16 @@ export function LogBoard({
   // undefined = 그 게시판을 아직 따로 불러온 적 없음(더 있을 수 있음), null = 마지막 페이지
   const [cursors, setCursors] = useState<Record<string, string | null | undefined>>({ ALL: initialNextCursor ?? null });
   const [loadingMore, setLoadingMore] = useState(false);
+  const [tagQuery, setTagQuery] = useState("");
   const cursor = cursors[cat];
 
+  // 해시태그 검색 — 서버 재조회 없이 불러온 글만 클라이언트에서 걸러낸다
+  const searching = normalizeTagQuery(tagQuery) !== "";
   // 게시판 미지정(null) 글을 "워킹조행기"로 오분류하지 않는다 — 전체 탭에서만 보이게 한다
-  const visible = useMemo(() => (cat === "ALL" ? posts : posts.filter((p) => p.boardCategory === cat)), [posts, cat]);
+  const visible = useMemo(() => {
+    const byCat = cat === "ALL" ? posts : posts.filter((p) => p.boardCategory === cat);
+    return searching ? byCat.filter((p) => matchesHashtag(p.hashtags, tagQuery)) : byCat;
+  }, [posts, cat, tagQuery, searching]);
   const catLabel = LOG_CATEGORIES.find((c) => c.key === cat)?.label ?? "조행기";
 
   async function loadMore() {
@@ -85,11 +92,16 @@ export function LogBoard({
           </h1>
           <p className="mt-0.5 text-[12px] text-navy-400">출조 후기와 조행 정보를 글로 나눠요</p>
         </div>
-        <ViewToggle mode={viewMode} onChange={setViewMode} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ExpandableSearch value={tagQuery} onChange={setTagQuery} />
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
       {visible.length === 0 ? (
-        cat === "ALL" ? (
+        searching ? (
+          <EmptyState title="검색 결과가 없습니다" desc={`#${normalizeTagQuery(tagQuery)} 해시태그가 달린 조행기가 없어요`} />
+        ) : cat === "ALL" ? (
           <EmptyState title="아직 조행기가 없어요" desc="첫 조행기를 남겨보세요" action={<LinkButton href={currentUserId ? "/log/new" : "/login"}>조행기 쓰기</LinkButton>} />
         ) : (
           <EmptyState title={`아직 ${catLabel}가 없어요`} desc="다른 게시판을 골라보거나 첫 글을 남겨보세요" action={<LinkButton href={currentUserId ? "/log/new" : "/login"}>조행기 쓰기</LinkButton>} />

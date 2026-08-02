@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Route, Fish, Lock, ChevronDown, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
+import { ExpandableSearch, matchesHashtag, normalizeTagQuery } from "@/components/FeedSearch";
 import { km } from "@/lib/utils";
 import { WaterBodyBadge, useWaterBodyLabel } from "@/components/WaterBodyBadge";
 import type { FeedPost } from "@/lib/queries";
@@ -29,6 +30,14 @@ export function WalkingFeedPage({
   const [posts, setPosts] = useState<FeedPost[]>(initialPosts);
   const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [tagQuery, setTagQuery] = useState("");
+
+  // 해시태그 검색 — 불러온 포스트만 클라이언트에서 걸러낸다
+  const searching = normalizeTagQuery(tagQuery) !== "";
+  const visible = useMemo(
+    () => (searching ? posts.filter((p) => matchesHashtag(p.hashtags, tagQuery)) : posts),
+    [posts, tagQuery, searching]
+  );
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
@@ -57,13 +66,20 @@ export function WalkingFeedPage({
           </h1>
           <p className="mt-0.5 text-[12px] text-navy-400">스마트피싱 동선 기록을 모아봤어요</p>
         </div>
-        <ViewToggle mode={viewMode} onChange={setViewMode} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ExpandableSearch value={tagQuery} onChange={setTagQuery} />
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+        </div>
       </div>
-      {posts.length === 0 ? (
-        <EmptyState title="워킹 피드가 없습니다" desc="스마트피싱 기록 후 피드에 올려보세요" />
+      {visible.length === 0 ? (
+        searching ? (
+          <EmptyState title="검색 결과가 없습니다" desc={`#${normalizeTagQuery(tagQuery)} 해시태그가 달린 워킹 피드가 없어요`} />
+        ) : (
+          <EmptyState title="워킹 피드가 없습니다" desc="스마트피싱 기록 후 피드에 올려보세요" />
+        )
       ) : viewMode === "card" ? (
         <div className="grid grid-cols-3 gap-0.5">
-          {posts.map((p) => {
+          {visible.map((p) => {
             let walkingData: { distanceM?: number; durationSec?: number; catchCount?: number } | null = null;
             try { walkingData = JSON.parse(p.body ?? "null"); } catch {}
             const thumb = p.images[0]?.url ?? null;
@@ -111,7 +127,7 @@ export function WalkingFeedPage({
         </div>
       ) : (
         <div className="md:py-3">
-          {posts.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
+          {visible.map((p) => <FeedCard key={p.id} post={p} currentUserId={currentUserId} linkToDetail />)}
         </div>
       )}
 

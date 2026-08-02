@@ -289,7 +289,7 @@ export type LogListItem = {
   id: string; title: string; boardCategory: string | null; boardLabel: string;
   region: string | null; createdAt: string; viewCount: number;
   commentCount: number; likeCount: number; thumbnail: string | null; imageCount: number;
-  excerpt: string;
+  excerpt: string; hashtags: string[];
   author: { id: string; nickname: string; avatarUrl: string | null };
 };
 
@@ -314,6 +314,7 @@ function toLogListItem(p: any): LogListItem {
     thumbnail: p.images?.[0]?.url ?? null,
     imageCount: p.images?.length ?? 0,
     excerpt: body.slice(0, 90),
+    hashtags: safeJson<string[]>(p.hashtags, []),
     author: { id: p.author.id, nickname: p.author.nickname, avatarUrl: p.author.avatarUrl },
   };
 }

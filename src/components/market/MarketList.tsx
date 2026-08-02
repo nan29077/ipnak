@@ -7,6 +7,7 @@ import { ArrowUpDown, Check, ChevronDown, MapPin, Heart, SlidersHorizontal, Mess
 import { won, timeAgo, cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
+import { TextSearchInput, normalizeTextQuery } from "@/components/FeedSearch";
 import {
   MARKET_CATEGORIES, MARKET_REGIONS, MARKET_SORTS,
   marketCategoryLabel, marketStatusLabel,
@@ -21,6 +22,8 @@ export type MarketItem = {
   price: number;
   region: string | null;
   status: string;
+  /** 목록 검색(본문 매칭)용 — 없으면 제목으로만 검색한다 */
+  description?: string | null;
   createdAt: string;
   thumbnail: string | null;
   favoriteCount: number;
@@ -35,13 +38,19 @@ export function MarketList({ items }: { items: MarketItem[] }) {
   const [sort, setSort] = useState("recent");
   const [hideSold, setHideSold] = useState(false);
   const [viewMode, setViewMode] = useViewMode("ipnak_view_market");
+  // 목록 내 검색 — 상품명/본문 기준 클라이언트 필터
+  const [keyword, setKeyword] = useState("");
 
   const visible = useMemo(() => {
+    const key = normalizeTextQuery(keyword);
     let list = items.filter((it) =>
       (category === "ALL" || it.category === category) &&
       (region === "ALL" || it.region === region) &&
       (!hideSold || it.status !== "SOLD") &&
-      (q.trim() === "" || it.title.toLowerCase().includes(q.trim().toLowerCase()))
+      (q.trim() === "" || it.title.toLowerCase().includes(q.trim().toLowerCase())) &&
+      (key === "" ||
+        it.title.toLowerCase().includes(key) ||
+        (it.description ?? "").toLowerCase().includes(key))
     );
     list = [...list].sort((a, b) => {
       if (sort === "price_asc") return a.price - b.price;
@@ -49,7 +58,7 @@ export function MarketList({ items }: { items: MarketItem[] }) {
       return +new Date(b.createdAt) - +new Date(a.createdAt);
     });
     return list;
-  }, [items, q, category, region, sort, hideSold]);
+  }, [items, q, keyword, category, region, sort, hideSold]);
 
   return (
     <div>
@@ -92,7 +101,14 @@ export function MarketList({ items }: { items: MarketItem[] }) {
         >
           <SlidersHorizontal size={13} /> 판매중만
         </button>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <TextSearchInput
+            value={keyword}
+            onChange={setKeyword}
+            placeholder="상품명·내용 검색"
+            label="상품 목록 검색"
+            className="w-[132px] sm:w-[168px]"
+          />
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>

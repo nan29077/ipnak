@@ -11,7 +11,7 @@
     {
       "name": "ipnak-dev-3011",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "set \"NEXT_DIST_DIR=.next-3011\" && npx next dev -p 3011"],
+      "runtimeArgs": ["/c", "set NEXT_DIST_DIR=.next-3011&& npx next dev -p 3011"],
       "port": 3011,
       "autoPort": false
     }

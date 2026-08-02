@@ -22,13 +22,13 @@ export default async function MarketPage() {
     // 가상회원 글로벌 스위치 OFF → 가상회원 판매글 제외
     excludeVirtualWhere("seller"),
   ]);
-  // 목록 카드에 쓰는 필드만 조회한다 — description 등 본문 컬럼은 상세에서만 필요하다
+  // 목록 카드에 쓰는 필드 + 본문 검색용 description 만 조회한다
   const listings = await prisma.marketListing.findMany({
     where: sellerWhere,
     orderBy: { createdAt: "desc" },
     select: {
       id: true, title: true, category: true, condition: true,
-      price: true, region: true, status: true, createdAt: true,
+      price: true, region: true, status: true, createdAt: true, description: true,
       images: { select: { url: true }, orderBy: { order: "asc" }, take: 1 },
       _count: { select: { favorites: true, chats: true } },
     },
@@ -42,6 +42,7 @@ export default async function MarketPage() {
     price: listing.price,
     region: listing.region,
     status: listing.status,
+    description: listing.description,
     createdAt: listing.createdAt.toISOString(),
     thumbnail: listing.images[0]?.url ?? null,
     favoriteCount: listing._count.favorites,
