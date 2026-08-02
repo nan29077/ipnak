@@ -91,7 +91,11 @@ export function FeedList({
       </div>
 
       {posts.length === 0 ? (
-        <EmptyState title="피싱 피드가 없습니다" desc="첫 조황 사진을 올려보세요" action={<LinkButton href="/post/new">피싱 피드 올리기</LinkButton>} />
+        feedKind === "GENERAL" ? (
+          <EmptyState title="일상 피드가 없습니다" desc="첫 일상 사진을 올려보세요" action={<LinkButton href="/post/new?type=general">일상 피드 올리기</LinkButton>} />
+        ) : (
+          <EmptyState title="피싱 피드가 없습니다" desc="첫 조황 사진을 올려보세요" action={<LinkButton href="/post/new">피싱 피드 올리기</LinkButton>} />
+        )
       ) : viewMode === "card" ? (
         <div className="grid grid-cols-3 gap-0.5">
           {posts.map((p) => {
