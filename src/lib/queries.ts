@@ -117,8 +117,15 @@ async function computeWalkingLocks(posts: any[], userId?: string): Promise<Map<s
 // (전체 좋아요 수는 _count로 별도 집계 — 게시글당 전체 좋아요 행을 로드하지 않아 쿼리 페이로드 대폭 절감)
 const feedInclude = (userId?: string) => ({
   author: { select: { id: true, nickname: true, avatarUrl: true, role: true } },
-  images: { orderBy: { order: "asc" as const } },
-  productTags: { include: { product: true } },
+  // toFeedPost 가 쓰는 3개 컬럼만 — 목록 응답에서 쓰지 않는 postId/order 는 제외
+  images: { select: { id: true, url: true, alt: true }, orderBy: { order: "asc" as const } },
+  // product 전체를 싣지 않는다 — description·options 등 큰 컬럼이 게시글 수만큼 붙는다
+  productTags: {
+    select: {
+      id: true, posX: true, posY: true,
+      product: { select: { id: true, name: true, brand: true, price: true, category: true, imageUrl: true, buyUrl: true } },
+    },
+  },
   likes: { where: { userId: userId ?? "" }, select: { userId: true } },
   bookmarks: { where: { userId: userId ?? "" }, select: { userId: true } },
   _count: { select: { likes: true, comments: true } },
@@ -333,9 +340,10 @@ export async function getLogPosts(opts?: { category?: string | null; authorId?: 
   }
 
   try {
+    const [likeWhere, commentWhere] = await Promise.all([excludeVirtualLikeCountWhere(), excludeVirtualCountWhere()]);
     const posts = await prisma.post.findMany({
       where,
-      include: { ...logListInclude, _count: { select: { likes: await excludeVirtualLikeCountWhere(), comments: await excludeVirtualCountWhere() } } },
+      include: { ...logListInclude, _count: { select: { likes: likeWhere, comments: commentWhere } } },
       orderBy: { createdAt: "desc" },
       take: 80,
     });
@@ -477,9 +485,10 @@ export async function getLogPostsPage(
   // 유니온({cursor,skip} | {})으로 추론되면 스프레드 시 findMany 인자 타입이 깨진다 → 선택 필드로 명시
   const cursorClause: { cursor?: { id: string }; skip?: number } = cursor ? { cursor: { id: cursor }, skip: 1 } : {};
   try {
+    const [likeWhere, commentWhere] = await Promise.all([excludeVirtualLikeCountWhere(), excludeVirtualCountWhere()]);
     const raw = await prisma.post.findMany({
       where,
-      include: { ...logListInclude, _count: { select: { likes: await excludeVirtualLikeCountWhere(), comments: await excludeVirtualCountWhere() } } },
+      include: { ...logListInclude, _count: { select: { likes: likeWhere, comments: commentWhere } } },
       orderBy: { createdAt: "desc" },
       take: limit + 1, ...cursorClause,
     });

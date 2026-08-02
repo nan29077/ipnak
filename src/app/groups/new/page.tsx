@@ -35,7 +35,8 @@ export default function NewGroupPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) { setError(data.error || "오류가 발생했습니다."); return; }
-    router.push(`/groups/${data.group.id}`);
+    // replace: 생성 완료 후 뒤로가기 시 작성 폼으로 되돌아가지 않도록
+    router.replace(`/groups/${data.group.id}`);
   }
 
   return (

@@ -12,6 +12,7 @@ import {
 import { Button, Chip, EmptyState, LoadingState, Sheet, Badge } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { entryFeeConfirmText, fetchEntryFeeInfo, type EntryFeeInfo } from "@/lib/tournamentFee";
 import { FISH_SPECIES } from "@/constants/errorMessages";
 import { dbService } from "@/services/DatabaseService";
 import syncService from "@/services/SyncService";
@@ -37,6 +38,9 @@ type Item = {
 type TournamentInfo = {
   id: string; title: string; type: string; speciesName: string | null;
   startDate: string | null; endDate: string | null; entryCount: number;
+  // 참가비 / 순위 보상 포인트 — null 이면 무료 / 보상 없음
+  entryFee?: number | null;
+  reward1st?: number | null; reward2nd?: number | null; reward3rd?: number | null;
 };
 
 const GRADE_STYLE: Record<string, { label: string; cls: string }> = {
@@ -91,6 +95,8 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
   const [tournaments, setTournaments] = useState<TournamentInfo[]>([]);
   const [tourLoading, setTourLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // 참가비 차감 확인 모달 대상
+  const [feeConfirm, setFeeConfirm] = useState<{ t: TournamentInfo; info: EntryFeeInfo } | null>(null);
 
   const loadStats = useCallback(async () => {
     setStats(await dbService.getStats());
@@ -163,7 +169,8 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
     try {
       const res = await fetch("/api/tournaments");
       const data = await res.json();
-      setTournaments(data);
+      // 오류 응답은 배열이 아니다 — 그대로 넣으면 아래 .map 에서 터진다
+      setTournaments(Array.isArray(data) ? data : []);
     } catch {
       setTournaments([]);
     } finally {
@@ -171,8 +178,17 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
     }
   }
 
-  // 대회 선택 후 제출
+  // 대회 선택 → 참가비가 차감되는 경우에만 확인 모달을 거친다
   async function submitToTournament(t: TournamentInfo) {
+    if (!tournamentTarget) return;
+    setSubmitting(true);
+    const info = await fetchEntryFeeInfo(t.id);
+    setSubmitting(false);
+    if (info?.willCharge) { setFeeConfirm({ t, info }); return; }
+    await doSubmitToTournament(t);
+  }
+
+  async function doSubmitToTournament(t: TournamentInfo) {
     if (!tournamentTarget) return;
     setSubmitting(true);
     try {
@@ -454,6 +470,12 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
                           {t.speciesName ?? "전어종"} · 참가 {t.entryCount}명
                           {t.endDate && ` · ~${new Date(t.endDate).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}`}
                         </p>
+                        {/* 참가비 배지 — 없으면 무료 */}
+                        <span className={`mt-1 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                          t.entryFee && t.entryFee > 0 ? "bg-orange-500/12 text-orange-500" : "bg-navy-50 text-navy-400"
+                        }`}>
+                          {t.entryFee && t.entryFee > 0 ? `참가비 ${t.entryFee.toLocaleString()}P` : "무료"}
+                        </span>
                       </div>
                       {submitting ? (
                         <Loader2 size={16} className="shrink-0 animate-spin text-navy-300" />
@@ -468,6 +490,21 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
           </div>
         )}
       </Sheet>
+
+      {/* ── 참가비 차감 확인 다이얼로그 ── */}
+      <ConfirmDialog
+        open={!!feeConfirm}
+        title={feeConfirm ? entryFeeConfirmText(feeConfirm.info).title : ""}
+        message={feeConfirm ? entryFeeConfirmText(feeConfirm.info).message : undefined}
+        confirmLabel="참가하기"
+        cancelLabel="취소"
+        onConfirm={() => {
+          const target = feeConfirm;
+          setFeeConfirm(null);
+          if (target) void doSubmitToTournament(target.t);
+        }}
+        onCancel={() => setFeeConfirm(null)}
+      />
 
       {/* ── 삭제 확인 다이얼로그 ── */}
       <ConfirmDialog

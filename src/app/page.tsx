@@ -6,11 +6,13 @@ import { getMainSections } from "@/lib/curation";
 import { parseInterests } from "@/lib/interestsUtils";
 import { MobileLandingRedirect } from "@/components/MobileLandingRedirect";
 import { PcLandingRedirect } from "@/components/PcLandingRedirect";
+import { syncTournamentStatuses } from "@/lib/tournamentStatus";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
+  await syncTournamentStatuses();
 
   // 로그인 유저: DB에서 관심사 파싱
   let userInterests = { methods: [] as string[], species: [] as string[] };

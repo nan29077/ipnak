@@ -29,6 +29,8 @@ import { estimateWeightByWidth } from "@/lib/weightEstimation";
 import { BallLinkSection } from "@/components/BallLinkSection";
 import { useRecording } from "@/components/RecordingProvider";
 import { DiarySheet } from "@/components/DiarySheet";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { entryFeeConfirmText, fetchEntryFeeInfo, type EntryFeeInfo } from "@/lib/tournamentFee";
 
 type Phase =
   | "IDLE"
@@ -81,6 +83,8 @@ export default function MeasurePage() {
   const [savedImageBase64, setSavedImageBase64] = useState<string | null>(null);
   const [tourSubmitting, setTourSubmitting] = useState(false);
   const [tourSubmitted, setTourSubmitted] = useState(false);
+  // 참가비 차감 확인 모달 (null 이면 닫힘)
+  const [feeConfirm, setFeeConfirm] = useState<EntryFeeInfo | null>(null);
   // 첫 방문 튜토리얼
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -483,8 +487,17 @@ export default function MeasurePage() {
     URL.revokeObjectURL(a.href);
   }
 
-  /* ── 대회 제출 (tournamentId 모드) ── */
+  /* ── 대회 제출 (tournamentId 모드) — 참가비가 차감될 때만 확인 모달을 거친다 ── */
   async function submitToTournament() {
+    if (!tournamentId || !result) return;
+    setTourSubmitting(true);
+    const info = await fetchEntryFeeInfo(tournamentId);
+    setTourSubmitting(false);
+    if (info?.willCharge) { setFeeConfirm(info); return; }
+    await doSubmitToTournament();
+  }
+
+  async function doSubmitToTournament() {
     if (!tournamentId || !result) return;
     setTourSubmitting(true);
     try {
@@ -1150,6 +1163,17 @@ export default function MeasurePage() {
 
       {/* ── 계측일지 바텀시트 ── */}
       <DiarySheet open={diaryOpen} onClose={() => setDiaryOpen(false)} />
+
+      {/* ── 대회 참가비 차감 확인 ── */}
+      <ConfirmDialog
+        open={!!feeConfirm}
+        title={feeConfirm ? entryFeeConfirmText(feeConfirm).title : ""}
+        message={feeConfirm ? entryFeeConfirmText(feeConfirm).message : undefined}
+        confirmLabel="참가하기"
+        cancelLabel="취소"
+        onConfirm={() => { setFeeConfirm(null); void doSubmitToTournament(); }}
+        onCancel={() => setFeeConfirm(null)}
+      />
     </div>
     </div>{/* /portrait-lock wrapper */}
 

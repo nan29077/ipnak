@@ -39,7 +39,8 @@ export function MarketOwnerActions({ listingId, initialStatus }: { listingId: st
     const res = await fetch(`/api/market/${listingId}`, { method: "DELETE" });
     if (res.ok) {
       toast("판매글을 삭제했어요", "success");
-      router.push("/market/mine");
+      // replace: 삭제된 판매글 상세로 뒤로가기 되지 않도록
+      router.replace("/market/mine");
       router.refresh();
     } else {
       toast("삭제하지 못했습니다", "error");

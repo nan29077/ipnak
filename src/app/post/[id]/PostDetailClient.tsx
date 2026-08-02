@@ -22,15 +22,20 @@ export function PostDetailClient({ children }: { children: React.ReactNode }) {
     if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
   }, []);
 
-  // 상세 페이지에서 AppShell main의 min-h-screen / flex stretch를 해제해 하단 빈 공간 제거
+  // 상세 페이지에서 AppShell main의 min-h-screen / flex stretch를 해제해 하단 빈 공간 제거.
+  // 하단 패딩(pb-24 = 96px)도 함께 걷어내고, 대신 아래 래퍼의 .pb-bottom-nav 로
+  // 하단 네비게이션 바 높이만큼만 확보한다 — 반응형 분기는 CSS 미디어 쿼리가 처리.
   useLayoutEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
-    (main as HTMLElement).style.minHeight = "0";
-    (main as HTMLElement).style.alignSelf = "flex-start";
+    const el = main as HTMLElement;
+    el.style.minHeight = "0";
+    el.style.alignSelf = "flex-start";
+    el.style.paddingBottom = "0";
     return () => {
-      (main as HTMLElement).style.minHeight = "";
-      (main as HTMLElement).style.alignSelf = "";
+      el.style.minHeight = "";
+      el.style.alignSelf = "";
+      el.style.paddingBottom = "";
     };
   }, []);
 
@@ -109,7 +114,7 @@ export function PostDetailClient({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className="pb-bottom-nav relative"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

@@ -158,7 +158,8 @@ export default function GroupManagePage() {
       showToast(data.error || "해산에 실패했습니다.");
       return;
     }
-    router.push("/groups");
+    // replace: 해산된 낚시단 관리 페이지로 뒤로가기 되지 않도록
+    router.replace("/groups");
   }
 
   const pending = members.filter(m => m.role === "pending");

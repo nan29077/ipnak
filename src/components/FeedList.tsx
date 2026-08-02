@@ -69,7 +69,7 @@ export function FeedList({
           {banners.map((b, i) => {
             const inner = (
               <>
-                {b.imageUrl && <img src={b.imageUrl} alt={b.title} className="h-full w-full object-cover opacity-85 transition-transform duration-500 group-hover:scale-105" />}
+                {b.imageUrl && <img src={b.imageUrl} alt={b.title} loading="lazy" decoding="async" className="h-full w-full object-cover opacity-85 transition-transform duration-500 group-hover:scale-105" />}
                 <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-3.5">
                   <p className="text-[15px] font-bold leading-snug text-white drop-shadow-sm">{b.title}</p>
                 </div>
@@ -99,9 +99,9 @@ export function FeedList({
             return (
               <Link key={p.id} href={`/post/${p.id}`} className="relative aspect-square overflow-hidden bg-[#1b2b3a]">
                 {thumb ? (
-                  <img src={thumb} alt={p.speciesName || "피드"} loading="lazy" className="h-full w-full object-cover" />
+                  <img src={thumb} alt={p.speciesName || "피드"} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 ) : (
-                  <img src={noImageSrc(p.id)} alt="이미지 없음" className="h-full w-full object-cover" />
+                  <img src={noImageSrc(p.id)} alt="이미지 없음" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 )}
                 {p.sizeCm != null && (
                   <span className="absolute bottom-1 left-1 flex items-center gap-0.5 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-bold text-white">

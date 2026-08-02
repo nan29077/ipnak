@@ -51,7 +51,8 @@ export default function NewLogPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "오류");
       toast("조행기가 등록되었습니다", "success");
-      router.push(`/log/${data.id}`);
+      // replace: 등록 완료 후 뒤로가기 시 작성 폼으로 되돌아가지 않도록
+      router.replace(`/log/${data.id}`);
       router.refresh();
     } catch (e: any) {
       toast(e.message, "error");

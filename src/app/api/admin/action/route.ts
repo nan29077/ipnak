@@ -4,6 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { aiSettingKey, protectAiCredential, type AiCredentialName } from "@/lib/aiCredentials";
 import { getBoolSetting, getSetting } from "@/lib/settings";
+import { TOURNAMENT_TYPES } from "@/lib/taxonomy";
+import { effectiveStatus, kstDayEnd, kstDayStart } from "@/lib/tournamentStatus";
+
+// 대회 참가비/보상 포인트 입력 필드 — 비워두면 null(없음), 값이 있으면 양의 정수만 허용
+const TOURNAMENT_POINT_FIELDS = [
+  ["entryFee", "참가비"],
+  ["reward1st", "1위 보상"],
+  ["reward2nd", "2위 보상"],
+  ["reward3rd", "3위 보상"],
+] as const;
+type TournamentPointField = (typeof TOURNAMENT_POINT_FIELDS)[number][0];
+const MAX_TOURNAMENT_POINT = 10_000_000;
 
 // 관리자 정책 조회 (GET)
 export async function GET(req: Request) {
@@ -185,23 +197,62 @@ export async function POST(req: Request) {
         if (!["REQUESTED", "CONFIRMED", "CANCELLED", "DONE"].includes(b.status)) return NextResponse.json({ error: "유효하지 않은 상태" }, { status: 400 });
         await prisma.booking.update({ where: { id: b.id }, data: { status: b.status } });
         await log("BOOKING_" + b.status, b.id); break;
-      case "ENTRY_REVIEW":
+      case "ENTRY_REVIEW": {
         if (!["REVIEW", "APPROVED", "REJECTED"].includes(b.status)) return NextResponse.json({ error: "유효하지 않은 상태" }, { status: 400 });
+        if (!b.id || typeof b.id !== "string") return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
+        const exists = await prisma.tournamentEntry.findUnique({ where: { id: b.id }, select: { id: true } });
+        if (!exists) return NextResponse.json({ error: "참가 기록을 찾을 수 없습니다." }, { status: 404 });
         await prisma.tournamentEntry.update({ where: { id: b.id }, data: { status: b.status } });
         await log("ENTRY_" + b.status, b.id); break;
+      }
       case "USER_ROLE":
         if (!["SUPER_ADMIN", "ANGLER", "PARTNER"].includes(b.role)) return NextResponse.json({ error: "유효하지 않은 역할" }, { status: 400 });
         await prisma.user.update({ where: { id: b.id }, data: { role: b.role } });
         await log("USER_ROLE_" + b.role, b.id); break;
-      case "TOURNAMENT_CREATE":
+      case "TOURNAMENT_CREATE": {
+        const title = typeof b.title === "string" ? b.title.trim() : "";
+        if (!title) return NextResponse.json({ error: "대회명을 입력하세요." }, { status: 400 });
+        // 참가비/순위 보상 포인트 — 비워두면 null(= 참가비 없음 / 보상 없음)
+        const points: Record<TournamentPointField, number | null> = {
+          entryFee: null, reward1st: null, reward2nd: null, reward3rd: null,
+        };
+        for (const [key, label] of TOURNAMENT_POINT_FIELDS) {
+          const raw = b[key];
+          if (raw === null || raw === undefined || raw === "") continue;
+          const n = Number(raw);
+          if (!Number.isInteger(n) || n <= 0 || n > MAX_TOURNAMENT_POINT) {
+            return NextResponse.json(
+              { error: `${label}은(는) 1 이상 ${MAX_TOURNAMENT_POINT.toLocaleString()} 이하의 정수로 입력하세요.` },
+              { status: 400 },
+            );
+          }
+          points[key] = n;
+        }
+        const tType = b.tType || "WEEKLY";
+        if (!TOURNAMENT_TYPES.some((t) => t.key === tType)) {
+          return NextResponse.json({ error: "유효하지 않은 대회 타입" }, { status: 400 });
+        }
+        // <input type="date"> 값은 KST 기준 하루 전체(00:00~23:59:59)로 해석한다.
+        // new Date("2026-08-02") 는 UTC 자정(=KST 09:00)이라 그대로 쓰면 9시간 밀린다.
+        const startAt = kstDayStart(b.startAt) ?? new Date();
+        const endAt = kstDayEnd(b.endAt) ?? new Date(startAt.getTime() + 7 * 86400000);
+        if (endAt <= startAt) {
+          return NextResponse.json({ error: "종료일은 시작일보다 뒤여야 합니다." }, { status: 400 });
+        }
+        // 상태는 기간으로 결정한다(관리자가 고른 값이 기간과 어긋나면 즉시 뒤틀린다)
         await prisma.tournament.create({ data: {
-          title: b.title, type: b.tType || "WEEKLY", speciesName: b.speciesName || null,
+          title, type: tType, speciesName: b.speciesName || null,
           description: b.description || null, rules: b.rules || "길이 cm 기준 순위",
-          startAt: new Date(b.startAt || Date.now()), endAt: new Date(b.endAt || Date.now() + 7 * 86400000),
-          status: b.status || "UPCOMING", bannerUrl: b.bannerUrl || null,
+          startAt, endAt,
+          status: effectiveStatus({ startAt, endAt }), bannerUrl: b.bannerUrl || null,
+          // 관리자가 올린 배너 (base64 data URI). 없으면 어종별 기본 배너로 폴백한다.
+          bannerImage: b.bannerImage || null,
+          ...points,
         }});
-        await log("TOURNAMENT_CREATE", undefined, b.title); break;
+        await log("TOURNAMENT_CREATE", undefined, title); break;
+      }
       case "TOURNAMENT_DELETE":
+        if (!b.id || typeof b.id !== "string") return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
         await prisma.tournament.delete({ where: { id: b.id } });
         await log("TOURNAMENT_DELETE", b.id); break;
       case "PRODUCT_CREATE":

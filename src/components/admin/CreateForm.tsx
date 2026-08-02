@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Loader2, X } from "lucide-react";
+import { Plus, Loader2, X, ImagePlus, Trash2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { Button, Input, Select } from "@/components/ui";
 
-type Field = { name: string; label: string; type?: "text" | "number" | "date" | "select"; options?: { value: string; label: string }[]; required?: boolean };
+type Field = { name: string; label: string; type?: "text" | "number" | "date" | "select" | "image"; options?: { value: string; label: string }[]; required?: boolean; placeholder?: string; uploadUrl?: string };
 
 export function CreateForm({ actionType, title, fields, fixed }: {
   actionType: string; title: string; fields: Field[]; fixed?: Record<string, any>;
@@ -15,6 +15,27 @@ export function CreateForm({ actionType, title, fields, fixed }: {
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  async function uploadImage(f: Field, file: File) {
+    setUploading(f.name);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(f.uploadUrl || "/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "업로드 실패");
+      setValues((v) => ({ ...v, [f.name]: data.url }));
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setUploading(null);
+      // 같은 파일을 다시 골라도 change 가 발생하도록 초기화
+      const input = fileInputs.current[f.name];
+      if (input) input.value = "";
+    }
+  }
 
   async function submit() {
     for (const f of fields) if (f.required && !values[f.name]) { toast(`${f.label}을(를) 입력하세요`, "error"); return; }
@@ -47,20 +68,61 @@ export function CreateForm({ actionType, title, fields, fixed }: {
       </div>
       <div className="grid grid-cols-2 gap-3">
         {fields.map((f) => (
-          <div key={f.name} className={f.type === "select" ? "col-span-2 sm:col-span-1" : ""}>
+          <div key={f.name} className={f.type === "image" ? "col-span-2" : f.type === "select" ? "col-span-2 sm:col-span-1" : ""}>
             <label className="mb-1 block text-xs font-semibold text-navy-500">{f.label}</label>
-            {f.type === "select" ? (
+            {f.type === "image" ? (
+              <div>
+                <input
+                  ref={(el) => { fileInputs.current[f.name] = el; }}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadImage(f, file); }}
+                />
+                {values[f.name] ? (
+                  // 카드와 같은 16:7 비율로 미리보기
+                  <div className="relative aspect-[16/7] w-full overflow-hidden rounded-xl border border-navy-100 bg-navy-50">
+                    {/* base64 data URI 라 next/image 최적화 대상이 아니다 */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={values[f.name]} alt="배너 미리보기" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setValues((v) => ({ ...v, [f.name]: "" }))}
+                      aria-label="이미지 삭제"
+                      className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80"
+                    >
+                      <Trash2 size={14} strokeWidth={1.8} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={uploading === f.name}
+                    onClick={() => fileInputs.current[f.name]?.click()}
+                    className="flex aspect-[16/7] w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-navy-200 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 disabled:opacity-50"
+                  >
+                    {uploading === f.name
+                      ? <Loader2 size={22} strokeWidth={1.7} className="animate-spin" />
+                      : <ImagePlus size={22} strokeWidth={1.7} />}
+                    <span className="text-[12px] font-semibold">
+                      {uploading === f.name ? "업로드 중..." : "이미지 선택 (선택사항)"}
+                    </span>
+                    <span className="text-[11px] text-navy-300">jpg · png · webp · gif / 최대 5MB</span>
+                  </button>
+                )}
+              </div>
+            ) : f.type === "select" ? (
               <Select value={values[f.name] ?? ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}>
                 <option value="">선택</option>
                 {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </Select>
             ) : (
-              <Input type={f.type || "text"} value={values[f.name] ?? ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
+              <Input type={f.type || "text"} placeholder={f.placeholder} value={values[f.name] ?? ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
             )}
           </div>
         ))}
       </div>
-      <Button onClick={submit} disabled={loading} size="sm" className="mt-3" leftIcon={loading ? <Loader2 size={14} className="animate-spin" /> : undefined}>
+      <Button onClick={submit} disabled={loading || !!uploading} size="sm" className="mt-3" leftIcon={loading ? <Loader2 size={14} className="animate-spin" /> : undefined}>
         등록
       </Button>
     </div>

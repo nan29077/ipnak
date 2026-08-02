@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { CurationHome } from "@/components/CurationHome";
 import { getMainSections } from "@/lib/curation";
 import { parseInterests } from "@/lib/interestsUtils";
+import { syncTournamentStatuses } from "@/lib/tournamentStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 // (middleware matcher "/" · MobileLandingRedirect)의 영향을 받지 않도록 별도 경로로 둔다.
 export default async function HomeCurationPage() {
   const user = await getCurrentUser();
+  await syncTournamentStatuses();
 
   // 로그인 유저: DB에서 관심사 파싱
   let userInterests = { methods: [] as string[], species: [] as string[] };

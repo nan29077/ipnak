@@ -485,7 +485,14 @@ model Tournament {
   endAt       DateTime
   status      String            @default("UPCOMING") // UPCOMING | ONGOING | ENDED
   bannerUrl   String?
+  bannerImage String? // 배너 이미지 (base64 또는 URL)
   createdAt   DateTime          @default(now())
+  // 참가비 / 순위 보상 (포인트). null = 설정 없음(무료 / 보상 없음)
+  entryFee    Int?
+  reward1st   Int?
+  reward2nd   Int?
+  reward3rd   Int?
+  rewardPaid  Boolean           @default(false) // 보상 지급 완료 여부 (중복 지급 방지)
   entries     TournamentEntry[]
 }
 

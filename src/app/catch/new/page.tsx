@@ -146,7 +146,8 @@ export default function NewCatchPage() {
         toast(`${Number(data.pointsEarned).toLocaleString()}P 적립됐습니다!`, "success");
         notifyPointsChanged();
       }
-      router.push(share && data.postId ? `/post/${data.postId}` : "/trip");
+      // replace: 기록 완료 후 뒤로가기 시 작성 폼으로 되돌아가지 않도록
+      router.replace(share && data.postId ? `/post/${data.postId}` : "/trip");
       router.refresh();
     } catch (e: any) {
       toast(e.message, "error");

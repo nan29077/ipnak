@@ -37,6 +37,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "제목을 입력해주세요." }, { status: 400 });
   }
 
+  // 피싱 피드(FEED) / 일상 피드(GENERAL)는 사진 1장 이상 + 내용이 모두 있어야 등록 가능.
+  // (조행기 LOG는 제목·본문 기준, 워킹 피드 WALKING은 시스템 자동 생성이라 제외)
+  if (kind === "FEED" || kind === "GENERAL") {
+    if (!images.length) {
+      return NextResponse.json({ error: "사진을 1장 이상 첨부해주세요." }, { status: 400 });
+    }
+    if (!String(b.caption || "").trim()) {
+      return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
+    }
+  }
+
   // 일반 회원은 WALKING_FEED / FISHING_POINT 타입을 직접 지정할 수 없다.
   // (워킹 피드는 스마트피싱 기록 종료 시 시스템이 자동 생성, 낚시 포인트도 별도 API에서만 생성)
   const ALLOWED_POST_TYPES = ["GENERAL", "TOURNAMENT"];

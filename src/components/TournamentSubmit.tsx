@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trophy, Camera, Images, ScanLine } from "lucide-react";
+import { Trophy, Camera, Images, ScanLine, Coins } from "lucide-react";
 import { Sheet, Button } from "@/components/ui";
 import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 
-export function TournamentSubmit({ tournamentId, species, loggedIn }: {
+export function TournamentSubmit({ tournamentId, species, loggedIn, entryFee }: {
   tournamentId: string; species: string | null; loggedIn: boolean;
+  /** 참가비 포인트 (null/0 이면 무료) — 실제 차감은 계측 제출 시점에 확인 모달을 거친다 */
+  entryFee?: number | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -37,6 +39,14 @@ export function TournamentSubmit({ tournamentId, species, loggedIn }: {
             <ScanLine size={15} className="shrink-0" strokeWidth={1.8} />
             <span>입낚볼(40mm)과 함께 촬영하면 길이가 자동 계측됩니다</span>
           </div>
+
+          {/* 참가비 안내 — 첫 제출 1회만 차감 */}
+          {!!entryFee && entryFee > 0 && (
+            <div className="flex items-center gap-2 rounded-xl bg-orange-500/10 px-3 py-2.5 text-[12px] text-orange-400">
+              <Coins size={15} className="shrink-0" strokeWidth={1.8} />
+              <span>참가비 {entryFee.toLocaleString()}P — 첫 기록 제출 시 1회 차감됩니다</span>
+            </div>
+          )}
 
           {/* 카메라 / 갤러리 카드 — measure 페이지와 동일한 스타일 */}
           <div className="grid grid-cols-2 gap-3">

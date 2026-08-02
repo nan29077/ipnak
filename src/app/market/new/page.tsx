@@ -58,7 +58,8 @@ export default function NewMarketListingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "오류");
       toast("판매글이 등록되었습니다", "success");
-      router.push(`/market/${data.id}`);
+      // replace: 등록 완료 후 뒤로가기 시 작성 폼으로 되돌아가지 않도록
+      router.replace(`/market/${data.id}`);
       router.refresh();
     } catch (e: any) {
       toast(e.message, "error");

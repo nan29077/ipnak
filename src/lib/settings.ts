@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "./prisma";
 
 export const PC_MARGIN_BG_DEFAULT = "/낚시 배경 사진/불곰 캐릭터 배경 이미지/불곰 PC화면 여백 이미지-화이트와펜.png";
@@ -63,8 +64,20 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   shipping_guide: "주문 후 1-3일 내 발송됩니다. 도서산간 지역은 추가 배송비가 발생할 수 있습니다.",
 };
 
+/**
+ * 요청 단위 메모이제이션.
+ * getSetting 은 한 번의 페이지 렌더/요청에서 수십 번(피드 쿼리 3회 + 각 컴포넌트) 호출되는데,
+ * 그때마다 Setting 테이블을 조회하고 있었다. React cache 는 요청이 끝나면 폐기되므로
+ * 관리자가 값을 바꾸면 다음 요청부터 즉시 반영된다(값이 굳지 않는다).
+ * ⚠️ 같은 요청 안에서 쓰기 후 다시 읽는 경로에는 쓰면 안 된다 —
+ *    그런 경로(가상회원 사용량 집계·비밀번호 재설정 코드)는 getSettings / 직접 조회를 쓰므로 영향이 없다.
+ */
+const readSettingRow = cache(async (key: string) =>
+  prisma.setting.findUnique({ where: { key }, select: { value: true } }).catch(() => null),
+);
+
 export async function getSetting(key: string): Promise<string> {
-  const row = await prisma.setting.findUnique({ where: { key } }).catch(() => null);
+  const row = await readSettingRow(key);
   return normalizeSettingValue(key, row?.value ?? SETTING_DEFAULTS[key] ?? "");
 }
 
