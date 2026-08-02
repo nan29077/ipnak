@@ -11,7 +11,10 @@ const MiniRouteMap = dynamic(
   { ssr: false }
 );
 
-type GridPost = { id: string; image: string | null; postType: string; sizeCm: number | null; speciesName: string | null; body?: string | null };
+type GridPost = { id: string; image: string | null; postType: string; kind?: string | null; sizeCm: number | null; speciesName: string | null; body?: string | null };
+
+/** 조행기(LOG)는 상세 화면이 별도라 /log/[id] 로 보낸다 */
+const postHref = (p: GridPost) => (p.kind === "LOG" ? `/log/${p.id}` : `/post/${p.id}`);
 
 export function ProfileView({
   posts, points, entries,
@@ -59,18 +62,21 @@ export function ProfileView({
       ) : tab === "walking" ? (
         <WalkingGrid items={walkingPosts} />
       ) : (
-        <PostGrid items={tab === "posts" ? feedPosts : points} />
+        <PostGrid
+          items={tab === "posts" ? feedPosts : points}
+          emptyTitle={tab === "posts" ? "게시글이 없습니다" : "피싱포인트가 없습니다"}
+        />
       )}
     </div>
   );
 }
 
-function PostGrid({ items }: { items: GridPost[] }) {
-  if (items.length === 0) return <EmptyState title="게시글이 없습니다" />;
+function PostGrid({ items, emptyTitle }: { items: GridPost[]; emptyTitle: string }) {
+  if (items.length === 0) return <EmptyState title={emptyTitle} />;
   return (
     <div className="mx-3.5 grid grid-cols-3 gap-0.5">
       {items.map((p) => (
-        <Link key={p.id} href={`/post/${p.id}`} className="relative aspect-square overflow-hidden rounded-md bg-navy-50">
+        <Link key={p.id} href={postHref(p)} className="relative aspect-square overflow-hidden rounded-md bg-navy-50">
           {p.image && <img src={p.image} alt={p.speciesName || "게시글"} className="h-full w-full object-cover" />}
           {p.sizeCm != null && (
             <span className="absolute bottom-1 left-1 flex items-center gap-0.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white">

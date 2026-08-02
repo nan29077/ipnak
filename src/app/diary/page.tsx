@@ -168,19 +168,36 @@ export default function DiaryPage() {
         {loading ? (
           <LoadingState label="기록 불러오는 중..." />
         ) : items.length === 0 ? (
-          <EmptyState
-            title="아직 측정 기록이 없어요"
-            desc="입낚볼과 함께 촬영하면 길이·무게가 자동 기록됩니다."
-            action={
-              <Link
-                href="/measure"
-                className="inline-flex items-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[14px] font-semibold text-white shadow-soft transition-colors hover:bg-orange-600"
-              >
-                <Camera size={16} strokeWidth={1.9} />
-                첫 측정 시작하기
-              </Link>
-            }
-          />
+          // 어종 필터 때문에 비어 있는 경우와 기록 자체가 없는 경우를 구분해 안내한다
+          species ? (
+            <EmptyState
+              title={`${species} 측정 기록이 없어요`}
+              desc="다른 어종을 선택하거나 '전체'로 돌아가 보세요."
+              action={
+                <button
+                  type="button"
+                  onClick={() => setSpecies("")}
+                  className="inline-flex items-center gap-2 rounded-[16px] border border-navy-100 px-4 py-2.5 text-[14px] font-semibold text-navy-400 transition-colors hover:border-orange-400 hover:text-orange-400"
+                >
+                  전체 보기
+                </button>
+              }
+            />
+          ) : (
+            <EmptyState
+              title="아직 측정 기록이 없어요"
+              desc="입낚볼과 함께 촬영하면 길이·무게가 자동 기록됩니다."
+              action={
+                <Link
+                  href="/measure"
+                  className="inline-flex items-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[14px] font-semibold text-white shadow-soft transition-colors hover:bg-orange-600"
+                >
+                  <Camera size={16} strokeWidth={1.9} />
+                  첫 측정 시작하기
+                </Link>
+              }
+            />
+          )
         ) : (
           <ul className="space-y-2.5">
             {items.map((m) => {

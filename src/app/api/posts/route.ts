@@ -61,7 +61,9 @@ export async function POST(req: Request) {
   const data: any = {
     authorId: user.id, postType: requestedType, kind,
     title: b.title || null, body: b.body || null,
-    boardCategory: kind === "LOG" ? (b.boardCategory || "FREE") : null,
+    // 게시판 미지정은 null 로 둔다. "FREE" 는 LOG_CATEGORIES 에 없는 값이라
+    // 저장되면 어떤 게시판 탭에도 잡히지 않고 라벨도 "조행기"로 뭉개진다.
+    boardCategory: kind === "LOG" ? (b.boardCategory || null) : null,
     caption: b.caption || null,
     speciesName: b.speciesName || null, fishingType: b.fishingType || null,
     categoryPath: b.categoryPath || null, sizeCm: b.sizeCm ? Number(b.sizeCm) : null,

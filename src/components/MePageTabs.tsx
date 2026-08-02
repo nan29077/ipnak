@@ -204,7 +204,7 @@ const BOOKING_STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   DONE: { label: "이용완료", tone: "gray" },
 };
 
-type GridPost = { id: string; image: string | null; postType: string; sizeCm: number | null; speciesName: string | null; body?: string | null };
+type GridPost = { id: string; image: string | null; postType: string; kind?: string | null; sizeCm: number | null; speciesName: string | null; body?: string | null };
 
 interface Props {
   user: { id: string; nickname: string; email: string; role: string; avatarUrl: string | null };

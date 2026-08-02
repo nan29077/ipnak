@@ -49,6 +49,15 @@ export default function GroupsPage() {
   useEffect(() => { load(); }, [region, fishSpecies, search]);
 
   const filtered = cat === "전체" ? groups : groups.filter(g => g.category === cat);
+  const hasFilter = cat !== "전체" || !!region || !!fishSpecies || !!search;
+
+  function resetFilters() {
+    setCat("전체");
+    setRegion("");
+    setFishSpecies("");
+    setSearch("");
+    setSearchInput("");
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1b2a] pb-24">
@@ -112,8 +121,21 @@ export default function GroupsPage() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-20 text-center">
             <div className="rounded-full bg-navy-50/10 p-4"><Users size={28} className="text-navy-300" strokeWidth={1.5} /></div>
-            <p className="text-[14px] text-navy-400">낚시단이 없습니다</p>
-            <Link href="/groups/new" className="rounded-full bg-orange-500 px-4 py-2 text-[13px] font-bold text-white">첫 낚시단 만들기</Link>
+            {/* 검색·필터 때문에 비어 있는 것과 낚시단이 아예 없는 것을 구분해서 안내한다 */}
+            <p className="text-[14px] text-navy-400">
+              {hasFilter ? "조건에 맞는 낚시단이 없습니다" : "낚시단이 없습니다"}
+            </p>
+            {hasFilter ? (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="rounded-full border border-navy-100/30 px-4 py-2 text-[13px] font-bold text-navy-400 hover:border-orange-400/60 hover:text-orange-400"
+              >
+                필터 초기화
+              </button>
+            ) : (
+              <Link href="/groups/new" className="rounded-full bg-orange-500 px-4 py-2 text-[13px] font-bold text-white">첫 낚시단 만들기</Link>
+            )}
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">

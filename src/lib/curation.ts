@@ -51,7 +51,7 @@ function toCard(p: any): CurationCardPost {
 }
 
 export type RankOpts = {
-  kind?: "FEED" | "LOG" | "all";
+  kind?: "FEED" | "GENERAL" | "LOG" | "all";
   species?: string | null;
   authorId?: string | null;         // 특정 회원(프로 연결계정) 글만
   region?: string | null;          // 단일 지역(부분일치)

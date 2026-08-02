@@ -6,12 +6,28 @@ export async function getProfileData(userId: string, viewerId?: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return null;
 
+  // 공개범위 필터 — 본인 프로필이 아니면 전체공개/위치흐림 글만 노출한다.
+  // (FOLLOWERS 글은 뷰어가 팔로우 중일 때만, PRIVATE 글은 본인만)
+  const isOwner = viewerId === userId;
+  let visibilityWhere: any = {};
+  if (!isOwner) {
+    const viewerFollows = viewerId
+      ? await prisma.follow.findUnique({
+          where: { followerId_followingId: { followerId: viewerId, followingId: userId } },
+        })
+      : null;
+    visibilityWhere = viewerFollows
+      ? { visibility: { in: ["PUBLIC", "BLURRED", "FOLLOWERS"] } }
+      : { visibility: { in: ["PUBLIC", "BLURRED"] } };
+  }
+  const postWhere = { authorId: userId, hidden: false, ...visibilityWhere };
+
   const [postCount, followerCount, followingCount, posts, points, entries, isFollowing, catchRecords] = await Promise.all([
-    prisma.post.count({ where: { authorId: userId, hidden: false } }),
+    prisma.post.count({ where: postWhere }),
     prisma.follow.count({ where: { followingId: userId } }),
     prisma.follow.count({ where: { followerId: userId } }),
     prisma.post.findMany({
-      where: { authorId: userId, hidden: false }, orderBy: { createdAt: "desc" },
+      where: postWhere, orderBy: { createdAt: "desc" },
       include: { images: { orderBy: { order: "asc" }, take: 1 } }, take: 60,
     }),
     prisma.fishingPoint.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, include: { posts: { select: { id: true }, take: 1 } }, take: 60 }),
@@ -52,8 +68,9 @@ export async function getProfileData(userId: string, viewerId?: string) {
       region: user.region, role: user.role, interests: safeJson<string[]>(user.interests, []),
     },
     stats: { postCount, followerCount, followingCount, topSpecies, maxSize: maxSize || null, maxWeight, avgWeight, pointCount: points.length, catchCount: catchRecords.length },
-    posts: posts.map((p) => ({ id: p.id, image: p.images[0]?.url ?? null, postType: p.postType, sizeCm: p.sizeCm, speciesName: p.speciesName, body: p.body ?? null })),
-    points: points.map((p) => ({ id: p.posts[0]?.id ?? p.id, image: p.photoUrl, postType: "FISHING_POINT", sizeCm: p.sizeCm, speciesName: p.speciesName })),
+    // kind: 그리드에서 조행기(LOG)를 /log/[id] 로 보내기 위해 함께 내려준다
+    posts: posts.map((p) => ({ id: p.id, image: p.images[0]?.url ?? null, postType: p.postType, kind: (p as any).kind ?? "FEED", sizeCm: p.sizeCm, speciesName: p.speciesName, body: p.body ?? null })),
+    points: points.map((p) => ({ id: p.posts[0]?.id ?? p.id, image: p.photoUrl, postType: "FISHING_POINT", kind: "FEED", sizeCm: p.sizeCm, speciesName: p.speciesName })),
     entries: entries.map((e) => ({ id: e.id, tournamentId: e.tournamentId, title: e.tournament.title, speciesName: e.speciesName, sizeCm: e.sizeCm, status: e.status })),
     isFollowing: !!isFollowing,
   };

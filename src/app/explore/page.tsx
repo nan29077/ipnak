@@ -55,7 +55,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: SP }
 
   const periodChips = [{ k: "all", l: "전체" }, { k: "weekly", l: "금주" }, { k: "monthly", l: "월간" }];
   const sortChips = [{ k: "best", l: "인기순" }, { k: "recent", l: "최신순" }];
-  const kindChips = [{ k: "all", l: "전체" }, { k: "FEED", l: "피싱 피드" }, { k: "LOG", l: "조행기" }];
+  const kindChips = [{ k: "all", l: "전체" }, { k: "FEED", l: "피싱 피드" }, { k: "GENERAL", l: "일상 피드" }, { k: "LOG", l: "조행기" }];
 
   return (
     <div className="pb-10">

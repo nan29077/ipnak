@@ -23,22 +23,36 @@ export function LogBoard({
   const [cat, setCat] = useState("ALL");
   const [viewMode, setViewMode] = useViewMode("ipnak_view_log");
   const [posts, setPosts] = useState<LogListItem[]>(initialPosts);
-  const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
+  // 게시판별 커서 — "전체"와 각 게시판의 다음 페이지 위치를 따로 기억한다.
+  // undefined = 그 게시판을 아직 따로 불러온 적 없음(더 있을 수 있음), null = 마지막 페이지
+  const [cursors, setCursors] = useState<Record<string, string | null | undefined>>({ ALL: initialNextCursor ?? null });
   const [loadingMore, setLoadingMore] = useState(false);
+  const cursor = cursors[cat];
 
   // 게시판 미지정(null) 글을 "워킹조행기"로 오분류하지 않는다 — 전체 탭에서만 보이게 한다
   const visible = useMemo(() => (cat === "ALL" ? posts : posts.filter((p) => p.boardCategory === cat)), [posts, cat]);
+  const catLabel = LOG_CATEGORIES.find((c) => c.key === cat)?.label ?? "조행기";
 
   async function loadMore() {
-    if (!cursor || loadingMore) return;
+    if (cursor === null || loadingMore) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/posts/log?cursor=${cursor}&limit=20`);
+      // 게시판을 고른 상태면 서버에도 category 를 넘겨 그 게시판 글만 이어서 받는다
+      // (넘기지 않으면 전체 최신순 다음 페이지만 와서 선택한 게시판 글이 안 늘어난다)
+      const qs = new URLSearchParams({ limit: "20" });
+      if (cursor) qs.set("cursor", cursor);
+      if (cat !== "ALL") qs.set("category", cat);
+      const res = await fetch(`/api/posts/log?${qs.toString()}`);
       const data = await res.json();
       if (data.posts?.length) {
-        setPosts((prev) => [...prev, ...data.posts]);
+        setPosts((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          const added = (data.posts as LogListItem[]).filter((p) => !seen.has(p.id));
+          if (added.length === 0) return prev;
+          return [...prev, ...added].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+        });
       }
-      setCursor(data.nextCursor ?? null);
+      setCursors((prev) => ({ ...prev, [cat]: data.nextCursor ?? null }));
     } catch {
       // 실패 시 무시
     } finally {
@@ -75,7 +89,11 @@ export function LogBoard({
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState title="아직 조행기가 없어요" desc="첫 조행기를 남겨보세요" action={<LinkButton href={currentUserId ? "/log/new" : "/login"}>조행기 쓰기</LinkButton>} />
+        cat === "ALL" ? (
+          <EmptyState title="아직 조행기가 없어요" desc="첫 조행기를 남겨보세요" action={<LinkButton href={currentUserId ? "/log/new" : "/login"}>조행기 쓰기</LinkButton>} />
+        ) : (
+          <EmptyState title={`아직 ${catLabel}가 없어요`} desc="다른 게시판을 골라보거나 첫 글을 남겨보세요" action={<LinkButton href={currentUserId ? "/log/new" : "/login"}>조행기 쓰기</LinkButton>} />
+        )
       ) : viewMode === "card" ? (
         <div className="mt-2 grid grid-cols-3 gap-0.5 px-0.5">
           {visible.map((p) => (
@@ -100,8 +118,8 @@ export function LogBoard({
         </ul>
       )}
 
-      {/* 더 보기 버튼 */}
-      {cursor && (
+      {/* 더 보기 버튼 — 커서가 null(마지막 페이지)일 때만 숨긴다 */}
+      {cursor !== null && (
         <div className="flex justify-center py-6">
           <button
             type="button"
