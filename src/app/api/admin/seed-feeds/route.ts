@@ -70,7 +70,9 @@ export async function POST(req: Request) {
       const imgCount = (i % 2) + 1;
       for (let k = 0; k < imgCount; k++) {
         await prisma.postImage.create({
-          data: { postId: post.id, url: img(`feed-dummy-${i}-${k}`), alt: feed.caption.slice(0, 30), order: k },
+          // 문자열 slice 는 이모지(서로게이트 페어)를 반토막 내 짝 없는 서로게이트를 남기고,
+          // 그러면 Prisma 가 UTF-8 로 직렬화하지 못해 터진다. 코드포인트 단위로 자른다.
+          data: { postId: post.id, url: img(`feed-dummy-${i}-${k}`), alt: [...feed.caption].slice(0, 30).join(""), order: k },
         });
       }
 
