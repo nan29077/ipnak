@@ -11,6 +11,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed-extra": "tsx prisma/seed-extra.ts",
+    "db:seed-general": "tsx prisma/seed-general.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
     "db:init-virtual": "node scripts/init-virtual-tables.mjs",
     "db:seed-virtual": "tsx prisma/seed-virtual-members.ts",
