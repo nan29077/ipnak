@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { MessageSquare, Eye, ImageIcon, BookOpen, ChevronDown, Loader2 } from "lucide-react";
+import { MessageSquare, Eye, ImageIcon, BookOpen, Loader2 } from "lucide-react";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { Chip, EmptyState, LinkButton } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
@@ -117,6 +117,24 @@ export function LogBoard({
     }
   }
 
+  // 무한 스크롤 — sentinel 이 뷰포트에 들어오면 다음 페이지를 자동으로 이어 받는다
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    // 커서가 null(마지막 페이지)이면 observer 를 걸지 않는다
+    if (!el || cursor === null) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !loadingMore) loadMore();
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+    // loadMore 는 매 렌더 새로 만들어지므로 값 deps 로만 재구독한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursor, loadingMore, searchLoading, cat, activeTag]);
+
   return (
     <div className="min-h-screen">
       {/* 상단: 커뮤니티 세그먼트 + 소개 */}
@@ -186,18 +204,10 @@ export function LogBoard({
         </ul>
       )}
 
-      {/* 더 보기 버튼 — 커서가 null(마지막 페이지)일 때만 숨긴다 */}
+      {/* 무한 스크롤 sentinel — 커서가 null(마지막 페이지)일 때만 숨긴다 */}
       {cursor !== null && !searchLoading && (
-        <div className="flex justify-center py-6">
-          <button
-            type="button"
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="inline-flex items-center gap-2 rounded-full border border-navy-200 bg-[#122030] px-5 py-2.5 text-[13px] font-semibold text-navy-400 transition-colors hover:bg-[#1a2d3e] disabled:opacity-50"
-          >
-            {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <ChevronDown size={15} />}
-            {loadingMore ? "불러오는 중..." : "더 보기"}
-          </button>
+        <div ref={sentinelRef} className="flex justify-center py-6">
+          {loadingMore && <Loader2 size={18} className="animate-spin text-navy-400" />}
         </div>
       )}
     </div>

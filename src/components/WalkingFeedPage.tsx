@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Route, Fish, Lock, ChevronDown, Loader2 } from "lucide-react";
+import { Route, Fish, Lock, Loader2 } from "lucide-react";
 import { FeedCard } from "@/components/FeedCard";
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { EmptyState } from "@/components/ui";
@@ -94,6 +94,24 @@ export function WalkingFeedPage({
     }
   }
 
+  // 무한 스크롤 — sentinel 이 뷰포트에 들어오면 다음 페이지를 자동으로 이어 받는다
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    // 커서가 없으면(마지막 페이지) observer 를 걸지 않는다
+    if (!el || !cursor) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !loadingMore) loadMore();
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+    // loadMore 는 매 렌더 새로 만들어지므로 값 deps 로만 재구독한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursor, loadingMore, searchLoading, activeTag]);
+
   return (
     <div className="bg-[#121212]">
       <CommunityTabs />
@@ -174,18 +192,10 @@ export function WalkingFeedPage({
         </div>
       )}
 
-      {/* 더 보기 버튼 */}
+      {/* 무한 스크롤 sentinel — 화면에 들어오면 자동으로 다음 페이지를 불러온다 */}
       {cursor && !searchLoading && (
-        <div className="flex justify-center py-6">
-          <button
-            type="button"
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="inline-flex items-center gap-2 rounded-full border border-navy-200 bg-[#1a2a1a] px-5 py-2.5 text-[13px] font-semibold text-navy-400 transition-colors hover:bg-[#223322] disabled:opacity-50"
-          >
-            {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <ChevronDown size={15} />}
-            {loadingMore ? "불러오는 중..." : "더 보기"}
-          </button>
+        <div ref={sentinelRef} className="flex justify-center py-6">
+          {loadingMore && <Loader2 size={18} className="animate-spin text-navy-400" />}
         </div>
       )}
     </div>
