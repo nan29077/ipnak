@@ -455,19 +455,24 @@ async function main() {
       { title: "신규 예약 상품 입점", body: "여수·통영·제주 선상 출조 오픈", imageUrl: img("banner-2", 1200, 400), order: 1 },
     ],
   });
+  // 알림은 목록이 최신순(createdAt desc)으로 노출되므로 createdAt 을 명시해 시간차를 준다.
+  // 값을 비워두면 전부 같은 시각(now)으로 들어가 순서가 뒤죽박죽으로 보인다.
+  // i = 0 이 가장 최신이고 3시간씩 과거로 내려간다 → 미읽음(i<=2)이 위, 읽음(i>2)이 아래.
+  const notiBase = Date.now();
   for (let i = 0; i < 5; i++) {
     await prisma.notification.create({
       data: { userId: angler.id, type: pick(["LIKE", "COMMENT", "FOLLOW", "TOURNAMENT"], i),
         body: pick(["회원님의 게시글에 좋아요가 달렸습니다", "새로운 댓글이 달렸습니다", "새 팔로워가 생겼습니다", "대회 결과가 발표되었습니다"], i),
-        read: i > 2 },
+        read: i > 2,
+        createdAt: new Date(notiBase - i * 10800000) },
     });
   }
-  // 관리자 알림 몇 건
+  // 관리자 알림 몇 건 — 위와 같은 규칙(위에 있을수록 최신)
   await prisma.notification.createMany({
     data: [
-      { userId: admin.id, type: "REPORT", body: "새로운 신고가 접수되었습니다", read: false },
-      { userId: admin.id, type: "REVIEW", body: "대회 제출 심사 대기 항목이 있습니다", read: false },
-      { userId: admin.id, type: "BOOKING", body: "신규 예약 요청이 도착했습니다", read: true },
+      { userId: admin.id, type: "REPORT", body: "새로운 신고가 접수되었습니다", read: false, createdAt: new Date(notiBase - 3600000) },
+      { userId: admin.id, type: "REVIEW", body: "대회 제출 심사 대기 항목이 있습니다", read: false, createdAt: new Date(notiBase - 18000000) },
+      { userId: admin.id, type: "BOOKING", body: "신규 예약 요청이 도착했습니다", read: true, createdAt: new Date(notiBase - 32400000) },
     ],
   });
 
