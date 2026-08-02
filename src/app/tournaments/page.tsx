@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import { TournamentList } from "@/components/TournamentList";
-import { syncTournamentStatuses } from "@/lib/tournamentStatus";
+import { effectiveStatus, syncTournamentStatuses } from "@/lib/tournamentStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,13 @@ const STATUS_ORDER: Record<string, number> = { ONGOING: 0, UPCOMING: 1, ENDED: 2
 
 export default async function TournamentsPage() {
   await syncTournamentStatuses();
-  const tournaments = await prisma.tournament.findMany({
+  const rows = await prisma.tournament.findMany({
     include: { _count: { select: { entries: true } } },
     orderBy: { startAt: "desc" },
   });
+  // status 컬럼은 syncTournamentStatuses 의 30초 스로틀 때문에 잠시 어긋날 수 있다.
+  // 배지·필터·정렬은 상세 페이지와 같이 기간 기준 실제 상태를 쓴다.
+  const tournaments = rows.map((t) => ({ ...t, status: effectiveStatus(t) }));
   tournaments.sort(
     (a, b) => (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3)
       || b.startAt.getTime() - a.startAt.getTime(),

@@ -45,6 +45,10 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
   const entryFee = t.entryFee ?? 0;
   const rewards = [t.reward1st, t.reward2nd, t.reward3rd];
   const hasReward = rewards.some((r) => r && r > 0);
+  // 관리자 업로드 배너 우선, 없으면 어종별 불곰 마스코트 배너 (목록 카드와 동일한 규칙)
+  const banner = t.bannerImage || tournamentBannerSrc(t.speciesName, t.bannerUrl);
+  // base64 data URI 는 next/image 최적화 대상이 아니라 <img> 로 그린다
+  const isDataUri = banner.startsWith("data:");
 
   return (
     <div className="pb-10">
@@ -53,14 +57,24 @@ export default async function TournamentDetailPage({ params }: { params: { id: s
         {/* 어종별 불곰 마스코트 헤더 카드 */}
         <Card className="overflow-hidden p-0">
           <div className="relative aspect-[12/5] min-h-[148px] overflow-hidden">
-            <Image
-              src={tournamentBannerSrc(t.speciesName, t.bannerUrl)}
-              alt={`${t.speciesName ?? "낚시"} 낚시를 하는 입낚 불곰`}
-              fill
-              sizes="(max-width: 768px) 100vw, 640px"
-              priority
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            {isDataUri ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={banner}
+                alt={`${t.title} 대회 배너`}
+                decoding="async"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <Image
+                src={banner}
+                alt={`${t.speciesName ?? "낚시"} 낚시를 하는 입낚 불곰`}
+                fill
+                sizes="(max-width: 768px) 100vw, 640px"
+                priority
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-r from-[#071522]/90 via-[#071522]/60 to-black/5" aria-hidden />
             <div className="relative flex h-full min-h-[148px] items-start justify-between p-4">
               <div className="min-w-0 max-w-[62%]">

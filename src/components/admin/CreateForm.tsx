@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { Plus, Loader2, X, ImagePlus, Trash2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { Button, Input, Select } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
-type Field = { name: string; label: string; type?: "text" | "number" | "date" | "select" | "image"; options?: { value: string; label: string }[]; required?: boolean; placeholder?: string; uploadUrl?: string };
+// half: singleColumn 모드에서만 의미가 있다 — 나란히 두는 게 편한 짝(시작일/종료일)용
+type Field = { name: string; label: string; type?: "text" | "number" | "date" | "select" | "image"; options?: { value: string; label: string }[]; required?: boolean; placeholder?: string; uploadUrl?: string; half?: boolean };
 
-export function CreateForm({ actionType, title, fields, fixed }: {
-  actionType: string; title: string; fields: Field[]; fixed?: Record<string, any>;
+export function CreateForm({ actionType, title, fields, fixed, singleColumn }: {
+  actionType: string; title: string; fields: Field[]; fixed?: Record<string, any>; singleColumn?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -61,15 +63,21 @@ export function CreateForm({ actionType, title, fields, fixed }: {
   }
 
   return (
-    <div className="card animate-scalein p-4">
+    // overflow-x-hidden: overflow-y-auto 만 주면 overflow-x 가 auto 로 계산돼 모바일에서 좌우로도 끌린다
+    <div className={cn("card animate-scalein", singleColumn ? "max-h-[90vh] overflow-y-auto overflow-x-hidden p-5" : "p-4")}>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-bold text-navy-800">{title}</h3>
         <button onClick={() => setOpen(false)} aria-label="닫기" className="rounded-full p-1 text-navy-400 transition-colors hover:bg-navy-50"><X size={18} /></button>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={cn("grid grid-cols-2", singleColumn ? "gap-4" : "gap-3")}>
         {fields.map((f) => (
-          <div key={f.name} className={f.type === "image" ? "col-span-2" : f.type === "select" ? "col-span-2 sm:col-span-1" : ""}>
-            <label className="mb-1 block text-xs font-semibold text-navy-500">{f.label}</label>
+          // min-w-0: 그리드 아이템 기본값(min-width:auto) 탓에 date/select 의 고유 너비만큼 칸이 벌어져 가로로 넘친다
+          <div key={f.name} className={cn("min-w-0",
+            singleColumn
+              ? (f.half ? "col-span-1" : "col-span-2")
+              : f.type === "image" ? "col-span-2" : f.type === "select" ? "col-span-2 sm:col-span-1" : ""
+          )}>
+            <label className={cn("mb-1 block font-semibold text-navy-500", singleColumn ? "text-[13px]" : "text-xs")}>{f.label}</label>
             {f.type === "image" ? (
               <div>
                 <input
@@ -112,17 +120,24 @@ export function CreateForm({ actionType, title, fields, fixed }: {
                 )}
               </div>
             ) : f.type === "select" ? (
-              <Select value={values[f.name] ?? ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}>
+              <Select className={cn(singleColumn && "px-4 py-3")} value={values[f.name] ?? ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}>
                 <option value="">선택</option>
                 {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </Select>
             ) : (
-              <Input type={f.type || "text"} placeholder={f.placeholder} value={values[f.name] ?? ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
+              <Input className={cn(singleColumn && "px-4 py-3")} type={f.type || "text"} placeholder={f.placeholder} value={values[f.name] ?? ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
             )}
           </div>
         ))}
       </div>
-      <Button onClick={submit} disabled={loading || !!uploading} size="sm" className="mt-3" leftIcon={loading ? <Loader2 size={14} className="animate-spin" /> : undefined}>
+      <Button
+        onClick={submit}
+        disabled={loading || !!uploading}
+        size={singleColumn ? "md" : "sm"}
+        full={singleColumn}
+        className={singleColumn ? "mt-5 py-3" : "mt-3"}
+        leftIcon={loading ? <Loader2 size={singleColumn ? 16 : 14} className="animate-spin" /> : undefined}
+      >
         등록
       </Button>
     </div>

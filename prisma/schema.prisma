@@ -521,6 +521,11 @@ model TournamentEntry {
   confidence          Float?
   tamperFlag          Boolean    @default(false)
   createdAt           DateTime   @default(now())
+
+  @@index([tournamentId])
+  @@index([userId])
+  @@index([status])
+  @@index([tournamentId, status])
 }
 
 // ===== 예약 =====

@@ -99,7 +99,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   };
 
   try {
-    const entry = await prisma.$transaction(async (tx) => {
+    const { entry, charged } = await prisma.$transaction(async (tx) => {
+      let charged = 0;
       if (chargeFee) {
         // 차감 전 잔액 확인 — applyPoints 도 음수 잔액이면 throw 하지만, 사용자에게는 명확한 400 을 돌려준다
         const me = await tx.user.findUnique({ where: { id: user.id }, select: { points: true } });
@@ -108,11 +109,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         const already = await tx.tournamentEntry.count({ where: { tournamentId: t.id, userId: user.id } });
         if (already === 0) {
           await applyPoints(tx, user.id, -entryFee, "SPEND", `대회 참가비 - ${t.title}`);
+          charged = entryFee;
         }
       }
-      return tx.tournamentEntry.create({ data: entryData });
+      // 실제로 차감된 금액만 돌려준다 — 동시 제출로 재확인에서 걸러진 경우 0
+      return { entry: await tx.tournamentEntry.create({ data: entryData }), charged };
     });
-    return NextResponse.json({ ok: true, id: entry.id, charged: chargeFee ? entryFee : 0 });
+    return NextResponse.json({ ok: true, id: entry.id, charged }, { status: 201 });
   } catch (e: any) {
     if (e?.message === "INSUFFICIENT_POINTS") {
       return NextResponse.json({ error: "포인트가 부족합니다." }, { status: 400 });
