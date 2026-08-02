@@ -5,6 +5,8 @@ import { Heart, MessageSquare, Share2, Bookmark, Eye, Send, MapPin, X } from "lu
 import { useToast } from "@/components/Toast";
 import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { FishingTagCards } from "@/components/FishingTagCards";
+import { CommentRewardNotice } from "@/components/PointRewardNotice";
+import { CommentPhotoButton, CommentPhotoPreview, CommentImage } from "@/components/shared/CommentPhoto";
 import { logCategoryLabel } from "@/lib/taxonomy";
 import { timeAgo, cn } from "@/lib/utils";
 import type { FeedPost } from "@/lib/queries";
@@ -73,7 +75,11 @@ export function LogDetail({ post, currentUserId }: { post: FeedPost; currentUser
         {post.images.length > 0 && (
           <div className="mt-4 space-y-2">
             {post.images.map((im) => (
-              <img key={im.id} src={im.url} alt={im.alt || "조행기 사진"} loading="lazy" className="w-full rounded-xl object-cover" />
+              /* 원본 비율 그대로 보여주고, 남는 여백은 같은 사진의 블러 배경으로 채운다 */
+              <div key={im.id} className="relative max-h-[500px] overflow-hidden rounded-xl bg-black/40">
+                <img src={im.url} alt="" aria-hidden loading="lazy" className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl" />
+                <img src={im.url} alt={im.alt || "조행기 사진"} loading="lazy" className="relative mx-auto max-h-[500px] w-full object-contain" />
+              </div>
             ))}
           </div>
         )}
@@ -117,6 +123,8 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
   const [loadError, setLoadError] = useState(false);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState("");
+  // 첨부 사진 (업로드 완료 URL 1장)
+  const [photo, setPhoto] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<{ parentId: string; nickname: string } | null>(null);
 
   // 렌더 단계 fetch 호출(무한 재요청 위험) 대신 useEffect 로 1회만 로드
@@ -137,15 +145,16 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
     return () => { cancelled = true; };
   }, [postId]);
 
-  async function post(body: string, parentId?: string) {
+  async function post(body: string, parentId?: string, imageUrl?: string | null) {
     if (!currentUserId) { onRequireLogin?.(); return false; }
-    if (!body.trim()) return false;
+    // 사진만 있는 댓글도 등록 가능
+    if (!body.trim() && !imageUrl) return false;
     if (sending) return false; // 중복 제출 방지
     setSending(true);
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}) }),
+        body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}), ...(imageUrl ? { imageUrl } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast(data.error || "오류", "error"); return false; }
@@ -158,7 +167,7 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
       setSending(false);
     }
   }
-  async function send() { if (await post(text)) setText(""); }
+  async function send() { if (await post(text, undefined, photo)) { setText(""); setPhoto(null); } }
   function startReply(comment: any) { setReplyTo({ parentId: comment.parentId || comment.id, nickname: comment.author.nickname }); }
   async function sendReply(parentId: string, body: string) { if (await post(body, parentId)) setReplyTo(null); }
 
@@ -192,11 +201,16 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
           </div>
         ))}
       </div>
-      <div className="sticky bottom-0 mt-4 flex items-center gap-2 bg-[#0d1b2a] py-3">
-        <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
-          className="flex-1 rounded-full border border-navy-100 bg-[#162538] px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500" />
-        <button onClick={send} disabled={sending} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press hover:bg-orange-600 disabled:opacity-60"><Send size={16} /></button>
+      <div className="sticky bottom-0 mt-4 bg-[#0d1b2a] py-3">
+        <div className="flex items-center gap-2">
+          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
+            placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
+            className="flex-1 rounded-full border border-navy-100 bg-[#162538] px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500" />
+          <CommentPhotoButton disabled={!currentUserId} onUploaded={setPhoto} onError={(m) => toast(m, "error")} />
+          <button onClick={send} disabled={sending} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press hover:bg-orange-600 disabled:opacity-60"><Send size={16} /></button>
+        </div>
+        {photo && <CommentPhotoPreview url={photo} onRemove={() => setPhoto(null)} />}
+        <CommentRewardNotice className="mt-1.5" />
       </div>
     </section>
   );
@@ -209,7 +223,8 @@ function LogCommentRow({ c, onReply }: { c: any; onReply?: () => void }) {
       <div className="min-w-0 flex-1">
         <div className="rounded-2xl bg-[#162538] px-3.5 py-2.5">
           <p className="text-[13px] font-semibold text-navy-800">{c.author.nickname}</p>
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-navy-600">{c.body}</p>
+          {c.body && <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-navy-600">{c.body}</p>}
+          {c.imageUrl && <CommentImage url={c.imageUrl} />}
         </div>
         <div className="mt-1 flex items-center gap-3 pl-3">
           <span className="text-[11px] text-navy-300">{timeAgo(c.createdAt)}</span>

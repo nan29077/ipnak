@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireUser } from "@/lib/auth";
 import { excludeVirtualWhere } from "@/lib/virtualVisibility";
+import { awardCommentReward } from "@/lib/points";
 
 /** 게시글 가시성 검증 (visibility / hidden). 볼 수 없으면 false 반환 */
 async function canViewPost(postId: string, userId?: string): Promise<boolean> {
@@ -45,11 +46,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!(await canViewPost(params.id, user.id))) {
     return NextResponse.json({ error: "게시글을 찾을 수 없습니다." }, { status: 404 });
   }
-  const { body, parentId } = await req.json().catch(() => ({}));
-  if (!body || !String(body).trim()) return NextResponse.json({ error: "내용을 입력하세요." }, { status: 400 });
+  const { body, parentId, imageUrl } = await req.json().catch(() => ({}));
+  // 사진만 첨부한 댓글도 허용 — 글·사진 둘 다 없을 때만 막는다
+  const text = String(body ?? "").trim();
+  const photo = typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null;
+  if (!text && !photo) return NextResponse.json({ error: "내용을 입력하세요." }, { status: 400 });
   try {
     const comment = await prisma.comment.create({
-      data: { postId: params.id, authorId: user.id, body: String(body).trim(), parentId: parentId || null },
+      data: { postId: params.id, authorId: user.id, body: text, imageUrl: photo, parentId: parentId || null } as any,
       include: { author: { select: { id: true, nickname: true, avatarUrl: true } } },
     });
 
@@ -79,7 +83,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     } catch { /* 알림 실패는 무시 */ }
 
-    return NextResponse.json({ comment });
+    // 댓글 작성 적립 (+10P, 한도 없음) — 실패해도 댓글 등록은 성공 처리
+    const pointsEarned = (await awardCommentReward(user.id)) ?? 0;
+
+    return NextResponse.json({ comment, pointsEarned });
   } catch {
     // 삭제된 게시글/부모 댓글 등 FK 제약 위반 → 원시 500 대신 정돈된 에러 응답
     return NextResponse.json({ error: "게시글을 찾을 수 없습니다." }, { status: 404 });

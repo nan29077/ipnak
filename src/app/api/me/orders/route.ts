@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { refundSpentPoints, resolveUsablePoints, spendPoints } from "@/lib/points";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +17,18 @@ async function ensureTable() {
       "quantity"          INTEGER NOT NULL DEFAULT 1,
       "shippingFee"       INTEGER NOT NULL DEFAULT 0,
       "totalAmount"       INTEGER NOT NULL DEFAULT 0,
+      "pointsUsed"        INTEGER NOT NULL DEFAULT 0,
       "shippingAddressId" TEXT,
       "status"            TEXT NOT NULL DEFAULT 'PAID',
       "paymentMethod"     TEXT NOT NULL DEFAULT 'CARD',
       "createdAt"         TEXT NOT NULL
     )
   `);
+  // 이 컬럼이 생기기 전에 만들어진 테이블에 뒤늦게 추가한다.
+  // SQLite 는 ADD COLUMN IF NOT EXISTS 를 지원하지 않으므로 중복 실행 오류는 무시한다.
+  await prisma
+    .$executeRawUnsafe(`ALTER TABLE "Order" ADD COLUMN "pointsUsed" INTEGER NOT NULL DEFAULT 0`)
+    .catch(() => {});
 }
 
 export async function GET() {
@@ -74,10 +81,14 @@ export async function POST(req: Request) {
   const effectiveShippingFee = threshold > 0 && product.price * qty >= threshold ? 0 : (product.shippingFee ?? 0);
   const totalAmount = product.price * qty + effectiveShippingFee;
 
+  // 사용할 포인트는 클라이언트 값을 신뢰하지 않고 서버에서 보유 포인트·결제금액 기준으로 클램프한다.
+  const pointsUsed = await resolveUsablePoints(user.id, body.usePoints, totalAmount);
+
   const id = randomUUID();
   const now = new Date().toISOString();
 
   let stockDecremented = false;
+  let pointsSpent = 0;
   try {
     // 재고 차감 (stock > 0 인 경우만) + 주문 INSERT — 재고 부족 시 차감이 실패해 주문도 막힘
     if (currentStock > 0) {
@@ -90,23 +101,42 @@ export async function POST(req: Request) {
       }
       stockDecremented = true;
     }
+    // 포인트 차감 — 잔액이 모자라면 트랜잭션이 롤백되며 INSUFFICIENT_POINTS 를 던진다(잔액 음수 불가)
+    if (pointsUsed > 0) {
+      try {
+        await spendPoints(user.id, pointsUsed, "SHOPPING", product.name);
+        pointsSpent = pointsUsed;
+      } catch (e: any) {
+        if (stockDecremented) {
+          await prisma.product.update({
+            where: { id: String(productId) },
+            data: { stock: { increment: qty } },
+          }).catch(() => {});
+        }
+        return NextResponse.json(
+          { error: e?.message === "INSUFFICIENT_POINTS" ? "보유 포인트가 부족합니다." : "포인트 사용에 실패했습니다." },
+          { status: 400 },
+        );
+      }
+    }
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "Order" ("id","userId","productId","productName","price","quantity","shippingFee","totalAmount","shippingAddressId","status","paymentMethod","createdAt")
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO "Order" ("id","userId","productId","productName","price","quantity","shippingFee","totalAmount","pointsUsed","shippingAddressId","status","paymentMethod","createdAt")
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       id, user.id, String(productId), product.name,
-      product.price, qty, effectiveShippingFee, totalAmount,
+      product.price, qty, effectiveShippingFee, totalAmount, pointsSpent,
       shippingAddressId ?? null, "PAID", paymentMethod ?? "CARD", now,
     );
   } catch {
-    // INSERT 실패 시 차감한 재고를 원복한다
+    // INSERT 실패 시 차감한 재고·포인트를 원복한다
     if (stockDecremented) {
       await prisma.product.update({
         where: { id: String(productId) },
         data: { stock: { increment: qty } },
       }).catch(() => {});
     }
+    if (pointsSpent > 0) await refundSpentPoints(user.id, pointsSpent, "SHOPPING");
     return NextResponse.json({ error: "주문 처리 중 오류가 발생했습니다." }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, id });
+  return NextResponse.json({ ok: true, id, pointsUsed: pointsSpent, paidAmount: totalAmount - pointsSpent });
 }

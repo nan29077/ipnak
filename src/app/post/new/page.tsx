@@ -6,9 +6,10 @@ import { Loader2, Share2 } from "lucide-react";
 import { PageHeader, Chip, Button, Card, SectionTitle, Input, Select, Textarea } from "@/components/ui";
 import { PhotoPicker, type PickedPhoto } from "@/components/PhotoPicker";
 import { ProductTagPicker } from "@/components/ProductTagPicker";
+import { PostRewardNotice } from "@/components/PointRewardNotice";
 import { useToast } from "@/components/Toast";
 import { useAppSettings } from "@/lib/appSettingsContext";
-import { ALL_SPECIES, BASS_ONLY_SPECIES, FISHING_METHODS, VISIBILITY_OPTIONS, KOREA_SPOTS } from "@/lib/taxonomy";
+import { ALL_SPECIES, BASS_ONLY_SPECIES, FISHING_METHODS, VISIBILITY_OPTIONS, KOREA_SPOTS, KOREA_PROVINCES } from "@/lib/taxonomy";
 
 function NewPostContent() {
   const router = useRouter();
@@ -30,7 +31,15 @@ function NewPostContent() {
   const [productIds, setProductIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // 피싱/일상 피드 공통 필수값: 사진 1장 이상 + 내용. 나머지(지역·어종·태그 등)는 모두 선택
+  const uploading = photos.some((p) => p.uploading);
+  const hasPhoto = photos.some((p) => p.submitUrl);
+  const canSubmit = hasPhoto && !!caption.trim() && !uploading;
+
   async function submit() {
+    if (uploading) { toast("사진 업로드 중입니다. 잠시 기다려주세요", "error"); return; }
+    if (!hasPhoto) { toast("사진을 1장 이상 첨부해주세요", "error"); return; }
+    if (!caption.trim()) { toast("내용을 입력해주세요", "error"); return; }
     setLoading(true);
     try {
       const resolvedSpecies = species === "기타" ? customSpecies : species;
@@ -44,6 +53,8 @@ function NewPostContent() {
           kind: isGeneral ? "GENERAL" : "FEED",
           caption, speciesName: resolvedSpecies || null,
           fishingType: resolvedFishingType || null, region: resolvedRegion || null, sizeCm: size || null,
+          // 도 단위 지역 / 어종 선택값 (둘 다 선택사항)
+          location: resolvedRegion || null, fishSpecies: resolvedSpecies || null,
           lat: spot?.lat, lng: spot?.lng, visibility,
           images: photos.map((p) => p.submitUrl), productIds,
           hashtags: [resolvedRegion, resolvedSpecies].filter(Boolean),
@@ -66,18 +77,18 @@ function NewPostContent() {
   return (
     <div className="pb-10">
       <PageHeader title={pageTitle} back right={
-        <Button onClick={submit} disabled={loading} size="sm" className="rounded-full">
+        <Button onClick={submit} disabled={loading || !canSubmit} size="sm" className="rounded-full">
           {loading ? <Loader2 size={16} className="animate-spin" /> : "공유"}
         </Button>
       } />
       <div className="space-y-4 p-4">
         <Card className="space-y-3 p-4">
           <div>
-            <SectionTitle className="mb-2 uppercase tracking-[.05em] text-navy-300">사진</SectionTitle>
+            <SectionTitle className="mb-2 uppercase tracking-[.05em] text-navy-300">사진 (필수)</SectionTitle>
             <PhotoPicker value={photos} onChange={setPhotos} max={5} />
           </div>
           <div>
-            <SectionTitle className="mb-1.5 uppercase tracking-[.05em] text-navy-300">내용</SectionTitle>
+            <SectionTitle className="mb-1.5 uppercase tracking-[.05em] text-navy-300">내용 (필수)</SectionTitle>
             <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={3}
               placeholder={isGeneral ? "오늘의 일상을 기록해보세요..." : "오늘의 낚시를 기록해보세요..."} className="resize-none" />
           </div>
@@ -85,7 +96,7 @@ function NewPostContent() {
 
         {!isGeneral && (
           <Card className="space-y-3 p-4">
-            <SectionTitle className="uppercase tracking-[.05em] text-navy-300">상세 정보</SectionTitle>
+            <SectionTitle className="uppercase tracking-[.05em] text-navy-300">상세 정보 (선택)</SectionTitle>
             <div className="grid grid-cols-2 gap-3">
               <Field label="어종">
                 <Select value={species} onChange={(e) => setSpecies(e.target.value)}>
@@ -110,7 +121,7 @@ function NewPostContent() {
               <Field label="지역">
                 <Select value={region} onChange={(e) => setRegion(e.target.value)}>
                   <option value="">선택</option>
-                  {KOREA_SPOTS.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+                  {KOREA_PROVINCES.map((s) => <option key={s} value={s}>{s}</option>)}
                   <option value="기타">기타(직접입력)</option>
                 </Select>
                 {region === "기타" && (
@@ -126,12 +137,12 @@ function NewPostContent() {
 
         {isGeneral && (
           <Card className="space-y-3 p-4">
-            <SectionTitle className="uppercase tracking-[.05em] text-navy-300">상세 정보</SectionTitle>
+            <SectionTitle className="uppercase tracking-[.05em] text-navy-300">상세 정보 (선택)</SectionTitle>
             <div className="grid grid-cols-2 gap-3">
               <Field label="지역">
                 <Select value={region} onChange={(e) => setRegion(e.target.value)}>
                   <option value="">선택</option>
-                  {KOREA_SPOTS.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+                  {KOREA_PROVINCES.map((s) => <option key={s} value={s}>{s}</option>)}
                   <option value="기타">기타(직접입력)</option>
                 </Select>
                 {region === "기타" && (
@@ -153,9 +164,14 @@ function NewPostContent() {
 
         {shopTagEnabled && !isGeneral && <ProductTagPicker selected={productIds} onChange={setProductIds} />}
 
-        <Button onClick={submit} disabled={loading} full size="lg" leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}>
-          {loading ? "공유 중..." : "게시글 공유"}
+        <PostRewardNotice />
+
+        <Button onClick={submit} disabled={loading || !canSubmit} full size="lg" leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}>
+          {loading ? "공유 중..." : uploading ? "사진 업로드 중..." : "게시글 공유"}
         </Button>
+        {!canSubmit && !loading && (
+          <p className="text-center text-xs text-navy-400">사진 1장 이상과 내용을 입력하면 공유할 수 있어요.</p>
+        )}
       </div>
     </div>
   );

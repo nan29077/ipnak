@@ -2,10 +2,11 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronLeft, CreditCard, KeyRound, Loader2, MapPin, Minus, Package, Plus, Radio, Search, ShieldCheck, Truck, X } from "lucide-react";
+import { Check, ChevronLeft, Coins, CreditCard, KeyRound, Loader2, MapPin, Minus, Package, Plus, Radio, Search, ShieldCheck, Truck, X } from "lucide-react";
 import { AddressSearchModal } from "@/components/AddressSearchModal";
 import { useToast } from "@/components/Toast";
 import { cn } from "@/lib/utils";
+import { clampUsablePoints, usePointBalance } from "@/lib/usePointBalance";
 
 type Step = "intro" | "form" | "pay" | "done";
 type ProductType = "ball" | "keyring";
@@ -65,6 +66,7 @@ export function IpnakBallPurchase({
   const [method, setMethod] = useState("card");
   const [loading, setLoading] = useState(false);
   const [orderNo, setOrderNo] = useState("");
+  const [usedPoints, setUsedPoints] = useState(0);
   // 상품 타입별 판매 여부·판매가 (서버 설정이 기준, props는 SSR 초기값)
   const [config, setConfig] = useState<Record<ProductType, TypeConfig>>({
     ball: { enabled: ballEnabled, price },
@@ -154,6 +156,7 @@ export function IpnakBallPurchase({
     setQty(1);
     setSelectedOption(null);
     setImgIdx(0);
+    setPointInput("");
   }
 
   // 현재 단가: 옵션 활성화 시 선택된 옵션 가격, 아니면 기본가
@@ -165,6 +168,14 @@ export function IpnakBallPurchase({
   })();
 
   const totalPrice = unitPrice * qty;
+
+  // ── 포인트 사용 ──
+  // 보유 포인트는 시트가 열릴 때 조회한다. 포인트 제도 OFF·비로그인이면 enabled=false 로 섹션을 숨긴다.
+  const { enabled: pointsEnabled, balance: pointBalance } = usePointBalance(open);
+  const [pointInput, setPointInput] = useState("");
+  const appliedPoints = clampUsablePoints(pointInput, pointBalance, totalPrice);
+  const payableAmount = Math.max(0, totalPrice - appliedPoints);
+  const usablePointMax = Math.min(pointBalance, totalPrice);
 
   const images = product.imageUrls ?? [];
   function moveImage(delta: number) {
@@ -226,6 +237,7 @@ export function IpnakBallPurchase({
     if (!loading) {
       setAddressOpen(false);
       setOpen(false);
+      setPointInput("");
       if (step === "done") setStep("intro");
     }
   };
@@ -235,11 +247,11 @@ export function IpnakBallPurchase({
     try {
       const res = await fetch("/api/ipnak-ball/orders", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, quantity: qty, paymentMethod: method, selectedOption, productType: activeType }),
+        body: JSON.stringify({ ...form, quantity: qty, paymentMethod: method, selectedOption, productType: activeType, usePoints: appliedPoints }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "결제에 실패했습니다.");
-      setOrderNo(data.orderNo); setStep("done");
+      setOrderNo(data.orderNo); setUsedPoints(Number(data.pointsUsed) || 0); setPointInput(""); setStep("done");
     } catch (e: any) { toast(e.message, "error"); }
     finally { setLoading(false); }
   }
@@ -466,15 +478,57 @@ export function IpnakBallPurchase({
           {step === "pay" && <div className="p-5 pb-[max(24px,env(safe-area-inset-bottom))]">
             <div className="rounded-2xl bg-white/[.05] p-5 text-center">
               <p className="text-xs text-white/50">{label} · 최종 결제 금액</p>
-              <p className="mt-1 text-3xl font-extrabold">₩{totalPrice.toLocaleString()}</p>
+              <p className="mt-1 text-3xl font-extrabold">₩{payableAmount.toLocaleString()}</p>
+              {appliedPoints > 0 && (
+                <p className="mt-1 text-xs text-orange-300">
+                  상품금액 {totalPrice.toLocaleString()}원 − 포인트 {appliedPoints.toLocaleString()}P
+                </p>
+              )}
               {optionHint && <p className="mt-1 text-xs text-aqua-400">{optionHint}</p>}
             </div>
+
+            {/* 포인트 사용 — 보유 포인트 이내, 결제금액 이하로만 사용 가능(서버에서 재검증) */}
+            {pointsEnabled && (
+              <div className="mt-4 rounded-2xl bg-white/[.05] p-4">
+                <div className="flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-[13px] font-bold text-white/80">
+                    <Coins size={15} className="text-orange-400" /> 포인트 사용
+                  </p>
+                  <p className="text-[12px] text-white/50">보유 {pointBalance.toLocaleString()}P</p>
+                </div>
+                <div className="mt-2.5 flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={pointInput}
+                    onChange={(e) => setPointInput(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                    placeholder="0"
+                    disabled={usablePointMax <= 0}
+                    className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[.05] px-3 py-2.5 text-right text-[16px] text-white outline-none focus:border-orange-400 disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPointInput(String(usablePointMax))}
+                    disabled={usablePointMax <= 0}
+                    className="shrink-0 rounded-xl border border-orange-500/50 bg-orange-500/10 px-3 text-[12px] font-bold text-orange-300 disabled:opacity-40"
+                  >
+                    전액 사용
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] text-white/45">
+                  {usablePointMax <= 0
+                    ? "사용 가능한 포인트가 없습니다."
+                    : `최대 ${usablePointMax.toLocaleString()}P까지 사용할 수 있습니다.`}
+                </p>
+              </div>
+            )}
+
             <p className="mb-2 mt-5 text-xs font-bold text-white/60">결제 수단</p><div className="grid grid-cols-3 gap-2">{methods.map(m => <button key={m.key} onClick={() => setMethod(m.key)} className={cn("rounded-xl border px-2 py-3 text-xs font-semibold", method === m.key ? "border-aqua-400 bg-aqua-500/10 text-aqua-300" : "border-white/10 text-white/50")}>{m.label}</button>)}</div>
             <p className="mt-4 rounded-xl bg-white/[.05] p-3 text-[11px] leading-relaxed text-white/50">현재 개발 환경의 테스트 PG 결제창입니다. 운영 PG 키 연동 시 동일한 주문 흐름에서 실제 승인 결과를 처리합니다.</p>
-            <button onClick={pay} disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 font-extrabold disabled:opacity-50">{loading ? <Loader2 className="animate-spin" size={18}/> : <CreditCard size={18}/>} 결제 승인</button>
+            <button onClick={pay} disabled={loading} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 font-extrabold disabled:opacity-50">{loading ? <Loader2 className="animate-spin" size={18}/> : <CreditCard size={18}/>} ₩{payableAmount.toLocaleString()} 결제 승인</button>
           </div>}
 
-          {step === "done" && <div className="p-8 text-center pb-[max(32px,env(safe-area-inset-bottom))]"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-aqua-500/15 text-aqua-400"><Check size={32}/></span><h2 className="mt-4 text-xl font-extrabold">구매가 완료되었습니다</h2><p className="mt-2 text-sm text-white/55">주문번호 {orderNo}<br/>관리자가 배송 상태를 순차적으로 업데이트합니다.</p><button onClick={close} className="mt-6 w-full rounded-2xl bg-white/10 py-3 font-bold">확인</button></div>}
+          {step === "done" && <div className="p-8 text-center pb-[max(32px,env(safe-area-inset-bottom))]"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-aqua-500/15 text-aqua-400"><Check size={32}/></span><h2 className="mt-4 text-xl font-extrabold">구매가 완료되었습니다</h2><p className="mt-2 text-sm text-white/55">주문번호 {orderNo}<br/>{usedPoints > 0 && <>포인트 {usedPoints.toLocaleString()}P 사용<br/></>}관리자가 배송 상태를 순차적으로 업데이트합니다.</p><button onClick={close} className="mt-6 w-full rounded-2xl bg-white/10 py-3 font-bold">확인</button></div>}
           </>}
         </div>
       </div>, document.body)}

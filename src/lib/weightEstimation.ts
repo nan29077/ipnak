@@ -115,6 +115,8 @@ const NAME_TO_KEY: Record<string, string> = {
   "참돔": "red_seabream",
   "광어": "flounder",
   "우럭": "rockfish",
+  "우럭(조피볼락)": "rockfish",
+  "조피볼락": "rockfish",
   "고등어": "mackerel",
   "잉어": "carp",
   "붕어": "crucian_carp",

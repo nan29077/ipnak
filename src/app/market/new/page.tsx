@@ -35,17 +35,23 @@ export default function NewMarketListingPage() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 중고마켓 필수값: 제목 + 내용(설명) + 가격. 사진·카테고리·거래지역 등 나머지는 모두 선택
+  const uploading = photos.some((p) => p.uploading);
+  const priceValid = price.trim() !== "" && Number.isFinite(Number(price)) && Number(price) >= 0;
+  const canSubmit = !!title.trim() && !!description.trim() && priceValid && !uploading;
+
   async function submit() {
     if (!title.trim()) { toast("제목을 입력해주세요", "error"); return; }
-    if (!category) { toast("카테고리를 선택해주세요", "error"); return; }
-    if (photos.some((p) => p.uploading)) { toast("사진 업로드 중입니다. 잠시 기다려주세요", "error"); return; }
+    if (!description.trim()) { toast("내용을 입력해주세요", "error"); return; }
+    if (!priceValid) { toast("가격을 입력해주세요", "error"); return; }
+    if (uploading) { toast("사진 업로드 중입니다. 잠시 기다려주세요", "error"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/market", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title, category, condition, tradeMethod,
-          price: price || 0, region: region || null, description: description || null,
+          price: price || 0, region: region || null, location: region || null, description: description.trim(),
           images: photos.map((p) => p.submitUrl),
         }),
       });
@@ -64,18 +70,18 @@ export default function NewMarketListingPage() {
   return (
     <div className="pb-10">
       <PageHeader title="중고 판매글 등록" back right={
-        <Button onClick={submit} disabled={loading} size="sm" className="rounded-full">
+        <Button onClick={submit} disabled={loading || !canSubmit} size="sm" className="rounded-full">
           {loading ? <Loader2 size={16} className="animate-spin" /> : "등록"}
         </Button>
       } />
       <div className="space-y-4 p-4">
         <Card className="space-y-3 p-4">
           <div>
-            <SectionTitle className="mb-2 uppercase tracking-[.05em] text-navy-300">사진 (최대 10장)</SectionTitle>
+            <SectionTitle className="mb-2 uppercase tracking-[.05em] text-navy-300">사진 (선택, 최대 10장)</SectionTitle>
             <PhotoPicker value={photos} onChange={setPhotos} max={10} />
           </div>
           <div>
-            <SectionTitle className="mb-1.5 uppercase tracking-[.05em] text-navy-300">제목</SectionTitle>
+            <SectionTitle className="mb-1.5 uppercase tracking-[.05em] text-navy-300">제목 (필수)</SectionTitle>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 다이와 루비아스 2500 릴 판매합니다" maxLength={60} />
           </div>
         </Card>
@@ -83,7 +89,7 @@ export default function NewMarketListingPage() {
         <Card className="space-y-3 p-4">
           <SectionTitle className="uppercase tracking-[.05em] text-navy-300">상품 정보</SectionTitle>
           <div>
-            <label className="mb-1.5 block text-sm font-semibold text-navy-700">카테고리</label>
+            <label className="mb-1.5 block text-sm font-semibold text-navy-700">카테고리 (선택)</label>
             <div className="flex flex-wrap gap-2">
               {MARKET_CATEGORIES.map((c) => (
                 <Chip key={c.key} size="sm" active={category === c.key} onClick={() => setCategory(c.key)}>{c.label}</Chip>
@@ -107,10 +113,10 @@ export default function NewMarketListingPage() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="가격 (원)">
+            <Field label="가격 (원, 필수)">
               <Input type="number" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="예: 85000" />
             </Field>
-            <Field label="거래 지역">
+            <Field label="거래 지역 (선택)">
               <Select value={region} onChange={(e) => setRegion(e.target.value)}>
                 <option value="">선택</option>
                 {MARKET_REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -120,7 +126,7 @@ export default function NewMarketListingPage() {
         </Card>
 
         <Card className="space-y-2 p-4">
-          <SectionTitle className="uppercase tracking-[.05em] text-navy-300">설명</SectionTitle>
+          <SectionTitle className="uppercase tracking-[.05em] text-navy-300">내용 (필수)</SectionTitle>
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -130,9 +136,12 @@ export default function NewMarketListingPage() {
           />
         </Card>
 
-        <Button onClick={submit} disabled={loading} full size="lg" leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : <Tag size={18} />}>
-          {loading ? "등록 중..." : "판매글 등록"}
+        <Button onClick={submit} disabled={loading || !canSubmit} full size="lg" leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : <Tag size={18} />}>
+          {loading ? "등록 중..." : uploading ? "사진 업로드 중..." : "판매글 등록"}
         </Button>
+        {!canSubmit && !loading && (
+          <p className="text-center text-xs text-navy-400">제목·내용·가격을 입력하면 등록할 수 있어요.</p>
+        )}
       </div>
     </div>
   );

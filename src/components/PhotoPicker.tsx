@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { Camera, Images, ImagePlus, X, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui";
+import { ImageCropEditor } from "@/components/shared/ImageCropEditor";
 
 export type PickedPhoto = {
   preview: string;   // 로컬 blob URL (화면 표시용)
@@ -14,7 +15,7 @@ export type PickedPhoto = {
 type PhotoChange = PickedPhoto[] | ((prev: PickedPhoto[]) => PickedPhoto[]);
 
 /** 이미지를 canvas로 리사이즈+압축 후 Blob 반환 (최대 1200px, JPEG 85%) */
-async function compressImage(file: File): Promise<Blob> {
+async function compressImage(file: Blob): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
@@ -60,22 +61,52 @@ async function uploadFile(blob: Blob, fileName: string): Promise<string> {
 }
 
 /** 압축 후 업로드 */
-async function compressAndUpload(file: File): Promise<string> {
+async function compressAndUpload(file: Blob, fileName: string): Promise<string> {
   const compressed = await compressImage(file);
-  return uploadFile(compressed, file.name.replace(/\.[^.]+$/, "") + ".jpg");
+  return uploadFile(compressed, fileName.replace(/\.[^.]+$/, "") + ".jpg");
 }
 
 export function PhotoPicker({
-  value, onChange, max = 5, capture = false, single = false,
-}: { value: PickedPhoto[]; onChange: (v: PhotoChange) => void; max?: number; capture?: boolean; single?: boolean }) {
+  value, onChange, max = 5, capture = false, single = false, crop = true, cropAspect = 1,
+}: { value: PickedPhoto[]; onChange: (v: PhotoChange) => void; max?: number; capture?: boolean; single?: boolean; crop?: boolean; cropAspect?: number }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState("");
+  // 크롭 편집 대기열 — 여러 장을 고르면 한 장씩 순서대로 편집한다
+  const [queue, setQueue] = useState<File[]>([]);
+  const [queueTotal, setQueueTotal] = useState(0);
 
   function triggerInput(ref: React.RefObject<HTMLInputElement>) {
     if (!ref.current) return;
     ref.current.value = "";
     ref.current.click();
+  }
+
+  /** 한 장을 미리보기에 추가하고 업로드까지 진행 */
+  async function addAndUpload(blob: Blob, fileName: string, alreadyProcessed: boolean) {
+    const placeholder: PickedPhoto = {
+      preview: URL.createObjectURL(blob),
+      submitUrl: "",
+      uploading: true,
+    };
+    onChange((prev) => (single ? [placeholder] : [...prev, placeholder].slice(0, max)));
+    try {
+      // 크롭 결과는 이미 1080px JPEG이므로 추가 압축 없이 그대로 올린다
+      const url = alreadyProcessed
+        ? await uploadFile(blob, fileName)
+        : await compressAndUpload(blob, fileName);
+      onChange((prev) => {
+        const next = [...prev];
+        const idx = next.indexOf(placeholder);
+        if (idx === -1) return prev; // 이미 사용자가 삭제한 항목
+        next[idx] = { ...next[idx], submitUrl: url, uploading: false };
+        return next.slice(0, max);
+      });
+    } catch (e) {
+      onChange((prev) => prev.filter((p) => p !== placeholder));
+      const detail = e instanceof Error ? e.message : "";
+      setErr(detail ? `사진 업로드에 실패했습니다: ${detail}` : "사진 업로드에 실패했습니다. 다시 시도해주세요.");
+    }
   }
 
   async function handleFiles(files: FileList | null) {
@@ -84,45 +115,23 @@ export function PhotoPicker({
     const toProcess = single ? Array.from(files).slice(0, 1) : Array.from(files).slice(0, max - value.length);
     if (toProcess.length === 0) return;
 
-    // 1) 로컬 미리보기를 먼저 추가 (uploading: true)
-    const placeholders: PickedPhoto[] = toProcess.map((f) => ({
-      preview: URL.createObjectURL(f),
-      submitUrl: "",
-      uploading: true,
-    }));
-    onChange(single ? [placeholders[0]] : [...value, ...placeholders].slice(0, max));
-
-    // 2) 각 파일 압축 + 업로드 (병렬)
-    const results = await Promise.allSettled(toProcess.map((f) => compressAndUpload(f)));
-
-    // 3) 업로드 결과로 상태 업데이트
-    //    인덱스가 아니라 placeholder 객체 참조로 위치를 찾는다 — 업로드 중 사용자가
-    //    다른 사진을 추가/삭제해도 엉뚱한 항목을 덮어쓰거나 지우지 않는다.
-    onChange((prev) => {
-      const next = [...prev];
-      results.forEach((r, i) => {
-        const idx = next.indexOf(placeholders[i]);
-        if (idx === -1) return; // 이미 사용자가 삭제한 항목
-        if (r.status === "fulfilled") {
-          next[idx] = { ...next[idx], submitUrl: r.value, uploading: false };
-        } else {
-          next.splice(idx, 1); // 업로드 실패한 항목 제거
-        }
-      });
-      return next.slice(0, max);
-    });
-
-    // 4) 실패 안내 — 서버가 알려준 실제 사유를 그대로 보여준다 (예: 로그인이 필요합니다.)
-    const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-    if (failed.length > 0) {
-      const reason = failed[0].reason;
-      const detail = reason instanceof Error ? reason.message : "";
-      setErr(
-        detail
-          ? `사진 업로드에 실패했습니다: ${detail}`
-          : "일부 사진 업로드에 실패했습니다. 다시 시도해주세요."
-      );
+    // 크롭 편집을 쓰는 경우: 대기열에 넣고 한 장씩 편집 → 완료된 것부터 업로드
+    if (crop) {
+      setQueue(toProcess);
+      setQueueTotal(toProcess.length);
+      return;
     }
+
+    // 크롭 없이(기존 방식) 압축 후 업로드
+    await Promise.all(toProcess.map((f) => addAndUpload(f, f.name, false)));
+  }
+
+  /** 편집 완료 — 크롭된 Blob을 업로드하고 다음 사진으로 넘어간다 */
+  function handleCropComplete(blob: Blob) {
+    const current = queue[0];
+    setQueue((prev) => prev.slice(1));
+    if (!current) return;
+    void addAndUpload(blob, current.name.replace(/\.[^.]+$/, "") + ".jpg", true);
   }
 
   const canAdd = value.length < max;
@@ -196,6 +205,19 @@ export function PhotoPicker({
         )}
         {err && <p className="text-xs text-red-500">{err}</p>}
       </div>
+
+      {/* 크롭/줌 편집 — 선택한 사진을 한 장씩 순서대로 */}
+      {queue.length > 0 && (
+        <ImageCropEditor
+          key={`${queueTotal}-${queue.length}`}
+          file={queue[0]}
+          aspect={cropAspect}
+          title={queueTotal > 1 ? `사진 편집 (${queueTotal - queue.length + 1}/${queueTotal})` : "사진 편집"}
+          onComplete={handleCropComplete}
+          onCancel={() => setQueue([])}
+          onError={(m) => setErr(m)}
+        />
+      )}
     </div>
   );
 }

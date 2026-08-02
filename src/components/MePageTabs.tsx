@@ -16,6 +16,7 @@ import TripMemoInline from "@/components/TripMemoInline";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
 import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
 import { ProfileView } from "@/components/ProfileView";
+import { PointActivityBars } from "@/components/PointActivityBars";
 import { Badge, Button } from "@/components/ui";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { won, kstFormat } from "@/lib/utils";
@@ -480,6 +481,9 @@ export function MePageTabs({
                 )}
               </div>
             </div>
+
+            {/* 오늘의 포인트 적립 현황 */}
+            <PointActivityBars />
 
             {/* 내 예약 */}
             {reservationEnabled && (

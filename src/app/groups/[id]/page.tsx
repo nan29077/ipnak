@@ -9,6 +9,9 @@ import { useAppSettings } from "@/lib/appSettingsContext";
 import { timeAgo } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { TripDetailSheet, type TripDetail } from "@/components/TripDetailSheet";
+import { CommentRewardNotice } from "@/components/PointRewardNotice";
+import { CommentPhotoButton, CommentPhotoPreview, CommentImage } from "@/components/shared/CommentPhoto";
+import { ImageCropEditor } from "@/components/shared/ImageCropEditor";
 import type { MapCenter } from "@/components/GroupPointsMap";
 // MyLogRecord API는 조행기용으로 별도 보관 (현재 미사용)
 
@@ -33,6 +36,7 @@ type GroupPost = {
 type GroupComment = {
   id: string; postId: string; authorId: string; authorNickname: string;
   authorAvatar: string | null; content: string; createdAt: string;
+  imageUrl?: string | null; // 댓글 첨부 사진
   parentId?: string | null;
 };
 
@@ -385,6 +389,8 @@ function CommunityTab({ groupId }: { groupId: string }) {
   const [imageData, setImageData] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // 크롭 편집 대상 파일
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -403,13 +409,24 @@ function CommunityTab({ groupId }: { groupId: string }) {
 
   function pickImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 4 * 1024 * 1024) { setError("이미지는 4MB 이하만 업로드할 수 있습니다."); return; }
-    setError("");
-    const reader = new FileReader();
-    reader.onload = () => setImageData(String(reader.result));
-    reader.readAsDataURL(file);
     e.target.value = "";
+    if (!file) return;
+    if (file.size > 12 * 1024 * 1024) { setError("이미지는 12MB 이하만 선택할 수 있습니다."); return; }
+    setError("");
+    // 크롭/줌 편집 후 결과를 첨부한다
+    setCropFile(file);
+  }
+
+  /** 크롭 완료 — 편집된 이미지를 base64로 변환해 기존 첨부 방식 그대로 사용 */
+  function handleCropDone(blob: Blob) {
+    setCropFile(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = String(reader.result);
+      if (data.length > 4 * 1024 * 1024) { setError("이미지 용량이 너무 큽니다. 조금 더 축소해서 올려주세요."); return; }
+      setImageData(data);
+    };
+    reader.readAsDataURL(blob);
   }
 
   async function submit() {
@@ -440,7 +457,7 @@ function CommunityTab({ groupId }: { groupId: string }) {
         />
         {imageData && (
           <div className="relative mt-2 inline-block">
-            <img src={imageData} alt="첨부 이미지" className="max-h-40 rounded-xl object-cover" />
+            <img src={imageData} alt="첨부 이미지" className="max-h-40 rounded-xl object-contain" />
             <button onClick={() => setImageData(null)}
               className="absolute right-1.5 top-1.5 rounded-full bg-black/60 p-1 text-white hover:bg-black/80">
               <X size={13} />
@@ -479,6 +496,17 @@ function CommunityTab({ groupId }: { groupId: string }) {
             onUpdate={(updated) => setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))} />
         ))
       )}
+
+      {/* 사진 크롭/줌 편집 */}
+      {cropFile && (
+        <ImageCropEditor
+          file={cropFile}
+          aspect={1}
+          onComplete={handleCropDone}
+          onCancel={() => setCropFile(null)}
+          onError={(m) => { setCropFile(null); setError(m); }}
+        />
+      )}
     </div>
   );
 }
@@ -488,6 +516,7 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
   const [comments, setComments] = useState<GroupComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentInput, setCommentInput] = useState("");
+  const [commentPhoto, setCommentPhoto] = useState<string | null>(null); // 댓글 첨부 사진
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [liking, setLiking] = useState(false);
   const [replyTo, setReplyTo] = useState<{ parentId: string; nickname: string } | null>(null);
@@ -523,18 +552,20 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
   }
 
   async function submitComment() {
-    if (!commentInput.trim() || commentSubmitting) return;
+    // 사진만 첨부한 댓글도 등록 가능
+    if ((!commentInput.trim() && !commentPhoto) || commentSubmitting) return;
     setCommentSubmitting(true);
     try {
       const res = await fetch(`/api/groups/${groupId}/posts/${post.id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: commentInput.trim() }),
+        body: JSON.stringify({ content: commentInput.trim(), ...(commentPhoto ? { imageUrl: commentPhoto } : {}) }),
       });
       const data = await res.json();
       if (res.ok) {
         setComments((prev) => [...prev, data.comment]);
         setCommentInput("");
+        setCommentPhoto(null);
         onUpdate({ ...post, commentCount: post.commentCount + 1 });
       }
     } catch { /* 네트워크 오류 무시 — 버튼 잠김 방지 */ } finally {
@@ -589,8 +620,10 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
 
       {/* 이미지 */}
       {post.imageUrl && (
-        <div className="mt-2.5 overflow-hidden rounded-xl">
-          <img src={post.imageUrl} alt="게시글 이미지" className="w-full object-cover" />
+        <div className="relative mt-2.5 max-h-[500px] overflow-hidden rounded-xl bg-black/40">
+          {/* 여백은 같은 사진의 블러 배경으로 채운다 */}
+          <img src={post.imageUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl" />
+          <img src={post.imageUrl} alt="게시글 이미지" className="relative mx-auto max-h-[500px] w-full object-contain" />
         </div>
       )}
 
@@ -630,7 +663,8 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
                       <p className="truncate text-[12px] font-bold text-navy-700">{c.authorNickname}</p>
                       <p className="shrink-0 text-[10px] text-navy-400">{timeAgo(c.createdAt)}</p>
                     </div>
-                    <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed text-navy-600">{c.content}</p>
+                    {c.content && <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed text-navy-600">{c.content}</p>}
+                    {c.imageUrl && <CommentImage url={c.imageUrl} />}
                     <button
                       onClick={() => startReply(c)}
                       className="mt-1 text-[11px] text-navy-400 hover:text-orange-400">
@@ -647,7 +681,8 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
                         <p className="truncate text-[11px] font-bold text-navy-700">{r.authorNickname}</p>
                         <p className="shrink-0 text-[10px] text-navy-400">{timeAgo(r.createdAt)}</p>
                       </div>
-                      <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed text-navy-600">{r.content}</p>
+                      {r.content && <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-relaxed text-navy-600">{r.content}</p>}
+                      {r.imageUrl && <CommentImage url={r.imageUrl} />}
                       <button
                         onClick={() => startReply(r)}
                         className="mt-1 text-[11px] text-navy-400 hover:text-orange-400">
@@ -688,18 +723,23 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
           )}
 
           {/* 댓글 입력 */}
-          <div className="flex items-center gap-2">
-            <input
-              value={commentInput}
-              onChange={(e) => setCommentInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submitComment(); }}
-              placeholder="댓글을 입력하세요..."
-              className="min-w-0 flex-1 rounded-full bg-navy-50/10 px-3.5 py-2 text-[16px] text-navy-800 outline-none placeholder:text-navy-400"
-            />
-            <button onClick={submitComment} disabled={commentSubmitting || !commentInput.trim()}
-              className="rounded-full bg-orange-500 p-2 text-white disabled:opacity-50">
-              <Send size={14} strokeWidth={1.5} />
-            </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <input
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submitComment(); }}
+                placeholder="댓글을 입력하세요..."
+                className="min-w-0 flex-1 rounded-full bg-navy-50/10 px-3.5 py-2 text-[16px] text-navy-800 outline-none placeholder:text-navy-400"
+              />
+              <CommentPhotoButton size={15} onUploaded={setCommentPhoto} />
+              <button onClick={submitComment} disabled={commentSubmitting || (!commentInput.trim() && !commentPhoto)}
+                className="rounded-full bg-orange-500 p-2 text-white disabled:opacity-50">
+                <Send size={14} strokeWidth={1.5} />
+              </button>
+            </div>
+            {commentPhoto && <CommentPhotoPreview url={commentPhoto} onRemove={() => setCommentPhoto(null)} />}
+            <CommentRewardNotice className="mt-1.5" />
           </div>
         </div>
       )}

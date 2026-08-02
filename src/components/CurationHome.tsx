@@ -11,6 +11,7 @@ import {
 import { CommunityTabs } from "@/components/CommunityTabs";
 import { AiPointRecommend } from "@/components/AiPointRecommend";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
+import { WaterBodyBadge, useWaterBodyLabel } from "@/components/WaterBodyBadge";
 import { FishingInterestPopup } from "@/components/FishingInterestPopup";
 import type { FeedPost } from "@/lib/queries";
 import type { CurationCardPost, ResolvedSection } from "@/lib/curation";
@@ -415,6 +416,12 @@ function EmptyRail({ text }: { text: string }) {
   );
 }
 
+/** 워킹 레일 썸네일용 수계명 — 훅을 카드마다 쓰기 위해 별도 컴포넌트로 분리 */
+function WalkingRailWaterBody({ post }: { post: FeedPost }) {
+  const label = useWaterBodyLabel(post.id, post.locationLabel, post.walkingLocked);
+  return <WaterBodyBadge label={label} size="sm" />;
+}
+
 /** 워킹 피드 레일 카드 — 실제 지도 썸네일 */
 function WalkingRailCard({ post }: { post: FeedPost }) {
   let routePoints: { lat: number; lng: number }[] = [];
@@ -436,11 +443,13 @@ function WalkingRailCard({ post }: { post: FeedPost }) {
       <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-[#1b2b3a]">
         {post.walkingLocked ? (
           // 잠금 썸네일 — 어두운 배경 + 자물쇠 (탭 시 상세에서 200P로 열람)
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#0c1c2b] via-[#0e1720] to-[#05090f]">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#0c1c2b] via-[#0e1720] to-[#05090f] px-2">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/[0.06] ring-1 ring-white/10">
               <Lock size={20} className="text-amber-300" strokeWidth={1.8} />
             </div>
             <span className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-extrabold text-[#0d1b2a]">200P로 열기</span>
+            {/* GPS 좌표 기반 수계명 — 없으면 렌더링하지 않는다 */}
+            <WalkingRailWaterBody post={post} />
           </div>
         ) : routePoints.length >= 1 ? (
           <MiniRouteMap points={routePoints} catchPoints={catchMarkers.length > 0 ? catchMarkers : undefined} />

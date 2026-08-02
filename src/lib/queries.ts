@@ -26,6 +26,8 @@ export type FeedPost = {
   likeCount: number; commentCount: number; liked: boolean; saved: boolean;
   // 워킹 피드 잠금: true 이면 현재 열람자가 200P 를 지불해야 볼 수 있는 상태
   walkingLocked: boolean;
+  // 워킹 피드 GPS 기반 수계명 캐시 ("영산강") — 잠금 카드의 "OO 인근" 표시에 사용
+  locationLabel: string | null;
 };
 
 async function toFeedPost(p: any, userId?: string, walkingLocked = false): Promise<FeedPost> {
@@ -72,6 +74,8 @@ async function toFeedPost(p: any, userId?: string, walkingLocked = false): Promi
     })),
     likeCount: p._count.likes, commentCount: p._count.comments, liked: !!liked, saved: !!saved,
     walkingLocked,
+    // 수계명은 좌표가 아니므로 잠금 상태에서도 제공한다 (잠금 카드에 "OO강 인근" 표시)
+    locationLabel: p.locationLabel ?? null,
   };
 }
 

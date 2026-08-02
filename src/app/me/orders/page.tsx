@@ -27,6 +27,7 @@ async function getOrders(userId: string) {
         "quantity" INTEGER NOT NULL DEFAULT 1,
         "shippingFee" INTEGER NOT NULL DEFAULT 0,
         "totalAmount" INTEGER NOT NULL DEFAULT 0,
+        "pointsUsed" INTEGER NOT NULL DEFAULT 0,
         "shippingAddressId" TEXT,
         "status" TEXT NOT NULL DEFAULT 'PAID',
         "paymentMethod" TEXT NOT NULL DEFAULT 'CARD',
@@ -74,6 +75,11 @@ export default async function OrdersPage() {
                     <p className="mt-0.5 text-[12px] text-navy-400">
                       {order.quantity}개 · {won(order.totalAmount)}
                     </p>
+                    {Number(order.pointsUsed) > 0 && (
+                      <p className="mt-0.5 text-[11px] text-orange-400">
+                        포인트 {Number(order.pointsUsed).toLocaleString()}P 사용 · 실결제 {won(order.totalAmount - Number(order.pointsUsed))}
+                      </p>
+                    )}
                     <p className="mt-0.5 text-[11px] text-navy-300">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }) : ""}
                     </p>

@@ -1,6 +1,8 @@
 "use client";
 import { memo, useCallback, useState, useRef, useMemo, useEffect } from "react";
 import { LoginRequiredModal } from "@/components/LoginRequiredModal";
+import { CommentRewardNotice } from "@/components/PointRewardNotice";
+import { CommentPhotoButton, CommentPhotoPreview, CommentImage } from "@/components/shared/CommentPhoto";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
@@ -21,6 +23,7 @@ import { FishingTagCards } from "@/components/FishingTagCards";
 import { timeAgo, cn, km, duration } from "@/lib/utils";
 import type { FeedPost } from "@/lib/queries";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { WaterBodyBadge, useWaterBodyLabel } from "@/components/WaterBodyBadge";
 import { noImageSrc } from "@/lib/noImage";
 
 type BadgeTone = "navy" | "aqua" | "amber" | "red" | "green" | "gray";
@@ -124,6 +127,9 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
       setUnlocking(false);
     }
   }
+
+  // 잠긴 워킹 피드: GPS 좌표 기반 수계명("영산강") — 서버 캐시가 있으면 즉시 사용, 없으면 조회
+  const waterLabel = useWaterBodyLabel(post.id, post.locationLabel, locked && post.postType === "WALKING_FEED");
 
   // WALKING_FEED: body에 JSON으로 저장된 동선 데이터 파싱
   const walkingData = useMemo(() => {
@@ -386,12 +392,22 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
                     catchPoints={walkingData?.catchMarkers}
                   />
                 ) : (
-                  <img
-                    src={slide.url}
-                    alt={slide.alt || "낚시 사진"}
-                    decoding="async"
-                    className="h-full w-full object-cover"
-                  />
+                  /* 원본 비율 그대로 보여주고, 남는 여백은 같은 사진의 블러 배경으로 채운다 */
+                  <div className="relative h-full w-full overflow-hidden">
+                    <img
+                      src={slide.url}
+                      alt=""
+                      aria-hidden
+                      decoding="async"
+                      className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+                    />
+                    <img
+                      src={slide.url}
+                      alt={slide.alt || "낚시 사진"}
+                      decoding="async"
+                      className="relative h-full w-full object-contain"
+                    />
+                  </div>
                 )}
               </div>
             ))}
@@ -499,6 +515,8 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
                 <p className="text-[14px] font-bold text-white">워킹 피드 잠금</p>
                 <p className="mt-1 text-[12px] leading-relaxed text-white/55">포인트를 사용하면 동선·조황을<br />확인할 수 있어요</p>
               </div>
+              {/* GPS 좌표 기반 수계명 — 조회 전/실패 시에는 렌더링하지 않는다 (빈 자리 없게) */}
+              <WaterBodyBadge label={waterLabel} />
               <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-4 py-2 text-[13px] font-extrabold text-[#0d1b2a] shadow-lg shadow-amber-400/20">
                 <Lock size={13} strokeWidth={2.4} /> 200P로 열기
               </span>
@@ -656,6 +674,8 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
   const [loaded, setLoaded] = useState(false);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState("");
+  // 첨부 사진 (업로드 완료 URL 1장)
+  const [photo, setPhoto] = useState<string | null>(null);
   // 답글 대상(항상 최상위 댓글에 붙임 — 대댓글 깊이 1단계)
   const [replyTo, setReplyTo] = useState<{ parentId: string; nickname: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -679,14 +699,15 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
     return () => { cancelled = true; };
   }, [open, loaded, postId]);
 
-  async function postComment(body: string, parentId?: string) {
-    if (!body.trim()) return false;
+  async function postComment(body: string, parentId?: string, imageUrl?: string | null) {
+    // 사진만 있는 댓글도 등록 가능
+    if (!body.trim() && !imageUrl) return false;
     if (sending) return false; // 중복 제출 방지 (Enter 연타 등)
     setSending(true);
     try {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}) }),
+        body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}), ...(imageUrl ? { imageUrl } : {}) }),
       });
       const data = await res.json();
       if (!res.ok) { toast(data.error || "오류", "error"); return false; }
@@ -702,7 +723,7 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
   }
 
   async function send() {
-    if (await postComment(text)) setText("");
+    if (await postComment(text, undefined, photo)) { setText(""); setPhoto(null); }
   }
 
   // 답글 시작 — 대상이 대댓글이면 그 부모(최상위)에 붙이고 @멘션은 대상 작성자로
@@ -717,14 +738,19 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
   const replies = (id: string) => comments.filter((c) => c.parentId === id);
 
   const commentInput = (
-    <div className="flex items-center gap-2">
-      <input
-        ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && send()}
-        placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
-        className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-[16px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#252525] focus:ring-2 focus:ring-aqua-100"
-      />
-      <button onClick={send} disabled={sending} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press transition-colors hover:bg-orange-600 disabled:opacity-60"><Send size={16} /></button>
+    <div>
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && send()}
+          placeholder={currentUserId ? "댓글 달기..." : "로그인 후 댓글을 달 수 있어요"}
+          className="flex-1 rounded-full border border-navy-100 bg-navy-50 px-4 py-2.5 text-[16px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-aqua-400 focus:bg-[#252525] focus:ring-2 focus:ring-aqua-100"
+        />
+        <CommentPhotoButton disabled={!currentUserId} onUploaded={setPhoto} onError={(m) => toast(m, "error")} />
+        <button onClick={send} disabled={sending} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press transition-colors hover:bg-orange-600 disabled:opacity-60"><Send size={16} /></button>
+      </div>
+      {photo && <CommentPhotoPreview url={photo} onRemove={() => setPhoto(null)} />}
+      <CommentRewardNotice className="mt-1.5" />
     </div>
   );
 
@@ -786,7 +812,8 @@ const CommentRow = memo(function CommentRow({ c, onReply }: { c: any; onReply?: 
       <div className="min-w-0 flex-1">
         <div className="rounded-2xl bg-[#162538] px-3 py-2">
           <p className="text-[13px] font-semibold text-navy-800">{c.author.nickname}</p>
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-navy-600">{c.body}</p>
+          {c.body && <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-navy-600">{c.body}</p>}
+          {c.imageUrl && <CommentImage url={c.imageUrl} />}
         </div>
         <div className="mt-1 flex items-center gap-3 pl-3">
           <span className="text-[11px] text-navy-300">{timeAgo(c.createdAt)}</span>

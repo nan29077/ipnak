@@ -8,6 +8,7 @@ import { CameraCapture } from "@/components/CameraCapture";
 import { ProductTagPicker } from "@/components/ProductTagPicker";
 import { ProductTagPlacer, type TagPosition } from "@/components/ProductTagPlacer";
 import { SmartRuler, type RulerResult } from "@/components/SmartRuler";
+import { ImageCropEditor } from "@/components/shared/ImageCropEditor";
 import { useToast } from "@/components/Toast";
 import { notifyPointsChanged } from "@/components/PointsBadge";
 import { useRecording } from "@/components/RecordingProvider";
@@ -28,6 +29,9 @@ export default function NewCatchPage() {
   const [showCameraCapture, setShowCameraCapture] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  // 크롭 편집 대기열
+  const [cropQueue, setCropQueue] = useState<File[]>([]);
+  const [cropTotal, setCropTotal] = useState(0);
   const [ruler, setRuler] = useState<RulerResult | null>(null);
   const [species, setSpecies] = useState("");
   const [customSpecies, setCustomSpecies] = useState("");
@@ -171,27 +175,31 @@ export default function NewCatchPage() {
     if (!size) setSize(String(estimatedCm));
   }
 
-  async function handlePhotoFiles(files: FileList | null) {
+  /** 선택한 파일을 크롭 편집 대기열에 올린다 (한 장씩 순서대로 편집) */
+  function handlePhotoFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setPhotoSheetOpen(false);
     const fileArr = Array.from(files).slice(0, 3 - photos.length);
-    const next: PickedPhoto[] = await Promise.all(
-      fileArr.map(async (f) => {
-        const preview = URL.createObjectURL(f);
-        let submitUrl = "";
-        try {
-          const form = new FormData();
-          form.append("file", f);
-          const up = await fetch("/api/upload", { method: "POST", body: form });
-          if (up.ok) {
-            const upData = await up.json();
-            submitUrl = upData.url ?? "";
-          }
-        } catch { /* 업로드 실패 */ }
-        return { preview, submitUrl };
-      })
-    );
-    if (next.length > 0) setPhotos((prev) => [...prev, ...next].slice(0, 3));
+    if (fileArr.length === 0) return;
+    setCropQueue(fileArr);
+    setCropTotal(fileArr.length);
+  }
+
+  /** 크롭 완료 — 편집된 이미지를 업로드하고 다음 사진으로 */
+  async function handleCropDone(blob: Blob, name: string) {
+    setCropQueue((prev) => prev.slice(1));
+    const preview = URL.createObjectURL(blob);
+    let submitUrl = "";
+    try {
+      const form = new FormData();
+      form.append("file", blob, name.replace(/\.[^.]+$/, "") + ".jpg");
+      const up = await fetch("/api/upload", { method: "POST", body: form });
+      if (up.ok) {
+        const upData = await up.json();
+        submitUrl = upData.url ?? "";
+      }
+    } catch { /* 업로드 실패 */ }
+    setPhotos((prev) => [...prev, { preview, submitUrl }].slice(0, 3));
   }
 
   return (
@@ -204,9 +212,12 @@ export default function NewCatchPage() {
       {/* 상단: 사진/미리보기 영역 */}
       <div className="relative aspect-[4/3] w-full bg-orange-500">
         {photos[0] ? (
-          <div className="h-full w-full">
+          <div className="relative h-full w-full overflow-hidden">
+            {/* 여백은 같은 사진의 블러 배경으로 채운다 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photos[0].preview} alt="물고기 사진" className="h-full w-full object-cover" />
+            <img src={photos[0].preview} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photos[0].preview} alt="물고기 사진" className="relative h-full w-full object-contain" />
             {/* 우상단: 사진 추가/삭제 버튼 */}
             <button
               type="button"
@@ -468,6 +479,19 @@ export default function NewCatchPage() {
           />
         )}
       </Sheet>
+
+      {/* 사진 크롭/줌 편집 */}
+      {cropQueue.length > 0 && (
+        <ImageCropEditor
+          key={`${cropTotal}-${cropQueue.length}`}
+          file={cropQueue[0]}
+          aspect={1}
+          title={cropTotal > 1 ? `사진 편집 (${cropTotal - cropQueue.length + 1}/${cropTotal})` : "사진 편집"}
+          onComplete={(blob) => { void handleCropDone(blob, cropQueue[0].name); }}
+          onCancel={() => setCropQueue([])}
+          onError={(m) => toast(m, "error")}
+        />
+      )}
     </div>
   );
 }

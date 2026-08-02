@@ -55,6 +55,8 @@ export async function POST(req: Request) {
     speciesName: b.speciesName || null, fishingType: b.fishingType || null,
     categoryPath: b.categoryPath || null, sizeCm: b.sizeCm ? Number(b.sizeCm) : null,
     region: b.region || null, lat: b.lat ?? null, lng: b.lng ?? null,
+    // 글쓰기 폼 지역(도 단위)·어종 선택값 (둘 다 선택사항)
+    location: b.location || null, fishSpecies: b.fishSpecies || null,
     visibility: b.visibility || "PUBLIC", hashtags: b.hashtags ? JSON.stringify(b.hashtags) : null,
     images: images.length ? { create: images.map((url: string, i: number) => ({ url, alt: altText, order: i })) } : undefined,
     productTags: buildProductTags(b),
@@ -69,7 +71,7 @@ export async function POST(req: Request) {
     if (kind === "LOG") {
       return NextResponse.json({ error: "조행기는 DB 업데이트가 필요합니다. 터미널에서 npm run db:push 실행 후 다시 시도해주세요." }, { status: 503 });
     }
-    const { kind: _k, title: _t, body: _b, boardCategory: _bc, ...legacy } = data;
+    const { kind: _k, title: _t, body: _b, boardCategory: _bc, location: _loc, fishSpecies: _fs, ...legacy } = data;
     try {
       const post = await prisma.post.create({ data: legacy });
       const earned = await awardPostReward(user.id, post.id);

@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { PenLine, Camera, BookOpen, ShoppingBag, FileText, X } from "lucide-react";
 import { LoginRequiredModal } from "@/components/LoginRequiredModal";
+import { WritePointRewardNotice } from "@/components/PointRewardNotice";
 
 /**
  * 우측 하단 플로팅 글쓰기 버튼(FAB).
@@ -16,9 +18,23 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
   const [loginModal, setLoginModal] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  // 글쓰기 페이지로 이동 중 — 시트를 즉시 닫으면 새 페이지가 그려지기 전
+  // 이전 피드가 잠깐 보여서(플리커) 앱 배경색 불투명 커버를 덮어둔다.
+  const [navigating, setNavigating] = useState(false);
+  const pathname = usePathname();
   const loggedIn = !!currentUserId;
 
   useEffect(() => { setMounted(true); }, []);
+
+  // 이동이 끝나면(경로 변경) 시트와 커버를 정리한다
+  useEffect(() => { setNavigating(false); setOpen(false); }, [pathname]);
+
+  // 같은 경로를 다시 누르는 등 경로가 바뀌지 않는 경우를 대비한 안전장치
+  useEffect(() => {
+    if (!navigating) return;
+    const t = setTimeout(() => { setNavigating(false); setOpen(false); }, 2000);
+    return () => clearTimeout(t);
+  }, [navigating]);
 
   // 입력창 포커스 시 FAB 숨기기 (채팅·댓글·글쓰기 등 모든 input/textarea 공통 적용)
   useEffect(() => {
@@ -76,32 +92,35 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
               <button onClick={() => setOpen(false)} aria-label="닫기" className="rounded-full p-1 text-navy-300 hover:bg-navy-50"><X size={20} /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Link href="/post/new" onClick={() => setOpen(false)}
+              <Link href="/post/new" onClick={() => setNavigating(true)}
                 className="flex flex-col items-start gap-2 rounded-2xl border border-navy-100 bg-[#1c2c3e] p-4 transition-colors hover:border-orange-500/50">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15 text-orange-400"><Camera size={20} /></span>
                 <span className="text-[14px] font-bold text-navy-900">피싱 피드</span>
                 <span className="text-[12px] leading-snug text-navy-400">사진으로 오늘의 조황을 빠르게 공유</span>
               </Link>
-              <Link href="/post/new?type=general" onClick={() => setOpen(false)}
+              <Link href="/post/new?type=general" onClick={() => setNavigating(true)}
                 className="flex flex-col items-start gap-2 rounded-2xl border border-navy-100 bg-[#1c2c3e] p-4 transition-colors hover:border-orange-500/50">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-50/20 text-navy-500"><FileText size={20} /></span>
                 <span className="text-[14px] font-bold text-navy-900">일상 피드</span>
                 <span className="text-[12px] leading-snug text-navy-400">자유롭게 글과 사진을 올려요</span>
               </Link>
-              <Link href="/log/new" onClick={() => setOpen(false)}
+              <Link href="/log/new" onClick={() => setNavigating(true)}
                 className="flex flex-col items-start gap-2 rounded-2xl border border-navy-100 bg-[#1c2c3e] p-4 transition-colors hover:border-orange-500/50">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-aqua-500/15 text-aqua-300"><BookOpen size={20} /></span>
                 <span className="text-[14px] font-bold text-navy-900">조행기 쓰기</span>
                 <span className="text-[12px] leading-snug text-navy-400">제목·본문으로 조행 후기 기록</span>
               </Link>
-              <Link href="/market/new" onClick={() => setOpen(false)}
+              <Link href="/market/new" onClick={() => setNavigating(true)}
                 className="flex flex-col items-start gap-2 rounded-2xl border border-navy-100 bg-[#1c2c3e] p-4 transition-colors hover:border-orange-500/50">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400"><ShoppingBag size={20} /></span>
                 <span className="text-[14px] font-bold text-navy-900">중고마켓 판매글 쓰기</span>
                 <span className="text-[12px] leading-snug text-navy-400">낚시 용품을 사고 팔아요</span>
               </Link>
             </div>
+            <WritePointRewardNotice className="mt-4" />
           </div>
+          {/* 이동 중 플리커 방지 커버 — 새 글쓰기 페이지가 그려질 때까지 앱 배경색으로 덮는다 */}
+          {navigating && <div className="absolute inset-0 z-10 bg-[#0d1b2a]" aria-hidden />}
         </div>,
         document.body
       )}

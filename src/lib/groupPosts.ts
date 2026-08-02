@@ -33,6 +33,7 @@ export type StoredGroupComment = {
   authorNickname: string;
   authorAvatar: string | null;
   content: string;
+  imageUrl?: string | null; // 댓글 첨부 사진 (1장)
   createdAt: string;
   parentId?: string | null;
 };
@@ -67,11 +68,16 @@ function ensureTables(): Promise<void> {
           "postId"    TEXT NOT NULL,
           "authorId"  TEXT NOT NULL,
           "content"   TEXT NOT NULL,
+          "imageUrl"  TEXT,
           "parentId"  TEXT,
           "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GroupComment_postId_idx" ON "GroupComment"("postId")`);
+      // 기존 DB(imageUrl 없이 생성된 테이블) 보정 — 이미 있으면 duplicate column 에러라 무시한다
+      try {
+        await prisma.$executeRawUnsafe(`ALTER TABLE "GroupComment" ADD COLUMN "imageUrl" TEXT`);
+      } catch { /* 이미 존재하는 컬럼 */ }
 
       await prisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "GroupPostLike" (
@@ -180,7 +186,7 @@ export async function readGroupComments(): Promise<StoredGroupComment[]> {
   await ensureTables();
   const rows = await prisma.$queryRawUnsafe<any[]>(`
     SELECT c.id, c.postId, c.authorId, u.nickname as authorNickname, u.avatarUrl as authorAvatar,
-           c.content, c.createdAt, c.parentId
+           c.content, c.imageUrl, c.createdAt, c.parentId
     FROM "GroupComment" c
     LEFT JOIN "User" u ON u.id = c.authorId
     ORDER BY c.createdAt ASC
@@ -192,9 +198,10 @@ export async function writeGroupComment(comment: Omit<StoredGroupComment, "autho
   await ensureTables();
   const now = comment.createdAt ?? new Date().toISOString();
   await prisma.$executeRawUnsafe(
-    `INSERT INTO "GroupComment" (id, postId, authorId, content, parentId, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    comment.id, comment.postId, comment.authorId, comment.content, comment.parentId ?? null, now
+    `INSERT INTO "GroupComment" (id, postId, authorId, content, imageUrl, parentId, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    comment.id, comment.postId, comment.authorId, comment.content,
+    comment.imageUrl ?? null, comment.parentId ?? null, now
   );
 }
 
@@ -253,6 +260,7 @@ function toStoredComment(r: any): StoredGroupComment {
     authorNickname: r.authorNickname ?? "알 수 없음",
     authorAvatar: r.authorAvatar ?? null,
     content: r.content,
+    imageUrl: r.imageUrl ?? null,
     createdAt: String(r.createdAt),
     parentId: r.parentId ?? null,
   };

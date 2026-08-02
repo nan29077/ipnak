@@ -7,7 +7,14 @@ import { CommunityTabs } from "@/components/CommunityTabs";
 import { EmptyState } from "@/components/ui";
 import { ViewToggle, useViewMode } from "@/components/FeedList";
 import { km } from "@/lib/utils";
+import { WaterBodyBadge, useWaterBodyLabel } from "@/components/WaterBodyBadge";
 import type { FeedPost } from "@/lib/queries";
+
+/** 썸네일 타일용 수계명 — 훅을 타일마다 쓰기 위해 별도 컴포넌트로 분리 */
+function WalkingTileWaterBody({ post }: { post: FeedPost }) {
+  const label = useWaterBodyLabel(post.id, post.locationLabel, post.walkingLocked);
+  return <WaterBodyBadge label={label} size="sm" />;
+}
 
 export function WalkingFeedPage({
   posts: initialPosts,
@@ -71,9 +78,11 @@ export function WalkingFeedPage({
                   <div className="h-full w-full bg-gradient-to-br from-[#0d2a1a] to-[#0a1a12]" />
                 )}
                 {isLocked ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 px-1.5">
                     <Lock size={18} className="text-yellow-400" strokeWidth={1.5} />
                     <span className="text-[9px] font-semibold text-white">200P로 열기</span>
+                    {/* GPS 좌표 기반 수계명 — 없으면 렌더링하지 않는다 */}
+                    <WalkingTileWaterBody post={p} />
                     {walkingData?.distanceM != null && (
                       <span className="mt-0.5 text-[9px] text-white/60">{km(walkingData.distanceM)}</span>
                     )}

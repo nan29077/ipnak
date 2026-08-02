@@ -6,9 +6,12 @@ export const dynamic = "force-dynamic";
 
 // POST /api/points/charge { amount } — 포인트 충전
 // 실제 신용카드/PG 결제 연동은 추후. 현재는 mock 승인으로 즉시 충전한다.
+// PG 연동 전까지 일반 회원이 결제 없이 포인트를 발행하지 못하도록 관리자(SUPER_ADMIN) 전용으로 제한한다.
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (user.role !== "SUPER_ADMIN")
+    return NextResponse.json({ error: "포인트 충전 서비스는 준비 중입니다." }, { status: 403 });
   if (!(await pointsEnabled())) return NextResponse.json({ error: "포인트 기능이 비활성화되어 있습니다." }, { status: 400 });
 
   const { amount } = await req.json().catch(() => ({}));

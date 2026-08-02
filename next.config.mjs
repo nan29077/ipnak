@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 같은 저장소에서 dev 서버를 2개 띄우면 .next 를 공유해 서로 빌드 산출물을 덮어쓴다.
+  // NEXT_DIST_DIR 를 주면 별도 디렉터리를 쓴다 (미지정 시 기본값 .next — 기존 동작과 동일).
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   experimental: {
     // lucide-react 아이콘을 사용된 것만 번들에 포함 → 초기 JS 크기 대폭 감소
     optimizePackageImports: ["lucide-react"],

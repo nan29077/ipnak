@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ShoppingBag, X, Minus, Plus, ChevronRight, Loader2, Check, CreditCard, MapPin } from "lucide-react";
+import { ShoppingCart, ShoppingBag, X, Minus, Plus, ChevronRight, Loader2, Check, Coins, CreditCard, MapPin } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { won } from "@/lib/utils";
 import Link from "next/link";
 import { NO_IMAGE_SRC } from "@/lib/noImage";
+import { clampUsablePoints, usePointBalance } from "@/lib/usePointBalance";
 
 interface ProductForPurchase {
   id: string;
@@ -88,6 +89,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pgOpen, setPgOpen] = useState(false);
   const [pgResult, setPgResult] = useState<"success" | "fail" | null>(null);
+  const [pgFailMessage, setPgFailMessage] = useState("");
   const [pgLoading, setPgLoading] = useState(false);
 
   // 구매 바텀시트 state
@@ -109,6 +111,14 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
   const effectiveShippingFee =
     threshold > 0 && product.price * quantity >= threshold ? 0 : (product.shippingFee ?? 0);
   const totalAmount = product.price * quantity + effectiveShippingFee;
+
+  // ── 포인트 사용 ──
+  // 보유 포인트는 구매 시트가 열릴 때 조회한다. 포인트 제도 OFF·비로그인이면 enabled=false 로 섹션을 숨긴다.
+  const { enabled: pointsEnabled, balance: pointBalance } = usePointBalance(sheetOpen);
+  const [pointInput, setPointInput] = useState("");
+  const appliedPoints = clampUsablePoints(pointInput, pointBalance, totalAmount);
+  const payableAmount = Math.max(0, totalAmount - appliedPoints);
+  const usablePointMax = Math.min(pointBalance, totalAmount);
 
   function handleAddToCart() {
     addToLocalCart({
@@ -152,6 +162,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
     setExpiry("");
     setCvc("");
     setPgResult(null);
+    setPgFailMessage("");
     setPgOpen(true);
   }
 
@@ -166,29 +177,46 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
     setPgLoading(true);
     await new Promise((r) => setTimeout(r, 1500));
     const ok = Math.random() < 0.9;
-    setPgLoading(false);
-    if (ok) {
-      setPgResult("success");
-      // 주문 저장
-      try {
-        await fetch("/api/me/orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            productId: product.id,
-            productName: product.name,
-            price: product.price,
-            quantity,
-            shippingFee: product.shippingFee ?? 0,
-            totalAmount,
-            shippingAddressId: selectedAddressId ?? null,
-            paymentMethod: "CARD",
-          }),
-        });
-      } catch {}
-    } else {
+    if (!ok) {
+      setPgLoading(false);
+      setPgFailMessage("");
       setPgResult("fail");
+      return;
     }
+    // 주문 저장 — 재고·포인트 차감이 여기서 이뤄지므로 실패하면 결제 완료로 표시하지 않는다.
+    let orderError = "";
+    try {
+      const res = await fetch("/api/me/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: product.id,
+          productName: product.name,
+          price: product.price,
+          quantity,
+          shippingFee: product.shippingFee ?? 0,
+          totalAmount,
+          usePoints: appliedPoints,
+          shippingAddressId: selectedAddressId ?? null,
+          paymentMethod: "CARD",
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        orderError = data.error || "주문 처리에 실패했습니다.";
+      }
+    } catch {
+      orderError = "주문 처리에 실패했습니다.";
+    }
+    setPgLoading(false);
+    if (orderError) {
+      setPgFailMessage(orderError);
+      setPgResult("fail");
+      return;
+    }
+    setPointInput("");
+    setPgFailMessage("");
+    setPgResult("success");
   }
 
   function closePg() {
@@ -348,6 +376,42 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
             )}
           </div>
 
+          {/* 포인트 사용 — 보유 포인트 이내, 결제금액 이하로만 사용 가능(서버에서 재검증) */}
+          {pointsEnabled && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="flex items-center gap-1.5 text-[12px] font-bold text-white/50">
+                  <Coins size={13} className="text-orange-400" /> 포인트 사용
+                </p>
+                <p className="text-[11px] text-navy-400">보유 {pointBalance.toLocaleString()}P</p>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={pointInput}
+                  onChange={(e) => setPointInput(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  placeholder="0"
+                  disabled={usablePointMax <= 0}
+                  className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-right text-[14px] text-white outline-none focus:border-orange-400 transition-colors disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPointInput(String(usablePointMax))}
+                  disabled={usablePointMax <= 0}
+                  className="shrink-0 rounded-xl border border-orange-400/50 bg-orange-500/10 px-3 text-[12px] font-semibold text-orange-400 disabled:opacity-40"
+                >
+                  전액 사용
+                </button>
+              </div>
+              <p className="mt-1.5 text-[11px] text-navy-400">
+                {usablePointMax <= 0
+                  ? "사용 가능한 포인트가 없습니다."
+                  : `최대 ${usablePointMax.toLocaleString()}P까지 사용할 수 있습니다.`}
+              </p>
+            </div>
+          )}
+
           {/* 총 결제금액 */}
           <div className="rounded-2xl border border-navy-100/20 bg-white/[0.03] p-4">
             <div className="flex justify-between text-[12px] text-white/50 mb-1">
@@ -361,9 +425,14 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
                   : won(effectiveShippingFee)}
               </span>
             </div>
+            {appliedPoints > 0 && (
+              <div className="flex justify-between text-[12px] text-orange-400 mb-2">
+                <span>포인트 사용</span><span>−{appliedPoints.toLocaleString()}P</span>
+              </div>
+            )}
             <div className="flex justify-between border-t border-navy-100/15 pt-2">
               <span className="text-[13px] font-bold text-white">총 결제금액</span>
-              <span className="text-[16px] font-extrabold text-orange-400">{won(totalAmount)}</span>
+              <span className="text-[16px] font-extrabold text-orange-400">{won(payableAmount)}</span>
             </div>
           </div>
         </div>
@@ -375,7 +444,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
             onClick={openPg}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[15px] font-bold text-white hover:bg-orange-600 transition-colors"
           >
-            <CreditCard size={18} /> 결제하기
+            <CreditCard size={18} /> {won(payableAmount)} 결제하기
           </button>
         </div>
       </div>
@@ -405,7 +474,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20"><X size={32} className="text-red-400" /></div>
               <div>
                 <p className="text-[18px] font-bold text-white">결제에 실패했습니다</p>
-                <p className="mt-1 text-[13px] text-navy-400">카드 정보를 확인하고 다시 시도해 주세요</p>
+                <p className="mt-1 text-[13px] text-navy-400">{pgFailMessage || "카드 정보를 확인하고 다시 시도해 주세요"}</p>
               </div>
               <button type="button" onClick={closePg} className="mt-2 w-full rounded-xl border border-navy-100/20 py-3 text-[14px] font-semibold text-white/70 hover:bg-white/[0.05]">닫기</button>
             </div>
@@ -414,7 +483,10 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[16px] font-bold text-white">카드 결제</p>
-                  <p className="text-[12px] text-navy-400 mt-0.5">{won(totalAmount)}</p>
+                  <p className="text-[12px] text-navy-400 mt-0.5">
+                    {won(payableAmount)}
+                    {appliedPoints > 0 && <span className="text-orange-400"> (포인트 {appliedPoints.toLocaleString()}P 사용)</span>}
+                  </p>
                 </div>
                 <button type="button" onClick={closePg} disabled={pgLoading} className="flex h-8 w-8 items-center justify-center rounded-full text-white/40 hover:bg-white/10"><X size={16} /></button>
               </div>

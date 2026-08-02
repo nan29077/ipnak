@@ -45,7 +45,13 @@ export async function POST(req: Request) {
   const b = await req.json().catch(() => ({}));
   const title = (b.title || "").trim();
   if (!title) return NextResponse.json({ error: "제목을 입력해주세요." }, { status: 400 });
-  if (!b.category) return NextResponse.json({ error: "카테고리를 선택해주세요." }, { status: 400 });
+  const description = (b.description || "").trim();
+  if (!description) return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
+  if (b.price === "" || b.price === null || b.price === undefined || !Number.isFinite(Number(b.price))) {
+    return NextResponse.json({ error: "가격을 입력해주세요." }, { status: 400 });
+  }
+  // 카테고리는 선택사항 — 미선택 시 "기타 용품"으로 저장 (DB 컬럼이 non-null)
+  const category = String(b.category || "ETC");
 
   // 이미지 배열 요소는 문자열만 허용 (숫자/객체 혼입 시 Prisma 타입 오류 → 500 방지)
   const rawImages: string[] = Array.isArray(b.images)
@@ -58,11 +64,12 @@ export async function POST(req: Request) {
       data: {
         sellerId: user.id,
         title,
-        category: String(b.category),
+        category,
         condition: b.condition === "NEW" ? "NEW" : "USED",
         price: Math.max(0, Math.round(Number(b.price) || 0)),
         region: b.region || null,
-        description: b.description || null,
+        location: b.location || null, // 글쓰기 폼 거래 지역 선택값
+        description,
         tradeMethod: TRADE_METHODS.includes(b.tradeMethod) ? b.tradeMethod : null,
         status: "SELLING",
         images: images.length

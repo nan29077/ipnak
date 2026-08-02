@@ -60,6 +60,8 @@ export async function getIpnakPrices(): Promise<Record<IpnakProductType, number>
  *   그 경우 재고 복원을 건너뛴다(어느 상품에서 차감됐는지 알 수 없으므로).
  * - IpnakBallOrder.trackingNumber  : 송장번호. /api/admin/ipnak-ball/orders 가
  *   처음부터 이 컬럼을 읽고 쓰도록 작성돼 있었으나 테이블에는 없어 항상 500이 났다.
+ * - BallOrder.pointsUsed           : 결제에 사용한 포인트. 실제 카드 결제액은
+ *   totalPrice - pointsUsed 이며, 주문 취소 시 이 금액만큼 포인트를 환불한다.
  *
  * 모두 raw SQL로만 읽고 쓴다(Prisma 클라이언트가 모르는 컬럼이므로 schema.prisma에
  * 추가하면 generate 이후 다른 SELECT가 깨질 수 있다).
@@ -80,6 +82,9 @@ export function ensureIpnakRawColumns(): Promise<void> {
         .catch(() => {});
       await prisma
         .$executeRawUnsafe(`ALTER TABLE "IpnakBallOrder" ADD COLUMN "trackingNumber" TEXT`)
+        .catch(() => {});
+      await prisma
+        .$executeRawUnsafe(`ALTER TABLE "BallOrder" ADD COLUMN "pointsUsed" INTEGER NOT NULL DEFAULT 0`)
         .catch(() => {});
     })();
   }

@@ -17,7 +17,8 @@ export default function RulerPage() {
           물고기 옆에 기준물체(신용카드·500원 동전·A4 용지·계측자)를 놓고 촬영한 뒤,
           기준물체 양 끝 → 물고기 입~꼬리 순서로 탭하면 실제 길이가 자동 계산됩니다.
         </p>
-        <PhotoPicker value={photos} onChange={setPhotos} max={1} single capture />
+        {/* 스마트 자는 기준물체가 잘리면 측정이 어긋나므로 크롭 편집을 쓰지 않는다 */}
+        <PhotoPicker value={photos} onChange={setPhotos} max={1} single capture crop={false} />
         {photos[0] && (
           <SmartRuler imageUrl={photos[0].preview} onComplete={setResult} />
         )}
