@@ -26,7 +26,8 @@ export function LogBoard({
   const [cursor, setCursor] = useState<string | null>(initialNextCursor ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const visible = useMemo(() => (cat === "ALL" ? posts : posts.filter((p) => (p.boardCategory ?? "WALKING") === cat)), [posts, cat]);
+  // 게시판 미지정(null) 글을 "워킹조행기"로 오분류하지 않는다 — 전체 탭에서만 보이게 한다
+  const visible = useMemo(() => (cat === "ALL" ? posts : posts.filter((p) => p.boardCategory === cat)), [posts, cat]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;

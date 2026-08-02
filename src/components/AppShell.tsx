@@ -23,7 +23,8 @@ type NavItemDef = { href: string; label: string; icon: any; match: (p: string) =
 // 모바일 하단 4탭 (+ 중앙 물고기기록 FAB): 커뮤니티 / 스마트피싱 / [●+] / 마켓 / 마이
 function buildMobileNav(shopEnabled: boolean): NavItemDef[] {
   return [
-    { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/groups") || p.startsWith("/explore") },
+    // 커뮤니티 = 커뮤니티 탭(CommunityTabs)에 묶인 모든 피드: 피싱/일상/조행기/워킹/낚시단
+    { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/general") || p.startsWith("/walking") || p === "/log" || p.startsWith("/log/") || p.startsWith("/groups") || p.startsWith("/explore") },
     { href: "/map", label: "스마트피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
     { href: shopEnabled ? "/shop" : "/market", label: shopEnabled ? "마켓" : "중고 마켓", icon: IconTackleBox, match: (p) => p.startsWith("/market") || p.startsWith("/shop") },
     { href: "/me", label: "마이", icon: IconUser, match: (p) => p === "/me" || p.startsWith("/me/") },
@@ -37,8 +38,9 @@ function buildDesktopNav(shopEnabled: boolean, reservationEnabled: boolean): Nav
     { href: "/map", label: "스마트피싱", icon: IconMap, match: (p) => p.startsWith("/map") || p.startsWith("/trip") || p.startsWith("/catch") },
     // ↑ 여기(인덱스 2 앞)에 물고기기록(측정) FAB 삽입
     { href: "/diary", label: "계측일지", icon: IconFish, match: (p) => p.startsWith("/diary") },
-    { href: "/log", label: "조황일지", icon: IconBook, match: (p) => p.startsWith("/log") },
-    { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/groups") || p.startsWith("/explore") },
+    { href: "/log", label: "조황일지", icon: IconBook, match: (p) => p === "/log" || p.startsWith("/log/") },
+    // 조행기(/log)는 위에 별도 항목이 있으므로 제외하고, 나머지 커뮤니티 피드(일상·워킹)를 함께 묶는다
+    { href: "/feed", label: "커뮤니티", icon: IconUsers, match: (p) => p.startsWith("/feed") || p.startsWith("/general") || p.startsWith("/walking") || p.startsWith("/groups") || p.startsWith("/explore") },
     { href: "/tournaments", label: "대회", icon: IconTrophy, match: (p) => p.startsWith("/tournaments") },
     ...(reservationEnabled
       ? [{ href: "/reservations", label: "예약", icon: IconCalendar, match: (p: string) => p.startsWith("/reservations") }]

@@ -8,6 +8,14 @@ import { timeAgo, cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+// 글 종류 배지 라벨 — 조행기(LOG)는 boardLabel(게시판명)이 우선하고, 없을 때 여기 라벨을 쓴다
+const KIND_LABEL: Record<string, string> = {
+  FEED: "피싱 피드",
+  GENERAL: "일상 피드",
+  LOG: "조행기",
+  WALKING: "워킹 피드",
+};
+
 type SP = { [k: string]: string | string[] | undefined };
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
@@ -72,7 +80,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: SP }
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex items-center gap-1.5">
-                    <span className="inline-flex items-center rounded-md bg-orange-500/15 px-1.5 py-0.5 text-[11px] font-bold text-orange-400">{p.boardLabel ?? (p.kind === "LOG" ? "조행기" : "피싱 피드")}</span>
+                    <span className="inline-flex items-center rounded-md bg-orange-500/15 px-1.5 py-0.5 text-[11px] font-bold text-orange-400">{p.boardLabel ?? KIND_LABEL[p.kind] ?? "피싱 피드"}</span>
                     {p.speciesName && <span className="inline-flex items-center gap-0.5 text-[11px] text-aqua-300"><Fish size={10} />{p.speciesName}</span>}
                     {p.region && <span className="text-[11px] text-navy-400">{p.region}</span>}
                   </div>

@@ -507,10 +507,10 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "오류");
       setSavedTrips((s) => s.map((t) => (t.id === rec.id ? { ...t, posting: false, postId: data.id } : t)));
-      toast("피싱 피드에 올렸습니다", "success");
+      toast("워킹 피드에 올렸습니다", "success");
     } catch (e: any) {
       setSavedTrips((s) => s.map((t) => (t.id === rec.id ? { ...t, posting: false } : t)));
-      toast(e?.message || "피싱 피드 게시에 실패했습니다", "error");
+      toast(e?.message || "워킹 피드 게시에 실패했습니다", "error");
     }
   }, [toast]);
 

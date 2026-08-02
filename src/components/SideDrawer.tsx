@@ -218,7 +218,10 @@ function MenuGroup({
 
 function MenuLink({ item, pathname, onClose }: { item: Item; pathname: string; onClose: () => void }) {
   const Icon = item.icon;
-  const active = item.match ? item.match(pathname) : pathname.startsWith(item.href);
+  // 경로 접두사 비교는 세그먼트 단위로 — "/me"가 "/measure"를, "/log"가 "/login"을 잘못 활성화하지 않도록
+  const active = item.match
+    ? item.match(pathname)
+    : pathname === item.href || pathname.startsWith(`${item.href}/`);
   return (
     <Link
       href={item.href}
