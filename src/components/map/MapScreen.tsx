@@ -749,7 +749,7 @@ export function MapScreen({ userId }: { userId?: string }) {
             <div className="mb-2 rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/8">
               <div className="flex items-center gap-2">
                 <Maximize2 size={12} strokeWidth={1.8} className="shrink-0 text-aqua-400" />
-                <p className="min-w-0 flex-1 text-[11px] leading-snug text-navy-300">
+                <p className="min-w-0 flex-1 truncate text-[12.5px] leading-snug text-navy-300">
                   전체화면 모드로 기록하면 배터리 소모가 줄어듭니다
                 </p>
                 <button
