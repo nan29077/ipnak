@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { distanceMeters } from "@/lib/map";
 import { getAiCredentials } from "@/lib/aiCredentials";
+import { classifyOpenAiError } from "@/lib/openaiError";
 import {
   KOREA_REGIONS, findSido, findSigungu, genSpots,
   SPOT_TYPE_LABEL, SPOT_WATER, type NamedSpot, type Sigungu,
@@ -61,10 +62,15 @@ async function makeOpenAiBasis(openaiKey: string, points: { name: string; score:
       }),
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return "";
+    // AI 문장 생성은 실패해도 데이터 휴리스틱 basis 로 폴백한다.
+    // 다만 왜 폴백했는지(크레딧 소진·키 오류 등)는 서버 로그에 남긴다.
+    if (!res.ok) { await classifyOpenAiError(res, "points/recommend"); return ""; }
     const data = await res.json();
     return typeof data.output_text === "string" ? data.output_text.trim().slice(0, 300) : "";
-  } catch { return ""; }
+  } catch (e: any) {
+    console.error(`[ipnak] OpenAI 추천 사유 생성 실패 (points/recommend): ${e?.name || "error"}`);
+    return "";
+  }
 }
 
 // ===== AI 포인트 추천 (시군 단위 · 날짜 기반) =====

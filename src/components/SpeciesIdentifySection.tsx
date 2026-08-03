@@ -24,8 +24,15 @@ const FAIL_MESSAGE: Record<string, string> = {
   "rate-limited": "자동 인식 횟수를 초과했어요. 잠시 후 다시 시도해 주세요.",
   unauthorized: "로그인 후 이용할 수 있어요. 아래에서 어종을 직접 선택해 주세요.",
   "image-too-large": "사진이 너무 커서 인식할 수 없어요. 아래에서 직접 선택해 주세요.",
+  // 서버(OpenAI) 쪽 설정 문제 — 재시도해도 관리자가 조치하기 전까지 계속 실패한다.
+  quota: "지금은 자동 인식을 사용할 수 없어요. 아래에서 어종을 직접 선택해 주세요.",
+  "invalid-key": "지금은 자동 인식을 사용할 수 없어요. 아래에서 어종을 직접 선택해 주세요.",
+  "model-unavailable": "지금은 자동 인식을 사용할 수 없어요. 아래에서 어종을 직접 선택해 주세요.",
 };
-const NO_RETRY_REASONS = ["rate-limited", "unauthorized", "image-too-large", "no-image"];
+const NO_RETRY_REASONS = [
+  "rate-limited", "unauthorized", "image-too-large", "no-image",
+  "quota", "invalid-key", "model-unavailable",
+];
 
 type Props = {
   /** 계측에 사용한 사진 (data URL 또는 http URL). null 이면 인식하지 않는다. */

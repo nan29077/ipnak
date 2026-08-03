@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { getAiCredentials } from "@/lib/aiCredentials";
 import { requireUser } from "@/lib/auth";
+import { classifyOpenAiError } from "@/lib/openaiError";
 import { rateLimit } from "@/lib/rateLimit";
 
 /**
@@ -117,7 +118,10 @@ export async function POST(req: Request) {
       signal: AbortSignal.timeout(10000),
     });
 
-    if (!res.ok) return NextResponse.json({ ok: false, reason: "ai-error" });
+    // 크레딧 소진·키 오류 등 원인을 구분해서 내려준다 (클라이언트는 모두 수동 폴백으로 처리).
+    if (!res.ok) {
+      return NextResponse.json({ ok: false, reason: await classifyOpenAiError(res, "measure/scan") });
+    }
 
     const data = await res.json();
     const text: string | undefined = data?.choices?.[0]?.message?.content;
