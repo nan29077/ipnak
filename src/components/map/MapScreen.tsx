@@ -747,10 +747,10 @@ export function MapScreen({ userId }: { userId?: string }) {
           {/* 화면 켜둠 안내 — 기록 중 1회 노출, 닫으면 해당 세션 동안 숨김 */}
           {status === "tracking" && !wakeTipClosed && (
             <div className="mb-2 rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/8">
-              <div className="flex items-start gap-2">
-                <Expand size={12} strokeWidth={1.8} className="mt-0.5 shrink-0 text-aqua-400" />
+              <div className="flex items-center gap-2">
+                <Maximize2 size={12} strokeWidth={1.8} className="shrink-0 text-aqua-400" />
                 <p className="min-w-0 flex-1 text-[11px] leading-snug text-navy-300">
-                  <span className="font-semibold text-aqua-300">전체화면 모드</span>로 기록하면 배터리 소모가 줄고 동선이 더 정확하게 기록됩니다.
+                  전체화면 모드로 기록하면 배터리 소모가 줄어듭니다
                 </p>
                 <button
                   onClick={() => setWakeTipClosed(true)}
@@ -761,7 +761,7 @@ export function MapScreen({ userId }: { userId?: string }) {
                 </button>
               </div>
               <button
-                onClick={() => { setMapDetailMode(true); setWakeTipClosed(true); }}
+                onClick={() => { setBgMode(true); setWakeTipClosed(true); }}
                 className="mt-2 w-full rounded-lg bg-aqua-500/20 py-1.5 text-[11px] font-semibold text-aqua-300 transition-colors hover:bg-aqua-500/30 active:opacity-70"
               >
                 전체화면으로 전환하기 →
