@@ -3,8 +3,8 @@ import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import { ACTIVE_MAP_PROVIDER } from "@/lib/map";
 
 export default function PointMiniMapCanvas({
-  lat, lng, label, zoom = 12,
-}: { lat: number; lng: number; label?: string; zoom?: number }) {
+  lat, lng, label, zoom = 12, dragging = true,
+}: { lat: number; lng: number; label?: string; zoom?: number; dragging?: boolean }) {
   return (
     <MapContainer
       center={[lat, lng]}
@@ -12,7 +12,7 @@ export default function PointMiniMapCanvas({
       className="h-full w-full"
       scrollWheelZoom={false}
       doubleClickZoom={false}
-      dragging={true}
+      dragging={dragging}
       zoomControl={false}
       attributionControl={false}
     >

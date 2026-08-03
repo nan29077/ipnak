@@ -1,12 +1,16 @@
 "use client";
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   Sparkles, MapPin, Fish, CalendarDays, Compass, TrendingUp,
   ChevronRight, Loader2, Ruler, Search, Waves, Droplets, Globe, ExternalLink,
+  Map as MapIcon, Maximize2, X,
 } from "lucide-react";
 import { Sheet, Button, Badge, Card, Select } from "@/components/ui";
 import { PointMiniMap } from "@/components/map/PointMiniMap";
+import { MapView } from "@/components/map/MapView";
+import type { MapMarker } from "@/lib/map";
 import { KOREA_REGIONS } from "@/lib/regions";
 import { ALL_SPECIES } from "@/lib/taxonomy";
 import { timeAgo } from "@/lib/utils";
@@ -31,6 +35,26 @@ type RecResult = { basis: string; broadened?: boolean; points: RecPoint[]; query
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 function daysInMonth(m: number) { return [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m] || 31; }
 
+/**
+ * 전체 지도로 열 때 추천 포인트가 모두 들어오도록 초기 줌을 고른다.
+ * MapCanvas 는 bounds 를 받지 않고 center+zoom 만 받으므로 위경도 폭으로 근사한다.
+ * (시·도 '전체' 로 추천받으면 포인트가 전국에 흩어질 수 있다)
+ */
+function fitZoom(points: RecPoint[]) {
+  if (points.length <= 1) return 12;
+  const lats = points.map((p) => p.lat);
+  const lngs = points.map((p) => p.lng);
+  // 위도 1도 ≈ 경도 1도 × 0.8 (한국 위도대 기준 보정)
+  const span = Math.max(Math.max(...lats) - Math.min(...lats), (Math.max(...lngs) - Math.min(...lngs)) * 0.8);
+  if (span > 3) return 6;
+  if (span > 1.5) return 7;
+  if (span > 0.7) return 8;
+  if (span > 0.3) return 9;
+  if (span > 0.15) return 10;
+  if (span > 0.07) return 11;
+  return 12;
+}
+
 export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar" }) {
   const toast = useToast();
   const today = new Date();
@@ -42,6 +66,29 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
   const [species, setSpecies] = useState("전체");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<RecResult | null>(null);
+  // 전체화면 지도 (스마트피싱 지도와 동일한 동선) — null 이면 닫힘.
+  // focusId: 선택된 포인트(마커 탭 또는 카드에서 '크게 보기'), zoom: 열 때 정한 초기 줌
+  const [mapView, setMapView] = useState<{ focusId: string | null; zoom: number } | null>(null);
+
+  const points = data?.points ?? [];
+  const focusPoint = mapView?.focusId ? points.find((p) => p.id === mapView.focusId) ?? null : null;
+  const mapCenter = useMemo(() => {
+    if (focusPoint) return { lat: focusPoint.lat, lng: focusPoint.lng };
+    if (points.length === 0) return { lat: 36.5, lng: 127.8 }; // 대한민국 중앙 (포인트 없을 때)
+    return {
+      lat: points.reduce((a, p) => a + p.lat, 0) / points.length,
+      lng: points.reduce((a, p) => a + p.lng, 0) / points.length,
+    };
+  }, [focusPoint, points]);
+  const mapMarkers: MapMarker[] = useMemo(
+    () => points.map((p, i) => ({
+      id: p.id,
+      position: { lat: p.lat, lng: p.lng },
+      kind: "listing" as const,
+      title: `${i + 1}. ${p.name}`,
+    })),
+    [points],
+  );
 
   async function openRecommendation() {
     try {
@@ -168,7 +215,32 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
                 <p className="mt-1 text-[12px] text-navy-400">지역을 바꿔보거나 회원들의 조황글이 쌓이면 추천이 정확해져요.</p>
               </div>
             ) : (
-              data.points.map((pt, idx) => <PointCard key={pt.id} point={pt} rank={idx + 1} />)
+              <>
+                {/* 추천 포인트 전체를 큰 지도에서 한눈에 — 스마트피싱 지도와 동일한 전체화면 동선 */}
+                <button
+                  type="button"
+                  onClick={() => setMapView({ focusId: null, zoom: fitZoom(data.points) })}
+                  className="flex w-full items-center gap-2.5 rounded-xl bg-aqua-500/10 px-3.5 py-3 ring-1 ring-aqua-500/20 btn-press transition-colors hover:bg-aqua-500/20"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-aqua-500/20 text-aqua-400">
+                    <MapIcon size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="block text-[13px] font-bold text-navy-800">추천 포인트 {data.points.length}곳 지도로 보기</span>
+                    <span className="block text-[11px] text-navy-400">전체화면 지도에서 위치를 비교해보세요</span>
+                  </span>
+                  <Maximize2 size={15} className="shrink-0 text-aqua-400" />
+                </button>
+
+                {data.points.map((pt, idx) => (
+                  <PointCard
+                    key={pt.id}
+                    point={pt}
+                    rank={idx + 1}
+                    onExpand={() => setMapView({ focusId: pt.id, zoom: 13 })}
+                  />
+                ))}
+              </>
             )}
 
             {/* ---- 웹 조황 검색 결과 ---- */}
@@ -180,6 +252,58 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
           </div>
         )}
       </Sheet>
+
+      {/* ---- 추천 포인트 전체화면 지도 ----
+          Sheet 가 z-[9999] 이므로 그보다 위에 띄운다. 시트는 열린 채로 두어 닫으면 결과로 바로 복귀한다. */}
+      {mapView && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[10000]" style={{ width: "100vw", height: "100vh", background: "#06080a" }}>
+          <MapView
+            center={mapCenter}
+            zoom={mapView.zoom}
+            markers={mapMarkers}
+            onMarkerClick={(m) => setMapView((v) => (v ? { ...v, focusId: m.id } : v))}
+          />
+
+          {/* 닫기 (우측 상단) — 스마트피싱 전체화면 지도와 동일 규격 */}
+          <button
+            onClick={() => setMapView(null)}
+            aria-label="지도 전체화면 닫기"
+            className="absolute right-4 z-[10001] inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#0d1b2a]/95 text-navy-800 shadow-card ring-1 ring-white/15 backdrop-blur btn-press transition-colors hover:bg-[#162538]"
+            style={{ top: "max(1rem, env(safe-area-inset-top, 0px))" }}
+          >
+            <X size={20} />
+          </button>
+
+          {/* 선택한 포인트 정보 (마커 탭 또는 카드에서 '크게 보기'로 진입) */}
+          {focusPoint && (
+            <div
+              className="absolute inset-x-3 z-[10001] rounded-2xl bg-[#0d1b2a]/95 px-4 py-3 shadow-card ring-1 ring-white/15 backdrop-blur"
+              style={{ bottom: "max(1rem, env(safe-area-inset-bottom, 0px))" }}
+            >
+              <div className="flex items-start gap-2">
+                <Compass size={15} className="mt-0.5 shrink-0 text-orange-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-bold text-navy-900">{focusPoint.name}</p>
+                  <p className="mt-0.5 text-[12px] text-navy-400">{focusPoint.reason}</p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-orange-500/15 px-2 py-1 text-[11px] font-bold text-orange-400">
+                  <TrendingUp size={12} />{focusPoint.score}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <Badge tone={focusPoint.water === "바다" ? "aqua" : "green"} className="gap-1">
+                  {focusPoint.water === "바다" ? <Waves size={11} /> : <Droplets size={11} />}{focusPoint.typeLabel}
+                </Badge>
+                <Badge tone="navy" className="gap-1"><MapPin size={11} />{focusPoint.sido} {focusPoint.sigungu}</Badge>
+                {focusPoint.postCount > 0 && (
+                  <Badge tone="gray" className="gap-1"><Fish size={11} />{focusPoint.postCount}건</Badge>
+                )}
+              </div>
+            </div>
+          )}
+        </div>,
+        document.body,
+      )}
     </>
   );
 }
@@ -252,7 +376,7 @@ function Field({ icon, label, children }: { icon: React.ReactNode; label: string
   );
 }
 
-function PointCard({ point, rank }: { point: RecPoint; rank: number }) {
+function PointCard({ point, rank, onExpand }: { point: RecPoint; rank: number; onExpand: () => void }) {
   const sea = point.water === "바다";
   return (
     <Card className="p-3">
@@ -282,8 +406,20 @@ function PointCard({ point, rank }: { point: RecPoint; rank: number }) {
         {point.lastActivity && <span className="ml-auto self-center text-[11px] text-navy-300">{timeAgo(point.lastActivity)}</span>}
       </div>
 
-      <div className="mt-3">
-        <PointMiniMap lat={point.lat} lng={point.lng} label={point.name} />
+      {/* 미니 지도는 미리보기 — 탭하면 전체화면 지도로 전환된다.
+          드래그를 끄지 않으면 시트 스크롤과 지도 팬이 서로 먹혀 탭도 잘 안 잡힌다. */}
+      <div className="relative mt-3">
+        <PointMiniMap lat={point.lat} lng={point.lng} label={point.name} dragging={false} />
+        <button
+          type="button"
+          onClick={onExpand}
+          aria-label={`${point.name} 지도 크게 보기`}
+          className="absolute inset-0 z-[800] flex items-start justify-end rounded-xl p-2.5"
+        >
+          <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow backdrop-blur transition-colors hover:bg-black/85">
+            <Maximize2 size={13} /> 크게 보기
+          </span>
+        </button>
       </div>
 
       <div className="mt-3 space-y-1.5">
