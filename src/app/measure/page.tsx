@@ -27,6 +27,7 @@ import { FishScanGlow } from "@/components/FishScanGlow";
 import { FishShimmer } from "@/components/FishShimmer";
 import { estimateWeightByWidth } from "@/lib/weightEstimation";
 import { BallLinkSection } from "@/components/BallLinkSection";
+import { SpeciesIdentifySection } from "@/components/SpeciesIdentifySection";
 import { useRecording } from "@/components/RecordingProvider";
 import { DiarySheet } from "@/components/DiarySheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -81,6 +82,8 @@ export default function MeasurePage() {
   const [result, setResult] = useState<any>(null);
   const [hasImage, setHasImage] = useState(false);
   const [savedImageBase64, setSavedImageBase64] = useState<string | null>(null);
+  // 어종 자동 인식에 넘길 사진 (RESULT 진입 시 작업 캔버스에서 1회 생성)
+  const [speciesImageUrl, setSpeciesImageUrl] = useState<string | null>(null);
   const [tourSubmitting, setTourSubmitting] = useState(false);
   const [tourSubmitted, setTourSubmitted] = useState(false);
   // 참가비 차감 확인 모달 (null 이면 닫힘)
@@ -334,6 +337,24 @@ export default function MeasurePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ball, head, tail, widthPts, species]);
 
+  /* ── 어종 자동 인식용 사진 준비 (결과 화면 진입 시 1회) ──
+     원본 대신 640px 축소본을 쓴다 (전송량·AI 비용 절감). 실패해도 계측 흐름에는 영향 없음. */
+  useEffect(() => {
+    if (phase !== "RESULT") return;
+    const work = workCanvasRef.current;
+    if (!work) return;
+    try {
+      const s = Math.min(1, 640 / Math.max(work.width, work.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(work.width * s);
+      c.height = Math.round(work.height * s);
+      c.getContext("2d")!.drawImage(work, 0, 0, c.width, c.height);
+      setSpeciesImageUrl(c.toDataURL("image/jpeg", 0.7));
+    } catch {
+      setSpeciesImageUrl(null);
+    }
+  }, [phase]);
+
   /* ── 오버레이 렌더 ── */
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -538,6 +559,7 @@ export default function MeasurePage() {
     setTail(null);
     setWidthPts(null);
     setResult(null);
+    setSpeciesImageUrl(null);
     workCanvasRef.current = null;
   }
 
@@ -886,6 +908,16 @@ export default function MeasurePage() {
               </Button>
             </div>
           </div>
+        )}
+
+        {/* ── 어종 자동 인식 (AI) ──
+            대회 모드(?species=)는 어종이 정해져 있으므로 노출하지 않는다. */}
+        {phase === "RESULT" && !tournamentSpecies && speciesImageUrl && (
+          <SpeciesIdentifySection
+            imageUrl={speciesImageUrl}
+            currentSpecies={species}
+            onApply={setSpecies}
+          />
         )}
 
         {/* ── 어종 선택 + 결과 ── */}
