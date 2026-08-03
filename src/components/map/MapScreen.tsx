@@ -749,7 +749,7 @@ export function MapScreen({ userId }: { userId?: string }) {
             <div className="mb-2 rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/8">
               <div className="flex items-center gap-2">
                 <Maximize2 size={12} strokeWidth={1.8} className="shrink-0 text-aqua-400" />
-                <p className="min-w-0 flex-1 truncate text-[12.5px] leading-snug text-navy-300">
+                <p className="min-w-0 flex-1 truncate text-[13px] leading-snug text-navy-300">
                   전체화면 모드로 기록하면 배터리 소모가 줄어듭니다
                 </p>
                 <button
@@ -764,7 +764,7 @@ export function MapScreen({ userId }: { userId?: string }) {
                 onClick={() => { setBgMode(true); setWakeTipClosed(true); }}
                 className="mt-2 w-full rounded-lg bg-aqua-500/20 py-1.5 text-[11px] font-semibold text-aqua-300 transition-colors hover:bg-aqua-500/30 active:opacity-70"
               >
-                전체화면으로 전환하기 →
+                알뜰 화면으로 전환하기 →
               </button>
             </div>
           )}
