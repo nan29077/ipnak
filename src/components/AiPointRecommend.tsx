@@ -237,6 +237,9 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
                     key={pt.id}
                     point={pt}
                     rank={idx + 1}
+                    // 화면의 Select 값이 아니라 이 결과를 만들 때 서버가 쓴 어종을 넘긴다
+                    // (조황글 목록도 이 기준으로 걸러져 내려오므로 헤더와 내용이 어긋나지 않는다)
+                    species={data.query?.species ?? null}
                     onExpand={() => setMapView({ focusId: pt.id, zoom: 13 })}
                   />
                 ))}
@@ -376,7 +379,9 @@ function Field({ icon, label, children }: { icon: React.ReactNode; label: string
   );
 }
 
-function PointCard({ point, rank, onExpand }: { point: RecPoint; rank: number; onExpand: () => void }) {
+function PointCard({
+  point, rank, species, onExpand,
+}: { point: RecPoint; rank: number; species: string | null; onExpand: () => void }) {
   const sea = point.water === "바다";
   return (
     <Card className="p-3">
@@ -423,7 +428,8 @@ function PointCard({ point, rank, onExpand }: { point: RecPoint; rank: number; o
       </div>
 
       <div className="mt-3 space-y-1.5">
-        <p className="text-[12px] font-semibold text-navy-500">회원 조황글</p>
+        {/* 어종을 고르면 목록도 그 어종 글만 내려오므로 헤더에 어종을 밝힌다 */}
+        <p className="text-[12px] font-semibold text-navy-500">{species ? `${species} 조황글` : "회원 조황글"}</p>
         {point.posts.length === 0 ? (
           <p className="rounded-xl bg-white/[0.03] px-3 py-3 text-center text-[12px] text-navy-400">
             아직 이 포인트에 공유된 회원 글이 없어요.
