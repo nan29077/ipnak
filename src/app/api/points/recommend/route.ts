@@ -66,16 +66,27 @@ function readResponsesText(data: any): string {
   return parts.join(" ");
 }
 
-async function makeOpenAiBasis(openaiKey: string, points: { name: string; score: number; postCount: number; reason: string }[], reports: WebFishReport[]) {
+async function makeOpenAiBasis(
+  openaiKey: string,
+  points: { name: string; score: number; postCount: number; reason: string }[],
+  reports: WebFishReport[],
+  species: string | null,
+) {
   if (!openaiKey) return "";
   try {
-    const context = JSON.stringify({ points: points.slice(0, 3), recentBlogReports: reports.slice(0, 3).map((r) => ({ title: r.title, description: r.description, date: r.date })) });
+    // targetSpecies 를 함께 넘긴다 — 어종을 고르면 그 어종이 잡힌 포인트만 남긴 목록이라,
+    // 이를 모르면 AI 문장이 "어종만 추린 결과"라는 사실과 어긋나게 쓰인다.
+    const context = JSON.stringify({
+      targetSpecies: species,
+      points: points.slice(0, 3),
+      recentBlogReports: reports.slice(0, 3).map((r) => ({ title: r.title, description: r.description, date: r.date })),
+    });
     const res = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
       body: JSON.stringify({
         model: process.env.OPENAI_RECOMMEND_MODEL || "gpt-4.1-mini",
-        input: `You are a Korean fishing assistant. Based only on this JSON, write a concise Korean recommendation in two sentences or fewer. Do not invent weather, fish activity, or facts. Mention uncertainty when data is sparse. JSON: ${context}`,
+        input: `You are a Korean fishing assistant. Based only on this JSON, write a concise Korean recommendation in two sentences or fewer. Do not invent weather, fish activity, or facts. Mention uncertainty when data is sparse. If targetSpecies is not null, the points listed are only those where that species was actually caught — say so and do not recommend the points for any other species. JSON: ${context}`,
       }),
       signal: AbortSignal.timeout(8000),
     });
@@ -156,6 +167,14 @@ export async function POST(req: Request) {
 
   const tag = (sido: string, sigungu: string) => (s: NamedSpot): Cand => ({ ...s, sido, sigungu });
 
+  /**
+   * 대상 어종을 고르면 후보 포인트 선정·지역 보강도 그 어종 조황글만 기준으로 한다.
+   * 전체 조황글로 후보를 뽑으면 "글은 많은데 그 어종은 한 마리도 안 잡힌 지역"이
+   * 후보를 다 차지하고, 뒤에서 어종 필터에 전부 걸려 결과가 비어버린다.
+   * (포인트별 조황글 목록은 맥락 확인용이라 아래에서 posts 전체를 그대로 쓴다)
+   */
+  const seedPosts: AnyPost[] = species ? posts.filter((p) => p.speciesName === species) : posts;
+
   // ---- 후보 포인트 구성 ----
   let cands: Cand[] = [];
   let broadened = false;
@@ -163,23 +182,23 @@ export async function POST(req: Request) {
   const sg = sidoName && sgName ? findSigungu(sidoName, sgName) : null;
   if (sidoName && sg) {
     cands = genSpots(sidoName, sg).map(tag(sidoName, sg.name));
-    const matched = cands.reduce((a, c) => a + nearbyPostCount(c.lat, c.lng, posts), 0);
+    const matched = cands.reduce((a, c) => a + nearbyPostCount(c.lat, c.lng, seedPosts), 0);
     if (matched < 3) {
       broadened = true;
       const pool = (findSido(sidoName)?.sigungu || []).map((x) => ({ ...x, sidoName }));
-      const extra = topSigunguByPosts(pool, posts, 4).filter((x) => x.name !== sg.name);
+      const extra = topSigunguByPosts(pool, seedPosts, 4).filter((x) => x.name !== sg.name);
       for (const e of extra) cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
-      if (cands.reduce((a, c) => a + nearbyPostCount(c.lat, c.lng, posts), 0) < 3) {
-        const ext2 = topSigunguByPosts(allSigungu(), posts, 4);
+      if (cands.reduce((a, c) => a + nearbyPostCount(c.lat, c.lng, seedPosts), 0) < 3) {
+        const ext2 = topSigunguByPosts(allSigungu(), seedPosts, 4);
         for (const e of ext2) cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
       }
     }
   } else if (sidoName) {
     const pool = (findSido(sidoName)?.sigungu || []).map((x) => ({ ...x, sidoName }));
-    const top = topSigunguByPosts(pool, posts, 5);
+    const top = topSigunguByPosts(pool, seedPosts, 5);
     for (const e of top) cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
   } else {
-    const top = topSigunguByPosts(allSigungu(), posts, 6);
+    const top = topSigunguByPosts(allSigungu(), seedPosts, 6);
     for (const e of top) cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
   }
 
@@ -251,11 +270,28 @@ export async function POST(req: Request) {
   });
 
   result.sort((a, b) => b.score - a.score);
-  const points = result.slice(0, 6);
 
+  /**
+   * 대상 어종을 고르면 그 어종 조황글이 1건 이상인 포인트만 남긴다.
+   * (기존에는 가중치 점수만 올려서, 그 어종이 한 번도 안 잡힌 곳도 상위에 섞여 나왔다)
+   * 어종 '전체'면 필터 없이 그대로 노출한다.
+   */
+  const filtered = species
+    ? result.filter((p) => p.species.some((s) => s.name === species && s.count > 0))
+    : result;
+  const points = filtered.slice(0, 6);
+
+  const regionLabel = sidoName && sgName ? `${sidoName} ${sgName}` : sidoName || "전국";
   const totalMatched = points.reduce((a, p) => a + p.postCount, 0);
   let basis: string;
-  if (sidoName && sgName && !broadened) {
+  if (species && points.length === 0) {
+    // 어종 필터로 전부 걸러진 경우 — 사용자가 다음에 뭘 바꿔야 할지 알려준다
+    basis = `${regionLabel}에서 ${species} 조황글이 있는 포인트를 찾지 못했어요. 지역을 넓히거나 다른 어종으로 찾아보세요.`;
+  } else if (species) {
+    basis = broadened
+      ? `${regionLabel} 주변까지 넓혀 ${species} 조황글이 있는 포인트만 골랐어요.`
+      : `${regionLabel}에서 ${species} 조황글이 있는 포인트만 골랐어요.`;
+  } else if (sidoName && sgName && !broadened) {
     basis = `${sidoName} ${sgName} 인근 회원 조황글을 분석해 추천했어요.`;
   } else if (sidoName && sgName && broadened) {
     basis = `${sidoName} ${sgName}의 회원 조황 데이터가 적어 인근 지역까지 함께 분석했어요.`;
@@ -264,14 +300,17 @@ export async function POST(req: Request) {
   } else {
     basis = `전국 회원 조황글을 분석해 추천했어요.`;
   }
-  if (totalMatched === 0) basis = "아직 이 지역 회원 조황 데이터가 적어요. 그럴듯한 명소 위주로 추천했어요.";
+  // 어종을 고른 경우의 안내는 위에서 이미 정확하므로 덮어쓰지 않는다.
+  if (!species && totalMatched === 0) basis = "아직 이 지역 회원 조황 데이터가 적어요. 그럴듯한 명소 위주로 추천했어요.";
 
   // 웹 조황 검색 (네이버 블로그) — AI 키 조회와 실제 병렬 실행 (순차 대기 제거)
   const [webResults, { openai }] = await Promise.all([
     fetchNaverBlogReports(sidoName, sgName, species, month, day),
     getAiCredentials(),
   ]);
-  const aiBasis = await makeOpenAiBasis(openai, points, webResults);
+  // 추천할 포인트가 없으면 AI 를 부르지 않는다 — 호출 비용만 나가고,
+  // 근거 없는 문장이 위에서 만든 "못 찾았어요 + 다음 행동" 안내를 덮어쓴다.
+  const aiBasis = points.length > 0 ? await makeOpenAiBasis(openai, points, webResults, species) : "";
 
   return NextResponse.json({
     basis: aiBasis || basis,
