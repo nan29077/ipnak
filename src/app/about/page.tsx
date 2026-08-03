@@ -255,7 +255,7 @@ function FeatureSection({
         }}
       />
       <div
-        className={`relative z-10 flex w-full max-w-4xl flex-col gap-8 items-start`}
+        className={`relative z-10 flex w-full max-w-4xl flex-col gap-8 ${idx % 2 === 0 ? "items-start" : "items-end"}`}
       >
         {/* 아이콘 + 카테고리 */}
         <div className={`flex items-center gap-3`}>
