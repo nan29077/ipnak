@@ -238,7 +238,12 @@ export async function POST(req: Request) {
     else if (lastActivity && daysSince < 21) reasons.push(`${Math.round(daysSince)}일 내 조황`);
     if (species && speciesMatch > 0) reasons.push(`${species} ${speciesMatch}건`);
 
-    const memberPosts = matched.slice(0, 8).map((m) => ({
+    // 대상 어종을 고르면 카드에 보여줄 조황글도 그 어종 글만 남긴다.
+    // (포인트만 걸러두고 목록에 다른 어종이 섞여 나오면 왜 추천됐는지 확인이 안 된다)
+    // 어종 필터를 통과한 포인트는 해당 어종 글이 1건 이상이라 목록이 비지 않는다.
+    const listed = species ? matched.filter((m) => m.p.speciesName === species) : matched;
+
+    const memberPosts = listed.slice(0, 8).map((m) => ({
       id: m.p.id,
       imageUrl: m.p.images?.[0]?.url || null,
       caption: m.p.caption,
