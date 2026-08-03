@@ -98,6 +98,11 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const mockTimer = useRef<any>(null);
   const mockIdx = useRef(0);
   const recentGpsPoints = useRef<LatLng[]>([]);
+  // 화면 꺼짐 방지(Screen Wake Lock) — 웹 전용, 미지원 환경에서는 무시
+  const wakeLockRef = useRef<any>(null);
+  /** release()와 비동기 request() 경합 방지용 세대 카운터 */
+  const wakeLockGen = useRef(0);
+  const wakeLockPending = useRef(false);
 
   // 최신 값 참조 (watcher/heartbeat 콜백의 stale closure 방지)
   const routeRef = useRef<LatLng[]>([]);
@@ -176,6 +181,38 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [addStabilizedGpsPoint, startMock, toast]);
 
+  // ---- 화면 꺼짐 방지 (Screen Wake Lock API) ----
+  // 화면이 꺼지면 브라우저가 watchPosition을 스로틀/중단시켜 동선이 직선으로 남는다.
+  const requestWakeLock = useCallback(async () => {
+    if (typeof navigator === "undefined") return;
+    const nav = navigator as any;
+    if (!nav.wakeLock?.request) return; // 미지원 브라우저 — 조용히 무시
+    if (wakeLockRef.current || wakeLockPending.current) return; // 중복 요청 방지
+    const gen = wakeLockGen.current;
+    wakeLockPending.current = true;
+    try {
+      const sentinel = await nav.wakeLock.request("screen");
+      // 대기 중 해제 요청이 있었으면 방금 얻은 락을 즉시 반납
+      if (gen !== wakeLockGen.current) {
+        try { sentinel?.release?.(); } catch {}
+        return;
+      }
+      wakeLockRef.current = sentinel;
+      // 백그라운드 전환 등으로 OS가 락을 회수하면 ref를 비워 재요청 가능하게 함
+      sentinel?.addEventListener?.("release", () => { wakeLockRef.current = null; });
+    } catch {
+      // 권한 거부·비활성 문서 등 — 기록 자체에는 영향 없으므로 무시
+    } finally {
+      wakeLockPending.current = false;
+    }
+  }, []);
+
+  const releaseWakeLock = useCallback(() => {
+    wakeLockGen.current += 1;
+    try { wakeLockRef.current?.release?.(); } catch {}
+    wakeLockRef.current = null;
+  }, []);
+
   const stopWatchers = useCallback(() => {
     if (watchId.current != null && typeof navigator !== "undefined") navigator.geolocation.clearWatch(watchId.current);
     watchId.current = null;
@@ -218,6 +255,40 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [status]);
+
+  // ---- Wake Lock 유지 (기록 중에만) ----
+  // 잠깐 백그라운드에 다녀오면 락이 자동 해제되므로 visibilitychange에서 재요청한다.
+  useEffect(() => {
+    if (status !== "tracking") return;
+    if (typeof document === "undefined") return;
+    requestWakeLock();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") requestWakeLock();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      releaseWakeLock();
+    };
+  }, [status, requestWakeLock, releaseWakeLock]);
+
+  // ---- 30초 GPS 폴백 ----
+  // watchPosition이 스로틀·중단돼도 최소 30초마다 좌표를 한 번 보완해 직선 구간을 줄인다.
+  useEffect(() => {
+    if (status !== "tracking") return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    const id = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (pos.coords.accuracy > 30) return; // watchPosition과 동일한 노이즈 필터
+          addStabilizedGpsPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        () => {}, // 권한 없음·타임아웃 — watchPosition 쪽에서 이미 안내됨
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+      );
+    }, 30000);
+    return () => clearInterval(id);
+  }, [status, addStabilizedGpsPoint]);
 
   // ---- 서버 하트비트(진행 중 통계 동기화) ----
   useEffect(() => {
@@ -318,6 +389,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
       segmentStartMs.current = Date.now();
       setStatus("tracking");
       startWatchers();
+      requestWakeLock();
       return;
     }
     // idle → 새 기록
@@ -330,6 +402,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     setElapsed(0);
     setStatus("tracking");
     startWatchers();
+    requestWakeLock();
     // 서버에 진행 중 세션 생성 (클라이언트 시작 시각 기준으로만 계산 — 서버 startedAt 동기화 안 함)
     fetch("/api/trips/active", { method: "POST" })
       .then((r) => r.json())
@@ -338,7 +411,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         if (a?.id) setSessionId(a.id);
       })
       .catch(() => {});
-  }, [status, startWatchers]);
+  }, [status, startWatchers, requestWakeLock]);
 
   const pause = useCallback(() => {
     baseElapsed.current = baseElapsed.current + (Date.now() - (segmentStartMs.current ?? Date.now())) / 1000;
@@ -346,6 +419,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     setStatus("paused");
     setElapsed(baseElapsed.current);
     stopWatchers();
+    releaseWakeLock();
     if (sessionRef.current) {
       fetch("/api/trips/active", {
         method: "PATCH",
@@ -353,10 +427,11 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ id: sessionRef.current, distanceM: distanceRef.current, durationSec: baseElapsed.current, points: routeRef.current.length, catchCount: catchesRef.current.length }),
       }).catch(() => {});
     }
-  }, [stopWatchers]);
+  }, [stopWatchers, releaseWakeLock]);
 
   const finish = useCallback(() => {
     stopWatchers();
+    releaseWakeLock();
     const finalElapsed = status === "tracking"
       ? baseElapsed.current + (Date.now() - (segmentStartMs.current ?? Date.now())) / 1000
       : baseElapsed.current;
@@ -428,7 +503,7 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
         if (d?.id) setSavedTrips((s) => s.map((t) => (t.id === localId ? { ...t, id: d.id } : t)));
       })
       .catch(() => {});
-  }, [status, activeCatches, stopWatchers, toast]);
+  }, [status, activeCatches, stopWatchers, releaseWakeLock, toast]);
 
   const addCatchToRecording = useCallback((c: TripCatch) => {
     setActiveCatches((prev) => [...prev, c]);

@@ -41,6 +41,8 @@ export function MapScreen({ userId }: { userId?: string }) {
   const [noCatchModal, setNoCatchModal] = useState(false);
   // 기록 삭제 확인
   const [deleteTarget, setDeleteTarget] = useState<TripRec | null>(null);
+  // 화면 켜둠 안내 배너 — 닫으면 해당 기록 세션 동안 숨김
+  const [wakeTipClosed, setWakeTipClosed] = useState(false);
 
   // 내 포인트 드롭다운
   const [myPointsDropOpen, setMyPointsDropOpen] = useState(false);
@@ -124,6 +126,9 @@ export function MapScreen({ userId }: { userId?: string }) {
 
   // 스마트피싱 종료 시 배경 모드 자동 해제
   useEffect(() => { if (status === "idle") setBgMode(false); }, [status]);
+
+  // 기록 종료 시 안내 배너 상태 초기화 → 다음 세션에서 다시 1회 노출
+  useEffect(() => { if (status === "idle") setWakeTipClosed(false); }, [status]);
 
   // 스마트피싱 튜토리얼 — 회원별 최초 1회
   useEffect(() => {
@@ -737,6 +742,21 @@ export function MapScreen({ userId }: { userId?: string }) {
             <div className="mb-2 flex items-center justify-between rounded-xl bg-aqua-500/15 px-3 py-1.5">
               <span className="text-[12px] font-semibold text-aqua-400">마지막 동선이 지도에 표시됩니다</span>
               <button onClick={() => setFinishedRoute([])} className="text-[11px] text-navy-300 hover:text-white">지우기</button>
+            </div>
+          )}
+          {/* 화면 켜둠 안내 — 기록 중 1회 노출, 닫으면 해당 세션 동안 숨김 */}
+          {status === "tracking" && !wakeTipClosed && (
+            <div className="mb-2 flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 ring-1 ring-white/8">
+              <p className="min-w-0 flex-1 text-[11px] leading-snug text-navy-300">
+                📍 정확한 동선 기록을 위해 화면을 켜둔 상태로 이용하세요
+              </p>
+              <button
+                onClick={() => setWakeTipClosed(true)}
+                aria-label="안내 닫기"
+                className="shrink-0 rounded-lg p-1 text-navy-400 transition-colors hover:bg-white/10 hover:text-white active:opacity-70"
+              >
+                <X size={13} strokeWidth={1.8} />
+              </button>
             </div>
           )}
           <div className="mb-3 grid grid-cols-3 divide-x divide-navy-100 text-center">
