@@ -278,7 +278,7 @@ export default function LandingPage() {
               <br />
               순간을&nbsp;<span style={{ color: isTopActive ? "#facc15" : "#eab308", transition: "color 0.4s" }}>기록</span>하다
             </h2>
-            <p className="max-w-xs text-sm text-white/60 md:text-base">
+            <p className="max-w-xs text-sm text-white/60 md:max-w-none md:whitespace-nowrap md:text-base">
               AI 계측 · 조행기 · 피싱포인트 · 낚시 커뮤니티 · 중고마켓
             </p>
             <span
@@ -419,7 +419,7 @@ export default function LandingPage() {
               </span>
             </h2>
 
-            <p className="max-w-xs text-sm text-white/60 md:text-base">
+            <p className="max-w-xs text-sm text-white/60 md:max-w-none md:whitespace-nowrap md:text-base">
               <span className="md:hidden">AI 계측·조행기·피드를 스마트폰으로 바로 만나보세요.</span>
               <span className="hidden md:inline">넓은 화면에서 커뮤니티와 기록을 한눈에 만나보세요.</span>
             </p>
