@@ -747,8 +747,9 @@ export function MapScreen({ userId }: { userId?: string }) {
           {/* 화면 켜둠 안내 — 기록 중 1회 노출, 닫으면 해당 세션 동안 숨김 */}
           {status === "tracking" && !wakeTipClosed && (
             <div className="mb-2 flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 ring-1 ring-white/8">
+              <MapPin size={12} strokeWidth={1.8} className="shrink-0 text-navy-400" />
               <p className="min-w-0 flex-1 text-[11px] leading-snug text-navy-300">
-                📍 정확한 동선 기록을 위해 화면을 켜둔 상태로 이용하세요
+                정확한 동선 기록을 위해 화면을 켜둔 상태로 이용하세요
               </p>
               <button
                 onClick={() => setWakeTipClosed(true)}
