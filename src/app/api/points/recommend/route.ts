@@ -49,6 +49,23 @@ async function fetchNaverBlogReports(
   }
 }
 
+/**
+ * Responses API 응답에서 생성 텍스트를 꺼낸다.
+ * `output_text` 는 공식 SDK 가 만들어 주는 편의 속성이고 raw HTTP JSON 에는 없다.
+ * 실제 텍스트는 output[].content[] 중 type === "output_text" 인 항목의 text 에 들어있다.
+ * (이전에는 data.output_text 만 봐서 호출은 성공·과금됐는데 결과를 항상 버리고 휴리스틱으로 폴백했다.)
+ */
+function readResponsesText(data: any): string {
+  if (typeof data?.output_text === "string") return data.output_text; // SDK 호환 형태도 허용
+  const parts: string[] = [];
+  for (const item of Array.isArray(data?.output) ? data.output : []) {
+    for (const c of Array.isArray(item?.content) ? item.content : []) {
+      if (c?.type === "output_text" && typeof c.text === "string") parts.push(c.text);
+    }
+  }
+  return parts.join(" ");
+}
+
 async function makeOpenAiBasis(openaiKey: string, points: { name: string; score: number; postCount: number; reason: string }[], reports: WebFishReport[]) {
   if (!openaiKey) return "";
   try {
@@ -66,7 +83,9 @@ async function makeOpenAiBasis(openaiKey: string, points: { name: string; score:
     // 다만 왜 폴백했는지(크레딧 소진·키 오류 등)는 서버 로그에 남긴다.
     if (!res.ok) { await classifyOpenAiError(res, "points/recommend"); return ""; }
     const data = await res.json();
-    return typeof data.output_text === "string" ? data.output_text.trim().slice(0, 300) : "";
+    const text = readResponsesText(data).trim().slice(0, 300);
+    if (!text) console.error("[ipnak] OpenAI 추천 사유 응답에서 텍스트를 찾지 못했습니다 (points/recommend)");
+    return text;
   } catch (e: any) {
     console.error(`[ipnak] OpenAI 추천 사유 생성 실패 (points/recommend): ${e?.name || "error"}`);
     return "";
