@@ -251,17 +251,14 @@ function FeatureSection({
       <div
         className="absolute inset-0"
         style={{
-          background:
-            idx % 2 === 0
-              ? "linear-gradient(135deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.72) 100%)"
-              : "linear-gradient(225deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.72) 100%)",
+          background: "linear-gradient(135deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.72) 100%)",
         }}
       />
       <div
-        className={`relative z-10 flex w-full max-w-4xl flex-col gap-8 ${idx % 2 === 0 ? "items-start" : "items-end text-right"}`}
+        className={`relative z-10 flex w-full max-w-4xl flex-col gap-8 items-start`}
       >
         {/* 아이콘 + 카테고리 */}
-        <div className={`flex items-center gap-3 ${idx % 2 !== 0 ? "flex-row-reverse" : ""}`}>
+        <div className={`flex items-center gap-3`}>
           <div
             className="flex h-14 w-14 items-center justify-center rounded-2xl"
             style={{ background: feat.accent + "30", border: `1.5px solid ${feat.accent}50` }}
@@ -292,7 +289,7 @@ function FeatureSection({
         </p>
 
         {/* 피처 칩 */}
-        <div className={`flex flex-wrap gap-2 ${idx % 2 !== 0 ? "justify-end" : ""}`}>
+        <div className={`flex flex-wrap gap-2`}>
           {chips.map((f) => (
             <span
               key={f}
