@@ -68,8 +68,7 @@ export default function MeasurePage() {
 
   const [phase, setPhase] = useState<Phase>("IDLE");
   const [liveScanOpen, setLiveScanOpen] = useState(false); // 실시간 AI 스캐너 열림 여부
-  // 브라우저가 가로 방향일 때 measure 페이지는 세로로 고정 표시
-  const [browserLandscape, setBrowserLandscape] = useState(false);
+  const browserLandscape = false; // 가로 방향에서도 정상 표시
   const [loadingMsg, setLoadingMsg] = useState("");
   const [scanFailMsg, setScanFailMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -114,15 +113,6 @@ export default function MeasurePage() {
       .catch(() => {});
   }, []);
 
-  // 브라우저 방향 감지 — 가로 시 페이지를 세로로 고정 표시 (모바일 전용, 스캔 화면 제외)
-  useEffect(() => {
-    const mq = window.matchMedia("(orientation: landscape)");
-    const isMobile = () => window.innerWidth < 1024;
-    setBrowserLandscape(isMobile() && mq.matches);
-    const handler = (e: MediaQueryListEvent) => setBrowserLandscape(isMobile() && e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
