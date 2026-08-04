@@ -122,7 +122,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="볼 ID 또는 메모 검색"
-              className="w-full rounded-lg border border-navy-100 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+              className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] py-2 pl-9 pr-3 text-sm text-navy-800 outline-none focus:border-orange-400/70"
             />
           </div>
           <button
@@ -152,9 +152,9 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
       {showAdd && (
         <form
           onSubmit={handleAdd}
-          className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-4"
+          className="mb-4 rounded-xl border border-orange-400/30 bg-orange-500/5 p-4"
         >
-          <p className="mb-3 text-sm font-semibold text-orange-700">새 볼 ID 등록</p>
+          <p className="mb-3 text-sm font-semibold text-orange-400">새 볼 ID 등록</p>
           <div className="flex flex-wrap gap-3">
             <div className="flex-1 min-w-[160px]">
               <label className="mb-1 block text-xs text-navy-500">볼 ID (NFC 칩에 기록한 값)</label>
@@ -163,7 +163,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
                 value={newBallId}
                 onChange={e => setNewBallId(e.target.value.toUpperCase())}
                 placeholder="예: IPNK-0001"
-                className="w-full rounded-lg border border-navy-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] px-3 py-2 text-sm text-navy-800 outline-none focus:border-orange-400/70"
               />
             </div>
             <div className="flex-1 min-w-[200px]">
@@ -173,7 +173,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
                 value={newMemo}
                 onChange={e => setNewMemo(e.target.value)}
                 placeholder="예: 1차 생산 / 입낚볼 기본형"
-                className="w-full rounded-lg border border-navy-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] px-3 py-2 text-sm text-navy-800 outline-none focus:border-orange-400/70"
               />
             </div>
             <div className="flex items-end gap-2">

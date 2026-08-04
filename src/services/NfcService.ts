@@ -18,12 +18,14 @@ export class NfcService {
    * 입낚볼 NFC 태그에서 볼 ID 읽기
    * TODO: 입낚볼 출시 후 활성화 — 현재는 준비 코드만 존재
    */
-  static async readBallId(): Promise<string | null> {
+  static async readBallId(signal?: AbortSignal): Promise<string | null> {
     if (!(await this.isSupported())) return null;
     try {
       const reader = new (window as any).NDEFReader();
-      await reader.scan();
+      // signal 전달 시 abort 때 자동으로 스캔이 중단됨
+      await reader.scan(signal ? { signal } : undefined);
       return await new Promise<string | null>((resolve) => {
+        if (signal) signal.addEventListener("abort", () => resolve(null), { once: true });
         reader.onreading = (event: any) => {
           try {
             const record = event.message?.records?.[0];
