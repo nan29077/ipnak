@@ -86,6 +86,18 @@ export function ensureIpnakRawColumns(): Promise<void> {
       await prisma
         .$executeRawUnsafe(`ALTER TABLE "BallOrder" ADD COLUMN "pointsUsed" INTEGER NOT NULL DEFAULT 0`)
         .catch(() => {});
+
+      // ── 데이터 마이그레이션: 입낚볼 옵션 가격 초기값 설정 ──
+      // optionOnePrice/optionTwoPrice가 null인 경우에만 적용 (한 번만 실행).
+      // optionOnePrice = price(기본가), optionTwoPrice = 69900(2개입 특가)
+      await prisma
+        .$executeRawUnsafe(
+          `UPDATE "IpnakBallProduct"
+           SET "optionOnePrice" = "price", "optionTwoPrice" = 69900, "optionEnabled" = 1, "updatedAt" = ?
+           WHERE "type" = 'ball' AND "optionTwoPrice" IS NULL`,
+          new Date().toISOString()
+        )
+        .catch(() => {});
     })();
   }
   return ensurePromise;
