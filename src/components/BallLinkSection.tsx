@@ -161,7 +161,7 @@ export function BallLinkSection() {
         </span>
         <div className="min-w-0">
           <p className="text-[14px] font-bold text-navy-900">입낚볼 연동</p>
-          <p className="truncate text-[11px] text-navy-300">
+          <p className="truncate text-[12px] text-navy-300">
             볼 ID: {linked ? linked.ballId : "미연결"}
           </p>
         </div>
@@ -176,8 +176,8 @@ export function BallLinkSection() {
         supported === false ? (
           /* iPhone 등 NFC 미지원 — ID 직접 입력 */
           <div className="space-y-2">
-            <p className="text-center text-[12px] text-navy-400">
-              볼 뒷면의 ID를 직접 입력하세요.
+            <p className="pl-[46px] text-left text-[13px] text-navy-400">
+              박스에 표시된 아이디를 직접 입력하세요.
             </p>
             <div className="flex gap-2">
               <input
@@ -550,7 +550,7 @@ export function MyBallManager() {
           /* iPhone 등 NFC 미지원 — ID 직접 입력 */
           <div className="mt-3 space-y-2">
             <p className="text-center text-[12px] text-navy-400">
-              iPhone 등 NFC 미지원 기기입니다. 볼 뒷면의 ID를 직접 입력하세요.
+              박스에 표시된 아이디를 직접 입력하세요.
             </p>
             <div className="flex gap-2">
               <input

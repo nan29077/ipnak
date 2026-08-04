@@ -1,21 +1,21 @@
 @echo off
 REM ============================================================
-REM  ipnak (입낚) - dev server launcher  [port 3010]
+REM  ipnak (입낚) - dev server launcher  [port 3009, LAN enabled]
 REM  Double-click to install deps and start the dev server.
 REM  Safe for external drives (E:) and non-ASCII (Korean) paths.
 REM ============================================================
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
-title ipnak dev server (port 3010)
+title ipnak dev server (port 3009)
 
 REM --- Always run from this script's own folder (handles Korean path) ---
 cd /d "%~dp0"
 echo [ipnak] Project folder: "%CD%"
 echo.
 
-set "PORT=3010"
+set "PORT=3009"
 
-REM --- 0) Free the port: kill whatever is listening on 3010 ---
+REM --- 0) Free the port: kill whatever is listening on 3009 ---
 echo [ipnak] Releasing port %PORT% if it is in use ...
 for /f "tokens=5" %%P in ('netstat -aon ^| findstr ":%PORT% " ^| findstr "LISTENING"') do (
   taskkill /PID %%P /F >nul 2>&1
@@ -96,7 +96,7 @@ if not exist "prisma\dev.db" (
 )
 echo.
 
-REM --- 5) Strict port: make sure 3010 is free ---
+REM --- 5) Strict port: make sure 3009 is free ---
 set "PORT_BUSY="
 for /f "tokens=*" %%a in ('netstat -ano ^| findstr /r /c:":%PORT% .*LISTENING"') do set "PORT_BUSY=1"
 if defined PORT_BUSY (
@@ -109,7 +109,16 @@ if defined PORT_BUSY (
 )
 
 REM --- 6) Start the dev server on the fixed port ---
-echo [ipnak] Starting dev server at http://localhost:%PORT%
+set "LAN_IP="
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "$ip = [System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) | Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork -and $_.IPAddressToString -notlike '169.254.*' -and $_.IPAddressToString -ne '127.0.0.1' } | Select-Object -First 1; $ip.IPAddressToString"`) do set "LAN_IP=%%I"
+
+echo [ipnak] Starting dev server
+echo   Local:   http://localhost:%PORT%/
+if defined LAN_IP (
+  echo   Network: http://!LAN_IP!:%PORT%/
+) else (
+  echo   Network: LAN address could not be detected.
+)
 echo [ipnak] Press Ctrl+C in this window to stop.
 echo.
 call npm run dev

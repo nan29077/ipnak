@@ -40,7 +40,7 @@ export default function NewGroupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d1b2a] pb-20">
+    <div className="bg-[#0d1b2a] pb-20">
       <div className="flex items-center gap-3 border-b border-navy-100/20 px-3.5 py-3">
         <button onClick={() => { if (window.history.length > 1) router.back(); else router.replace("/groups"); }} aria-label="뒤로" className="rounded-full p-1 text-navy-400 hover:bg-navy-50/10 active:bg-navy-50/20"><ArrowLeft size={20} /></button>
         <h1 className="text-[16px] font-extrabold text-navy-900">낚시단 만들기</h1>

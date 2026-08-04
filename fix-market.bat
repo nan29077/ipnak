@@ -18,6 +18,6 @@ echo.
 echo ============================================
 echo  완료! 이제 dev 서버를 다시 시작하세요.
 echo  start-dev.bat 더블클릭  또는  npm run dev
-echo  접속: http://localhost:3010/market
+echo  접속: http://localhost:3009/market
 echo ============================================
 pause

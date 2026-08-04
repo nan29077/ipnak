@@ -136,7 +136,7 @@ export function LogBoard({
   }, [cursor, loadingMore, searchLoading, cat, activeTag]);
 
   return (
-    <div className="min-h-screen">
+    <div className="">
       {/* 상단: 커뮤니티 세그먼트 + 소개 */}
       <div className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#0d1b2a]/85 backdrop-blur-md">
         <CommunityTabs />

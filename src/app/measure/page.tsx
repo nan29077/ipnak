@@ -770,13 +770,13 @@ export default function MeasurePage() {
             )}
 
             {/* 안내 카드 */}
-            <div className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-surface-200 px-4 py-3">
+            <div className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-surface-200 px-4 py-4">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15 text-orange-500">
                 <ScanLine size={20} strokeWidth={1.7} />
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-bold text-navy-900">입낚볼 기준 AI 자동 계측</p>
-                <p className="text-[11px] text-navy-400">물고기를 옆으로 눕혀 입낚볼과 함께 촬영하세요</p>
+                <p className="text-[12px] text-navy-400">물고기를 옆으로 눕혀 입낚볼과 함께 촬영하세요</p>
               </div>
             </div>
 
@@ -785,7 +785,7 @@ export default function MeasurePage() {
               <button
                 type="button"
                 onClick={openCamera}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 py-4 text-orange-500 transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 py-6 text-orange-500 transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
               >
                 <Camera size={26} strokeWidth={1.7} />
                 <span className="text-[13px] font-bold">AI 카메라 계측</span>
@@ -793,7 +793,7 @@ export default function MeasurePage() {
               <button
                 type="button"
                 onClick={() => { if (!loggedIn) { setLoginModal(true); return; } setShowGallerySheet(true); }}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-4 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-6 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
               >
                 <Images size={26} strokeWidth={1.7} />
                 <span className="text-[13px] font-bold">갤러리 선택</span>

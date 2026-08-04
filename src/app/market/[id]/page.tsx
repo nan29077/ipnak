@@ -80,7 +80,7 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
 
   return (
     <PostDetailClient>
-    <div className="min-h-screen bg-[#0d1b2a] pb-20">
+    <div className="bg-[#0d1b2a] pb-20">
       <PageHeader title="중고마켓" back />
 
       <MarketGallery images={images} dim={l.status === "SOLD"} statusLabel={l.status !== "SELLING" ? marketStatusLabel(l.status) : null} />

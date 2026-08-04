@@ -174,13 +174,13 @@ export default function GroupDetailPage() {
   }
 
   if (loading) return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0d1b2a]">
+    <div className="flex items-center justify-center py-32 bg-[#0d1b2a]">
       <Loader2 size={24} className="animate-spin text-orange-500" />
     </div>
   );
 
   if (!group) return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0d1b2a]">
+    <div className="flex flex-col items-center justify-center gap-3 py-32 bg-[#0d1b2a]">
       <p className="text-navy-400">낚시단을 찾을 수 없습니다.</p>
       <Link href="/groups" className="text-orange-500 underline text-sm">목록으로</Link>
     </div>
@@ -189,7 +189,7 @@ export default function GroupDetailPage() {
   const member = isApproved(group.myRole);
 
   return (
-    <div className="min-h-screen bg-[#0d1b2a] pb-20">
+    <div className="bg-[#0d1b2a] pb-20">
       {/* 헤더 */}
       <div className="flex items-center gap-3 border-b border-navy-100/20 px-3.5 py-3">
         <button onClick={() => { if (window.history.length > 1) router.back(); else router.replace("/groups"); }} aria-label="뒤로" className="rounded-full p-1 text-navy-400 hover:bg-navy-50/10 active:bg-navy-50/20"><ArrowLeft size={20} /></button>

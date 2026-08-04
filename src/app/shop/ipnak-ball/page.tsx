@@ -85,7 +85,7 @@ export default function IpnakBallShopPage() {
   /* ── 로딩 ── */
   if (loadingInit) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0d1b2a]">
+      <div className="flex items-center justify-center py-32 bg-[#0d1b2a]">
         <Loader2 size={32} className="animate-spin text-orange-400" />
       </div>
     );
@@ -94,7 +94,7 @@ export default function IpnakBallShopPage() {
   /* ── 주문 완료 ── */
   if (step === "done") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#0d1b2a] px-6 pb-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-6 py-32 bg-[#0d1b2a] px-6 pb-16 text-center">
         <div className="flex h-24 w-24 items-center justify-center rounded-full bg-orange-500/20 ring-4 ring-orange-500/10">
           <Check size={44} className="text-orange-400" strokeWidth={2.5} />
         </div>
@@ -126,7 +126,7 @@ export default function IpnakBallShopPage() {
   const totalPrice = selectedProduct ? selectedProduct.price * quantity : 0;
 
   return (
-    <div className="min-h-screen bg-[#0d1b2a] pb-24">
+    <div className="bg-[#0d1b2a] pb-24">
       {/* 헤더 */}
       <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/10 bg-[#0d1b2a]/95 px-4 py-3 backdrop-blur">
         <button

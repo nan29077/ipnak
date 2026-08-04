@@ -34,7 +34,7 @@ export default async function MarketChatsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0d1b2a] pb-24">
+    <div className="bg-[#0d1b2a] pb-24">
       <PageHeader title="채팅" back sub={chats.length > 0 ? `${chats.length}개` : undefined} />
 
       {chats.length === 0 ? (

@@ -76,7 +76,7 @@ export function CurationHome({
   });
 
   return (
-    <div className="min-h-screen pb-6">
+    <div className="pb-6">
       {/* 히어로 큐레이션 — 실제 바다 낚시 사진 배너 + 그라디언트 오버레이로 텍스트 가독성 확보 */}
       <section className="relative overflow-hidden pb-5 pt-6">
         <Image

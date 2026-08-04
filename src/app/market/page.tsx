@@ -7,7 +7,6 @@ import { MarketSellFab } from "@/components/market/MarketSellFab";
 import { MarketTabs } from "@/components/market/MarketTabs";
 import { MarketIntroBanner } from "@/components/market/MarketIntroBanner";
 import { BassOnlyBanner } from "@/components/BassOnlyBanner";
-import { MarketSearchButton } from "@/components/market/MarketSearchButton";
 import { getBoolSetting } from "@/lib/settings";
 import { excludeVirtualWhere } from "@/lib/virtualVisibility";
 
@@ -74,17 +73,16 @@ export default async function MarketPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface pb-24">
+    <div className="bg-surface pb-24">
       <header className="sticky top-[52px] z-30 border-b border-navy-100 bg-[#0d1b2a]/90 backdrop-blur-md">
         <div className="flex h-14 items-center gap-2 px-3.5">
           <span className="shrink-0 text-[19px] font-extrabold tracking-tight text-navy-900">
             {shopEnabled ? "마켓" : "중고 마켓"}
           </span>
-          <MarketSearchButton />
           {user && (
             <Link
               href="/market/chats"
-              className="relative flex items-center gap-1 rounded-full px-3 py-1.5 text-navy-600 transition-colors hover:bg-navy-50 active:bg-navy-100"
+              className="relative ml-auto flex items-center gap-1 rounded-full px-3 py-1.5 text-navy-600 transition-colors hover:bg-navy-50 active:bg-navy-100"
             >
               <MessageSquare size={18} />
               <span className="hidden text-[13px] font-semibold sm:inline">채팅 목록</span>

@@ -78,13 +78,13 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
 
   return (
     <UserProvider user={user}>
-    <div className="min-h-screen">
+    <div>
       {/* PC 여백 배경: 관리자 설정 이미지(없으면 기본 낚시 풍경) — 데스크톱에서만 */}
       <DesktopPatternBg image={pcMarginBg} />
       {/* 중앙 앱 프레임 + (PC) 우측에 붙는 세로 메뉴를 한 덩어리로 가운데 정렬 */}
-      <div className="mx-auto flex min-h-screen w-full max-w-[760px] justify-center">
+      <div className="mx-auto flex w-full max-w-[760px] justify-center md:min-h-screen">
         {/* 본문 (중앙 앱 프레임) — 본문 컬럼은 솔리드 배경으로 패턴을 가려 가독성 유지 */}
-        <main className="min-h-screen w-full min-w-0 max-w-[640px] flex-1 pb-24 md:bg-[#0d1b2a] md:pb-0 lg:shadow-2xl lg:shadow-black/40">
+        <main className="w-full min-w-0 max-w-[640px] flex-1 pb-24 md:min-h-screen md:bg-[#0d1b2a] md:pb-0 lg:shadow-2xl lg:shadow-black/40">
           <AppHeader loggedIn={!!user} user={user} shopEnabled={shopEnabled} reservationEnabled={reservationEnabled} pointsEnabled={pointsEnabled} points={user?.points ?? 0} />
           <RecordingBanner />
           {children}
