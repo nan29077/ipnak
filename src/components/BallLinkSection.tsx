@@ -176,6 +176,27 @@ export function BallLinkSection() {
         </>
       )}
 
+      {/* 볼 히스토리 — 연결된 볼이 있을 때 */}
+      {balls !== null && balls.length > 0 && (
+        <div className="mt-3 border-t border-navy-100 pt-3">
+          <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold text-navy-500">
+            <History size={14} strokeWidth={1.9} /> 볼 히스토리
+          </p>
+          <div className="space-y-1">
+            {balls.map((b) => (
+              <Link
+                key={b.id}
+                href={`/diary?ballId=${encodeURIComponent(b.ballId)}`}
+                className="flex items-center justify-between rounded-xl px-2 py-1.5 text-[12px] font-semibold text-navy-600 transition-colors hover:bg-navy-50"
+              >
+                <span className="truncate">{b.ballId} 측정 기록 보기</span>
+                <ChevronRight size={13} strokeWidth={2.2} className="shrink-0 text-navy-300" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-3 border-t border-navy-100 pt-3">
         <button
           type="button"
