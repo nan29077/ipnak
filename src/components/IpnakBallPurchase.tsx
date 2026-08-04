@@ -270,11 +270,6 @@ export function IpnakBallPurchase({
         <div className="min-w-0 flex-1">
           <p className="text-[16px] font-extrabold text-navy-900">스마트 계측의 시작, {enabledTypes.map((t) => TYPE_LABEL[t]).join(" · ")}</p>
           <p className="mt-0.5 text-[12px] text-navy-400">NFC 연동으로 나의 어획 기록을 더 간편하게</p>
-          <p className="mt-2 text-[19px] font-extrabold text-orange-400">
-            {enabledTypes.length > 1
-              ? enabledTypes.map((t) => `${TYPE_LABEL[t]} ${config[t].price.toLocaleString()}원`).join(" · ")
-              : `${config[enabledTypes[0]].price.toLocaleString()}원`}
-          </p>
         </div>
       </div>
       <button onClick={() => { setStep("intro"); setOpen(true); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-extrabold text-white">

@@ -46,35 +46,6 @@ type Props = {
   onClose: () => void;                          // X — 닫기
 };
 
-/* ── 파티클 스파클 데이터 — x/y/size/duration/delay 완전히 독립적인 소수 기반 분산 ── */
-const SPARKLES = Array.from({ length: 34 }, (_, i) => {
-  // 각 축마다 서로 다른 큰 소수를 사용해 상관 패턴 제거
-  const lx  = ((i * 7919  + 1337) % 10000) / 100;          // 0~100%
-  const ly  = ((i * 6271  + 4177) % 9000)  / 100 + 5;      // 5~95%
-  const sz  = ((i * 3917  +  777) % 42)    / 10  + 2;      // 2~6.1px
-  const dur = ((i * 4657  +  999) % 22)    / 10  + 1.3;    // 1.3~3.5s
-  const del = ((i * 5381  +  271) % 28)    / 10;           // 0~2.8s
-  const colors = [
-    "rgba(250,204,21,0.95)",   // 진한 노랑
-    "rgba(255,255,255,0.9)",   // 흰색
-    "rgba(234,179,8,0.8)",     // 골드
-    "rgba(253,230,138,0.85)",  // 연한 노랑
-    "rgba(255,255,255,0.65)",  // 반투명 흰
-  ];
-  // 애니메이션 종류도 고르게 분산
-  const anims = ["sparkle", "sparkle", "sparkleFloat", "sparkle", "sparkleDrift"];
-  return {
-    left: `${lx.toFixed(1)}%`,
-    top:  `${ly.toFixed(1)}%`,
-    size: `${sz.toFixed(1)}px`,
-    color: colors[i % colors.length],
-    glow: sz > 4.5 ? 6 : sz > 3 ? 4 : 2,
-    duration: dur.toFixed(2),
-    delay: del.toFixed(2),
-    anim: anims[i % anims.length],
-  };
-});
-
 const POLL_INTERVAL_MS = 2000; // 스캔 폴링 주기
 const SCAN_MAX_PX = 1024;      // 전송 프레임 최대 해상도 (속도/정확도 균형)
 const REQ_TIMEOUT_MS = 9000;   // 개별 요청 하드 타임아웃
@@ -111,95 +82,6 @@ type Detection = {
   lengthCm: number | null;
   widthCm: number | null;
 };
-
-/**
- * 입낚볼 노란 구체(sphere)만의 반지름을 정밀 측정한다.
- * AI가 반환한 볼 중심(cx, cy)에서 16방향으로 방사형 스캔해
- * 노란색(HSV H:20~70°, S>30%, V>20%) 픽셀이 이어지는 최대 반경을 구한다.
- * 검정 연결고리 등 비노란 영역은 자연스럽게 제외된다.
- *
- * @param canvas  캡처된 프레임 캔버스
- * @param cx      AI 감지 볼 중심 X (픽셀)
- * @param cy      AI 감지 볼 중심 Y (픽셀)
- * @param aiR     AI 감지 반경 (픽셀) — 실패 시 이 값을 그대로 반환
- * @returns       정제된 반경 (픽셀)
- */
-function refineYellowBallRadius(
-  canvas: HTMLCanvasElement,
-  cx: number,
-  cy: number,
-  aiR: number
-): number {
-  try {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return aiR;
-    const w = canvas.width, h = canvas.height;
-    // AI 반경의 1.5배 또는 캔버스 절반 중 작은 값까지 탐색
-    const searchR = Math.min(aiR * 1.5, Math.min(w, h) / 2);
-
-    // 탐색 영역만 ImageData 추출 (전체 캔버스보다 훨씬 빠름)
-    const x0 = Math.max(0, Math.round(cx - searchR));
-    const y0 = Math.max(0, Math.round(cy - searchR));
-    const x1 = Math.min(w - 1, Math.round(cx + searchR));
-    const y1 = Math.min(h - 1, Math.round(cy + searchR));
-    const iw = x1 - x0 + 1, ih = y1 - y0 + 1;
-    if (iw <= 0 || ih <= 0) return aiR;
-    const imageData = ctx.getImageData(x0, y0, iw, ih);
-    const px = imageData.data;
-
-    /** 픽셀 (px, py) 가 노란색 범위인지 판별 (전역 캔버스 좌표) */
-    function isYellow(gx: number, gy: number): boolean {
-      const lx = Math.round(gx) - x0, ly = Math.round(gy) - y0;
-      if (lx < 0 || ly < 0 || lx >= iw || ly >= ih) return false;
-      const i = (ly * iw + lx) * 4;
-      const r = px[i] / 255, g = px[i + 1] / 255, b = px[i + 2] / 255;
-      const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
-      if (max < 0.2 || delta < 0.08) return false;   // 너무 어둡거나 무채색
-      const s = delta / max;
-      if (s < 0.3) return false;                       // 채도 부족 (흰/회색)
-      // Hue 계산
-      let hue = 0;
-      if (max === r)      hue = 60 * (((g - b) / delta) % 6);
-      else if (max === g) hue = 60 * ((b - r) / delta + 2);
-      else                hue = 60 * ((r - g) / delta + 4);
-      if (hue < 0) hue += 360;
-      // 노란색 범위 H: 20~70°
-      return hue >= 20 && hue <= 70;
-    }
-
-    // 16방향 방사형 스캔 → 각 방향의 마지막 노란 픽셀 반경 수집
-    const DIRS = 16;
-    const radii: number[] = [];
-    for (let d = 0; d < DIRS; d++) {
-      const angle = (d / DIRS) * Math.PI * 2;
-      const cos = Math.cos(angle), sin = Math.sin(angle);
-      let lastYellow = 0;
-      for (let step = 2; step <= searchR; step += 1.5) {
-        if (isYellow(cx + cos * step, cy + sin * step)) {
-          lastYellow = step;
-        } else if (step > lastYellow + 10) {
-          break; // 10px 이상 연속 비노란 → 경계로 확정
-        }
-      }
-      if (lastYellow > aiR * 0.3) radii.push(lastYellow);
-    }
-
-    if (radii.length < 6) return aiR; // 방향 데이터 불충분 → AI 값 유지
-
-    // 중앙값으로 이상치 제거
-    radii.sort((a, b) => a - b);
-    const mid = Math.floor(radii.length / 2);
-    const median = radii.length % 2 === 0
-      ? (radii[mid - 1] + radii[mid]) / 2
-      : radii[mid];
-
-    // AI 반경의 55~110% 범위 내일 때만 적용 (극단적 오측 방어)
-    if (median < aiR * 0.55 || median > aiR * 1.1) return aiR;
-    return median;
-  } catch {
-    return aiR;
-  }
-}
 
 export function LiveScanCamera({ onConfirm, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -549,14 +431,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
 
         if (ok) {
           const w = frame.width, h = frame.height;
-          // ── 노란 볼 구체만 정밀 측정 (검정 연결고리 제외) ──
-          // AI가 감지한 반경을 기준으로, 클라이언트 픽셀 분석으로 노란색 경계를 재측정.
-          // 실패 시(조명·과노출 등) AI 반경을 그대로 사용해 기존 동작 유지.
-          const aiRadiusPx = data.ball.r * w;
-          const refinedRadiusPx = refineYellowBallRadius(
-            frame, data.ball.x * w, data.ball.y * h, aiRadiusPx
-          );
-          const diameterPx = 2 * refinedRadiusPx;
+          const diameterPx = 2 * data.ball.r * w;
           const widthN =
             data.width?.top && data.width?.bottom
               ? { top: data.width.top as Norm, bottom: data.width.bottom as Norm }
@@ -578,7 +453,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
             }
           }
           const detection: Detection = {
-            ballN: { x: data.ball.x, y: data.ball.y, r: refinedRadiusPx / w },
+            ballN: { x: data.ball.x, y: data.ball.y, r: data.ball.r },
             headN: { x: data.head.x, y: data.head.y },
             tailN: { x: data.tail.x, y: data.tail.y },
             widthN,
@@ -823,22 +698,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
   return (
   <>
     {/* 안내 텍스트 느린 깜빡임 keyframe */}
-    <style>{`
-      @keyframes slowBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-      @keyframes sparkle {
-        0%, 100% { opacity: 0; transform: scale(0.4) translateY(0px); }
-        40%, 60% { opacity: 1; transform: scale(1.15) translateY(-5px); }
-      }
-      @keyframes sparkleFloat {
-        0%, 100% { opacity: 0; transform: scale(0.6) translateY(3px) rotate(0deg); }
-        50% { opacity: 0.85; transform: scale(1.1) translateY(-6px) rotate(30deg); }
-      }
-      @keyframes sparkleDrift {
-        0%, 100% { opacity: 0; transform: scale(0.5) translateX(0px) translateY(0px); }
-        30% { opacity: 0.9; transform: scale(1.2) translateX(-4px) translateY(-8px); }
-        70% { opacity: 0.6; transform: scale(0.9) translateX(5px) translateY(-4px); }
-      }
-    `}</style>
+    <style>{`@keyframes slowBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
 
     {/* ── video/canvas는 항상 z-399 portrait fixed 레이어에 단일 배치 ──
         이유: needsCssRotation이 바뀔 때 조건부 렌더링 시 video 엘리먼트가 unmount/remount되어
@@ -877,27 +737,6 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
         durationMs={SHIMMER_MS}
         onComplete={handleShimmerComplete}
       />
-      {/* ── 반짝이는 파티클 오버레이 — scan 탐색 중에만 표시, 인식 완료 시 사라짐 ── */}
-      {stage === "scan" && camStatus === "ready" && videoHasData && (
-        <div className="pointer-events-none absolute inset-0 z-[12] overflow-hidden">
-          {SPARKLES.map((s, i) => (
-            <span
-              key={i}
-              style={{
-                position: "absolute",
-                left: s.left,
-                top: s.top,
-                width: s.size,
-                height: s.size,
-                borderRadius: "50%",
-                background: s.color,
-                boxShadow: `0 0 ${s.glow}px ${s.color}`,
-                animation: `${s.anim} ${s.duration}s ${s.delay}s ease-in-out infinite`,
-              }}
-            />
-          ))}
-        </div>
-      )}
     </div>
 
     {/* ── UI 오버레이 컨테이너 (z-400, 투명 배경) — CSS 회전 모드일 때 rotate(90deg) 적용 ── */}
@@ -948,27 +787,6 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
         </div>
       </div>
 
-      {/* ── 화면 중앙 안내 문구 — scan 탐색 중 + 카메라 준비 완료 시만 표시 ── */}
-      {stage === "scan" && camStatus === "ready" && videoHasData && !canConfirm && (
-        <div
-          className="pointer-events-none absolute inset-x-0 z-20 flex flex-col items-center gap-1"
-          style={{ top: "50%", transform: "translateY(-50%)", animation: "slowBlink 2.8s ease-in-out infinite" }}
-        >
-          <p
-            className="text-[15px] font-bold tracking-tight text-white"
-            style={{ textShadow: "0 0 12px rgba(0,0,0,1), 0 2px 6px rgba(0,0,0,0.9)" }}
-          >
-            물고기와 입낚볼을 함께 비춰주세요
-          </p>
-          <p
-            className="text-[11px] text-white/65"
-            style={{ textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
-          >
-            AI가 자동으로 인식합니다
-          </p>
-        </div>
-      )}
-
       {/* 감지 시 상단 배지 */}
       {canConfirm && (
         <div className="pointer-events-none absolute left-1/2 top-14 z-20 -translate-x-1/2">
@@ -1011,14 +829,13 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
       {/* ── 하단 컨트롤 (세로 모드) ── */}
       {camStatus !== "error" && !effectiveLandscape && (
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
-          {/* scan 탐색 중에는 중앙 깜빡이는 흰 글씨가 안내 대신하므로 카드 숨김 */}
-          {(stage !== "scan" || canConfirm) && <div className="mb-3">{guidance}</div>}
+          <div className="mb-3">{guidance}</div>
           {measureButton}
         </div>
       )}
 
       {/* ── 안내 오버레이 — 가로 모드 시 카메라 왼쪽 영역 중앙 ── */}
-      {camStatus !== "error" && effectiveLandscape && (stage !== "scan" || canConfirm) && (
+      {camStatus !== "error" && effectiveLandscape && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-30 flex flex-col items-center justify-center"
           style={{
