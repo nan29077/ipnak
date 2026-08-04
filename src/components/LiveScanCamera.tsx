@@ -46,20 +46,32 @@ type Props = {
   onClose: () => void;                          // X — 닫기
 };
 
-/* ── 파티클 스파클 데이터 (컴포넌트 외부 상수, 렌더마다 재계산 없음) ── */
-const SPARKLES = Array.from({ length: 28 }, (_, i) => {
-  const seed = (i * 137.508) % 1; // 황금각 기반 균등 분포
-  const seed2 = ((i * 93.7) % 97) / 97;
-  const seed3 = ((i * 61.3) % 83) / 83;
+/* ── 파티클 스파클 데이터 — x/y/size/duration/delay 완전히 독립적인 소수 기반 분산 ── */
+const SPARKLES = Array.from({ length: 34 }, (_, i) => {
+  // 각 축마다 서로 다른 큰 소수를 사용해 상관 패턴 제거
+  const lx  = ((i * 7919  + 1337) % 10000) / 100;          // 0~100%
+  const ly  = ((i * 6271  + 4177) % 9000)  / 100 + 5;      // 5~95%
+  const sz  = ((i * 3917  +  777) % 42)    / 10  + 2;      // 2~6.1px
+  const dur = ((i * 4657  +  999) % 22)    / 10  + 1.3;    // 1.3~3.5s
+  const del = ((i * 5381  +  271) % 28)    / 10;           // 0~2.8s
+  const colors = [
+    "rgba(250,204,21,0.95)",   // 진한 노랑
+    "rgba(255,255,255,0.9)",   // 흰색
+    "rgba(234,179,8,0.8)",     // 골드
+    "rgba(253,230,138,0.85)",  // 연한 노랑
+    "rgba(255,255,255,0.65)",  // 반투명 흰
+  ];
+  // 애니메이션 종류도 고르게 분산
+  const anims = ["sparkle", "sparkle", "sparkleFloat", "sparkle", "sparkleDrift"];
   return {
-    left: `${(seed * 100).toFixed(1)}%`,
-    top: `${(seed2 * 90 + 5).toFixed(1)}%`,
-    size: `${(seed3 * 4 + 2).toFixed(1)}px`,
-    color: i % 3 === 0 ? "rgba(250,204,21,0.9)" : i % 3 === 1 ? "rgba(255,255,255,0.85)" : "rgba(234,179,8,0.7)",
-    glow: seed3 > 0.6 ? 4 : 2,
-    duration: (seed * 1.8 + 1.4).toFixed(2),
-    delay: (seed2 * 2.2).toFixed(2),
-    anim: i % 4 === 0 ? "sparkleFloat" : "sparkle",
+    left: `${lx.toFixed(1)}%`,
+    top:  `${ly.toFixed(1)}%`,
+    size: `${sz.toFixed(1)}px`,
+    color: colors[i % colors.length],
+    glow: sz > 4.5 ? 6 : sz > 3 ? 4 : 2,
+    duration: dur.toFixed(2),
+    delay: del.toFixed(2),
+    anim: anims[i % anims.length],
   };
 });
 
@@ -839,7 +851,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
       {stage === "scan" && camStatus === "ready" && videoHasData && !canConfirm && (
         <div
           className="pointer-events-none absolute inset-x-0 z-20 flex flex-col items-center gap-1"
-          style={{ top: "40%", transform: "translateY(-50%)", animation: "slowBlink 2.8s ease-in-out infinite" }}
+          style={{ top: "50%", transform: "translateY(-50%)", animation: "slowBlink 2.8s ease-in-out infinite" }}
         >
           <p
             className="text-[15px] font-bold tracking-tight text-white"
@@ -898,13 +910,14 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
       {/* ── 하단 컨트롤 (세로 모드) ── */}
       {camStatus !== "error" && !effectiveLandscape && (
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
-          <div className="mb-3">{guidance}</div>
+          {/* scan 탐색 중에는 중앙 깜빡이는 흰 글씨가 안내 대신하므로 카드 숨김 */}
+          {(stage !== "scan" || canConfirm) && <div className="mb-3">{guidance}</div>}
           {measureButton}
         </div>
       )}
 
       {/* ── 안내 오버레이 — 가로 모드 시 카메라 왼쪽 영역 중앙 ── */}
-      {camStatus !== "error" && effectiveLandscape && (
+      {camStatus !== "error" && effectiveLandscape && (stage !== "scan" || canConfirm) && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-30 flex flex-col items-center justify-center"
           style={{
