@@ -46,35 +46,6 @@ type Props = {
   onClose: () => void;                          // X — 닫기
 };
 
-/* ── 파티클 스파클 데이터 — x/y/size/duration/delay 완전히 독립적인 소수 기반 분산 ── */
-const SPARKLES = Array.from({ length: 34 }, (_, i) => {
-  // 각 축마다 서로 다른 큰 소수를 사용해 상관 패턴 제거
-  const lx  = ((i * 7919  + 1337) % 10000) / 100;          // 0~100%
-  const ly  = ((i * 6271  + 4177) % 9000)  / 100 + 5;      // 5~95%
-  const sz  = ((i * 3917  +  777) % 42)    / 10  + 2;      // 2~6.1px
-  const dur = ((i * 4657  +  999) % 22)    / 10  + 1.3;    // 1.3~3.5s
-  const del = ((i * 5381  +  271) % 28)    / 10;           // 0~2.8s
-  const colors = [
-    "rgba(250,204,21,0.95)",   // 진한 노랑
-    "rgba(255,255,255,0.9)",   // 흰색
-    "rgba(234,179,8,0.8)",     // 골드
-    "rgba(253,230,138,0.85)",  // 연한 노랑
-    "rgba(255,255,255,0.65)",  // 반투명 흰
-  ];
-  // 애니메이션 종류도 고르게 분산
-  const anims = ["sparkle", "sparkle", "sparkleFloat", "sparkle", "sparkleDrift"];
-  return {
-    left: `${lx.toFixed(1)}%`,
-    top:  `${ly.toFixed(1)}%`,
-    size: `${sz.toFixed(1)}px`,
-    color: colors[i % colors.length],
-    glow: sz > 4.5 ? 6 : sz > 3 ? 4 : 2,
-    duration: dur.toFixed(2),
-    delay: del.toFixed(2),
-    anim: anims[i % anims.length],
-  };
-});
-
 const POLL_INTERVAL_MS = 2000; // 스캔 폴링 주기
 const SCAN_MAX_PX = 1024;      // 전송 프레임 최대 해상도 (속도/정확도 균형)
 const REQ_TIMEOUT_MS = 9000;   // 개별 요청 하드 타임아웃
@@ -727,17 +698,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
   return (
   <>
     {/* 안내 텍스트 느린 깜빡임 keyframe */}
-    <style>{`
-      @keyframes slowBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-      @keyframes sparkle {
-        0%, 100% { opacity: 0; transform: scale(0.4) translateY(0px); }
-        40%, 60% { opacity: 1; transform: scale(1.15) translateY(-5px); }
-      }
-      @keyframes sparkleFloat {
-        0%, 100% { opacity: 0; transform: scale(0.6) translateY(3px) rotate(0deg); }
-        50% { opacity: 0.85; transform: scale(1.1) translateY(-6px) rotate(30deg); }
-      }
-    `}</style>
+    <style>{`@keyframes slowBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
 
     {/* ── video/canvas는 항상 z-399 portrait fixed 레이어에 단일 배치 ──
         이유: needsCssRotation이 바뀔 때 조건부 렌더링 시 video 엘리먼트가 unmount/remount되어
@@ -776,27 +737,6 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
         durationMs={SHIMMER_MS}
         onComplete={handleShimmerComplete}
       />
-      {/* ── 반짝이는 파티클 오버레이 — scan 탐색 중에만 표시, 인식 완료 시 사라짐 ── */}
-      {stage === "scan" && camStatus === "ready" && videoHasData && (
-        <div className="pointer-events-none absolute inset-0 z-[12] overflow-hidden">
-          {SPARKLES.map((s, i) => (
-            <span
-              key={i}
-              style={{
-                position: "absolute",
-                left: s.left,
-                top: s.top,
-                width: s.size,
-                height: s.size,
-                borderRadius: "50%",
-                background: s.color,
-                boxShadow: `0 0 ${s.glow}px ${s.color}`,
-                animation: `${s.anim} ${s.duration}s ${s.delay}s ease-in-out infinite`,
-              }}
-            />
-          ))}
-        </div>
-      )}
     </div>
 
     {/* ── UI 오버레이 컨테이너 (z-400, 투명 배경) — CSS 회전 모드일 때 rotate(90deg) 적용 ── */}
@@ -847,27 +787,6 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
         </div>
       </div>
 
-      {/* ── 화면 중앙 안내 문구 — scan 탐색 중 + 카메라 준비 완료 시만 표시 ── */}
-      {stage === "scan" && camStatus === "ready" && videoHasData && !canConfirm && (
-        <div
-          className="pointer-events-none absolute inset-x-0 z-20 flex flex-col items-center gap-1"
-          style={{ top: "50%", transform: "translateY(-50%)", animation: "slowBlink 2.8s ease-in-out infinite" }}
-        >
-          <p
-            className="text-[15px] font-bold tracking-tight text-white"
-            style={{ textShadow: "0 0 12px rgba(0,0,0,1), 0 2px 6px rgba(0,0,0,0.9)" }}
-          >
-            물고기와 입낚볼을 함께 비춰주세요
-          </p>
-          <p
-            className="text-[11px] text-white/65"
-            style={{ textShadow: "0 0 8px rgba(0,0,0,0.9)" }}
-          >
-            AI가 자동으로 인식합니다
-          </p>
-        </div>
-      )}
-
       {/* 감지 시 상단 배지 */}
       {canConfirm && (
         <div className="pointer-events-none absolute left-1/2 top-14 z-20 -translate-x-1/2">
@@ -910,14 +829,13 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
       {/* ── 하단 컨트롤 (세로 모드) ── */}
       {camStatus !== "error" && !effectiveLandscape && (
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
-          {/* scan 탐색 중에는 중앙 깜빡이는 흰 글씨가 안내 대신하므로 카드 숨김 */}
-          {(stage !== "scan" || canConfirm) && <div className="mb-3">{guidance}</div>}
+          <div className="mb-3">{guidance}</div>
           {measureButton}
         </div>
       )}
 
       {/* ── 안내 오버레이 — 가로 모드 시 카메라 왼쪽 영역 중앙 ── */}
-      {camStatus !== "error" && effectiveLandscape && (stage !== "scan" || canConfirm) && (
+      {camStatus !== "error" && effectiveLandscape && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-30 flex flex-col items-center justify-center"
           style={{
