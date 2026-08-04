@@ -95,7 +95,7 @@ export async function POST(req: Request) {
     }
 
     const id = makeId();
-    const now = new Date().toISOString();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await prisma.$executeRawUnsafe(
       `INSERT INTO IpnakBallRegistry (id, ballId, memo, isActive, createdAt, updatedAt)
        VALUES (?, ?, ?, 1, ?, ?)`,
@@ -122,7 +122,7 @@ export async function PATCH(req: Request) {
   if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
 
   try {
-    const now = new Date().toISOString();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     if (isActive !== null) {
       await prisma.$executeRawUnsafe(
         `UPDATE IpnakBallRegistry SET isActive = ?, updatedAt = ? WHERE id = ?`,
