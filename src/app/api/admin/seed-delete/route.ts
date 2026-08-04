@@ -140,7 +140,7 @@ export async function POST(req: Request) {
         const count = await prisma.product.count({ where: { affiliateCode: "DUMMY_SEED" } });
         if (count === 0) return NextResponse.json({ message: "삭제할 쇼핑 상품 더미가 없습니다." });
         // FeaturedProduct (raw SQL, prisma generate 전 대응)
-        await prisma.$executeRaw`DELETE FROM "FeaturedProduct" WHERE "productId" IN (SELECT id FROM "Product" WHERE "affiliateCode" = 'DUMMY_SEED')`.catch(() => {});
+        await prisma.$executeRaw`DELETE FROM \`FeaturedProduct\` WHERE \`productId\` IN (SELECT id FROM \`Product\` WHERE \`affiliateCode\` = 'DUMMY_SEED')`.catch(() => {});
         await prisma.postProductTag.deleteMany({ where: { product: { affiliateCode: "DUMMY_SEED" } } });
         await prisma.product.deleteMany({ where: { affiliateCode: "DUMMY_SEED" } });
         return NextResponse.json({ message: `쇼핑 상품 더미 ${count}개 삭제 완료` });

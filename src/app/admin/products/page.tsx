@@ -53,7 +53,7 @@ export default async function AdminProducts({
   type RawStock = { id: string; stock: number | null; freeShippingThreshold: number | null };
   let stockMap: Record<string, { stock: number; freeShippingThreshold: number }> = {};
   try {
-    const rows = await prisma.$queryRaw<RawStock[]>`SELECT id, stock, "freeShippingThreshold" FROM "Product"`;
+    const rows = await prisma.$queryRaw<RawStock[]>`SELECT id, stock, \`freeShippingThreshold\` FROM \`Product\``;
     for (const r of rows) {
       stockMap[r.id] = { stock: Number(r.stock) || 0, freeShippingThreshold: Number(r.freeShippingThreshold) || 0 };
     }
@@ -63,7 +63,7 @@ export default async function AdminProducts({
   type RawFeatured = { id: string; productId: string; section: string; order: number; createdAt: string };
   let featured: Array<RawFeatured & { product: typeof products[0] }> = [];
   try {
-    const rawFeatured = await prisma.$queryRaw<RawFeatured[]>`SELECT * FROM "FeaturedProduct" ORDER BY section, "order"`;
+    const rawFeatured = await prisma.$queryRaw<RawFeatured[]>`SELECT * FROM \`FeaturedProduct\` ORDER BY section, \`order\``;
     featured = rawFeatured
       .map((f) => ({ ...f, product: products.find((p) => p.id === f.productId)! }))
       .filter((f) => f.product);

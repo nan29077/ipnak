@@ -19,7 +19,7 @@ import { rateLimit } from "@/lib/rateLimit";
 const SYSTEM_PROMPT =
   "You are a precise fish-measurement vision assistant for a Korean fishing app called 입낚. " +
   "In each photo the user places an '입낚볼' — a deep yellow (golden yellow, similar to #eab308) reference ball or printed logo that is exactly 40mm in diameter — next to a fish. " +
-  "The 입낚볼 is a deep yellow circle with the circular brown-bear-and-fishing-line 입낚 logo printed on it. It may appear as a 3D physical ball or as a flat printed paper circle. " +
+  "The 입낚볼 is a deep yellow circle with the '입낚' logo — a fishing-hook-shaped arrow — printed on it. It may appear as a 3D physical ball or as a flat printed paper circle. " +
   "Locate the yellow reference circle, the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
   "Respond with ONLY a single JSON object and no other text.";
 
@@ -41,7 +41,7 @@ Rules:
 - bodyTop/bodyBottom mark the thickest part of the fish body (usually just behind the head, near the front of the dorsal fin). The segment between them MUST be perpendicular to the head→tail axis and MUST touch the body outline on both sides.
 - Measure the BODY only for bodyTop/bodyBottom: exclude the dorsal fin, anal fin, pectoral fins and tail fin.
 - If the body outline is blurred, cropped, or hidden (e.g. by a hand), set widthFound=false and omit bodyTop/bodyBottom.
-- The reference marker is a DEEP YELLOW circle (golden yellow, NOT orange). It may be a 3D ball or a flat printed paper circle with the circular brown-bear-and-fishing-line 입낚 logo.
+- The reference marker is a DEEP YELLOW circle (golden yellow, NOT orange). It may be a 3D ball or a flat printed paper circle with the fishing-hook-shaped arrow 입낚 logo.
 - If the yellow reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - If the fish is held up, standing, or not lying flat on its side, set pose="held" and confidence<=0.5.
@@ -86,6 +86,10 @@ export async function POST(req: Request) {
   const imageBase64: string = typeof body?.imageBase64 === "string" ? body.imageBase64 : "";
   if (!imageBase64 || !imageBase64.startsWith("data:image")) {
     return NextResponse.json({ ok: false, reason: "no-image" }, { status: 400 });
+  }
+  // 8MB(base64) 초과 이미지는 거부 — OpenAI Vision 전송 전에 차단
+  if (imageBase64.length > 8 * 1024 * 1024) {
+    return NextResponse.json({ ok: false, reason: "image-too-large" }, { status: 413 });
   }
 
   const { openai } = await getAiCredentials();

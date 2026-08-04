@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Camera, Trophy, Ruler, Hash, MapPin, Thermometer, Waves, Trash2, CloudSun, Moon,
 } from "lucide-react";
@@ -47,6 +48,8 @@ function fmtDate(iso: string) {
 
 export default function DiaryPage() {
   const toast = useToast();
+  const searchParams = useSearchParams();
+  const ballIdFilter = searchParams.get("ballId") ?? "";
   const [stats, setStats] = useState<any>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [total, setTotal] = useState(0);
@@ -64,8 +67,8 @@ export default function DiaryPage() {
     setPendingSync(st.pendingCount);
   }, []);
 
-  const loadPage = useCallback(async (p: number, sp: string, replace: boolean) => {
-    const r = await dbService.getMeasurements({ page: p, limit: PAGE_SIZE, species: sp });
+  const loadPage = useCallback(async (p: number, sp: string, replace: boolean, bid: string = "") => {
+    const r = await dbService.getMeasurements({ page: p, limit: PAGE_SIZE, species: sp, ballId: bid });
     setTotal(r.total);
     setItems((prev) => (replace ? r.items : [...prev, ...r.items]));
     setLoading(false);
@@ -75,9 +78,9 @@ export default function DiaryPage() {
   useEffect(() => {
     setLoading(true);
     setPage(1);
-    loadPage(1, species, true);
+    loadPage(1, species, true, ballIdFilter);
     loadStats();
-  }, [species, loadPage, loadStats]);
+  }, [species, ballIdFilter, loadPage, loadStats]);
 
   // 무한 스크롤
   useEffect(() => {
@@ -87,7 +90,7 @@ export default function DiaryPage() {
       if (entries[0].isIntersecting && items.length < total) {
         const next = page + 1;
         setPage(next);
-        loadPage(next, species, false);
+        loadPage(next, species, false, ballIdFilter);
       }
     }, { rootMargin: "200px" });
     ob.observe(el);
@@ -101,7 +104,7 @@ export default function DiaryPage() {
     setDetail(null);
     setLoading(true);
     setPage(1);
-    await loadPage(1, species, true);
+    await loadPage(1, species, true, ballIdFilter);
     await loadStats();
     toast("기록을 삭제했어요", "info");
   }

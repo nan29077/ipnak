@@ -72,10 +72,11 @@ class DatabaseService {
   }
 
   /** 기록 목록 (페이지네이션 + 필터) */
-  async getMeasurements({ page = 1, limit = 20, species = '', dateFrom = '', dateTo = '' } = {}) {
+  async getMeasurements({ page = 1, limit = 20, species = '', dateFrom = '', dateTo = '', ballId = '' } = {}) {
     await this.initDB()
     let list = this._lsGet(STORE_KEY, [])
     if (species) list = list.filter((m) => m.speciesKr === species)
+    if (ballId) list = list.filter((m) => m.ballId === ballId)
     if (dateFrom) list = list.filter((m) => m.measuredAt >= dateFrom)
     if (dateTo) list = list.filter((m) => m.measuredAt <= dateTo)
     const start = (page - 1) * limit

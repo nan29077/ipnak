@@ -29,3 +29,98 @@ export function BallPriceForm({ initial, productId, label = "입낚볼" }: { ini
 
   return <form onSubmit={save} className="card max-w-xl p-5"><h2 className="text-lg font-extrabold text-navy-800">{label} 판매 가격</h2><p className="mt-1 text-sm text-navy-400">{label} 상품의 기본가를 변경합니다. 저장 즉시 낚시꾼 마이페이지와 신규 주문 결제 금액에 반영됩니다. 기존 주문 가격은 변경되지 않습니다.</p><label className="mt-5 block text-sm font-bold text-navy-700" htmlFor="ipnak-price-input">판매 가격</label><div className="mt-2 flex flex-col gap-3 sm:flex-row"><div className="relative min-w-0 flex-1"><input id="ipnak-price-input" type="number" min="100" step="100" value={price} onChange={e => setPrice(e.target.value)} className="h-16 w-full rounded-2xl border-2 border-orange-400 bg-[#ffffff] px-4 pr-14 text-right text-2xl font-extrabold tabular-nums text-[#111827] caret-orange-500 outline-none transition-shadow focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20" style={{ color: "#111827", backgroundColor: "#ffffff" }}/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-base font-extrabold text-[#374151]">원</span></div><button disabled={loading} className="h-16 rounded-2xl bg-orange-500 px-7 text-base font-extrabold text-white shadow-soft transition-colors hover:bg-orange-600 disabled:opacity-50">{loading ? "저장 중" : "가격 저장"}</button></div><p className="mt-2 text-xs font-medium text-navy-400">현재 입력값: {Number(price || 0).toLocaleString()}원</p></form>;
 }
+
+/**
+ * 상품 관리 탭 — 1개입 / 2개입 옵션 가격 빠른 설정
+ * 옵션이 활성화된 상품에서 두 가격을 한 번에 수정한다.
+ */
+export function BallOptionPriceForm({
+  productId, label = "입낚볼", initialOnePrice, initialTwoPrice,
+}: {
+  productId: string | null;
+  label?: string;
+  initialOnePrice: number | null;
+  initialTwoPrice: number | null;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [onePrice, setOnePrice] = useState(initialOnePrice != null ? String(initialOnePrice) : "");
+  const [twoPrice, setTwoPrice] = useState(initialTwoPrice != null ? String(initialTwoPrice) : "");
+  const [loading, setLoading] = useState(false);
+
+  if (!productId) return null;
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    const one = onePrice ? Number(onePrice) : null;
+    const two = twoPrice ? Number(twoPrice) : null;
+    if (one !== null && (!Number.isInteger(one) || one < 100)) return toast("1개입 가격을 확인해 주세요.", "error");
+    if (two !== null && (!Number.isInteger(two) || two < 100)) return toast("2개입 가격을 확인해 주세요.", "error");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/ipnak-ball/products", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: productId,
+          optionEnabled: true,
+          optionOneLabel: "1개입",
+          optionOnePrice: one,
+          optionTwoLabel: "2개입",
+          optionTwoPrice: two,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      toast(`${label} 옵션 가격을 저장했습니다.`, "success");
+      router.refresh();
+    } catch (e: any) {
+      toast(e.message || "저장에 실패했습니다.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inputCls = "w-full rounded-lg border border-navy-100 bg-[#0d1b2a] px-3 py-2.5 text-sm text-navy-800 outline-none focus:border-orange-400/70 placeholder-navy-300";
+
+  return (
+    <form onSubmit={save} className="rounded-xl border border-navy-100 bg-[#162538] p-4 space-y-3">
+      <div>
+        <p className="text-sm font-bold text-navy-700">{label} 옵션 가격 설정</p>
+        <p className="mt-0.5 text-[11px] text-navy-400">구매 페이지 옵션 선택 화면에 즉시 반영됩니다.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-navy-400">1개입 가격 (원)</span>
+          <input
+            type="number" min="100" step="100"
+            value={onePrice}
+            onChange={(e) => setOnePrice(e.target.value)}
+            placeholder="예: 39900"
+            className={inputCls}
+          />
+          {onePrice && <p className="mt-1 text-[10px] text-navy-400">{Number(onePrice).toLocaleString()}원</p>}
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-navy-400">2개입 가격 (원)</span>
+          <input
+            type="number" min="100" step="100"
+            value={twoPrice}
+            onChange={(e) => setTwoPrice(e.target.value)}
+            placeholder="예: 69900"
+            className={inputCls}
+          />
+          {twoPrice && <p className="mt-1 text-[10px] text-navy-400">{Number(twoPrice).toLocaleString()}원</p>}
+        </label>
+      </div>
+      <button
+        type="submit"
+        disabled={loading}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+      >
+        {loading ? <Loader2 size={15} className="animate-spin" /> : null}
+        옵션 가격 저장
+      </button>
+    </form>
+  );
+}

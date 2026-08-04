@@ -2,9 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { AdminTitle, StatusBadge, Table } from "@/components/admin/ui";
-import { BallPriceForm, BallStatusActions } from "@/components/admin/IpnakBallAdminActions";
+import { BallPriceForm, BallStatusActions, BallOptionPriceForm } from "@/components/admin/IpnakBallAdminActions";
 import { IpnakSaleToggle } from "@/components/admin/IpnakBallToggle";
 import { IpnakBallProductForm, IpnakBallProductToggle, IpnakBallProductDelete, IpnakBallProductEditModal } from "@/components/admin/IpnakBallProductForm";
+import { IpnakBallRegistryTab } from "@/components/admin/IpnakBallRegistryTab";
 import {
   IPNAK_ENABLED_KEY,
   IPNAK_PRODUCT_TYPES,
@@ -23,6 +24,7 @@ const tabs = [
   { key: "shipping", label: "배송 관리" },
   { key: "products", label: "상품 관리" },
   { key: "price", label: "가격 설정" },
+  { key: "registry", label: "볼 ID 관리" },
 ];
 
 /* imageUrl은 단일 URL 또는 JSON 배열 문자열 — 목록에서는 첫 장만 썸네일로 사용 */
@@ -46,7 +48,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
   const where = tab === "requests" ? { status: { in: ["REQUESTED", "PAID"] } } : tab === "payments" ? { paymentStatus: { in: ["READY", "PAID", "CANCELLED", "REFUNDED"] } } : tab === "shipping" ? { status: { in: ["PREPARING", "SHIPPED", "DELIVERED"] } } : {};
   // productType은 Prisma가 모르는 raw 컬럼이라, 해당 타입의 주문 id를 먼저 뽑아 필터로 넘긴다.
   let orders: any[] = [];
-  if (tab !== "price" && tab !== "products") {
+  if (tab !== "price" && tab !== "products" && tab !== "registry") {
     const idRows = await prisma.$queryRawUnsafe<{ id: string }[]>(`SELECT "id" FROM "BallOrder" WHERE "productType" = ?`, kind);
     const ids = idRows.map(r => r.id);
     orders = ids.length === 0 ? [] : await prisma.ballOrder.findMany({
@@ -61,25 +63,44 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
     : [];
   const label = IPNAK_TYPE_LABEL[kind];
 
+  // 볼 ID 레지스트리 (registry 탭)
+  type RegistryRow = { id: string; ballId: string; memo: string | null; isActive: number; createdAt: string };
+  let registryItems: RegistryRow[] = [];
+  let registryTotal = 0;
+  if (tab === "registry") {
+    const [rows, countRows] = await Promise.all([
+      prisma.$queryRawUnsafe<RegistryRow[]>(
+        `SELECT id, ballId, memo, isActive, createdAt FROM IpnakBallRegistry ORDER BY createdAt DESC LIMIT 50`
+      ),
+      prisma.$queryRawUnsafe<{ cnt: number | bigint }[]>(
+        `SELECT COUNT(*) as cnt FROM IpnakBallRegistry`
+      ),
+    ]);
+    registryItems = rows;
+    registryTotal = Number(countRows[0]?.cnt ?? 0);
+  }
+
   return (
     <div>
       <AdminTitle title="입낚볼 관리" desc="입낚볼·입낚키링의 상품 등록부터 결제 승인, 주문 처리, 배송 완료까지 통합 관리합니다." />
 
-      {/* 상품 종류 탭 — 아래 모든 메뉴가 선택한 상품 기준으로 동작한다 */}
-      <div className="mb-4 flex gap-2">
-        {IPNAK_PRODUCT_TYPES.map(t => (
-          <Link
-            key={t}
-            href={`/admin/ipnak-ball?tab=${tab}&kind=${t}`}
-            className={cn(
-              "flex-1 rounded-xl border px-4 py-2.5 text-center text-sm font-bold transition-colors",
-              kind === t ? "border-orange-500 bg-orange-500 text-white" : "border-navy-100 text-navy-400 hover:border-orange-400/60 hover:text-orange-400"
-            )}
-          >
-            {IPNAK_TYPE_LABEL[t]}
-          </Link>
-        ))}
-      </div>
+      {/* 상품 종류 탭 — registry 탭에서는 숨김 */}
+      {tab !== "registry" && (
+        <div className="mb-4 flex gap-2">
+          {IPNAK_PRODUCT_TYPES.map(t => (
+            <Link
+              key={t}
+              href={`/admin/ipnak-ball?tab=${tab}&kind=${t}`}
+              className={cn(
+                "flex-1 rounded-xl border px-4 py-2.5 text-center text-sm font-bold transition-colors",
+                kind === t ? "border-orange-500 bg-orange-500 text-white" : "border-navy-100 text-navy-400 hover:border-orange-400/60 hover:text-orange-400"
+              )}
+            >
+              {IPNAK_TYPE_LABEL[t]}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="mb-5 flex flex-wrap gap-1.5 border-b border-navy-100">
         {tabs.map(t => (
@@ -117,6 +138,17 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
               {IPNAK_TYPE_LABEL[kind]} 상품이 이미 1개 등록되어 있습니다. 수정하거나 삭제 후 새로 등록하세요.
             </div>
           )}
+          {/* 옵션 가격 빠른 설정 — 상품이 있을 때만 표시 */}
+          {products.length > 0 && (
+            <BallOptionPriceForm
+              key={kind}
+              productId={products[0]?.id ?? null}
+              label={IPNAK_TYPE_LABEL[kind]}
+              initialOnePrice={products[0]?.optionOnePrice ?? null}
+              initialTwoPrice={products[0]?.optionTwoPrice ?? null}
+            />
+          )}
+
           <div>
             <p className="mb-3 text-sm font-bold text-navy-600">등록된 {IPNAK_TYPE_LABEL[kind]} 상품 ({products.length}개)</p>
             {products.length === 0 ? (
@@ -211,7 +243,15 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
         </div>
       )}
 
-      {tab !== "price" && tab !== "products" && (
+      {/* 볼 ID 레지스트리 탭 */}
+      {tab === "registry" && (
+        <IpnakBallRegistryTab
+          initialItems={registryItems.map(r => ({ ...r, isActive: Boolean(r.isActive) }))}
+          initialTotal={Number(registryTotal)}
+        />
+      )}
+
+      {tab !== "price" && tab !== "products" && tab !== "registry" && (
         <>
           <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
             <Summary label="조회 주문" value={`${orders.length}건`} />
