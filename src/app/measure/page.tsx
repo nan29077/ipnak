@@ -93,25 +93,12 @@ export default function MeasurePage() {
   const [tutorialStep, setTutorialStep] = useState(0);
   // 스마트피싱(기록 중) 화면에서 진입했는지 (?from=fishing) — 완료 후 복귀 안내
   const [fromFishing, setFromFishing] = useState(false);
-  // 현재 연동된 입낚볼 ID (측정 저장 시 ballId 연결에 사용)
-  const [activeBallId, setActiveBallId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const q = new URLSearchParams(window.location.search);
       if (q.get("from") === "fishing") setFromFishing(true);
     } catch { /* noop */ }
-  }, []);
-
-  // 연동된 입낚볼 ID 로드 (측정 기록과 볼 연결)
-  useEffect(() => {
-    fetch("/api/balls", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const first = Array.isArray(data?.balls) ? data.balls[0] : null;
-        if (first?.ballId) setActiveBallId(first.ballId);
-      })
-      .catch(() => {});
   }, []);
 
   // 브라우저 방향 감지 — 가로 시 페이지를 세로로 고정 표시 (모바일 전용, 스캔 화면 제외)
@@ -222,15 +209,7 @@ export default function MeasurePage() {
         body: JSON.stringify({ imageBase64: dataUrl, width: work.width, height: work.height }),
         signal: controller.signal,
       });
-      if (!res.ok) {
-        // 이미지 크기 초과 시 전용 안내 메시지 표시
-        const errData = await res.json().catch(() => null);
-        if (errData?.reason === "image-too-large") {
-          scanFailToChoice("사진 용량이 너무 커요. 더 작은 사진을 선택해 주세요.");
-          return;
-        }
-        throw new Error("ai-error");
-      }
+      if (!res.ok) throw new Error("ai-error");
       const data = await res.json();
 
       // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 → 측정 불가 안내 후 선택 화면 복귀
@@ -304,8 +283,8 @@ export default function MeasurePage() {
   }
 
   /* ── 자동 스캔 실패 → 안내 후 2초 뒤 선택 화면 복귀 ── */
-  function scanFailToChoice(msg?: string) {
-    setScanFailMsg(msg ?? "자동 측정이 어려운 사진이에요. 물고기를 옆으로 눕히고 입낚볼과 함께 다시 촬영해 주세요.");
+  function scanFailToChoice() {
+    setScanFailMsg("자동 측정이 어려운 사진이에요. 물고기를 옆으로 눕히고 입낚볼과 함께 다시 촬영해 주세요.");
     setPhase("SCAN_FAILED");
     if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
     scanTimerRef.current = setTimeout(() => {
@@ -439,7 +418,6 @@ export default function MeasurePage() {
         weather: tags?.weather?.weather ?? null,
         temperature: tags?.weather?.temperature ?? null,
         tidePhase: tags?.tide?.tidePhase ?? null,
-        ballId: activeBallId ?? null,
       });
 
       setSavedImageBase64(imageBase64);
@@ -477,7 +455,6 @@ export default function MeasurePage() {
           tripId: sessionId ?? null,
           shareToFeed: false,
           pointVisibility: "EXACT",
-          ballId: activeBallId ?? null,
         }),
       }).catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
 

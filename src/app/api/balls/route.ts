@@ -1,14 +1,12 @@
 /**
  * 입낚볼 연동 API
- * - GET    /api/balls : 현재 사용자의 연동된 입낚볼 목록
- * - POST   /api/balls : 볼 ID 를 현재 계정에 등록 { ballId: string }
- * - DELETE /api/balls : 볼 연동 해제 { id: string }
+ * - GET  /api/balls : 현재 사용자의 연동된 입낚볼 목록
+ * - POST /api/balls : 볼 ID 를 현재 계정에 등록 { ballId: string }
  *   (NFC 자동 읽기 또는 수동 입력 모두 동일 엔드포인트 사용)
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { rateLimit } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -36,28 +34,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     }
 
-    // IP당 분당 10회 제한 (볼 등록은 자주 할 이유 없음)
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    if (!rateLimit(`ball-register:${ip}`, 10, 60_000)) {
-      return NextResponse.json({ error: "요청이 너무 많아요. 잠시 후 다시 시도해 주세요." }, { status: 429 });
-    }
-
     const body = await req.json().catch(() => null);
-    const ballId = typeof body?.ballId === "string" ? body.ballId.trim().toUpperCase() : "";
+    const ballId = typeof body?.ballId === "string" ? body.ballId.trim() : "";
     if (!ballId) {
       return NextResponse.json({ error: "ballId 가 필요합니다." }, { status: 400 });
-    }
-
-    // ── 화이트리스트 검증: IpnakBallRegistry에 등록되고 isActive=true인 ID만 허용 ──
-    const registryRows = await prisma.$queryRawUnsafe<[{ cnt: number }]>(
-      `SELECT COUNT(*) as cnt FROM IpnakBallRegistry WHERE ballId = ? AND isActive = 1`,
-      ballId
-    );
-    if (Number(registryRows[0]?.cnt ?? 0) === 0) {
-      return NextResponse.json(
-        { error: "유효하지 않은 볼 ID입니다. 관리자에게 문의해 주세요." },
-        { status: 400 }
-      );
     }
 
     // 이미 등록된 볼이면 그대로 반환
@@ -75,31 +55,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ball, alreadyLinked: false }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "볼 등록에 실패했어요." }, { status: 500 });
-  }
-}
-
-export async function DELETE(req: Request) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-    }
-
-    const body = await req.json().catch(() => null);
-    const id = typeof body?.id === "string" ? body.id.trim() : "";
-    if (!id) {
-      return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
-    }
-
-    // 본인 소유 확인 후 삭제
-    const deleted = await prisma.linkedBall.deleteMany({
-      where: { id, userId: user.id },
-    });
-    if (deleted.count === 0) {
-      return NextResponse.json({ error: "볼을 찾을 수 없습니다." }, { status: 404 });
-    }
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "연동 해제에 실패했어요." }, { status: 500 });
   }
 }

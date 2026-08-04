@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, Camera, Crosshair, Download, Image as ImageIcon, Smartphone, Unlink } from "lucide-react";
+import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, Camera, Crosshair, Download, Image as ImageIcon, Smartphone } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import NfcService from "@/services/NfcService";
 import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
@@ -32,21 +32,26 @@ async function fetchBalls(): Promise<Ball[] | null> {
   }
 }
 
-async function registerBallApi(ballId: string): Promise<{ ok: boolean; status: number; error?: string }> {
+async function registerBallApi(ballId: string): Promise<{ ok: boolean; status: number }> {
   try {
     const res = await fetch("/api/balls", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ballId }),
     });
-    const data = await res.json().catch(() => null);
-    return { ok: res.ok, status: res.status, error: data?.error };
+    return { ok: res.ok, status: res.status };
   } catch {
     return { ok: false, status: 0 };
   }
 }
 
-
+/** NFC 읽기 (무한 대기 방지 타임아웃 포함) */
+async function readBallIdWithTimeout(): Promise<string | null> {
+  return Promise.race<string | null>([
+    NfcService.readBallId(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), NFC_READ_TIMEOUT_MS)),
+  ]);
+}
 
 /** NFC 태그 → 등록까지 한 번에 처리하는 공용 훅 */
 function useBallLink() {
@@ -74,29 +79,20 @@ function useBallLink() {
     if (reading) return;
     setReading(true);
     toast("입낚볼에 휴대폰 뒷면을 가까이 대주세요", "info");
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), NFC_READ_TIMEOUT_MS);
     try {
-      const ballId = await NfcService.readBallId(abortController.signal);
+      const ballId = await readBallIdWithTimeout();
       if (!ballId) {
         toast("NFC 태그를 읽지 못했어요. 다시 시도해 주세요.", "error");
         return;
       }
-      const { ok, status, error } = await registerBallApi(ballId);
+      const { ok, status } = await registerBallApi(ballId);
       if (!ok) {
-        toast(
-          status === 401
-            ? "로그인 후 이용할 수 있어요."
-            : (error || "볼 등록에 실패했어요. 잠시 후 다시 시도해 주세요."),
-          "error"
-        );
+        toast(status === 401 ? "로그인 후 이용할 수 있어요." : "볼 등록에 실패했어요. 잠시 후 다시 시도해 주세요.", "error");
         return;
       }
       toast(`입낚볼(${ballId}) 연동 완료`, "success");
       await refresh();
     } finally {
-      clearTimeout(timeoutId);
-      abortController.abort(); // 정상 완료 시에도 NFC 스캔 정리
       setReading(false);
     }
   }, [supported, reading, toast, refresh]);
@@ -355,52 +351,22 @@ export function MyBallManager() {
   const toast = useToast();
   const [manualId, setManualId] = useState("");
   const [registering, setRegistering] = useState(false);
-  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-
-  const hasBalls = balls !== null && balls.length > 0;
 
   async function registerManual() {
     const trimmed = manualId.trim();
     if (!trimmed) return;
     setRegistering(true);
     try {
-      const { ok, status, error } = await registerBallApi(trimmed);
+      const { ok, status } = await registerBallApi(trimmed);
       if (ok) {
         toast(`입낚볼(${trimmed}) 연동 완료`, "success");
         setManualId("");
         await refresh();
       } else {
-        toast(status === 401 ? "로그인 후 이용할 수 있어요." : (error || "볼 ID를 확인해 주세요."), "error");
+        toast(status === 401 ? "로그인 후 이용할 수 있어요." : "볼 ID를 확인해 주세요.", "error");
       }
     } finally {
       setRegistering(false);
-    }
-  }
-
-  async function unlinkBall(b: Ball) {
-    if (confirmingId !== b.id) {
-      // 1차: 확인 상태로 전환
-      setConfirmingId(b.id);
-      return;
-    }
-    // 2차: 실제 해제
-    setConfirmingId(null);
-    setUnlinkingId(b.id);
-    try {
-      const res = await fetch("/api/balls", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: b.id }),
-      });
-      if (res.ok) {
-        toast(`입낚볼(${b.ballId}) 연동 해제`, "success");
-        await refresh();
-      } else {
-        toast("연동 해제에 실패했어요.", "error");
-      }
-    } finally {
-      setUnlinkingId(null);
     }
   }
 
@@ -417,7 +383,7 @@ export function MyBallManager() {
       </div>
 
       {/* 연결된 볼 목록 */}
-      {balls === null ? null : hasBalls ? (
+      {balls && balls.length > 0 ? (
         <ul className="space-y-2">
           {balls.map((b) => (
             <li key={b.id} className="flex items-center gap-2.5 rounded-2xl border border-navy-100 bg-surface-100 px-3.5 py-3">
@@ -434,35 +400,6 @@ export function MyBallManager() {
               >
                 기록 보기 <ChevronRight size={12} strokeWidth={2.2} />
               </Link>
-              {confirmingId === b.id ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => unlinkBall(b)}
-                    disabled={unlinkingId === b.id}
-                    className="rounded-lg bg-red-500/15 px-2 py-1 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/25 disabled:opacity-40"
-                  >
-                    {unlinkingId === b.id ? <Loader2 size={12} className="animate-spin" /> : "해제"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingId(null)}
-                    className="rounded-lg bg-navy-50 px-2 py-1 text-[11px] font-bold text-navy-500 transition-colors hover:bg-navy-100"
-                  >
-                    취소
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => unlinkBall(b)}
-                  disabled={unlinkingId === b.id}
-                  title="연동 해제"
-                  className="shrink-0 rounded-full p-1.5 text-navy-300 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
-                >
-                  <Unlink size={14} strokeWidth={1.9} />
-                </button>
-              )}
             </li>
           ))}
         </ul>
@@ -473,45 +410,43 @@ export function MyBallManager() {
         </div>
       )}
 
-      {/* 볼 등록 — 로드 완료 후 연결된 볼이 없을 때만 표시 */}
-      {balls !== null && !hasBalls && (
-        supported === false ? (
-          /* iPhone 등 NFC 미지원 — ID 직접 입력 */
-          <div className="mt-3 space-y-2">
-            <p className="text-center text-[12px] text-navy-400">
-              iPhone 등 NFC 미지원 기기입니다. 볼 뒷면의 ID를 직접 입력하세요.
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={manualId}
-                onChange={(e) => setManualId(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && registerManual()}
-                placeholder="볼 ID 입력 (예: IPNK-XXXX)"
-                style={{ fontSize: "16px" }}
-                className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
-              />
-              <button
-                type="button"
-                onClick={registerManual}
-                disabled={!manualId.trim() || registering}
-                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors active:bg-orange-600 disabled:opacity-50"
-              >
-                {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
-              </button>
-            </div>
+      {/* 볼 등록 */}
+      {supported === false ? (
+        /* iPhone 등 NFC 미지원 — ID 직접 입력 */
+        <div className="mt-3 space-y-2">
+          <p className="text-center text-[12px] text-navy-400">
+            iPhone 등 NFC 미지원 기기입니다. 볼 뒷면의 ID를 직접 입력하세요.
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={manualId}
+              onChange={(e) => setManualId(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && registerManual()}
+              placeholder="볼 ID 입력 (예: IPNK-XXXX)"
+              style={{ fontSize: "16px" }}
+              className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
+            />
+            <button
+              type="button"
+              onClick={registerManual}
+              disabled={!manualId.trim() || registering}
+              className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors active:bg-orange-600 disabled:opacity-50"
+            >
+              {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
+            </button>
           </div>
-        ) : (
-          /* Android Chrome 등 NFC 지원 */
-          <button
-            type="button"
-            onClick={tagAndRegister}
-            disabled={supported === null || reading}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
-          >
-            {reading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={2.2} />}
-            {reading ? "볼을 태그해 주세요..." : "볼 등록 (NFC 태그)"}
-          </button>
-        )
+        </div>
+      ) : (
+        /* Android Chrome 등 NFC 지원 */
+        <button
+          type="button"
+          onClick={tagAndRegister}
+          disabled={supported === null || reading}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
+        >
+          {reading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={2.2} />}
+          {reading ? "볼을 태그해 주세요..." : "볼 등록 (NFC 태그)"}
+        </button>
       )}
 
       {/* 볼 히스토리 */}

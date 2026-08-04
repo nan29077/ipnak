@@ -24,18 +24,8 @@ export default async function BallQrPage({
 }: {
   params: { ballId: string };
 }) {
-  const ballId = decodeURIComponent(params.ballId || "").trim().toUpperCase();
+  const ballId = decodeURIComponent(params.ballId || "").trim();
   if (!ballId) redirect("/settings");
-
-  // ── 화이트리스트 검증: IpnakBallRegistry에 등록되고 isActive=1인 볼만 허용 ──
-  const registryRows = await prisma.$queryRawUnsafe<[{ cnt: number }]>(
-    `SELECT COUNT(*) as cnt FROM IpnakBallRegistry WHERE ballId = ? AND isActive = 1`,
-    ballId
-  );
-  if (Number(registryRows[0]?.cnt ?? 0) === 0) {
-    // 미등록·비활성 볼 → 안내 페이지로 이동
-    redirect(`/ball-not-found?ballId=${encodeURIComponent(ballId)}`);
-  }
 
   const user = await getCurrentUser();
 

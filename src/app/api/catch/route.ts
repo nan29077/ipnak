@@ -71,7 +71,6 @@ export async function POST(req: Request) {
       fishHeadPoint: b.fishHeadPoint ? JSON.stringify(b.fishHeadPoint) : null,
       fishTailPoint: b.fishTailPoint ? JSON.stringify(b.fishTailPoint) : null,
       measuredLengthCm: b.measuredLengthCm ?? null, confidence: b.confidence ?? null,
-      ballId: b.ballId || null,
       gear: b.gear ? { create: { rod: b.gear.rod, reel: b.gear.reel, line: b.gear.line, leader: b.gear.leader, lure: b.gear.lure, bait: b.gear.bait, rig: b.gear.rig, note: b.gear.note } } : undefined,
     },
   });
