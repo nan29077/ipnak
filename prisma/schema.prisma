@@ -109,6 +109,20 @@ model LinkedBall {
   @@unique([userId, ballId])
 }
 
+// ===== 입낚볼 ID 사전 등록 레지스트리 =====
+// 관리자가 유효한 볼 ID를 미리 등록해두고, 사용자 등록 시 검증에 사용
+model IpnakBallRegistry {
+  id        String   @id @default(cuid())
+  ballId    String   @unique           // NFC 칩에 기록된 볼 ID (예: IPNK-0001)
+  memo      String?                    // 내부 메모 (배치번호·제품종류 등)
+  isActive  Boolean  @default(true)    // false면 사용자 등록 불가
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ballId])
+  @@index([isActive])
+}
+
 model Session {
   id        String   @id @default(cuid())
   token     String   @unique

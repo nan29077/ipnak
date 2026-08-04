@@ -35,9 +35,21 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => null);
-    const ballId = typeof body?.ballId === "string" ? body.ballId.trim() : "";
+    const ballId = typeof body?.ballId === "string" ? body.ballId.trim().toUpperCase() : "";
     if (!ballId) {
       return NextResponse.json({ error: "ballId 가 필요합니다." }, { status: 400 });
+    }
+
+    // ── 화이트리스트 검증: IpnakBallRegistry에 등록되고 isActive=true인 ID만 허용 ──
+    const registryRows = await prisma.$queryRawUnsafe<[{ cnt: number }]>(
+      `SELECT COUNT(*) as cnt FROM IpnakBallRegistry WHERE ballId = ? AND isActive = 1`,
+      ballId
+    );
+    if (Number(registryRows[0]?.cnt ?? 0) === 0) {
+      return NextResponse.json(
+        { error: "유효하지 않은 볼 ID입니다. 관리자에게 문의해 주세요." },
+        { status: 400 }
+      );
     }
 
     // 이미 등록된 볼이면 그대로 반환
