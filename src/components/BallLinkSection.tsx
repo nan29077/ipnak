@@ -107,15 +107,36 @@ function useBallLink() {
 /* ── 측정 페이지: 입낚볼 연동 카드 ── */
 export function BallLinkSection() {
   const router = useRouter();
-  const { supported, balls, reading, tagAndRegister } = useBallLink();
+  const { supported, balls, reading, tagAndRegister, refresh } = useBallLink();
+  const toast = useToast();
   const linked = balls && balls.length > 0 ? balls[0] : null;
   const [guideOpen, setGuideOpen] = useState(false);
   const [linkGuideOpen, setLinkGuideOpen] = useState(false);
   const [exampleOpen, setExampleOpen] = useState(false);
   const [ballExampleOpen, setBallExampleOpen] = useState(false);
+  const [manualId, setManualId] = useState("");
+  const [registering, setRegistering] = useState(false);
   const currentUser = useUser();
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [ballPrice, setBallPrice] = useState<number | null>(null);
+
+  async function registerManual() {
+    const trimmed = manualId.trim();
+    if (!trimmed) return;
+    setRegistering(true);
+    try {
+      const { ok, status, error } = await registerBallApi(trimmed);
+      if (ok) {
+        toast(`입낚볼(${trimmed}) 연동 완료`, "success");
+        setManualId("");
+        await refresh();
+      } else {
+        toast(status === 401 ? "로그인 후 이용할 수 있어요." : (error || "볼 ID를 확인해 주세요."), "error");
+      }
+    } finally {
+      setRegistering(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/shop/ipnak-ball/products")
@@ -152,28 +173,52 @@ export function BallLinkSection() {
       </div>
       {/* 볼이 연동되지 않은 경우에만 표시 (로딩 중 플래시 방지: balls !== null 체크) */}
       {balls !== null && !linked && (
-        <>
-          <button
-            type="button"
-            onClick={tagAndRegister}
-            disabled={reading}
-            className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-60"
-          >
-            {reading ? <Loader2 size={16} className="animate-spin" /> : <Nfc size={16} strokeWidth={1.9} />}
-            {reading ? "볼을 태그해 주세요..." : "볼에 NFC 태그하기"}
-          </button>
-          {supported === false && (
-            <p className="mt-2 text-center text-[11px] text-navy-300">{NFC_UNSUPPORTED_MSG}</p>
-          )}
-          <button
-            type="button"
-            onClick={() => setLinkGuideOpen(true)}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
-          >
-            <CircleHelp size={15} strokeWidth={2} />
-            입낚볼 연동방법 보기
-          </button>
-        </>
+        supported === false ? (
+          /* iPhone 등 NFC 미지원 — ID 직접 입력 */
+          <div className="space-y-2">
+            <p className="text-center text-[12px] text-navy-400">
+              볼 뒷면의 ID를 직접 입력하세요.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={manualId}
+                onChange={(e) => setManualId(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && registerManual()}
+                placeholder="볼 ID 입력 (예: IPNK-XXXX)"
+                style={{ fontSize: "16px" }}
+                className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
+              />
+              <button
+                type="button"
+                onClick={registerManual}
+                disabled={!manualId.trim() || registering}
+                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors active:bg-orange-600 disabled:opacity-50"
+              >
+                {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={tagAndRegister}
+              disabled={supported === null || reading}
+              className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-60"
+            >
+              {reading ? <Loader2 size={16} className="animate-spin" /> : <Nfc size={16} strokeWidth={1.9} />}
+              {reading ? "볼을 태그해 주세요..." : "볼에 NFC 태그하기"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setLinkGuideOpen(true)}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
+            >
+              <CircleHelp size={15} strokeWidth={2} />
+              입낚볼 연동방법 보기
+            </button>
+          </>
+        )
       )}
 
       {/* 볼 히스토리 — 연결된 볼이 있을 때 */}
