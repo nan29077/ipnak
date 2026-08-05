@@ -290,7 +290,7 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
             {loading && <RecommendSkeleton />}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 pt-0.5">
             {/* 해양·기상 카드 — 공공 API 키가 없으면 이 블록 전체가 렌더되지 않는다 */}
             <MarineSection marine={data.marine} origin={data.marineOrigin} />
 
