@@ -30,6 +30,7 @@ model User {
   interests    String?  @db.Text // JSON array of category slugs
   region       String?
   points       Int      @default(0) // 보유 포인트 (포인트 제도)
+  naverKey     String?  @unique // 네이버 OAuth 연동 ID
   createdAt    DateTime @default(now())
 
   posts             Post[]
