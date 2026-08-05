@@ -83,8 +83,8 @@ export async function PATCH(req: Request) {
     if (name !== undefined && price !== undefined) {
       await prisma.$executeRawUnsafe(
         `UPDATE \`IpnakBallProduct\` SET \`name\` = ?, \`price\` = ?, \`description\` = ?, \`imageUrl\` = ?,
-         "stock" = ?, "isActive" = ?, "optionEnabled" = ?,
-         "optionOneLabel" = ?, "optionOnePrice" = ?, "optionTwoLabel" = ?, "optionTwoPrice" = ?,
+         \`stock\` = ?, \`isActive\` = ?, \`optionEnabled\` = ?,
+         \`optionOneLabel\` = ?, \`optionOnePrice\` = ?, \`optionTwoLabel\` = ?, \`optionTwoPrice\` = ?,
          \`updatedAt\` = ? WHERE \`id\` = ?`,
         String(name).trim(),
         Number(price),

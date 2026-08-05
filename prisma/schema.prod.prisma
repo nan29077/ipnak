@@ -1,4 +1,4 @@
-// 입낚 (ipnak) — Prisma schema (MySQL / Production)
+// 입낚 (ipnak) — Prisma schema (MySQL/MariaDB production)
 // 필드명은 영어, UI 라벨은 한국어로 표기한다.
 
 generator client {
@@ -21,8 +21,8 @@ model User {
   nickname     String
   role         String   @default("ANGLER") // Role
   avatarUrl    String?
-  bio          String?
-  interests    String? // JSON array of category slugs
+  bio          String?  @db.Text
+  interests    String?  @db.Text // JSON array of category slugs
   region       String?
   points       Int      @default(0) // 보유 포인트 (포인트 제도)
   createdAt    DateTime @default(now())
@@ -76,7 +76,7 @@ model PointTransaction {
   type          String
   amount        Int
   balanceAfter  Int      @default(0) // 거래 직후 잔액
-  description   String
+  description   String   @db.Text
   source        String? // PointSource
   relatedUserId String?
   relatedPostId String? // 글 또는 낚시단(그룹) id 등 연관 대상
@@ -114,7 +114,7 @@ model LinkedBall {
 model IpnakBallRegistry {
   id        String   @id @default(cuid())
   ballId    String   @unique           // NFC 칩에 기록된 볼 ID (예: IPNK-0001)
-  memo      String?                    // 내부 메모 (배치번호·제품종류 등)
+  memo      String?  @db.Text          // 내부 메모 (배치번호·제품종류 등)
   isActive  Boolean  @default(true)    // false면 사용자 등록 불가
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -142,11 +142,11 @@ model Post {
   author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   postType      String   @default("GENERAL")
   kind          String   @default("FEED") // FEED | LOG | GENERAL
-  title         String? // 조행기 제목
-  body          String? // 조행기 본문(긴 글)
+  title         String?
+  body          String?  @db.Text // 조행기 본문(긴 글)
   boardCategory String? // 조행기 게시판 카테고리 slug
   viewCount     Int      @default(0) // 조행기 조회수
-  caption       String?
+  caption       String?  @db.Text
   speciesName   String?
   categoryPath  String? // 예: 바다낚시 > 갯바위 > 찌낚시
   fishingType   String?
@@ -159,7 +159,7 @@ model Post {
   locationLabel String? // 워킹 피드 GPS 기반 수계명 캐시 — Overpass API 조회 결과 ("영산강", "나주호")
   visibility    String   @default("PUBLIC")
   hidden        Boolean  @default(false)
-  hashtags      String? // JSON array
+  hashtags      String?  @db.Text // JSON array
   createdAt     DateTime @default(now())
 
   fishingPointId    String?
@@ -188,7 +188,7 @@ model CurationSection {
   key       String   @unique // 렌더링/CurationFeature.section 에 사용하는 안정 키
   title     String
   type      String   @default("SPECIES")
-  params    String? // JSON: { species?, region?, theme?, keywords?, period?, style? }
+  params    String?  @db.Text // JSON: { species?, region?, theme?, keywords?, period?, style? }
   mode      String   @default("AUTO")
   order     Int      @default(0)
   visible   Boolean  @default(true)
@@ -200,7 +200,7 @@ model ProAngler {
   id           String   @id @default(cuid())
   name         String
   imageUrl     String?
-  bio          String?
+  bio          String?  @db.Text
   linkedUserId String? // 연결할 회원 계정(있으면 그 계정 글을 자동 노출)
   visible      Boolean  @default(true)
   order        Int      @default(0)
@@ -227,7 +227,7 @@ model PostImage {
   id     String  @id @default(cuid())
   postId String
   post   Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  url    String
+  url    String  @db.Text
   alt    String?
   order  Int     @default(0)
 }
@@ -238,8 +238,8 @@ model Comment {
   post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  body      String
-  imageUrl  String? // 댓글 첨부 사진 (1장)
+  body      String    @db.Text
+  imageUrl  String?   @db.Text // 댓글 첨부 사진 (1장)
   parentId  String? // 대댓글
   parent    Comment?  @relation("Replies", fields: [parentId], references: [id])
   replies   Comment[] @relation("Replies")
@@ -297,7 +297,7 @@ model Report {
   postId     String?
   post       Post?    @relation(fields: [postId], references: [id])
   targetType String   @default("POST") // POST | COMMENT | USER
-  reason     String
+  reason     String   @db.Text
   status     String   @default("PENDING") // PENDING | RESOLVED | REJECTED
   createdAt  DateTime @default(now())
 }
@@ -315,7 +315,7 @@ model FishingTrip {
   catchCount    Int            @default(0)
   topSpecies    String?
   region        String?
-  memo          String?
+  memo          String?        @db.Text
   routePoints   RoutePoint[]
   fishingPoints FishingPoint[]
 }
@@ -343,8 +343,8 @@ model FishingPoint {
   accuracy    Float?
   speciesName String?
   sizeCm      Float?
-  photoUrl    String?
-  gearSetup   String? // 채비 요약 텍스트
+  photoUrl    String?      @db.Text
+  gearSetup   String?      @db.Text // 채비 요약 텍스트
   region      String?
   visibility  String       @default("EXACT") // EXACT | BLUR_100 | BLUR_500 | PRIVATE
   createdAt   DateTime     @default(now())
@@ -365,16 +365,16 @@ model CatchRecord {
   categoryPath        String?
   sizeCm              Float?
   bodyWidth           Float? // AI가 감지한 몸통 최대 너비(cm) — 둘레 기반 무게 산출에 사용
-  photoUrl            String?
+  photoUrl            String?       @db.Text
   shareToFeed         Boolean       @default(true)
   // 스마트 룰러 측정 데이터
-  originalImageUrl    String?
-  measuredImageUrl    String?
-  calibrationStart    String? // JSON {x,y}
-  calibrationEnd      String? // JSON {x,y}
+  originalImageUrl    String?       @db.Text
+  measuredImageUrl    String?       @db.Text
+  calibrationStart    String?       @db.Text // JSON {x,y}
+  calibrationEnd      String?       @db.Text // JSON {x,y}
   calibrationLengthCm Float?
-  fishHeadPoint       String? // JSON {x,y}
-  fishTailPoint       String? // JSON {x,y}
+  fishHeadPoint       String?       @db.Text // JSON {x,y}
+  fishTailPoint       String?       @db.Text // JSON {x,y}
   measuredLengthCm    Float?
   confidence          Float?
   tamperFlag          Boolean       @default(false)
@@ -394,7 +394,7 @@ model GearSetup {
   lure          String?
   bait          String?
   rig           String?
-  note          String?
+  note          String?     @db.Text
 }
 
 // ===== 분류 체계 / 어종 =====
@@ -425,15 +425,15 @@ model Product {
   brand          String?
   category       String // ROD | REEL | LINE | LEADER | LURE | WORM | HOOK ...
   price          Int              @default(0)
-  imageUrl       String?
-  buyUrl         String?
-  description    String?
+  imageUrl       String?          @db.Text
+  buyUrl         String?          @db.Text
+  description    String?          @db.Text
   feeRate        Int              @default(10) // 리퍼럴 수수료율(%)
   affiliateCode  String? // 제휴/리퍼럴 코드 (실연동 시 사용)
   shippingFee           Int      @default(0)   // 배송비(원), 0=무료배송
   freeShippingThreshold Int      @default(0)   // 조건부 무료배송 기준금액(원), 0=미적용
   stock                 Int      @default(0)   // 재고 수량
-  options        String?                        // JSON: [{"name":"색상","values":["블랙","화이트"]}]
+  options        String?          @db.Text     // JSON: [{"name":"색상","values":["블랙","화이트"]}]
   createdAt      DateTime         @default(now())
   postTags       PostProductTag[]
   referralEvents ReferralEvent[]
@@ -493,13 +493,13 @@ model Tournament {
   title       String
   type        String // WEEKLY | MONTHLY | GRAND
   speciesName String?
-  description String?
-  rules       String?
+  description String?           @db.Text
+  rules       String?           @db.Text
   startAt     DateTime
   endAt       DateTime
   status      String            @default("UPCOMING") // UPCOMING | ONGOING | ENDED
-  bannerUrl   String?
-  bannerImage String? // 배너 이미지 (base64 또는 URL)
+  bannerUrl   String?           @db.Text
+  bannerImage String?           @db.LongText // 배너 이미지 (base64 또는 URL)
   createdAt   DateTime          @default(now())
   // 참가비 / 순위 보상 (포인트). null = 설정 없음(무료 / 보상 없음)
   entryFee    Int?
@@ -518,19 +518,19 @@ model TournamentEntry {
   user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   speciesName         String
   sizeCm              Float
-  photoUrl            String?
-  measuredImageUrl    String?
+  photoUrl            String?    @db.Text
+  measuredImageUrl    String?    @db.Text
   region              String?
   lat                 Float?
   lng                 Float?
   status              String     @default("REVIEW") // REVIEW | APPROVED | REJECTED
   // 스마트 룰러 측정 데이터
-  originalImageUrl    String?
-  calibrationStart    String? // JSON {x,y}
-  calibrationEnd      String? // JSON {x,y}
+  originalImageUrl    String?    @db.Text
+  calibrationStart    String?    @db.Text // JSON {x,y}
+  calibrationEnd      String?    @db.Text // JSON {x,y}
   calibrationLengthCm Float?
-  fishHeadPoint       String? // JSON {x,y}
-  fishTailPoint       String? // JSON {x,y}
+  fishHeadPoint       String?    @db.Text // JSON {x,y}
+  fishTailPoint       String?    @db.Text // JSON {x,y}
   measuredLengthCm    Float?
   confidence          Float?
   tamperFlag          Boolean    @default(false)
@@ -550,18 +550,18 @@ model ReservationListing {
   name          String
   category      String // BOAT | PENSION | PAID_POND | SEAT | SEA_PENSION | GUIDE
   region        String
-  address       String?
+  address       String?           @db.Text
   lat           Float?
   lng           Float?
-  imageUrl      String?
-  images        String? // JSON array
-  description   String?
-  targetSpecies String? // JSON array
-  amenities     String? // JSON array
-  services      String? // JSON array
+  imageUrl      String?           @db.Text
+  images        String?           @db.Text // JSON array
+  description   String?           @db.Text
+  targetSpecies String?           @db.Text // JSON array
+  amenities     String?           @db.Text // JSON array
+  services      String?           @db.Text // JSON array
   price         Int               @default(0)
   maxPeople     Int               @default(4)
-  cancelPolicy  String?
+  cancelPolicy  String?           @db.Text
   rating        Float             @default(0)
   reviewCount   Int               @default(0)
   createdAt     DateTime          @default(now())
@@ -599,7 +599,7 @@ model Notification {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      String
-  body      String
+  body      String   @db.Text
   link      String? // 클릭 시 이동할 URL
   actorId   String? // 알림을 발생시킨 사용자(댓글·좋아요 작성자)
   postId    String? // 관련 게시글
@@ -612,14 +612,14 @@ model AdminLog {
   actorId   String?
   action    String
   target    String?
-  detail    String?
+  detail    String?  @db.Text
   createdAt DateTime @default(now())
 }
 
 // 사이트 운영 설정 (key-value). 예: shop_menu_enabled = "true" | "false"
 model Setting {
   key       String   @id
-  value     String
+  value     String   @db.Text
   updatedAt DateTime @default(now()) @updatedAt
 }
 
@@ -640,9 +640,9 @@ model BallOrder {
   recipientName  String
   recipientPhone String
   postalCode     String
-  address        String
+  address        String    @db.Text
   addressDetail  String?
-  deliveryMemo   String?
+  deliveryMemo   String?   @db.Text
   status         String    @default("REQUESTED")
   paymentStatus  String    @default("READY")
   paymentMethod  String?
@@ -668,9 +668,9 @@ model IpnakBallProduct {
   id              String   @id @default(cuid())
   name            String
   price           Int
-  description     String?
+  description     String?  @db.Text
   stock           Int      @default(0)
-  imageUrl        String?
+  imageUrl        String?  @db.Text
   isActive        Boolean  @default(true)
   optionEnabled   Boolean  @default(false)
   optionOneLabel  String?
@@ -690,10 +690,10 @@ model IpnakBallOrder {
   totalPrice    Int
   status        String          @default("pending")
   addressName   String
-  address       String
+  address       String          @db.Text
   addressDetail String?
   phone         String
-  memo          String?
+  memo          String?         @db.Text
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   user          User            @relation(fields: [userId], references: [id])
@@ -706,9 +706,9 @@ model IpnakBallOrder {
 model Banner {
   id        String   @id @default(cuid())
   title     String
-  body      String?
-  imageUrl  String?
-  linkUrl   String?
+  body      String?  @db.Text
+  imageUrl  String?  @db.Text
+  linkUrl   String?  @db.Text
   active    Boolean  @default(true)
   order     Int      @default(0)
   createdAt DateTime @default(now())
@@ -728,7 +728,7 @@ model MarketListing {
   price       Int      @default(0)
   region      String?
   location    String? // 글쓰기 폼 거래 지역 선택값
-  description String?
+  description String?  @db.Text
   tradeMethod String? // TradeMethod: DIRECT | DELIVERY | BOTH (미지정 시 null)
   status      String   @default("SELLING")
   viewCount   Int      @default(0)
@@ -744,7 +744,7 @@ model MarketImage {
   id        String        @id @default(cuid())
   listingId String
   listing   MarketListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  url       String
+  url       String        @db.Text
   order     Int           @default(0)
 }
 
@@ -778,7 +778,7 @@ model MarketMessage {
   chat      MarketChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   senderId  String
   sender    User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  body      String
+  body      String     @db.Text
   readAt    DateTime?  // 수신자가 읽은 시각 (null = 미읽음)
   createdAt DateTime   @default(now())
 }
@@ -805,14 +805,14 @@ model NotificationSettings {
 model Group {
   id          String        @id @default(cuid())
   name        String
-  description String?
+  description String?       @db.Text
   leaderId    String
   category    String // 어종별, 지역별, etc
   region      String?
   fishSpecies String?
-  tags        String? // JSON array string
+  tags        String?       @db.Text // JSON array string
   isPublic    Boolean       @default(true)
-  imageUrl    String?
+  imageUrl    String?       @db.Text
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   leader              User          @relation("GroupLeader", fields: [leaderId], references: [id])
@@ -842,7 +842,7 @@ model GroupPoint {
   lat         Float
   lng         Float
   title       String
-  description String?
+  description String?  @db.Text
   tripId      String?
   createdAt   DateTime @default(now())
   group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -857,8 +857,8 @@ model GroupPost {
   group     Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   authorId  String
   author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  content   String
-  imageUrl  String?
+  content   String         @db.Text
+  imageUrl  String?        @db.Text
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   comments  GroupComment[]
@@ -874,8 +874,8 @@ model GroupComment {
   post      GroupPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  content   String
-  imageUrl  String? // 댓글 첨부 사진 (1장)
+  content   String    @db.Text
+  imageUrl  String?   @db.Text // 댓글 첨부 사진 (1장)
   parentId  String?
   createdAt DateTime  @default(now())
 
@@ -926,7 +926,7 @@ model VirtualActivity {
   kind       String
   targetType String
   targetId   String?
-  summary    String? // 목록에 보여줄 한 줄 요약(제목·캡션 앞부분)
+  summary    String?       @db.Text // 목록에 보여줄 한 줄 요약(제목·캡션 앞부분)
   createdAt  DateTime      @default(now())
 
   @@index([memberId])
