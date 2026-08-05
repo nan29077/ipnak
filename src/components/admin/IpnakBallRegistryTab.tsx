@@ -162,7 +162,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
                 type="text"
                 value={newBallId}
                 onChange={e => setNewBallId(e.target.value.toUpperCase())}
-                placeholder="예: IPNK-0001"
+                placeholder="예: IPNK-000001"
                 className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] px-3 py-2 text-sm text-navy-800 outline-none focus:border-orange-400/70"
               />
             </div>
@@ -286,7 +286,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
       {/* 안내 박스 */}
       <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700 leading-relaxed">
         <p className="mb-1 font-semibold">볼 ID 등록 가이드</p>
-        <p>1. NFC Tools Pro 앱에서 NFC 칩에 텍스트(예: IPNK-0001)를 쓰기합니다.</p>
+        <p>1. NFC Tools Pro 앱에서 NFC 칩에 텍스트(예: IPNK-000001)를 쓰기합니다.</p>
         <p>2. 이 화면에서 동일한 ID를 등록하면 사용자가 NFC 태그 또는 수동 입력으로 볼을 연동할 수 있습니다.</p>
         <p>3. 비활성 처리 시 해당 ID로 새 연동이 불가능해집니다. 분실·불량 볼 관리에 활용하세요.</p>
         <p>4. 삭제해도 이미 연동된 사용자 데이터(LinkedBall)에는 영향이 없습니다.</p>
