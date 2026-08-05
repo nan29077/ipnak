@@ -226,9 +226,45 @@ function maskUrl(url: string) {
 const DEBUG_PREFIX = "[ipnak][marine]";
 
 /**
+ * KHOA XML 응답 → data.go.kr 표준 JSON 구조로 변환.
+ * data.go.kr 의 KHOA API 는 _type=json 을 명시해도 XML 로 응답하는 경우가 있어,
+ * XML 폴백 파싱을 통해 <item> 블록에서 필드를 추출한다.
+ */
+function xmlToKhoaJson(xml: string): any | null {
+  try {
+    // 오류 코드 확인 — 00 이 아니면 서비스 오류
+    const codeMatch = xml.match(/<resultCode[^>]*>([^<]*)<\/resultCode>/i);
+    const code = codeMatch?.[1]?.trim();
+    if (code && code !== "00" && code !== "0000") {
+      const msgMatch = xml.match(/<resultMsg[^>]*>([^<]*)<\/resultMsg>/i);
+      console.log(`${DEBUG_PREFIX} XML resultCode=${code} msg=${msgMatch?.[1]?.trim() ?? "?"}`);
+      return null;
+    }
+    // <item> 블록 추출
+    const items: Record<string, string>[] = [];
+    const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+    let m;
+    while ((m = itemRe.exec(xml)) !== null) {
+      const block = m[1];
+      const row: Record<string, string> = {};
+      const fieldRe = /<([A-Za-z0-9_]+)[^>]*>([^<]*)<\/\1>/g;
+      let fm;
+      while ((fm = fieldRe.exec(block)) !== null) {
+        row[fm[1]] = fm[2].trim();
+      }
+      if (Object.keys(row).length > 0) items.push(row);
+    }
+    if (items.length === 0) return null;
+    return { response: { body: { items: { item: items.length === 1 ? items[0] : items } } } };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 공공 API 호출 + 진단 로그.
  * 어떤 URL 로 호출했고, 상태코드가 뭐였고, 본문 앞 500자가 어땠는지 남긴다.
- * (data.go.kr 은 잘못된 오퍼레이션/키일 때도 200 + XML 로 응답해서 로그 없이는 원인 파악이 어렵다)
+ * data.go.kr 은 잘못된 오퍼레이션/키일 때도 200 + XML 로 응답하므로, JSON 과 XML 모두 파싱한다.
  */
 async function getJson(url: string, label = "api"): Promise<any | null> {
   const started = Date.now();
@@ -237,18 +273,32 @@ async function getJson(url: string, label = "api"): Promise<any | null> {
     const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT), cache: "no-store" });
     const text = await res.text().catch(() => "");
     console.log(
-      `${DEBUG_PREFIX} ${label} ← HTTP ${res.status} (${Date.now() - started}ms, ${text.length}b) ${text.slice(0, 500)}`,
+      `${DEBUG_PREFIX} ${label} ← HTTP ${res.status} (${Date.now() - started}ms, ${text.length}b) ${text.slice(0, 300)}`,
     );
     if (!res.ok) return null;
     const trimmed = text.trim();
-    // 공공 API 는 오류 시 XML/HTML 을 200 으로 내려주는 경우가 있어 JSON 파싱을 방어한다.
-    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null;
-    try {
-      return JSON.parse(trimmed);
-    } catch (e: any) {
-      console.log(`${DEBUG_PREFIX} ${label} ! JSON 파싱 실패: ${e?.message || "parse error"}`);
+    // JSON 응답
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (e: any) {
+        console.log(`${DEBUG_PREFIX} ${label} ! JSON 파싱 실패: ${e?.message || "parse error"}`);
+        return null;
+      }
+    }
+    // XML 응답 — KHOA API 는 _type=json 지정 시에도 XML 로 내려오는 경우가 있다.
+    if (trimmed.startsWith("<")) {
+      const parsed = xmlToKhoaJson(trimmed);
+      if (parsed) {
+        const rows = khoaRows(parsed);
+        console.log(`${DEBUG_PREFIX} ${label} ✓ XML→JSON 변환 성공 rows=${rows.length}`);
+        return parsed;
+      }
+      console.log(`${DEBUG_PREFIX} ${label} ! XML 응답이지만 item 데이터 없음`);
       return null;
     }
+    console.log(`${DEBUG_PREFIX} ${label} ! 알 수 없는 응답 형식`);
+    return null;
   } catch (e: any) {
     console.log(`${DEBUG_PREFIX} ${label} ! 호출 실패 (${Date.now() - started}ms): ${e?.name || "error"} ${e?.message || ""}`);
     return null;
@@ -489,7 +539,7 @@ async function fetchTide(key: string, lat: number, lng: number): Promise<TideInf
   if (distanceKm > MAX_STATION_KM) return null;
   const date = kstYmd();
 
-  const query = `?serviceKey=${encodeURIComponent(key)}&obsCode=${station.code}&date=${date}&ResultType=json&resultType=json&numOfRows=100&pageNo=1&dataType=JSON`;
+  const query = `?serviceKey=${encodeURIComponent(key)}&obsCode=${station.code}&date=${date}&_type=json&ResultType=json&resultType=json&numOfRows=100&pageNo=1&dataType=JSON`;
   const json = await memo(`tide:${station.code}:${date}`, 3 * 3600_000, () =>
     getJsonWithFallback(TIDE_PRE_TAB_ENDPOINTS, query, `tideObs ${station.name}`),
   );
@@ -591,7 +641,7 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
   const paramKeyVariants = ["obsCode", "ObsCode", "obs_code", "stationCode"];
 
   // 공통 파라미터 (numOfRows=10 을 먼저 시도, 일부 API에서 누락 시 거부)
-  const baseParams = `serviceKey=${encodeURIComponent(key)}&date=${date}&ResultType=json&resultType=json&numOfRows=10&pageNo=1&dataType=JSON`;
+  const baseParams = `serviceKey=${encodeURIComponent(key)}&date=${date}&_type=json&ResultType=json&resultType=json&numOfRows=10&pageNo=1&dataType=JSON`;
 
   const cacheKey = `dtrecent:${station.code}:${date}:${new Date().getUTCHours()}`;
 
