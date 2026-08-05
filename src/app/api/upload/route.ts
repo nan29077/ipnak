@@ -44,5 +44,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "파일 저장 실패" }, { status: 500 });
   }
 
-  return NextResponse.json({ url: `/uploads/${fileName}` });
+  return NextResponse.json({ url: `/api/uploads/${fileName}` });
 }
