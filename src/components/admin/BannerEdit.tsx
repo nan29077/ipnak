@@ -4,13 +4,9 @@ import { useRouter } from "next/navigation";
 import { Pencil, X, Loader2, ImagePlus, Trash2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { Button, Input, Select } from "@/components/ui";
+import { BANNER_SECTIONS } from "@/lib/bannerSections";
 
-export const BANNER_SECTIONS = [
-  { value: "main_top", label: "홈 상단 배너" },
-  { value: "main_bottom", label: "홈 하단 배너" },
-  { value: "notice", label: "공지" },
-  { value: "event", label: "이벤트" },
-];
+export { BANNER_SECTIONS };
 
 type Banner = { id: string; title: string; body: string | null; imageUrl: string | null; linkUrl: string | null; section: string };
 

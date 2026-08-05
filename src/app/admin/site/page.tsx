@@ -15,7 +15,8 @@ import { PointsToggle } from "@/components/admin/PointsToggle";
 import { GroupPointsToggle } from "@/components/admin/GroupPointsToggle";
 import { AiApiConnection } from "@/components/admin/AiApiConnection";
 import { getAiConnectionStatus } from "@/lib/aiCredentials";
-import { BannerEdit, BANNER_SECTIONS } from "@/components/admin/BannerEdit";
+import { BannerEdit } from "@/components/admin/BannerEdit";
+import { BANNER_SECTIONS } from "@/lib/bannerSections";
 import { Badge, EmptyState } from "@/components/ui";
 import { kstFormat, cn } from "@/lib/utils";
 
