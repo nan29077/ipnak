@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isSqliteDb } from "@/lib/dbDate";
 
 // 데이터 초기화 — 최고관리자(SUPER_ADMIN) 계정과 최고관리자가 직접 등록한 콘텐츠만 남기고
 // 나머지 회원·게시글·거래 데이터를 모두 삭제한다.
@@ -21,10 +22,13 @@ import { prisma } from "@/lib/prisma";
 // (예: 낚시단 커뮤니티 GroupPost/GroupComment/GroupPostLike — JSON 저장 방식에서 이관 예정).
 // 초기화가 "테이블이 없다"는 이유로 통째로 실패하지 않도록 아래 두 장치를 함께 쓴다.
 
-/** 테이블 존재 확인 (SQLite) — 없는 테이블 삭제를 아예 건너뛰어 불필요한 오류 로그를 남기지 않는다. */
+/** 테이블 존재 확인 (SQLite/MariaDB) — 없는 테이블 삭제를 아예 건너뛰어 불필요한 오류 로그를 남기지 않는다. */
 export async function tableExists(name: string): Promise<boolean> {
+  const sql = isSqliteDb()
+    ? `SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name = ?`
+    : `SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`;
   const rows = await prisma
-    .$queryRawUnsafe<{ n: number | bigint }[]>(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name = ?`, name)
+    .$queryRawUnsafe<{ n: number | bigint }[]>(sql, name)
     .catch(() => [] as { n: number | bigint }[]);
   return Number(rows?.[0]?.n ?? 0) > 0;
 }

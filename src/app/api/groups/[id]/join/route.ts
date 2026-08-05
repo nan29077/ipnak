@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { pointsEnabled, groupPointsRequired, getBalance, chargeGroupJoin, refundGroupJoin, POINT_RULES } from "@/lib/points";
+import { isSqliteDb, toDbDate } from "@/lib/dbDate";
 
 function createId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -45,7 +46,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   }
 
   const memberId = createId();
-  const now = new Date().toISOString();
+  // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+  const now = toDbDate();
   try {
     await prisma.$executeRawUnsafe(
       `INSERT INTO \`GroupMember\` (\`id\`,\`groupId\`,\`userId\`,\`role\`,\`joinedAt\`) VALUES (?,?,?,?,?)`,
@@ -66,10 +68,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
        VALUES (?,?,?,?,?,0,?)`,
       notiId, group.leaderId, "GROUP_JOIN_REQUEST",
       `${user.nickname}님이 [${group.name}] 낚시단 가입을 신청했습니다.`,
-      // createdAt 은 ISO 문자열이 아니라 unix ms(정수)로 넣는다 —
-      // Prisma 가 만든 알림 행은 정수로 저장되는데 여기만 TEXT 로 넣으면
-      // SQLite 가 storage class(정수 < 텍스트)를 먼저 비교해 최신순 정렬이 깨진다.
-      `/groups/${params.id}/manage`, Date.now()
+      // createdAt — SQLite(dev)에서는 Prisma가 알림 행을 unix ms(정수)로 저장하므로 정수로 넣어야
+      // storage class 비교로 최신순 정렬이 깨지지 않는다. MariaDB(실서버)의 DATETIME 컬럼에는
+      // 정수/ISO 문자열 모두 Error 1292 이므로 "YYYY-MM-DD HH:MM:SS" 형식으로 넣는다.
+      `/groups/${params.id}/manage`, isSqliteDb() ? Date.now() : toDbDate()
     );
   } catch { /* 알림 실패는 무시 */ }
 

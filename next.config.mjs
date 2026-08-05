@@ -9,6 +9,16 @@ const nextConfig = {
     // src/instrumentation.ts 의 register() 실행 — 가상회원 활동 스케줄러 기동에 사용
     instrumentationHook: true,
   },
+  // 기존 DB에 저장된 /uploads/ URL 구제 — /api/uploads 서빙 라우트로 재작성
+  // (실서버 standalone 빌드에서는 런타임에 추가된 public/uploads 파일이 정적 서빙되지 않는다)
+  async rewrites() {
+    return [
+      {
+        source: "/uploads/:filename",
+        destination: "/api/uploads/:filename",
+      },
+    ];
+  },
   images: {
     // AVIF 우선(WebP 폴백) — 같은 화질에서 전송량이 더 작다
     formats: ["image/avif", "image/webp"],

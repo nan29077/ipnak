@@ -37,14 +37,22 @@ export async function POST(req: Request) {
   if (user.role !== "SUPER_ADMIN") return NextResponse.json({ error: "권한 없음" }, { status: 403 });
 
   try {
-    // ===== 기존 전체 데이터 삭제 =====
-    await prisma.$transaction([
-      prisma.marketMessage.deleteMany(),
-      prisma.marketChat.deleteMany(),
-      prisma.marketFavorite.deleteMany(),
-      prisma.marketImage.deleteMany(),
-      prisma.marketListing.deleteMany(),
-    ]);
+    // ===== 기존 "더미" 데이터만 삭제 =====
+    // 실제 회원이 올린 중고마켓 글을 지우지 않도록, @ipnak.test 더미 계정의 판매글로 한정한다.
+    const dummyUsers = await prisma.user.findMany({
+      where: { email: { endsWith: "@ipnak.test" } },
+      select: { id: true },
+    });
+    const dummyIds = dummyUsers.map((u) => u.id);
+    if (dummyIds.length > 0) {
+      await prisma.$transaction([
+        prisma.marketMessage.deleteMany({ where: { chat: { listing: { sellerId: { in: dummyIds } } } } }),
+        prisma.marketChat.deleteMany({ where: { listing: { sellerId: { in: dummyIds } } } }),
+        prisma.marketFavorite.deleteMany({ where: { listing: { sellerId: { in: dummyIds } } } }),
+        prisma.marketImage.deleteMany({ where: { listing: { sellerId: { in: dummyIds } } } }),
+        prisma.marketListing.deleteMany({ where: { sellerId: { in: dummyIds } } }),
+      ]);
+    }
 
     // ===== 판매자 계정 준비 (없으면 생성) =====
     const SELLER_EMAILS = [

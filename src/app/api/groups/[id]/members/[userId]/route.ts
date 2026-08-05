@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { refundGroupJoin, rewardGroupLeaderOnApproval } from "@/lib/points";
+import { isSqliteDb, toDbDate } from "@/lib/dbDate";
 
 function createId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -42,9 +43,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string; us
        VALUES (?,?,?,?,?,0,?)`,
       notiId, params.userId, "GROUP_JOIN_APPROVED",
       `[${group.name}] 낚시단 가입이 승인되었습니다.`,
-      // createdAt 은 unix ms(정수) — TEXT 로 넣으면 SQLite 정렬에서 storage class 가
-      // 먼저 비교되어 알림 최신순이 깨진다 (Prisma 생성 행은 정수 저장)
-      `/groups/${params.id}`, Date.now()
+      // createdAt — SQLite(dev)는 unix ms(정수), MariaDB(실서버) DATETIME은 "YYYY-MM-DD HH:MM:SS"
+      `/groups/${params.id}`, isSqliteDb() ? Date.now() : toDbDate()
     );
     return NextResponse.json({ ok: true, action: "approved" });
   }
@@ -64,8 +64,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string; us
          VALUES (?,?,?,?,?,0,?)`,
         notiId, params.userId, "GROUP_JOIN_REJECTED",
         `[${group.name}] 낚시단 가입신청이 거절되었습니다.`,
-        // createdAt 은 unix ms(정수) — 위 승인 알림과 같은 이유
-        `/groups`, Date.now()
+        // createdAt — SQLite(dev)는 unix ms(정수), MariaDB(실서버) DATETIME은 "YYYY-MM-DD HH:MM:SS"
+        `/groups`, isSqliteDb() ? Date.now() : toDbDate()
       );
     }
     return NextResponse.json({ ok: true, action });

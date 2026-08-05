@@ -17,25 +17,26 @@ const ORDER_STATUS: Record<string, { label: string; tone: "navy" | "aqua" | "amb
 
 async function getOrders(userId: string) {
   try {
+    // 백틱 식별자 + VARCHAR 타입 — SQLite/MariaDB 양쪽에서 동작 (api/me/orders/route.ts와 동일 DDL)
     await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "Order" (
-        "id" TEXT NOT NULL PRIMARY KEY,
-        "userId" TEXT NOT NULL,
-        "productId" TEXT NOT NULL,
-        "productName" TEXT NOT NULL,
-        "price" INTEGER NOT NULL DEFAULT 0,
-        "quantity" INTEGER NOT NULL DEFAULT 1,
-        "shippingFee" INTEGER NOT NULL DEFAULT 0,
-        "totalAmount" INTEGER NOT NULL DEFAULT 0,
-        "pointsUsed" INTEGER NOT NULL DEFAULT 0,
-        "shippingAddressId" TEXT,
-        "status" TEXT NOT NULL DEFAULT 'PAID',
-        "paymentMethod" TEXT NOT NULL DEFAULT 'CARD',
-        "createdAt" TEXT NOT NULL
+      CREATE TABLE IF NOT EXISTS \`Order\` (
+        \`id\` VARCHAR(191) NOT NULL PRIMARY KEY,
+        \`userId\` VARCHAR(191) NOT NULL,
+        \`productId\` VARCHAR(191) NOT NULL,
+        \`productName\` VARCHAR(255) NOT NULL,
+        \`price\` INTEGER NOT NULL DEFAULT 0,
+        \`quantity\` INTEGER NOT NULL DEFAULT 1,
+        \`shippingFee\` INTEGER NOT NULL DEFAULT 0,
+        \`totalAmount\` INTEGER NOT NULL DEFAULT 0,
+        \`pointsUsed\` INTEGER NOT NULL DEFAULT 0,
+        \`shippingAddressId\` VARCHAR(191),
+        \`status\` VARCHAR(32) NOT NULL DEFAULT 'PAID',
+        \`paymentMethod\` VARCHAR(32) NOT NULL DEFAULT 'CARD',
+        \`createdAt\` VARCHAR(64) NOT NULL
       )
     `);
     return await prisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM "Order" WHERE "userId" = ? ORDER BY "createdAt" DESC`,
+      `SELECT * FROM \`Order\` WHERE \`userId\` = ? ORDER BY \`createdAt\` DESC`,
       userId,
     );
   } catch {

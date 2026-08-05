@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { pointsEnabled, groupPointsRequired, getBalance, chargeGroupCreate, refundGroupCreate, POINT_RULES } from "@/lib/points";
+import { toDbDate } from "@/lib/dbDate";
 
 function createId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -74,7 +75,8 @@ export async function POST(req: Request) {
   }
 
   const id = createId();
-  const now = new Date().toISOString();
+  // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+  const now = toDbDate();
 
   // 개설 비용 선차감 — 차감에 실패하면 낚시단을 만들지 않는다(무료 개설 방지)
   if (paidCreate) {

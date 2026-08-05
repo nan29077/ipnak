@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { toDbDate } from "@/lib/dbDate";
 
 export async function POST(req: Request) {
   try {
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
 
     // 상품 조회
     const products = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM "IpnakBallProduct" WHERE "id" = ? AND "isActive" = 1 LIMIT 1`,
+      `SELECT * FROM \`IpnakBallProduct\` WHERE \`id\` = ? AND \`isActive\` = 1 LIMIT 1`,
       productId
     );
     if (products.length === 0) {
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
 
     // 배송지 조회
     const addresses = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM "ShippingAddress" WHERE "id" = ? AND "userId" = ? LIMIT 1`,
+      `SELECT * FROM \`ShippingAddress\` WHERE \`id\` = ? AND \`userId\` = ? LIMIT 1`,
       addressId,
       user.id
     );
@@ -41,18 +42,19 @@ export async function POST(req: Request) {
 
     const totalPrice = product.price * qty;
     const id = randomUUID();
-    const now = new Date().toISOString();
+    // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+    const now = toDbDate();
 
     // 주문 생성 + 재고 차감 (조건부 UPDATE의 영향 행 수를 확인해 동시 주문 시 재고 초과 판매 방지)
     const affected = await prisma.$executeRawUnsafe(
-      `UPDATE "IpnakBallProduct" SET "stock" = "stock" - ?, "updatedAt" = ? WHERE "id" = ? AND "stock" >= ?`,
+      `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` - ?, \`updatedAt\` = ? WHERE \`id\` = ? AND \`stock\` >= ?`,
       qty, now, productId, qty
     );
     if (affected === 0) {
       return NextResponse.json({ error: "재고가 부족합니다." }, { status: 409 });
     }
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "IpnakBallOrder" ("id","userId","productId","quantity","totalPrice","status","addressName","address","addressDetail","phone","memo","createdAt","updatedAt")
+      `INSERT INTO \`IpnakBallOrder\` (\`id\`,\`userId\`,\`productId\`,\`quantity\`,\`totalPrice\`,\`status\`,\`addressName\`,\`address\`,\`addressDetail\`,\`phone\`,\`memo\`,\`createdAt\`,\`updatedAt\`)
        VALUES (?,?,?,?,?,'pending',?,?,?,?,?,?,?)`,
       id, user.id, productId, qty, totalPrice,
       addr.name,

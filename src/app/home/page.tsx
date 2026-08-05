@@ -30,11 +30,14 @@ export default async function HomeCurationPage() {
 
   const hasInterests = userInterests.methods.length > 0 || userInterests.species.length > 0;
 
-  const [feedPosts, walkingPosts, sections, bannerRows, ongoingTournaments, personalizedPosts] = await Promise.all([
+  const [feedPosts, walkingPosts, sections, topBannerRows, bottomBannerRows, ongoingTournaments, personalizedPosts] = await Promise.all([
     getFeedPosts(user?.id, { kind: "FEED" }),
     getWalkingFeedPosts(user?.id),
     getMainSections(10),
-    prisma.banner.findMany({ where: { active: true }, orderBy: { order: "asc" } }),
+    // 배너는 section 기반으로 노출 위치를 구분한다.
+    // 홈 상단: main_top / 홈 하단: main_bottom — notice·event 섹션 배너는 홈에 노출하지 않는다.
+    prisma.banner.findMany({ where: { active: true, section: "main_top" }, orderBy: { order: "asc" } }),
+    prisma.banner.findMany({ where: { active: true, section: "main_bottom" }, orderBy: { order: "asc" } }),
     prisma.tournament.findMany({
       where: { status: "ONGOING" },
       orderBy: { startAt: "asc" },
@@ -47,16 +50,19 @@ export default async function HomeCurationPage() {
   ]);
 
   // "입점" 관련 배너는 제외 — 대회 배너만 노출
-  const filteredBanners = bannerRows
-    .filter((b) => !b.title.includes("입점") && !b.title.includes("신규 예약"))
-    .map((b) => ({ title: b.title, imageUrl: b.imageUrl }));
+  const toBanner = (b: { title: string; imageUrl: string | null; linkUrl: string | null }) =>
+    ({ title: b.title, imageUrl: b.imageUrl, linkUrl: b.linkUrl });
+  const bannerFilter = (b: { title: string }) => !b.title.includes("입점") && !b.title.includes("신규 예약");
+  const topBanners = topBannerRows.filter(bannerFilter).map(toBanner);
+  const bottomBanners = bottomBannerRows.filter(bannerFilter).map(toBanner);
 
   return (
     <CurationHome
       feedPosts={feedPosts}
       walkingPosts={walkingPosts}
       sections={sections}
-      banners={filteredBanners}
+      topBanners={topBanners}
+      banners={bottomBanners}
       ongoingTournaments={ongoingTournaments.map((t) => ({
         id: t.id, title: t.title, type: t.type, speciesName: t.speciesName,
         startDate: t.startAt?.toISOString() ?? null,

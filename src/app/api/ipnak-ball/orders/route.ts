@@ -10,6 +10,7 @@ import {
   normalizeProductType,
 } from "@/lib/ipnakProduct";
 import { refundSpentPoints, resolveUsablePoints, spendPoints } from "@/lib/points";
+import { toDbDate } from "@/lib/dbDate";
 
 export async function POST(req: Request) {
   try {
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     // 단가: 해당 타입 상품 레코드의 price가 기준. 옵션이 켜져 있으면 선택한 옵션 가격을 우선한다.
     const selectedOption = b.selectedOption === "one" || b.selectedOption === "two" ? b.selectedOption : null;
     const rows = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM "IpnakBallProduct" WHERE "isActive" = 1 AND "type" = ? ORDER BY "createdAt" ASC LIMIT 1`,
+      `SELECT * FROM \`IpnakBallProduct\` WHERE \`isActive\` = 1 AND \`type\` = ? ORDER BY \`createdAt\` ASC LIMIT 1`,
       productType
     );
     const product = rows[0];
@@ -44,8 +45,8 @@ export async function POST(req: Request) {
     // 재고 차감 — 관리자 상품 관리에서 설정한 재고를 실제로 반영한다.
     // 조건부 UPDATE의 영향 행 수를 확인해 동시 주문 시 재고 초과 판매를 막는다.
     const affected = await prisma.$executeRawUnsafe(
-      `UPDATE "IpnakBallProduct" SET "stock" = "stock" - ?, "updatedAt" = ? WHERE "id" = ? AND "stock" >= ?`,
-      quantity, new Date().toISOString(), product.id, quantity
+      `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` - ?, \`updatedAt\` = ? WHERE \`id\` = ? AND \`stock\` >= ?`,
+      quantity, toDbDate(), product.id, quantity
     );
     if (affected === 0) return NextResponse.json({ error: `${label} 재고가 부족합니다.` }, { status: 409 });
 
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
       } catch (pointError: any) {
         // 포인트 차감이 실패하면 위에서 차감한 재고를 되돌린다.
         await prisma.$executeRawUnsafe(
-          `UPDATE "IpnakBallProduct" SET "stock" = "stock" + ? WHERE "id" = ?`, quantity, product.id
+          `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` + ? WHERE \`id\` = ?`, quantity, product.id
         ).catch(() => {});
         return NextResponse.json(
           { error: pointError?.message === "INSUFFICIENT_POINTS" ? "보유 포인트가 부족합니다." : "포인트 사용에 실패했습니다." },
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
     } catch (createError) {
       // 주문 생성이 실패하면 위에서 차감한 재고·포인트를 되돌린다.
       await prisma.$executeRawUnsafe(
-        `UPDATE "IpnakBallProduct" SET "stock" = "stock" + ? WHERE "id" = ?`, quantity, product.id
+        `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` + ? WHERE \`id\` = ?`, quantity, product.id
       ).catch(() => {});
       if (pointsUsed > 0) await refundSpentPoints(user.id, pointsUsed, pointSource);
       throw createError;
@@ -94,7 +95,7 @@ export async function POST(req: Request) {
     // productType·productId·pointsUsed는 Prisma 스키마에 없는 raw 컬럼이라 생성 직후 별도로 기록한다.
     // productId는 위에서 실제로 재고를 차감한 상품 레코드 — 취소·환불 시 이 상품으로 되돌린다.
     await prisma.$executeRawUnsafe(
-      `UPDATE "BallOrder" SET "productType" = ?, "productId" = ?, "pointsUsed" = ? WHERE "id" = ?`,
+      `UPDATE \`BallOrder\` SET \`productType\` = ?, \`productId\` = ?, \`pointsUsed\` = ? WHERE \`id\` = ?`,
       productType, product.id, pointsUsed, order.id
     );
     return NextResponse.json({ ok: true, orderNo: order.orderNo, pointsUsed, paidAmount: totalPrice - pointsUsed });

@@ -12,13 +12,15 @@ export async function GET() {
   // (소셜 전용 계정은 비밀번호 변경 대신 안내 문구를 보여주기 위함)
   const row = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { passwordHash: true },
+    select: { passwordHash: true, name: true, phone: true },
   });
 
   return NextResponse.json({
     user: {
       id: user.id,
       nickname: user.nickname,
+      name: row?.name ?? null,
+      phone: row?.phone ?? null,
       bio: user.bio,
       region: user.region,
       avatarUrl: user.avatarUrl,

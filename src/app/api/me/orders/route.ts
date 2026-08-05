@@ -7,21 +7,22 @@ import { refundSpentPoints, resolveUsablePoints, spendPoints } from "@/lib/point
 export const dynamic = "force-dynamic";
 
 async function ensureTable() {
+  // VARCHAR 타입 — SQLite/MariaDB 양쪽에서 동작 (MariaDB는 TEXT 컬럼을 PRIMARY KEY로 쓸 수 없다)
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS \`Order\` (
-      \`id\`                TEXT NOT NULL PRIMARY KEY,
-      \`userId\`            TEXT NOT NULL,
-      \`productId\`         TEXT NOT NULL,
-      \`productName\`       TEXT NOT NULL,
+      \`id\`                VARCHAR(191) NOT NULL PRIMARY KEY,
+      \`userId\`            VARCHAR(191) NOT NULL,
+      \`productId\`         VARCHAR(191) NOT NULL,
+      \`productName\`       VARCHAR(255) NOT NULL,
       \`price\`             INTEGER NOT NULL DEFAULT 0,
       \`quantity\`          INTEGER NOT NULL DEFAULT 1,
       \`shippingFee\`       INTEGER NOT NULL DEFAULT 0,
       \`totalAmount\`       INTEGER NOT NULL DEFAULT 0,
       \`pointsUsed\`        INTEGER NOT NULL DEFAULT 0,
-      \`shippingAddressId\` TEXT,
-      \`status\`            TEXT NOT NULL DEFAULT 'PAID',
-      \`paymentMethod\`     TEXT NOT NULL DEFAULT 'CARD',
-      \`createdAt\`         TEXT NOT NULL
+      \`shippingAddressId\` VARCHAR(191),
+      \`status\`            VARCHAR(32) NOT NULL DEFAULT 'PAID',
+      \`paymentMethod\`     VARCHAR(32) NOT NULL DEFAULT 'CARD',
+      \`createdAt\`         VARCHAR(64) NOT NULL
     )
   `);
   // 이 컬럼이 생기기 전에 만들어진 테이블에 뒤늦게 추가한다.

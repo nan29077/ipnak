@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { refundGroupJoin } from "@/lib/points";
+import { toDbDate } from "@/lib/dbDate";
 
 // GET /api/groups/[id] — myRole 포함 (null | "pending" | "member" | "sub_leader" | "leader")
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -44,7 +45,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const body = await req.json().catch(() => ({}));
   const { name, description, category, region, fishSpecies, tags, imageUrl } = body;
-  const now = new Date().toISOString();
+  // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+  const now = toDbDate();
 
   await prisma.$executeRawUnsafe(
     `UPDATE \`Group\` SET \`name\`=?, \`description\`=?, \`category\`=?, \`region\`=?, \`fishSpecies\`=?, \`tags\`=?, \`imageUrl\`=?, \`updatedAt\`=? WHERE \`id\`=?`,

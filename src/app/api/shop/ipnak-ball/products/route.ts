@@ -18,11 +18,11 @@ export async function GET(req: Request) {
     const raw = new URL(req.url).searchParams.get("type");
     const products = raw
       ? await prisma.$queryRawUnsafe<any[]>(
-          `SELECT * FROM "IpnakBallProduct" WHERE "isActive" = 1 AND "type" = ? ORDER BY "createdAt" ASC`,
+          `SELECT * FROM \`IpnakBallProduct\` WHERE \`isActive\` = 1 AND \`type\` = ? ORDER BY \`createdAt\` ASC`,
           normalizeProductType(raw)
         )
       : await prisma.$queryRawUnsafe<any[]>(
-          `SELECT * FROM "IpnakBallProduct" WHERE "isActive" = 1 ORDER BY "createdAt" ASC`
+          `SELECT * FROM \`IpnakBallProduct\` WHERE \`isActive\` = 1 ORDER BY \`createdAt\` ASC`
         );
 
     // 판매 스위치는 설정값, 판매가는 각 상품 레코드의 price가 기준이다.

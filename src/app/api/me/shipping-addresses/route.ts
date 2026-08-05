@@ -6,16 +6,18 @@ import { requireUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 async function ensureTable() {
+  // 백틱 식별자 + VARCHAR 타입 — SQLite/MariaDB 양쪽에서 동작한다
+  // (MariaDB는 더블쿼트를 문자열 리터럴로 해석하고, TEXT 컬럼은 PRIMARY KEY가 될 수 없다)
   await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "ShippingAddress" (
-      "id"            TEXT NOT NULL PRIMARY KEY,
-      "userId"        TEXT NOT NULL,
-      "name"          TEXT NOT NULL,
-      "phone"         TEXT NOT NULL,
-      "address"       TEXT NOT NULL,
-      "addressDetail" TEXT NOT NULL DEFAULT '',
-      "isDefault"     INTEGER NOT NULL DEFAULT 0,
-      "createdAt"     TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS \`ShippingAddress\` (
+      \`id\`            VARCHAR(191) NOT NULL PRIMARY KEY,
+      \`userId\`        VARCHAR(191) NOT NULL,
+      \`name\`          VARCHAR(191) NOT NULL,
+      \`phone\`         VARCHAR(191) NOT NULL,
+      \`address\`       VARCHAR(500) NOT NULL,
+      \`addressDetail\` VARCHAR(500) NOT NULL DEFAULT '',
+      \`isDefault\`     INTEGER NOT NULL DEFAULT 0,
+      \`createdAt\`     VARCHAR(64) NOT NULL
     )
   `);
 }
@@ -27,7 +29,7 @@ export async function GET() {
   await ensureTable();
 
   const addresses = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT * FROM "ShippingAddress" WHERE "userId" = ? ORDER BY "isDefault" DESC, "createdAt" DESC`,
+    `SELECT * FROM \`ShippingAddress\` WHERE \`userId\` = ? ORDER BY \`isDefault\` DESC, \`createdAt\` DESC`,
     user.id,
   );
   return NextResponse.json({ addresses });
@@ -51,13 +53,13 @@ export async function POST(req: Request) {
   // 기본 배송지 설정 시 기존 기본 배송지 해제
   if (isDefault) {
     await prisma.$executeRawUnsafe(
-      `UPDATE "ShippingAddress" SET "isDefault" = 0 WHERE "userId" = ?`,
+      `UPDATE \`ShippingAddress\` SET \`isDefault\` = 0 WHERE \`userId\` = ?`,
       user.id,
     );
   }
 
   await prisma.$executeRawUnsafe(
-    `INSERT INTO "ShippingAddress" ("id","userId","name","phone","address","addressDetail","isDefault","createdAt")
+    `INSERT INTO \`ShippingAddress\` (\`id\`,\`userId\`,\`name\`,\`phone\`,\`address\`,\`addressDetail\`,\`isDefault\`,\`createdAt\`)
      VALUES (?,?,?,?,?,?,?,?)`,
     id, user.id, name, phone, address, addressDetail ?? "", isDefault ? 1 : 0, now,
   );
@@ -76,7 +78,7 @@ export async function DELETE(req: Request) {
   if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
 
   await prisma.$executeRawUnsafe(
-    `DELETE FROM "ShippingAddress" WHERE "id" = ? AND "userId" = ?`,
+    `DELETE FROM \`ShippingAddress\` WHERE \`id\` = ? AND \`userId\` = ?`,
     id, user.id,
   );
   return NextResponse.json({ ok: true });

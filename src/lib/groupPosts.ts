@@ -1,9 +1,10 @@
 import "server-only";
 import { prisma } from "./prisma";
 
-// 낚시단 커뮤니티 글/좋아요/댓글 — Prisma DB 기반 저장소 (GroupPost / GroupComment / GroupPostLike 테이블)
-// 기존 .group-data/*.json 파일 저장 방식을 DB로 대체한다.
-// 서버 시작 시 테이블이 없으면 auto-create 한다 (idempotent).
+// 낚시단 커뮤니티 글/좋아요/댓글 — Prisma Client 기반 저장소 (GroupPost / GroupComment / GroupPostLike 모델)
+// 기존에는 raw SQL로 테이블을 직접 만들고 CRUD 했으나, SQLite 전용 구문(INSERT OR IGNORE,
+// 더블쿼트 식별자, sqlite_master 등)이 MariaDB 실서버에서 구문 오류를 일으켜 Prisma Client로 전면 교체했다.
+// 테이블은 prisma migrate / db push로 생성된다 (schema.prisma에 모델 정의됨).
 
 // ──────────────────────────────────────────
 // 타입 정의 (API 라우트와의 호환성 유지)
@@ -39,64 +40,6 @@ export type StoredGroupComment = {
 };
 
 // ──────────────────────────────────────────
-// 테이블 자동 초기화 (CREATE TABLE IF NOT EXISTS)
-// ──────────────────────────────────────────
-
-let _tablesReady: Promise<void> | null = null;
-
-function ensureTables(): Promise<void> {
-  if (_tablesReady) return _tablesReady;
-  _tablesReady = (async () => {
-    try {
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "GroupPost" (
-          "id"        TEXT NOT NULL PRIMARY KEY,
-          "groupId"   TEXT NOT NULL,
-          "authorId"  TEXT NOT NULL,
-          "content"   TEXT NOT NULL,
-          "imageUrl"  TEXT,
-          "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GroupPost_groupId_idx" ON "GroupPost"("groupId")`);
-      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GroupPost_authorId_idx" ON "GroupPost"("authorId")`);
-
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "GroupComment" (
-          "id"        TEXT NOT NULL PRIMARY KEY,
-          "postId"    TEXT NOT NULL,
-          "authorId"  TEXT NOT NULL,
-          "content"   TEXT NOT NULL,
-          "imageUrl"  TEXT,
-          "parentId"  TEXT,
-          "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GroupComment_postId_idx" ON "GroupComment"("postId")`);
-      // 기존 DB(imageUrl 없이 생성된 테이블) 보정 — 이미 있으면 duplicate column 에러라 무시한다
-      try {
-        await prisma.$executeRawUnsafe(`ALTER TABLE "GroupComment" ADD COLUMN "imageUrl" TEXT`);
-      } catch { /* 이미 존재하는 컬럼 */ }
-
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "GroupPostLike" (
-          "id"        TEXT NOT NULL PRIMARY KEY,
-          "postId"    TEXT NOT NULL,
-          "userId"    TEXT NOT NULL,
-          "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "GroupPostLike_postId_userId_key" ON "GroupPostLike"("postId","userId")`);
-      await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "GroupPostLike_postId_idx" ON "GroupPostLike"("postId")`);
-    } catch (e) {
-      console.error("[groupPosts] 테이블 초기화 오류:", e);
-    }
-  })();
-  return _tablesReady;
-}
-
-// ──────────────────────────────────────────
 // ID 생성
 // ──────────────────────────────────────────
 
@@ -109,26 +52,33 @@ export function newId() {
 // ──────────────────────────────────────────
 
 export async function readGroupPosts(): Promise<StoredGroupPost[]> {
-  await ensureTables();
-  // DB에는 authorNickname / authorAvatar 가 없으므로 User 테이블 JOIN
-  const rows = await prisma.$queryRawUnsafe<any[]>(`
-    SELECT p.id, p.groupId, p.authorId, u.nickname as authorNickname, u.avatarUrl as authorAvatar,
-           p.content, p.imageUrl, p.createdAt
-    FROM "GroupPost" p
-    LEFT JOIN "User" u ON u.id = p.authorId
-    ORDER BY p.createdAt DESC
-  `);
-  return rows.map(toStoredPost);
+  const rows = await prisma.groupPost.findMany({
+    orderBy: { createdAt: "desc" },
+    include: { author: { select: { nickname: true, avatarUrl: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    groupId: r.groupId,
+    authorId: r.authorId,
+    authorNickname: r.author?.nickname ?? "알 수 없음",
+    authorAvatar: r.author?.avatarUrl ?? null,
+    content: r.content,
+    imageUrl: r.imageUrl ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
 }
 
 export async function writeGroupPost(post: Omit<StoredGroupPost, "authorNickname" | "authorAvatar">): Promise<void> {
-  await ensureTables();
-  const now = post.createdAt ?? new Date().toISOString();
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "GroupPost" (id, groupId, authorId, content, imageUrl, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    post.id, post.groupId, post.authorId, post.content, post.imageUrl ?? null, now, now
-  );
+  await prisma.groupPost.create({
+    data: {
+      id: post.id,
+      groupId: post.groupId,
+      authorId: post.authorId,
+      content: post.content,
+      imageUrl: post.imageUrl ?? null,
+      ...(post.createdAt ? { createdAt: new Date(post.createdAt) } : {}),
+    },
+  });
 }
 
 // ──────────────────────────────────────────
@@ -136,46 +86,35 @@ export async function writeGroupPost(post: Omit<StoredGroupPost, "authorNickname
 // ──────────────────────────────────────────
 
 export async function readGroupLikes(): Promise<StoredGroupLike[]> {
-  await ensureTables();
-  const rows = await prisma.$queryRawUnsafe<any[]>(`SELECT postId, userId, createdAt FROM "GroupPostLike"`);
-  return rows.map((r) => ({ postId: r.postId, userId: r.userId, createdAt: String(r.createdAt) }));
+  const rows = await prisma.groupPostLike.findMany({
+    select: { postId: true, userId: true, createdAt: true },
+  });
+  return rows.map((r) => ({ postId: r.postId, userId: r.userId, createdAt: r.createdAt.toISOString() }));
 }
 
 export async function addGroupLike(postId: string, userId: string): Promise<void> {
-  await ensureTables();
-  const id = newId();
-  const now = new Date().toISOString();
-  // INSERT OR IGNORE for upsert-like behavior (SQLite unique constraint)
-  await prisma.$executeRawUnsafe(
-    `INSERT OR IGNORE INTO "GroupPostLike" (id, postId, userId, createdAt) VALUES (?, ?, ?, ?)`,
-    id, postId, userId, now
-  );
+  // upsert — unique(postId, userId) 제약이 있어 이미 눌렀으면 no-op (기존 INSERT OR IGNORE 대체)
+  await prisma.groupPostLike.upsert({
+    where: { postId_userId: { postId, userId } },
+    update: {},
+    create: { id: newId(), postId, userId },
+  });
 }
 
 export async function removeGroupLike(postId: string, userId: string): Promise<void> {
-  await ensureTables();
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM "GroupPostLike" WHERE postId = ? AND userId = ?`,
-    postId, userId
-  );
+  await prisma.groupPostLike.deleteMany({ where: { postId, userId } });
 }
 
 export async function groupLikeExists(postId: string, userId: string): Promise<boolean> {
-  await ensureTables();
-  const rows = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT 1 FROM "GroupPostLike" WHERE postId = ? AND userId = ? LIMIT 1`,
-    postId, userId
-  );
-  return rows.length > 0;
+  const row = await prisma.groupPostLike.findUnique({
+    where: { postId_userId: { postId, userId } },
+    select: { id: true },
+  });
+  return row != null;
 }
 
 export async function groupLikeCount(postId: string): Promise<number> {
-  await ensureTables();
-  const rows = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT COUNT(*) as cnt FROM "GroupPostLike" WHERE postId = ?`,
-    postId
-  );
-  return Number(rows[0]?.cnt ?? 0);
+  return prisma.groupPostLike.count({ where: { postId } });
 }
 
 // ──────────────────────────────────────────
@@ -183,26 +122,35 @@ export async function groupLikeCount(postId: string): Promise<number> {
 // ──────────────────────────────────────────
 
 export async function readGroupComments(): Promise<StoredGroupComment[]> {
-  await ensureTables();
-  const rows = await prisma.$queryRawUnsafe<any[]>(`
-    SELECT c.id, c.postId, c.authorId, u.nickname as authorNickname, u.avatarUrl as authorAvatar,
-           c.content, c.imageUrl, c.createdAt, c.parentId
-    FROM "GroupComment" c
-    LEFT JOIN "User" u ON u.id = c.authorId
-    ORDER BY c.createdAt ASC
-  `);
-  return rows.map(toStoredComment);
+  const rows = await prisma.groupComment.findMany({
+    orderBy: { createdAt: "asc" },
+    include: { author: { select: { nickname: true, avatarUrl: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    postId: r.postId,
+    authorId: r.authorId,
+    authorNickname: r.author?.nickname ?? "알 수 없음",
+    authorAvatar: r.author?.avatarUrl ?? null,
+    content: r.content,
+    imageUrl: r.imageUrl ?? null,
+    createdAt: r.createdAt.toISOString(),
+    parentId: r.parentId ?? null,
+  }));
 }
 
 export async function writeGroupComment(comment: Omit<StoredGroupComment, "authorNickname" | "authorAvatar">): Promise<void> {
-  await ensureTables();
-  const now = comment.createdAt ?? new Date().toISOString();
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "GroupComment" (id, postId, authorId, content, imageUrl, parentId, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    comment.id, comment.postId, comment.authorId, comment.content,
-    comment.imageUrl ?? null, comment.parentId ?? null, now
-  );
+  await prisma.groupComment.create({
+    data: {
+      id: comment.id,
+      postId: comment.postId,
+      authorId: comment.authorId,
+      content: comment.content,
+      imageUrl: comment.imageUrl ?? null,
+      parentId: comment.parentId ?? null,
+      ...(comment.createdAt ? { createdAt: new Date(comment.createdAt) } : {}),
+    },
+  });
 }
 
 // ──────────────────────────────────────────
@@ -210,10 +158,10 @@ export async function writeGroupComment(comment: Omit<StoredGroupComment, "autho
 // ──────────────────────────────────────────
 
 export async function getGroupRole(groupId: string, userId: string): Promise<string | null> {
-  const [mem] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT "role" FROM "GroupMember" WHERE "groupId" = ? AND "userId" = ?`,
-    groupId, userId
-  );
+  const mem = await prisma.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId } },
+    select: { role: true },
+  });
   return mem?.role ?? null;
 }
 
@@ -234,40 +182,3 @@ export function serializePost(post: StoredGroupPost, likes: StoredGroupLike[], c
     liked: postLikes.some((l) => l.userId === currentUserId),
   };
 }
-
-// ──────────────────────────────────────────
-// 내부 헬퍼
-// ──────────────────────────────────────────
-
-function toStoredPost(r: any): StoredGroupPost {
-  return {
-    id: r.id,
-    groupId: r.groupId,
-    authorId: r.authorId,
-    authorNickname: r.authorNickname ?? "알 수 없음",
-    authorAvatar: r.authorAvatar ?? null,
-    content: r.content,
-    imageUrl: r.imageUrl ?? null,
-    createdAt: String(r.createdAt),
-  };
-}
-
-function toStoredComment(r: any): StoredGroupComment {
-  return {
-    id: r.id,
-    postId: r.postId,
-    authorId: r.authorId,
-    authorNickname: r.authorNickname ?? "알 수 없음",
-    authorAvatar: r.authorAvatar ?? null,
-    content: r.content,
-    imageUrl: r.imageUrl ?? null,
-    createdAt: String(r.createdAt),
-    parentId: r.parentId ?? null,
-  };
-}
-
-// ──────────────────────────────────────────
-// 하위 호환 shim (기존 API 라우트가 readGroupPosts() 등 동기 함수를 호출하는 경우 대비)
-// API 라우트들은 이미 await 패턴을 쓰므로 async 버전만 export 한다.
-// ──────────────────────────────────────────
-// (이전: writeGroupPosts/writeGroupLikes/writeGroupComments 함수들은 제거됨)

@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { IPNAK_TYPE_LABEL, ensureIpnakRawColumns, normalizeProductType } from "@/lib/ipnakProduct";
+import { toDbDate } from "@/lib/dbDate";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "이름과 가격을 입력해주세요." }, { status: 400 });
     }
     const id = randomUUID();
-    const now = new Date().toISOString();
+    // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+    const now = toDbDate();
     await prisma.$executeRawUnsafe(
       `INSERT INTO \`IpnakBallProduct\` (\`id\`,\`type\`,\`name\`,\`price\`,\`description\`,\`stock\`,\`imageUrl\`,\`isActive\`,\`optionEnabled\`,\`optionOneLabel\`,\`optionOnePrice\`,\`optionTwoLabel\`,\`optionTwoPrice\`,\`createdAt\`,\`updatedAt\`)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -77,7 +79,8 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { id, isActive, stock, optionEnabled, optionOneLabel, optionOnePrice, optionTwoLabel, optionTwoPrice, name, price, description, imageUrl } = body;
     if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
-    const now = new Date().toISOString();
+    // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+    const now = toDbDate();
 
     // 전체 필드 수정 (이름, 가격, 설명, 이미지 포함)
     if (name !== undefined && price !== undefined) {

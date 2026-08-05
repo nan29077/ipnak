@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { toDbDate } from "@/lib/dbDate";
 
 async function getMembership(groupId: string, userId: string) {
   return prisma.groupMember.findUnique({
@@ -99,12 +100,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const id = `gp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const now = new Date().toISOString();
+    // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+    const now = new Date();
     const desc = description?.trim() || null;
 
     await prisma.$executeRaw`
       INSERT INTO GroupPoint (id, groupId, authorId, lat, lng, title, description, tripId, createdAt)
-      VALUES (${id}, ${params.id}, ${user.id}, ${lat}, ${lng}, ${title.trim()}, ${desc}, ${tripId}, ${now})
+      VALUES (${id}, ${params.id}, ${user.id}, ${lat}, ${lng}, ${title.trim()}, ${desc}, ${tripId}, ${toDbDate(now)})
     `;
 
     return NextResponse.json({
@@ -118,7 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         authorId: user.id,
         authorNickname: user.nickname,
         authorAvatar: user.avatarUrl ?? null,
-        createdAt: now,
+        createdAt: now.toISOString(),
       },
     });
   } catch (err) {

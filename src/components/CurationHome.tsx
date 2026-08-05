@@ -45,13 +45,14 @@ type OngoingTournament = {
 };
 
 export function CurationHome({
-  feedPosts, walkingPosts, sections, banners, ongoingTournaments, currentUserId,
+  feedPosts, walkingPosts, sections, banners, topBanners, ongoingTournaments, currentUserId,
   personalizedPosts, userNickname, userInterests, hasInterests,
 }: {
   feedPosts: FeedPost[];
   walkingPosts?: FeedPost[];
   sections: ResolvedSection[];
-  banners?: { title: string; imageUrl: string | null }[];
+  banners?: { title: string; imageUrl: string | null; linkUrl?: string | null }[];
+  topBanners?: { title: string; imageUrl: string | null; linkUrl?: string | null }[];
   ongoingTournaments?: OngoingTournament[];
   currentUserId?: string;
   personalizedPosts?: FeedPost[];
@@ -101,6 +102,9 @@ export function CurationHome({
       </section>
 
       <div className="pt-1"><CommunityTabs /></div>
+
+      {/* 홈 상단 배너 (section: main_top) */}
+      {topBanners && topBanners.length > 0 && <BannerStrip banners={topBanners} className="mt-4" />}
 
       {/* 피싱 피드 섹션 (고정) */}
       <section className="mt-4">
@@ -182,19 +186,8 @@ export function CurationHome({
         </section>
       )}
 
-      {/* 배너 (대회 외 배너만 — 입점 배너 제외됨) */}
-      {banners && banners.length > 0 && (
-        <div className="mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 no-scrollbar">
-          {banners.map((b, i) => (
-            <div key={i} className="relative h-32 w-[18rem] shrink-0 snap-start overflow-hidden rounded-2xl bg-orange-500 shadow-card">
-              {b.imageUrl && <img src={b.imageUrl} alt={b.title} className="h-full w-full object-cover opacity-85" />}
-              <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-3.5">
-                <p className="text-[15px] font-bold leading-snug text-white drop-shadow-sm">{b.title}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* 홈 하단 배너 (section: main_bottom — 입점 배너 제외됨) */}
+      {banners && banners.length > 0 && <BannerStrip banners={banners} className="mt-6" />}
 
       {/* 조행기 더 보기 */}
       <div className="mt-6 px-4">
@@ -218,6 +211,30 @@ export function CurationHome({
         />
       )}
 
+    </div>
+  );
+}
+
+// 배너 가로 스크롤 스트립 — linkUrl이 있으면 클릭 시 이동한다
+function BannerStrip({ banners, className }: { banners: { title: string; imageUrl: string | null; linkUrl?: string | null }[]; className?: string }) {
+  return (
+    <div className={`flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 no-scrollbar ${className ?? ""}`}>
+      {banners.map((b, i) => {
+        const inner = (
+          <>
+            {b.imageUrl && <img src={b.imageUrl} alt={b.title} className="h-full w-full object-cover opacity-85" />}
+            <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/80 via-black/20 to-transparent p-3.5">
+              <p className="text-[15px] font-bold leading-snug text-white drop-shadow-sm">{b.title}</p>
+            </div>
+          </>
+        );
+        const cls = "relative h-32 w-[18rem] shrink-0 snap-start overflow-hidden rounded-2xl bg-orange-500 shadow-card";
+        return b.linkUrl ? (
+          <Link key={i} href={b.linkUrl} className={cls}>{inner}</Link>
+        ) : (
+          <div key={i} className={cls}>{inner}</div>
+        );
+      })}
     </div>
   );
 }

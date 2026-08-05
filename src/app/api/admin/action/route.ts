@@ -6,6 +6,7 @@ import { aiSettingKey, protectAiCredential, type AiCredentialName } from "@/lib/
 import { getBoolSetting, getSetting } from "@/lib/settings";
 import { TOURNAMENT_TYPES } from "@/lib/taxonomy";
 import { effectiveStatus, kstDayEnd, kstDayStart } from "@/lib/tournamentStatus";
+import { toDbDate } from "@/lib/dbDate";
 
 // 대회 참가비/보상 포인트 입력 필드 — 비워두면 null(없음), 값이 있으면 양의 정수만 허용
 const TOURNAMENT_POINT_FIELDS = [
@@ -259,15 +260,17 @@ export async function POST(req: Request) {
         // 누락 컬럼 대비 ALTER TABLE (이미 있으면 무시)
         try { await prisma.$executeRawUnsafe(`ALTER TABLE \`Product\` ADD COLUMN \`stock\` INTEGER NOT NULL DEFAULT 0`); } catch {}
         try { await prisma.$executeRawUnsafe(`ALTER TABLE \`Product\` ADD COLUMN \`freeShippingThreshold\` INTEGER NOT NULL DEFAULT 0`); } catch {}
+        // NOW()는 SQLite에 없으므로 바인딩으로 대체 (MariaDB/SQLite 공통 동작)
         await prisma.$executeRawUnsafe(
           `INSERT INTO \`Product\` (\`id\`,\`sellerId\`,\`name\`,\`brand\`,\`category\`,\`price\`,\`shippingFee\`,\`freeShippingThreshold\`,\`options\`,\`imageUrl\`,\`buyUrl\`,\`description\`,\`feeRate\`,\`stock\`,\`createdAt\`)
-           VALUES (?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
+           VALUES (?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           randomUUID(),
           b.name, b.brand || null, b.category || "ETC",
           Number(b.price) || 0, Number(b.shippingFee) || 0,
           Number(b.freeShippingThreshold) || 0,
           b.options || null, b.imageUrl || null, b.buyUrl || "#",
           b.description || null, Number(b.feeRate) || 0, Number(b.stock) || 0,
+          toDbDate(),
         );
         await log("PRODUCT_CREATE", undefined, b.name); break;
       case "PRODUCT_UPDATE": {

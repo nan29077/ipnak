@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * 더미 데이터 삭제 API
- * - ANGLER 역할의 모든 사용자와 그들의 게시글/중고마켓/댓글 등을 삭제
- * - SUPER_ADMIN 계정은 보존
+ * - @ipnak.test 이메일의 더미 계정과 그들의 게시글/중고마켓/댓글 등을 삭제
+ * - 실제 회원(일반 ANGLER 포함)과 SUPER_ADMIN 계정은 보존
  */
 export async function POST(req: Request) {
   try {
@@ -16,9 +16,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "권한 없음" }, { status: 403 });
     }
 
-    // 삭제 대상: ANGLER 계정 전체
+    // 삭제 대상: 시드가 만든 더미 계정만 (@ipnak.test) — 실제 ANGLER 회원은 삭제하지 않는다
     const dummyUsers = await prisma.user.findMany({
-      where: { role: "ANGLER" },
+      where: { email: { endsWith: "@ipnak.test" } },
       select: { id: true },
     });
     const dummyIds = dummyUsers.map((u) => u.id);
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     await prisma.user.deleteMany({ where: { id: { in: dummyIds } } });
 
     return NextResponse.json({
-      message: `더미 데이터 삭제 완료. 삭제된 ANGLER 계정: ${dummyIds.length}개`,
+      message: `더미 데이터 삭제 완료. 삭제된 더미 계정(@ipnak.test): ${dummyIds.length}개`,
     });
   } catch (e: any) {
     console.error(e);

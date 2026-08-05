@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { randomUUID } from "crypto";
+import { toDbDate } from "@/lib/dbDate";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,8 @@ export async function POST(req: Request) {
     const order = (maxRows[0]?.maxOrder ?? -1) + 1;
 
     const id = randomUUID();
-    const now = new Date().toISOString();
+    // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+    const now = toDbDate();
     await prisma.$executeRaw`INSERT INTO \`FeaturedProduct\` (\`id\`,\`productId\`,\`section\`,\`order\`,\`createdAt\`) VALUES (${id},${productId},${section},${order},${now})`;
 
     // 생성된 레코드와 product 정보 반환

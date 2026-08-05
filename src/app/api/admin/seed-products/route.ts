@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { toDbDate } from "@/lib/dbDate";
 
 export const dynamic = "force-dynamic";
 
@@ -37,21 +38,18 @@ export async function POST() {
     const user = await requireUser();
     if (user.role !== "SUPER_ADMIN") return NextResponse.json({ error: "권한 없음" }, { status: 403 });
 
-    // FeaturedProduct 테이블이 없으면 먼저 생성
+    // FeaturedProduct 테이블이 없으면 먼저 생성 (백틱 식별자 — SQLite/MariaDB 공통)
+    // 실서버(MariaDB)에서는 prisma db push로 이미 존재하므로 보통 no-op이다.
     try {
       await prisma.$executeRaw`
-        CREATE TABLE IF NOT EXISTS "FeaturedProduct" (
-          "id" TEXT NOT NULL PRIMARY KEY,
-          "productId" TEXT NOT NULL,
-          "section" TEXT NOT NULL,
-          "order" INTEGER NOT NULL DEFAULT 0,
-          "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT "FeaturedProduct_productId_section_key" UNIQUE ("productId", "section"),
-          CONSTRAINT "FeaturedProduct_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+        CREATE TABLE IF NOT EXISTS \`FeaturedProduct\` (
+          \`id\` VARCHAR(191) NOT NULL PRIMARY KEY,
+          \`productId\` VARCHAR(191) NOT NULL,
+          \`section\` VARCHAR(32) NOT NULL,
+          \`order\` INTEGER NOT NULL DEFAULT 0,
+          \`createdAt\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT \`FeaturedProduct_productId_section_key\` UNIQUE (\`productId\`, \`section\`)
         )
-      `;
-      await prisma.$executeRaw`
-        CREATE INDEX IF NOT EXISTS "FeaturedProduct_section_idx" ON "FeaturedProduct"("section")
       `;
     } catch {
       // 이미 존재하는 경우 무시
@@ -62,7 +60,7 @@ export async function POST() {
     let sectionOrders: Record<string, number> = { TODAY: 0, WEEKLY: 0, MONTHLY: 0, BEST: 0 };
     try {
       const rows = await prisma.$queryRaw<OrderRow[]>`
-        SELECT section, MAX("order") as "maxOrder" FROM "FeaturedProduct" GROUP BY section
+        SELECT section, MAX(\`order\`) as maxOrder FROM \`FeaturedProduct\` GROUP BY section
       `;
       for (const r of rows) {
         sectionOrders[r.section] = Number(r.maxOrder) + 1;
@@ -80,11 +78,11 @@ export async function POST() {
       const imageUrl = img(`prod-dummy-${i}`);
       const buyUrl = "https://shopping.example.com";
       const desc = `${p.name}\n\n테스트용 더미 상품입니다.\n낚시 장비 전문 판매처에서 구매하실 수 있습니다.`;
-      const now = new Date().toISOString();
+      const now = toDbDate();
 
       // shippingFee 컬럼은 prisma generate 전이므로 raw SQL 사용
       await prisma.$executeRaw`
-        INSERT INTO "Product" (id, name, brand, category, price, "feeRate", "imageUrl", "buyUrl", "affiliateCode", description, "shippingFee", "createdAt")
+        INSERT INTO \`Product\` (id, name, brand, category, price, \`feeRate\`, \`imageUrl\`, \`buyUrl\`, \`affiliateCode\`, description, \`shippingFee\`, \`createdAt\`)
         VALUES (${productId}, ${p.name}, ${p.brand}, ${p.category}, ${p.price}, ${p.feeRate}, ${imageUrl}, ${buyUrl}, ${"DUMMY_SEED"}, ${desc}, ${p.shippingFee}, ${now})
       `;
 
@@ -99,11 +97,11 @@ export async function POST() {
       const order = sectionOrders[section] ?? 0;
       sectionOrders[section] = order + 1;
       const fid = genId();
-      const now = new Date().toISOString();
+      const now = toDbDate();
 
       try {
         await prisma.$executeRaw`
-          INSERT INTO "FeaturedProduct" (id, "productId", section, "order", "createdAt")
+          INSERT INTO \`FeaturedProduct\` (id, \`productId\`, section, \`order\`, \`createdAt\`)
           VALUES (${fid}, ${productIds[i]}, ${section}, ${order}, ${now})
         `;
         featuredCreated++;

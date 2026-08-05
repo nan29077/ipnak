@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, User, FileText, MapPin, Check, Loader2, X } from "lucide-react";
+import { Camera, User, FileText, MapPin, Check, Loader2, X, Phone } from "lucide-react";
 import { PageHeader, Button } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -15,6 +15,8 @@ export default function EditProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [nickname, setNickname] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [bio, setBio] = useState("");
   const [region, setRegion] = useState("");
   const [userId, setUserId] = useState<string>("");
@@ -32,6 +34,8 @@ export default function EditProfilePage() {
         if (d?.user) {
           setUserId(d.user.id ?? "");
           setNickname(d.user.nickname ?? "");
+          setName(d.user.name ?? "");
+          setPhone(d.user.phone ?? "");
           setBio(d.user.bio ?? "");
           setRegion(d.user.region ?? "");
           setAvatarUrl(d.user.avatarUrl ?? null);
@@ -75,7 +79,7 @@ export default function EditProfilePage() {
       const res = await fetch("/api/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname: nickname.trim(), bio: bio.trim(), region: region.trim(), avatarUrl }),
+        body: JSON.stringify({ nickname: nickname.trim(), name: name.trim(), phone: phone.trim(), bio: bio.trim(), region: region.trim(), avatarUrl }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "저장 실패");
@@ -148,6 +152,35 @@ export default function EditProfilePage() {
             className="w-full rounded-xl border border-navy-100 bg-[#162538] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
           />
           <p className="mt-1 text-right text-[11px] text-navy-400">{nickname.length}/20</p>
+        </div>
+
+        {/* 이름 */}
+        <div>
+          <label className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-navy-400">
+            <User size={13} /> 이름
+          </label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={30}
+            placeholder="이름 (선택)"
+            className="w-full rounded-xl border border-navy-100 bg-[#162538] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
+          />
+        </div>
+
+        {/* 전화번호 */}
+        <div>
+          <label className="mb-1.5 flex items-center gap-1.5 text-[12px] font-semibold text-navy-400">
+            <Phone size={13} /> 전화번호
+          </label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            maxLength={20}
+            type="tel"
+            placeholder="예: 010-1234-5678 (선택)"
+            className="w-full rounded-xl border border-navy-100 bg-[#162538] px-4 py-3 text-[14px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20"
+          />
         </div>
 
         {/* 한 줄 소개 */}

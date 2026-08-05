@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureIpnakRawColumns, normalizeProductType } from "@/lib/ipnakProduct";
 import { refundSpentPoints } from "@/lib/points";
+import { toDbDate } from "@/lib/dbDate";
 
 // 재고(및 사용 포인트)를 되돌려야 하는 종료 상태
 const STOCK_RESTORING = ["CANCELLED", "REFUNDED"];
@@ -42,7 +43,7 @@ export async function PATCH(req: Request) {
       // 상품이 이미 삭제됐으면 영향 행이 0 — 그 경우 복원한 것으로 기록하지 않는다.
       const affected = await prisma.$executeRawUnsafe(
         `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` + ?, \`updatedAt\` = ? WHERE \`id\` = ?`,
-        prev.quantity, new Date().toISOString(), prev.productId
+        prev.quantity, toDbDate(), prev.productId
       );
       if (affected > 0) restored = prev.quantity;
     }

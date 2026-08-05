@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureIpnakRawColumns, normalizeProductType } from "@/lib/ipnakProduct";
+import { toDbDate } from "@/lib/dbDate";
 
 export const dynamic = "force-dynamic";
 
@@ -63,12 +64,13 @@ export async function PATCH(req: Request) {
       if (order && order.status !== "cancelled" && order.productId && order.quantity) {
         await prisma.$executeRawUnsafe(
           `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` + ?, \`updatedAt\` = ? WHERE \`id\` = ?`,
-          order.quantity, new Date().toISOString(), order.productId
+          order.quantity, toDbDate(), order.productId
         ).catch(() => {});
       }
     }
 
-    const now = new Date().toISOString();
+    // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+    const now = toDbDate();
     if (trackingNumber !== undefined) {
       await prisma.$executeRawUnsafe(
         `UPDATE \`IpnakBallOrder\` SET \`status\` = ?, \`trackingNumber\` = ?, \`updatedAt\` = ? WHERE \`id\` = ?`,

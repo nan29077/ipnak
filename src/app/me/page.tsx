@@ -89,14 +89,17 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
     prisma.$queryRawUnsafe<any[]>(
       `SELECT m.role, g.id, g.name, g.category, g.region, g.fishSpecies,
               COUNT(gm.id) as memberCount
-       FROM "GroupMember" m
-       LEFT JOIN "Group" g ON g.id = m.groupId
-       LEFT JOIN "GroupMember" gm ON gm.groupId = g.id AND gm.role IN ('leader','member')
+       FROM \`GroupMember\` m
+       LEFT JOIN \`Group\` g ON g.id = m.groupId
+       LEFT JOIN \`GroupMember\` gm ON gm.groupId = g.id AND gm.role IN ('leader','member')
        WHERE m.userId = ? AND m.role IN ('leader','member')
        GROUP BY g.id
-       ORDER BY m.joinedAt DESC
+       ORDER BY MAX(m.joinedAt) DESC
        LIMIT 5`,
       user.id
+    ).then((rows) =>
+      // MariaDB의 COUNT()는 BigInt로 반환된다 — RSC 직렬화 오류 방지를 위해 Number 변환
+      rows.map((g) => ({ ...g, memberCount: Number(g.memberCount ?? 0) }))
     ),
   ]);
   const needsReplyChatsRaw = sellerChatsRaw.filter(

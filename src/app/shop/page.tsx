@@ -45,7 +45,7 @@ export default async function ShopPage() {
 
   try {
     const rawFeatured = await prisma.$queryRaw<RawFeatured[]>`
-      SELECT * FROM "FeaturedProduct" ORDER BY section, "order"
+      SELECT * FROM \`FeaturedProduct\` ORDER BY section, \`order\`
     `;
 
     if (rawFeatured.length > 0) {

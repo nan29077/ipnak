@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "./prisma";
+import { toDbDate } from "./dbDate";
 
 /**
  * 입낚볼 / 입낚키링 공통 상품 타입.
@@ -95,7 +96,8 @@ export function ensureIpnakRawColumns(): Promise<void> {
           `UPDATE \`IpnakBallProduct\`
            SET \`optionOnePrice\` = \`price\`, \`optionTwoPrice\` = 69900, \`optionEnabled\` = 1, \`updatedAt\` = ?
            WHERE \`type\` = 'ball' AND \`optionTwoPrice\` IS NULL`,
-          new Date().toISOString()
+          // MariaDB DATETIME 컬럼에는 ISO 문자열(…T…Z)을 바인딩할 수 없다 (Error 1292)
+          toDbDate()
         )
         .catch(() => {});
     })();
