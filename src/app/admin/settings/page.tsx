@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { AdminTitle, Card } from "@/components/admin/ui";
 import { Badge } from "@/components/ui";
 import { kstFormat } from "@/lib/utils";
+import { LegalManagement } from "@/components/admin/LegalManagement";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export default async function AdminSettings() {
           </div>
         </Card>
       </div>
+      <LegalManagement />
     </div>
   );
 }
