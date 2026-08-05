@@ -8,13 +8,13 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminGroupsPage() {
   const groups = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT g.*, u."nickname" as "leaderNickname",
-            COUNT(m."id") as "memberCount"
-     FROM "Group" g
-     LEFT JOIN "User" u ON u."id" = g."leaderId"
-     LEFT JOIN "GroupMember" m ON m."groupId" = g."id" AND m."role" IN ('leader','member')
-     GROUP BY g."id"
-     ORDER BY g."createdAt" DESC
+    `SELECT g.*, u.\`nickname\` as \`leaderNickname\`,
+            COUNT(m.\`id\`) as \`memberCount\`
+     FROM \`Group\` g
+     LEFT JOIN \`User\` u ON u.\`id\` = g.\`leaderId\`
+     LEFT JOIN \`GroupMember\` m ON m.\`groupId\` = g.\`id\` AND m.\`role\` IN ('leader','member')
+     GROUP BY g.\`id\`
+     ORDER BY g.\`createdAt\` DESC
      LIMIT 100`
   );
 
