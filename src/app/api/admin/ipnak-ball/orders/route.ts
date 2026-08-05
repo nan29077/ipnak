@@ -26,11 +26,11 @@ export async function GET(req: Request) {
         o.phone, o.memo, o."createdAt", o."updatedAt",
         u.nickname AS "userNickname", u.email AS "userEmail",
         p.name AS "productName", p.price AS "productPrice", p."type" AS "productType"
-      FROM "IpnakBallOrder" o
-      JOIN "User" u ON u.id = o."userId"
-      JOIN "IpnakBallProduct" p ON p.id = o."productId"
-      ${type ? `WHERE p."type" = ?` : ""}
-      ORDER BY o."createdAt" DESC
+      FROM \`IpnakBallOrder\` o
+      JOIN \`User\` u ON u.id = o.\`userId\`
+      JOIN \`IpnakBallProduct\` p ON p.id = o.\`productId\`
+      ${type ? `WHERE p.\`type\` = ?` : ""}
+      ORDER BY o.\`createdAt\` DESC
       LIMIT 200
     `;
     const orders = type
@@ -57,12 +57,12 @@ export async function PATCH(req: Request) {
     // 취소 전환 시 재고 복원
     if (status === "cancelled") {
       const rows = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT o.status, o.quantity, o."productId" FROM "IpnakBallOrder" o WHERE o.id = ?`, id
+        `SELECT o.status, o.quantity, o.\`productId\` FROM \`IpnakBallOrder\` o WHERE o.id = ?`, id
       );
       const order = rows[0];
-      if (order && order.status !== "cancelled" && order.productId && order.quantity) {
+      if (order && order.status !== \`cancelled\` && order.productId && order.quantity) {
         await prisma.$executeRawUnsafe(
-          `UPDATE "IpnakBallProduct" SET "stock" = "stock" + ?, "updatedAt" = ? WHERE "id" = ?`,
+          `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` + ?, \`updatedAt\` = ? WHERE \`id\` = ?`,
           order.quantity, new Date().toISOString(), order.productId
         ).catch(() => {});
       }
@@ -71,12 +71,12 @@ export async function PATCH(req: Request) {
     const now = new Date().toISOString();
     if (trackingNumber !== undefined) {
       await prisma.$executeRawUnsafe(
-        `UPDATE "IpnakBallOrder" SET "status" = ?, "trackingNumber" = ?, "updatedAt" = ? WHERE "id" = ?`,
+        `UPDATE \`IpnakBallOrder\` SET \`status\` = ?, \`trackingNumber\` = ?, \`updatedAt\` = ? WHERE \`id\` = ?`,
         status, trackingNumber || null, now, id
       );
     } else {
       await prisma.$executeRawUnsafe(
-        `UPDATE "IpnakBallOrder" SET "status" = ?, "updatedAt" = ? WHERE "id" = ?`,
+        `UPDATE \`IpnakBallOrder\` SET \`status\` = ?, \`updatedAt\` = ? WHERE \`id\` = ?`,
         status, now, id
       );
     }

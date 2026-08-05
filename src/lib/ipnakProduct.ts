@@ -33,7 +33,7 @@ export function normalizeProductType(value: unknown): IpnakProductType {
 export async function getIpnakProducts(): Promise<Partial<Record<IpnakProductType, any>>> {
   await ensureIpnakRawColumns();
   const rows = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT * FROM "IpnakBallProduct" WHERE "isActive" = 1 ORDER BY "createdAt" ASC`
+    `SELECT * FROM \`IpnakBallProduct\` WHERE \`isActive\` = 1 ORDER BY \`createdAt\` ASC`
   );
   const out: Partial<Record<IpnakProductType, any>> = {};
   for (const r of rows) {
@@ -72,19 +72,19 @@ export function ensureIpnakRawColumns(): Promise<void> {
   if (!ensurePromise) {
     ensurePromise = (async () => {
       await prisma
-        .$executeRawUnsafe(`ALTER TABLE "IpnakBallProduct" ADD COLUMN "type" TEXT NOT NULL DEFAULT 'ball'`)
+        .$executeRawUnsafe(`ALTER TABLE \`IpnakBallProduct\` ADD COLUMN \`type\` TEXT NOT NULL DEFAULT 'ball'`)
         .catch(() => {});
       await prisma
-        .$executeRawUnsafe(`ALTER TABLE "BallOrder" ADD COLUMN "productType" TEXT NOT NULL DEFAULT 'ball'`)
+        .$executeRawUnsafe(`ALTER TABLE \`BallOrder\` ADD COLUMN \`productType\` TEXT NOT NULL DEFAULT 'ball'`)
         .catch(() => {});
       await prisma
-        .$executeRawUnsafe(`ALTER TABLE "BallOrder" ADD COLUMN "productId" TEXT`)
+        .$executeRawUnsafe(`ALTER TABLE \`BallOrder\` ADD COLUMN \`productId\` TEXT`)
         .catch(() => {});
       await prisma
-        .$executeRawUnsafe(`ALTER TABLE "IpnakBallOrder" ADD COLUMN "trackingNumber" TEXT`)
+        .$executeRawUnsafe(`ALTER TABLE \`IpnakBallOrder\` ADD COLUMN \`trackingNumber\` TEXT`)
         .catch(() => {});
       await prisma
-        .$executeRawUnsafe(`ALTER TABLE "BallOrder" ADD COLUMN "pointsUsed" INTEGER NOT NULL DEFAULT 0`)
+        .$executeRawUnsafe(`ALTER TABLE \`BallOrder\` ADD COLUMN \`pointsUsed\` INTEGER NOT NULL DEFAULT 0`)
         .catch(() => {});
 
       // ── 데이터 마이그레이션: 입낚볼 옵션 가격 초기값 설정 ──
@@ -92,9 +92,9 @@ export function ensureIpnakRawColumns(): Promise<void> {
       // optionOnePrice = price(기본가), optionTwoPrice = 69900(2개입 특가)
       await prisma
         .$executeRawUnsafe(
-          `UPDATE "IpnakBallProduct"
-           SET "optionOnePrice" = "price", "optionTwoPrice" = 69900, "optionEnabled" = 1, "updatedAt" = ?
-           WHERE "type" = 'ball' AND "optionTwoPrice" IS NULL`,
+          `UPDATE \`IpnakBallProduct\`
+           SET \`optionOnePrice\` = \`price\`, \`optionTwoPrice\` = 69900, \`optionEnabled\` = 1, \`updatedAt\` = ?
+           WHERE \`type\` = 'ball' AND \`optionTwoPrice\` IS NULL`,
           new Date().toISOString()
         )
         .catch(() => {});

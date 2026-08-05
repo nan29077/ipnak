@@ -20,7 +20,7 @@ export async function PATCH(req: Request) {
     const prevRows = await prisma.$queryRawUnsafe<
       { status: string; quantity: number; productId: string | null; productType: string | null; pointsUsed: number | null; userId: string }[]
     >(
-      `SELECT "status", "quantity", "productId", "productType", "pointsUsed", "userId" FROM "BallOrder" WHERE "id" = ?`, b.id
+      `SELECT \`status\`, \`quantity\`, \`productId\`, \`productType\`, \`pointsUsed\`, \`userId\` FROM \`BallOrder\` WHERE \`id\` = ?`, b.id
     );
     const prev = prevRows[0];
     if (!prev) return NextResponse.json({ error: "주문을 찾을 수 없습니다." }, { status: 404 });
@@ -41,7 +41,7 @@ export async function PATCH(req: Request) {
     if (STOCK_RESTORING.includes(b.status) && !STOCK_RESTORING.includes(prev.status) && prev.productId) {
       // 상품이 이미 삭제됐으면 영향 행이 0 — 그 경우 복원한 것으로 기록하지 않는다.
       const affected = await prisma.$executeRawUnsafe(
-        `UPDATE "IpnakBallProduct" SET "stock" = "stock" + ?, "updatedAt" = ? WHERE "id" = ?`,
+        `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` + ?, \`updatedAt\` = ? WHERE \`id\` = ?`,
         prev.quantity, new Date().toISOString(), prev.productId
       );
       if (affected > 0) restored = prev.quantity;
