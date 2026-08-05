@@ -8,7 +8,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!user) return NextResponse.json({ error: "로그인 필요" }, { status: 401 });
 
   const [group] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT * FROM "Group" WHERE "id" = ?`, params.id
+    `SELECT * FROM \`Group\` WHERE \`id\` = ?`, params.id
   );
   if (!group) return NextResponse.json({ error: "낚시단을 찾을 수 없습니다." }, { status: 404 });
 
@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!isLeader) {
     // 승인된 회원만 열람 가능 — 민감 정보(role/email) 제외
     const [mem] = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT "role" FROM "GroupMember" WHERE "groupId" = ? AND "userId" = ?`,
+      `SELECT \`role\` FROM \`GroupMember\` WHERE \`groupId\` = ? AND \`userId\` = ?`,
       params.id, user.id
     );
     const myRole = mem?.role ?? null;
@@ -26,11 +26,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     }
 
     const members = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT m."id", m."userId", m."joinedAt", u."nickname", u."avatarUrl"
-       FROM "GroupMember" m
-       LEFT JOIN "User" u ON u."id" = m."userId"
-       WHERE m."groupId" = ? AND m."role" IN ('leader','sub_leader','member')
-       ORDER BY CASE m."role" WHEN 'leader' THEN 0 WHEN 'sub_leader' THEN 1 WHEN 'member' THEN 2 ELSE 3 END, m."joinedAt" ASC`,
+      `SELECT m.\`id\`, m.\`userId\`, m.\`joinedAt\`, u.\`nickname\`, u.\`avatarUrl\`
+       FROM \`GroupMember\` m
+       LEFT JOIN \`User\` u ON u.\`id\` = m.\`userId\`
+       WHERE m.\`groupId\` = ? AND m.\`role\` IN ('leader','sub_leader','member')
+       ORDER BY CASE m.\`role\` WHEN 'leader' THEN 0 WHEN 'sub_leader' THEN 1 WHEN 'member' THEN 2 ELSE 3 END, m.\`joinedAt\` ASC`,
       params.id
     );
 
@@ -38,11 +38,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
 
   const members = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT m.*, u."nickname", u."avatarUrl", u."email"
-     FROM "GroupMember" m
-     LEFT JOIN "User" u ON u."id" = m."userId"
-     WHERE m."groupId" = ?
-     ORDER BY CASE m."role" WHEN 'leader' THEN 0 WHEN 'sub_leader' THEN 1 WHEN 'member' THEN 2 ELSE 3 END, m."joinedAt" ASC`,
+    `SELECT m.*, u.\`nickname\`, u.\`avatarUrl\`, u.\`email\`
+     FROM \`GroupMember\` m
+     LEFT JOIN \`User\` u ON u.\`id\` = m.\`userId\`
+     WHERE m.\`groupId\` = ?
+     ORDER BY CASE m.\`role\` WHEN 'leader' THEN 0 WHEN 'sub_leader' THEN 1 WHEN 'member' THEN 2 ELSE 3 END, m.\`joinedAt\` ASC`,
     params.id
   );
 

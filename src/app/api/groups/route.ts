@@ -11,29 +11,29 @@ function createId() {
 export async function GET(req: Request) {
   const user = await getCurrentUser();
   const { searchParams } = new URL(req.url);
-  const region = searchParams.get("region") || "";
-  const fishSpecies = searchParams.get("fishSpecies") || "";
+  const region = searchParams.get(\`region\`) || "";
+  const fishSpecies = searchParams.get(\`fishSpecies\`) || "";
   const search = searchParams.get("search") || "";
 
-  let where = `WHERE g."isPublic" = 1`;
+  let where = `WHERE g.\`isPublic\` = 1`;
   const params: unknown[] = [];
 
-  if (region) { params.push(`%${region}%`); where += ` AND g."region" LIKE ?`; }
-  if (fishSpecies) { params.push(`%${fishSpecies}%`); where += ` AND g."fishSpecies" LIKE ?`; }
+  if (region) { params.push(`%${region}%`); where += ` AND g.\`region\` LIKE ?`; }
+  if (fishSpecies) { params.push(`%${fishSpecies}%`); where += ` AND g.\`fishSpecies\` LIKE ?`; }
   if (search) {
     params.push(`%${search}%`, `%${search}%`);
-    where += ` AND (g."name" LIKE ? OR g."description" LIKE ?)`;
+    where += ` AND (g.\`name\` LIKE ? OR g.\`description\` LIKE ?)`;
   }
 
   const groups = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT g.*, u."nickname" as "leaderNickname", u."avatarUrl" as "leaderAvatar",
-            COUNT(m."id") as "memberCount"
-     FROM "Group" g
-     LEFT JOIN "User" u ON u."id" = g."leaderId"
-     LEFT JOIN "GroupMember" m ON m."groupId" = g."id" AND m."role" IN ('leader','sub_leader','member')
+    `SELECT g.*, u.\`nickname\` as \`leaderNickname\`, u.\`avatarUrl\` as \`leaderAvatar\`,
+            COUNT(m.\`id\`) as \`memberCount\`
+     FROM \`Group\` g
+     LEFT JOIN \`User\` u ON u.\`id\` = g.\`leaderId\`
+     LEFT JOIN \`GroupMember\` m ON m.\`groupId\` = g.\`id\` AND m.\`role\` IN ('leader','sub_leader','member')
      ${where}
-     GROUP BY g."id"
-     ORDER BY g."createdAt" DESC
+     GROUP BY g.\`id\`
+     ORDER BY g.\`createdAt\` DESC
      LIMIT 50`,
     ...params
   );
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
   let myRoles: Record<string, string> = {};
   if (user) {
     const memberships = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT "groupId", "role" FROM "GroupMember" WHERE "userId" = ?`, user.id
+      `SELECT \`groupId\`, \`role\` FROM \`GroupMember\` WHERE \`userId\` = ?`, user.id
     );
     myRoles = Object.fromEntries(memberships.map(m => [m.groupId, m.role]));
   }
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
 
   try {
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "Group" ("id","name","description","leaderId","category","region","fishSpecies","tags","isPublic","imageUrl","createdAt","updatedAt")
+      `INSERT INTO \`Group\` (\`id\`,\`name\`,\`description\`,\`leaderId\`,\`category\`,\`region\`,\`fishSpecies\`,\`tags\`,\`isPublic\`,\`imageUrl\`,\`createdAt\`,\`updatedAt\`)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       id, name.trim(), description || null, user.id, category.trim(),
       region || null, fishSpecies || null,
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
 
     const memberId = createId();
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "GroupMember" ("id","groupId","userId","role","joinedAt") VALUES (?,?,?,?,?)`,
+      `INSERT INTO \`GroupMember\` (\`id\`,\`groupId\`,\`userId\`,\`role\`,\`joinedAt\`) VALUES (?,?,?,?,?)`,
       memberId, id, user.id, "leader", now
     );
   } catch {
@@ -109,9 +109,9 @@ export async function POST(req: Request) {
   }
 
   const [group] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT g.*, u."nickname" as "leaderNickname", u."avatarUrl" as "leaderAvatar", 1 as "memberCount"
-     FROM "Group" g LEFT JOIN "User" u ON u."id" = g."leaderId"
-     WHERE g."id" = ?`, id
+    `SELECT g.*, u.\`nickname\` as \`leaderNickname\`, u.\`avatarUrl\` as \`leaderAvatar\`, 1 as \`memberCount\`
+     FROM \`Group\` g LEFT JOIN \`User\` u ON u.\`id\` = g.\`leaderId\`
+     WHERE g.\`id\` = ?`, id
   );
 
   return NextResponse.json({ group: normalizeGroup(group) }, { status: 201 });

@@ -8,13 +8,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const user = await getCurrentUser();
 
   const [group] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT g.*, u."nickname" as "leaderNickname", u."avatarUrl" as "leaderAvatar",
-            COUNT(m."id") as "memberCount"
-     FROM "Group" g
-     LEFT JOIN "User" u ON u."id" = g."leaderId"
-     LEFT JOIN "GroupMember" m ON m."groupId" = g."id" AND m."role" IN ('leader','sub_leader','member')
-     WHERE g."id" = ?
-     GROUP BY g."id"`, params.id
+    `SELECT g.*, u.\`nickname\` as \`leaderNickname\`, u.\`avatarUrl\` as \`leaderAvatar\`,
+            COUNT(m.\`id\`) as \`memberCount\`
+     FROM \`Group\` g
+     LEFT JOIN \`User\` u ON u.\`id\` = g.\`leaderId\`
+     LEFT JOIN \`GroupMember\` m ON m.\`groupId\` = g.\`id\` AND m.\`role\` IN ('leader','sub_leader','member')
+     WHERE g.\`id\` = ?
+     GROUP BY g.\`id\``, params.id
   );
   if (!group) return NextResponse.json({ error: "낚시단을 찾을 수 없습니다." }, { status: 404 });
 
@@ -22,7 +22,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   let myRole: string | null = null;
   if (user) {
     const [mem] = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT "role" FROM "GroupMember" WHERE "groupId" = ? AND "userId" = ?`,
+      `SELECT \`role\` FROM \`GroupMember\` WHERE \`groupId\` = ? AND \`userId\` = ?`,
       params.id, user.id
     );
     myRole = mem?.role ?? null;
@@ -37,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: "로그인 필요" }, { status: 401 });
 
   const [group] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT * FROM "Group" WHERE "id" = ?`, params.id
+    `SELECT * FROM \`Group\` WHERE \`id\` = ?`, params.id
   );
   if (!group) return NextResponse.json({ error: "낚시단을 찾을 수 없습니다." }, { status: 404 });
   if (group.leaderId !== user.id) return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
@@ -47,7 +47,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const now = new Date().toISOString();
 
   await prisma.$executeRawUnsafe(
-    `UPDATE "Group" SET "name"=?, "description"=?, "category"=?, "region"=?, "fishSpecies"=?, "tags"=?, "imageUrl"=?, "updatedAt"=? WHERE "id"=?`,
+    `UPDATE \`Group\` SET \`name\`=?, \`description\`=?, \`category\`=?, \`region\`=?, \`fishSpecies\`=?, \`tags\`=?, \`imageUrl\`=?, \`updatedAt\`=? WHERE \`id\`=?`,
     name || group.name,
     description ?? group.description,
     category || group.category,
@@ -67,22 +67,22 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (!user) return NextResponse.json({ error: "로그인 필요" }, { status: 401 });
 
   const [group] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT * FROM "Group" WHERE "id" = ?`, params.id
+    `SELECT * FROM \`Group\` WHERE \`id\` = ?`, params.id
   );
   if (!group) return NextResponse.json({ error: "낚시단을 찾을 수 없습니다." }, { status: 404 });
   if (group.leaderId !== user.id) return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
 
   // 승인 대기 중인 신청자는 차감했던 가입 비용(1,000P)을 환불한다
   const pendings = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT "userId" FROM "GroupMember" WHERE "groupId" = ? AND "role" = 'pending'`, params.id
+    `SELECT \`userId\` FROM \`GroupMember\` WHERE \`groupId\` = ? AND \`role\` = 'pending'`, params.id
   );
   for (const p of pendings) {
     await refundGroupJoin(p.userId, params.id);
   }
 
   // 멤버 먼저 삭제 후 그룹 삭제
-  await prisma.$executeRawUnsafe(`DELETE FROM "GroupMember" WHERE "groupId" = ?`, params.id);
-  await prisma.$executeRawUnsafe(`DELETE FROM "Group" WHERE "id" = ?`, params.id);
+  await prisma.$executeRawUnsafe(`DELETE FROM \`GroupMember\` WHERE \`groupId\` = ?`, params.id);
+  await prisma.$executeRawUnsafe(`DELETE FROM \`Group\` WHERE \`id\` = ?`, params.id);
 
   return NextResponse.json({ ok: true });
 }

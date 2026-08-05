@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
     const id = randomUUID();
     const now = new Date().toISOString();
-    await prisma.$executeRaw`INSERT INTO \`FeaturedProduct\` ("id","productId","section",\`order\`,"createdAt") VALUES (${id},${productId},${section},${order},${now})`;
+    await prisma.$executeRaw`INSERT INTO \`FeaturedProduct\` (\`id\`,\`productId\`,\`section\`,\`order\`,\`createdAt\`) VALUES (${id},${productId},${section},${order},${now})`;
 
     // 생성된 레코드와 product 정보 반환
     const product = await prisma.product.findUnique({ where: { id: productId } });

@@ -41,7 +41,7 @@ export async function GET() {
 
   const rows = await prisma.$queryRawUnsafe<NotifRow[]>(
     `SELECT pushEnabled, newComment, newLike, groupActivity, announcement, ballRelated
-     FROM "NotificationSettings" WHERE userId = ? LIMIT 1`,
+     FROM \`NotificationSettings\` WHERE \`userId\` = ? LIMIT 1`,
     user.id
   );
 
@@ -69,7 +69,7 @@ export async function PUT(req: Request) {
 
   // 기존 행 확인
   const existing = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT id FROM "NotificationSettings" WHERE userId = ? LIMIT 1`,
+    `SELECT id FROM \`NotificationSettings\` WHERE \`userId\` = ? LIMIT 1`,
     user.id
   );
 
@@ -78,8 +78,8 @@ export async function PUT(req: Request) {
     const merged = { ...DEFAULTS, ...updates };
     const id = crypto.randomUUID();
     await prisma.$queryRawUnsafe(
-      `INSERT INTO "NotificationSettings" (id, userId, pushEnabled, newComment, newLike, groupActivity, announcement, ballRelated, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      `INSERT INTO \`NotificationSettings\` (\`id\`, \`userId\`, \`pushEnabled\`, \`newComment\`, \`newLike\`, \`groupActivity\`, \`announcement\`, \`ballRelated\`, \`updatedAt\`)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       id, user.id,
       merged.pushEnabled ? 1 : 0,
       merged.newComment ? 1 : 0,
@@ -92,13 +92,13 @@ export async function PUT(req: Request) {
     // UPDATE — 변경된 필드만
     const setClauses = allowed
       .filter((k) => k in updates)
-      .map((k) => `"${k}" = ?`)
+      .map((k) => `\`${k}\` = ?`)
       .join(", ");
     const values = allowed
       .filter((k) => k in updates)
       .map((k) => (updates[k] ? 1 : 0));
     await prisma.$queryRawUnsafe(
-      `UPDATE "NotificationSettings" SET ${setClauses}, updatedAt = datetime('now') WHERE userId = ?`,
+      `UPDATE \`NotificationSettings\` SET ${setClauses}, updatedAt = NOW() WHERE \`userId\` = ?`,
       ...values, user.id
     );
   }
@@ -106,7 +106,7 @@ export async function PUT(req: Request) {
   // 최신값 반환
   const rows = await prisma.$queryRawUnsafe<NotifRow[]>(
     `SELECT pushEnabled, newComment, newLike, groupActivity, announcement, ballRelated
-     FROM "NotificationSettings" WHERE userId = ? LIMIT 1`,
+     FROM \`NotificationSettings\` WHERE \`userId\` = ? LIMIT 1`,
     user.id
   );
   return NextResponse.json(rows.length ? toResponse(rows[0]) : { ...DEFAULTS, ...updates });

@@ -8,26 +8,26 @@ export const dynamic = "force-dynamic";
 
 async function ensureTable() {
   await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "Order" (
-      "id"                TEXT NOT NULL PRIMARY KEY,
-      "userId"            TEXT NOT NULL,
-      "productId"         TEXT NOT NULL,
-      "productName"       TEXT NOT NULL,
-      "price"             INTEGER NOT NULL DEFAULT 0,
-      "quantity"          INTEGER NOT NULL DEFAULT 1,
-      "shippingFee"       INTEGER NOT NULL DEFAULT 0,
-      "totalAmount"       INTEGER NOT NULL DEFAULT 0,
-      "pointsUsed"        INTEGER NOT NULL DEFAULT 0,
-      "shippingAddressId" TEXT,
-      "status"            TEXT NOT NULL DEFAULT 'PAID',
-      "paymentMethod"     TEXT NOT NULL DEFAULT 'CARD',
-      "createdAt"         TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS \`Order\` (
+      \`id\`                TEXT NOT NULL PRIMARY KEY,
+      \`userId\`            TEXT NOT NULL,
+      \`productId\`         TEXT NOT NULL,
+      \`productName\`       TEXT NOT NULL,
+      \`price\`             INTEGER NOT NULL DEFAULT 0,
+      \`quantity\`          INTEGER NOT NULL DEFAULT 1,
+      \`shippingFee\`       INTEGER NOT NULL DEFAULT 0,
+      \`totalAmount\`       INTEGER NOT NULL DEFAULT 0,
+      \`pointsUsed\`        INTEGER NOT NULL DEFAULT 0,
+      \`shippingAddressId\` TEXT,
+      \`status\`            TEXT NOT NULL DEFAULT 'PAID',
+      \`paymentMethod\`     TEXT NOT NULL DEFAULT 'CARD',
+      \`createdAt\`         TEXT NOT NULL
     )
   `);
   // 이 컬럼이 생기기 전에 만들어진 테이블에 뒤늦게 추가한다.
   // SQLite 는 ADD COLUMN IF NOT EXISTS 를 지원하지 않으므로 중복 실행 오류는 무시한다.
   await prisma
-    .$executeRawUnsafe(`ALTER TABLE "Order" ADD COLUMN "pointsUsed" INTEGER NOT NULL DEFAULT 0`)
+    .$executeRawUnsafe(`ALTER TABLE \`Order\` ADD COLUMN \`pointsUsed\` INTEGER NOT NULL DEFAULT 0`)
     .catch(() => {});
 }
 
@@ -38,7 +38,7 @@ export async function GET() {
   try {
     await ensureTable();
     const orders = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM "Order" WHERE "userId" = ? ORDER BY "createdAt" DESC`,
+      `SELECT * FROM \`Order\` WHERE \`userId\` = ? ORDER BY \`createdAt\` DESC`,
       user.id,
     );
     return NextResponse.json({ orders });
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       }
     }
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "Order" ("id","userId","productId","productName","price","quantity","shippingFee","totalAmount","pointsUsed","shippingAddressId","status","paymentMethod","createdAt")
+      `INSERT INTO \`Order\` (\`id\`,\`userId\`,\`productId\`,\`productName\`,\`price\`,\`quantity\`,\`shippingFee\`,\`totalAmount\`,\`pointsUsed\`,\`shippingAddressId\`,\`status\`,\`paymentMethod\`,\`createdAt\`)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       id, user.id, String(productId), product.name,
       product.price, qty, effectiveShippingFee, totalAmount, pointsSpent,

@@ -13,12 +13,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if (!user) return NextResponse.json({ error: "로그인 필요" }, { status: 401 });
 
   const [group] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT * FROM "Group" WHERE "id" = ?`, params.id
+    `SELECT * FROM \`Group\` WHERE \`id\` = ?`, params.id
   );
   if (!group) return NextResponse.json({ error: "낚시단을 찾을 수 없습니다." }, { status: 404 });
 
   const [existing] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT * FROM "GroupMember" WHERE "groupId" = ? AND "userId" = ?`, params.id, user.id
+    `SELECT * FROM \`GroupMember\` WHERE \`groupId\` = ? AND \`userId\` = ?`, params.id, user.id
   );
   if (existing) return NextResponse.json({ error: "이미 가입신청했거나 회원입니다." }, { status: 409 });
 
@@ -48,7 +48,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const now = new Date().toISOString();
   try {
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "GroupMember" ("id","groupId","userId","role","joinedAt") VALUES (?,?,?,?,?)`,
+      `INSERT INTO \`GroupMember\` (\`id\`,\`groupId\`,\`userId\`,\`role\`,\`joinedAt\`) VALUES (?,?,?,?,?)`,
       memberId, params.id, user.id, "pending", now
     );
   } catch {
@@ -62,7 +62,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   try {
     const notiId = createId();
     await prisma.$executeRawUnsafe(
-      `INSERT INTO "Notification" ("id","userId","type","body","link","read","createdAt")
+      `INSERT INTO \`Notification\` (\`id\`,\`userId\`,\`type\`,\`body\`,\`link\`,\`read\`,\`createdAt\`)
        VALUES (?,?,?,?,?,0,?)`,
       notiId, group.leaderId, "GROUP_JOIN_REQUEST",
       `${user.nickname}님이 [${group.name}] 낚시단 가입을 신청했습니다.`,

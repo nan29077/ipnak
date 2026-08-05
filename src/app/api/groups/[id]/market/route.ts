@@ -18,14 +18,14 @@ export async function GET(
 
   // 그룹 존재 확인
   const [group] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT "id", "leaderId" FROM "Group" WHERE "id" = ?`,
+    `SELECT \`id\`, \`leaderId\` FROM \`Group\` WHERE \`id\` = ?`,
     params.id
   );
   if (!group) return NextResponse.json({ error: "낚시단을 찾을 수 없습니다." }, { status: 404 });
 
   // 멤버 권한 확인
   const [mem] = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT "role" FROM "GroupMember" WHERE "groupId" = ? AND "userId" = ?`,
+    `SELECT \`role\` FROM \`GroupMember\` WHERE \`groupId\` = ? AND \`userId\` = ?`,
     params.id, user.id
   );
   const myRole: string | null = mem?.role ?? null;
@@ -35,10 +35,10 @@ export async function GET(
 
   // 승인된 회원 userId 목록
   const members = await prisma.$queryRawUnsafe<{ userId: string; nickname: string; avatarUrl: string | null }[]>(
-    `SELECT m."userId", u."nickname", u."avatarUrl"
-     FROM "GroupMember" m
-     LEFT JOIN "User" u ON u."id" = m."userId"
-     WHERE m."groupId" = ? AND m."role" IN ('leader','sub_leader','member')`,
+    `SELECT m.\`userId\`, u.\`nickname\`, u.\`avatarUrl\`
+     FROM \`GroupMember\` m
+     LEFT JOIN \`User\` u ON u.\`id\` = m.\`userId\`
+     WHERE m.\`groupId\` = ? AND m.\`role\` IN ('leader','sub_leader','member')`,
     params.id
   );
 
