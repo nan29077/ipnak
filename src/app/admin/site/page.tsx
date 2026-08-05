@@ -84,7 +84,7 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
             <CreateForm actionType="BANNER_CREATE" title="배너/공지 추가" fields={[
               { name: "title", label: "제목", required: true },
               { name: "body", label: "내용" },
-              { name: "imageUrl", label: "이미지 URL" },
+              { name: "imageUrl", label: "배너 이미지", type: "image" },
               { name: "linkUrl", label: "이동 링크 URL (예: /tournaments/xxx)" },
             ]} />
           </div>
