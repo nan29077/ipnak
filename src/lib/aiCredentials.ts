@@ -41,6 +41,8 @@ function decrypt(value: string) {
  * 외부 연동 자격증명 이름.
  * smsApiKey/smsApiSecret/smsSender는 휴대폰 인증(SMS) 서비스용으로,
  * 현재는 저장만 하고 실제 발송 연동은 하지 않는다.
+ * tideApiKey/weatherApiKey 는 AI 포인트 추천의 해양·기상 보강용 공공 API 키다.
+ * (국립해양조사원 조석예보·수온 / 기상청 단기예보) — 없으면 해당 데이터만 비고 추천은 그대로 동작한다.
  */
 export type AiCredentialName =
   | "openai"
@@ -48,10 +50,13 @@ export type AiCredentialName =
   | "naverClientSecret"
   | "smsApiKey"
   | "smsApiSecret"
-  | "smsSender";
+  | "smsSender"
+  | "tideApiKey"
+  | "weatherApiKey";
 
 export const AI_CREDENTIAL_NAMES: AiCredentialName[] = [
   "openai", "naverClientId", "naverClientSecret", "smsApiKey", "smsApiSecret", "smsSender",
+  "tideApiKey", "weatherApiKey",
 ];
 
 export function aiSettingKey(name: AiCredentialName) {
@@ -69,7 +74,15 @@ export async function getAiCredentials() {
     smsApiKey: decrypt(saved[aiSettingKey("smsApiKey")]) || process.env.SMS_API_KEY || "",
     smsApiSecret: decrypt(saved[aiSettingKey("smsApiSecret")]) || process.env.SMS_API_SECRET || "",
     smsSender: decrypt(saved[aiSettingKey("smsSender")]) || process.env.SMS_SENDER || "",
+    tideApiKey: decrypt(saved[aiSettingKey("tideApiKey")]) || process.env.TIDE_API_KEY || "",
+    weatherApiKey: decrypt(saved[aiSettingKey("weatherApiKey")]) || process.env.WEATHER_API_KEY || "",
   };
+}
+
+/** 해양·기상 공공 API 키만 따로 조회 (marineData 전용) */
+export async function getMarineCredentials() {
+  const c = await getAiCredentials();
+  return { tideApiKey: c.tideApiKey, weatherApiKey: c.weatherApiKey };
 }
 
 export async function getAiConnectionStatus() {
@@ -80,5 +93,7 @@ export async function getAiConnectionStatus() {
     smsConfigured: Boolean(credentials.smsApiKey && credentials.smsApiSecret),
     // 발신번호는 비밀값이 아니라 운영자가 확인해야 하는 값이라 그대로 내려준다.
     smsSender: credentials.smsSender,
+    tideConfigured: Boolean(credentials.tideApiKey),
+    weatherConfigured: Boolean(credentials.weatherApiKey),
   };
 }

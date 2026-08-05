@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { distanceMeters } from "@/lib/map";
 import { getAiCredentials } from "@/lib/aiCredentials";
 import { classifyOpenAiError } from "@/lib/openaiError";
+import { getMarineSnapshot, marineForPrompt, type MarineSnapshot } from "@/lib/marineData";
 import {
   KOREA_REGIONS, findSido, findSigungu, genSpots,
   SPOT_TYPE_LABEL, SPOT_WATER, type NamedSpot, type Sigungu,
@@ -68,17 +69,25 @@ function readResponsesText(data: any): string {
 
 async function makeOpenAiBasis(
   openaiKey: string,
-  points: { name: string; score: number; postCount: number; reason: string }[],
+  points: { name: string; score: number; postCount: number; reason: string; species?: { name: string; count: number }[] }[],
   reports: WebFishReport[],
   species: string | null,
+  marine: MarineSnapshot | null,
+  when: { month: number | null; day: number | null },
 ) {
   if (!openaiKey) return "";
   try {
     // targetSpecies 를 함께 넘긴다 — 어종을 고르면 그 어종이 잡힌 포인트만 남긴 목록이라,
     // 이를 모르면 AI 문장이 "어종만 추린 결과"라는 사실과 어긋나게 쓰인다.
+    // marine(물때·수온·바람·기압)은 값이 없으면 null 로 명시해 보낸다 — 없는 값을 지어내지 못하게 한다.
     const context = JSON.stringify({
       targetSpecies: species,
-      points: points.slice(0, 3),
+      targetDate: when.month ? `${when.month}월 ${when.day ?? ""}일`.trim() : null,
+      points: points.slice(0, 3).map((p) => ({
+        name: p.name, score: p.score, postCount: p.postCount, reason: p.reason,
+        topSpecies: (p.species ?? []).slice(0, 3),
+      })),
+      marine: marineForPrompt(marine),
       recentBlogReports: reports.slice(0, 3).map((r) => ({ title: r.title, description: r.description, date: r.date })),
     });
     const res = await fetch("https://api.openai.com/v1/responses", {
@@ -86,7 +95,16 @@ async function makeOpenAiBasis(
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
       body: JSON.stringify({
         model: process.env.OPENAI_RECOMMEND_MODEL || "gpt-4.1-mini",
-        input: `You are a Korean fishing assistant. Based only on this JSON, write a concise Korean recommendation in two sentences or fewer. Do not invent weather, fish activity, or facts. Mention uncertainty when data is sparse. If targetSpecies is not null, the points listed are only those where that species was actually caught — say so and do not recommend the points for any other species. JSON: ${context}`,
+        input: [
+          "You are a Korean fishing assistant. Using ONLY the JSON below, write a Korean recommendation in 2~3 short sentences.",
+          "Rules:",
+          "1) Never invent data. Any field that is null is UNKNOWN — do not mention it at all.",
+          "2) If marine data exists (물때/수온/풍향/풍속/기압), explain concretely WHY today suits the top point: e.g. 물때 단계와 만조·간조 시간대, 수온에 따른 어종 활성, 바람 세기의 캐스팅/안전 영향, 기압 하강 시 입질 변화.",
+          "3) postCount 는 이 앱 회원이 올린 조황글 수다. 0 이면 데이터가 적다고 솔직히 말한다.",
+          "4) targetSpecies 가 null 이 아니면, 나열된 포인트는 그 어종이 실제로 잡힌 곳만 추린 결과다. 그 사실을 밝히고 다른 어종용으로 추천하지 않는다.",
+          "5) 존댓말, 낚시인이 읽는 문장. 마크다운·불릿·이모지 금지.",
+          `JSON: ${context}`,
+        ].join("\n"),
       }),
       signal: AbortSignal.timeout(8000),
     });
@@ -94,7 +112,8 @@ async function makeOpenAiBasis(
     // 다만 왜 폴백했는지(크레딧 소진·키 오류 등)는 서버 로그에 남긴다.
     if (!res.ok) { await classifyOpenAiError(res, "points/recommend"); return ""; }
     const data = await res.json();
-    const text = readResponsesText(data).trim().slice(0, 300);
+    // 물때·수온까지 언급하면 문장이 길어져 300자에서 잘렸다 — 3문장이 온전히 들어가도록 넓힌다.
+    const text = readResponsesText(data).trim().slice(0, 600);
     if (!text) console.error("[ipnak] OpenAI 추천 사유 응답에서 텍스트를 찾지 못했습니다 (points/recommend)");
     return text;
   } catch (e: any) {
@@ -155,6 +174,27 @@ export async function POST(req: Request) {
   const day: number | null = body.day ? Number(body.day) : null;
   const species: string | null = body.species && body.species !== "전체" ? String(body.species).trim() : null;
 
+  /**
+   * 해양·기상 데이터를 붙일 기준 좌표.
+   * 1순위 클라이언트가 보낸 실제 위치(lat/lon 또는 lng) → 2순위 선택한 시군구 중심 → 3순위 시도 중심.
+   * 셋 다 없으면(전국 추천) 아래에서 1위 추천 포인트 좌표로 대체한다.
+   */
+  // ⚠️ Number(null) === 0 이라 null 을 먼저 걸러야 한다.
+  //    (클라이언트는 위치 미사용 시 lat/lon 을 null 로 보내는데, 그대로 두면 좌표 (0,0) 으로 조회된다)
+  const num = (v: unknown) => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const bodyLat = num(body.lat);
+  const bodyLng = num(body.lon ?? body.lng);
+  const validCoords =
+    bodyLat != null && bodyLng != null &&
+    Math.abs(bodyLat) <= 90 && Math.abs(bodyLng) <= 180 &&
+    !(bodyLat === 0 && bodyLng === 0);
+  let originCoords: { lat: number; lng: number; origin: "user" | "region" | "point" } | null =
+    validCoords ? { lat: bodyLat as number, lng: bodyLng as number, origin: "user" } : null;
+
   const posts: AnyPost[] = await prisma.post.findMany({
     where: { hidden: false, visibility: { not: "PRIVATE" }, lat: { not: null }, lng: { not: null } },
     include: {
@@ -180,6 +220,14 @@ export async function POST(req: Request) {
   let broadened = false;
 
   const sg = sidoName && sgName ? findSigungu(sidoName, sgName) : null;
+
+  // 클라이언트 위치가 없으면 선택 지역 중심을 해양·기상 조회 기준점으로 쓴다.
+  if (!originCoords) {
+    const sidoRegion = sidoName ? findSido(sidoName) : null;
+    if (sg) originCoords = { lat: sg.lat, lng: sg.lng, origin: "region" };
+    else if (sidoRegion) originCoords = { lat: sidoRegion.lat, lng: sidoRegion.lng, origin: "region" };
+  }
+
   if (sidoName && sg) {
     cands = genSpots(sidoName, sg).map(tag(sidoName, sg.name));
     const matched = cands.reduce((a, c) => a + nearbyPostCount(c.lat, c.lng, seedPosts), 0);
@@ -308,14 +356,28 @@ export async function POST(req: Request) {
   // 어종을 고른 경우의 안내는 위에서 이미 정확하므로 덮어쓰지 않는다.
   if (!species && totalMatched === 0) basis = "아직 이 지역 회원 조황 데이터가 적어요. 그럴듯한 명소 위주로 추천했어요.";
 
-  // 웹 조황 검색 (네이버 블로그) — AI 키 조회와 실제 병렬 실행 (순차 대기 제거)
-  const [webResults, { openai }] = await Promise.all([
+  // 위치도 지역도 안 주어진 전국 추천이면 1위 포인트 좌표를 해양·기상 기준점으로 삼는다.
+  if (!originCoords && points[0]) {
+    originCoords = { lat: points[0].lat, lng: points[0].lng, origin: "point" };
+  }
+  // 기준점의 물성(민물/바다) — 수온 기준 어종 적합도를 그 물성에 맞게 추린다.
+  const originWater = points[0]?.water ?? null;
+
+  // 웹 조황 검색 + AI 키 조회 + 해양/기상 수집을 모두 병렬 실행한다.
+  // marine 은 어떤 항목이 실패해도 null 필드만 남기고 스냅샷 자체는 반드시 돌아온다.
+  const [webResults, { openai }, marine] = await Promise.all([
     fetchNaverBlogReports(sidoName, sgName, species, month, day),
     getAiCredentials(),
+    originCoords
+      ? getMarineSnapshot(originCoords.lat, originCoords.lng, originWater).catch(() => null)
+      : Promise.resolve(null),
   ]);
+
   // 추천할 포인트가 없으면 AI 를 부르지 않는다 — 호출 비용만 나가고,
   // 근거 없는 문장이 위에서 만든 "못 찾았어요 + 다음 행동" 안내를 덮어쓴다.
-  const aiBasis = points.length > 0 ? await makeOpenAiBasis(openai, points, webResults, species) : "";
+  const aiBasis = points.length > 0
+    ? await makeOpenAiBasis(openai, points, webResults, species, marine, { month, day })
+    : "";
 
   return NextResponse.json({
     basis: aiBasis || basis,
@@ -323,5 +385,9 @@ export async function POST(req: Request) {
     query: { sido: sidoName || "전체", sigungu: sgName || "전체", month, day, species: species || null },
     points,
     webResults,
+    marine,
+    marineOrigin: originCoords
+      ? { lat: originCoords.lat, lng: originCoords.lng, origin: originCoords.origin }
+      : null,
   });
 }
