@@ -19,6 +19,8 @@ model User {
   email        String   @unique
   passwordHash String
   nickname     String
+  name         String?  // 실명
+  phone        String?  // 전화번호 (추후 인증 서비스 연동)
   role         String   @default("ANGLER") // Role
   avatarUrl    String?
   bio          String?

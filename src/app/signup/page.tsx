@@ -121,7 +121,7 @@ function TagSelector({
 export default function SignupPage() {
   const router = useRouter();
   const toast = useToast();
-  const [form, setForm] = useState({ email: "", password: "", confirmPassword: "", nickname: "" });
+  const [form, setForm] = useState({ email: "", password: "", confirmPassword: "", nickname: "", name: "", phone: "" });
   const [methods, setMethods] = useState<string[]>([]);
   const [customMethods, setCustomMethods] = useState<string[]>([]);
   const [species, setSpecies] = useState<string[]>([]);
@@ -164,6 +164,8 @@ export default function SignupPage() {
           email: form.email,
           password: form.password,
           nickname: form.nickname,
+          name: form.name || undefined,
+          phone: form.phone || undefined,
           fishingMethods: [...methods, ...customMethods],
           fishSpecies: [...species, ...customSpecies],
         }),
@@ -237,6 +239,16 @@ export default function SignupPage() {
             <input
               type="text" required placeholder="닉네임 (2자 이상)"
               value={form.nickname} onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+              className={FIELD_CLASS}
+            />
+            <input
+              type="text" placeholder="이름 (선택)"
+              value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className={FIELD_CLASS}
+            />
+            <input
+              type="tel" placeholder="전화번호 (선택, 예: 01012345678)"
+              value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
               className={FIELD_CLASS}
             />
           </div>
