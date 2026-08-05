@@ -45,7 +45,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
   const kind: IpnakProductType = normalizeProductType(searchParams.kind);
   await ensureIpnakRawColumns();
   const settings = await getSettings(IPNAK_PRODUCT_TYPES.map(t => IPNAK_ENABLED_KEY[t]));
-  const where = tab === \`requests\` ? { status: { in: [\`REQUESTED\`, \`PAID\`] } } : tab === \`payments\` ? { paymentStatus: { in: [\`READY\`, \`PAID\`, \`CANCELLED\`, \`REFUNDED\`] } } : tab === \`shipping\` ? { status: { in: [\`PREPARING\`, \`SHIPPED\`, \`DELIVERED\`] } } : {};
+  const where = tab === "requests" ? { status: { in: ["REQUESTED", "PAID"] } } : tab === "payments" ? { paymentStatus: { in: ["READY", "PAID", "CANCELLED", "REFUNDED"] } } : tab === "shipping" ? { status: { in: ["PREPARING", "SHIPPED", "DELIVERED"] } } : {};
   // productType은 Prisma가 모르는 raw 컬럼이라, 해당 타입의 주문 id를 먼저 뽑아 필터로 넘긴다.
   let orders: any[] = [];
   if (tab !== "price" && tab !== "products" && tab !== "registry") {

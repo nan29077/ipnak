@@ -21,11 +21,11 @@ export async function GET(req: Request) {
     // IpnakBallOrder + User + IpnakBallProduct JOIN (raw SQL, Prisma client 미재생성 대응)
     const sql = `
       SELECT
-        o.id, o."userId", o."productId", o.quantity, o."totalPrice",
-        o.status, o."trackingNumber", o."addressName", o.address, o."addressDetail",
-        o.phone, o.memo, o."createdAt", o."updatedAt",
-        u.nickname AS "userNickname", u.email AS "userEmail",
-        p.name AS "productName", p.price AS "productPrice", p."type" AS "productType"
+        o.id, o.\`userId\`, o.\`productId\`, o.quantity, o.\`totalPrice\`,
+        o.status, o.\`trackingNumber\`, o.\`addressName\`, o.address, o.\`addressDetail\`,
+        o.phone, o.memo, o.\`createdAt\`, o.\`updatedAt\`,
+        u.nickname AS userNickname, u.email AS userEmail,
+        p.name AS productName, p.price AS productPrice, p.\`type\` AS productType
       FROM \`IpnakBallOrder\` o
       JOIN \`User\` u ON u.id = o.\`userId\`
       JOIN \`IpnakBallProduct\` p ON p.id = o.\`productId\`
@@ -60,7 +60,7 @@ export async function PATCH(req: Request) {
         `SELECT o.status, o.quantity, o.\`productId\` FROM \`IpnakBallOrder\` o WHERE o.id = ?`, id
       );
       const order = rows[0];
-      if (order && order.status !== \`cancelled\` && order.productId && order.quantity) {
+      if (order && order.status !== "cancelled" && order.productId && order.quantity) {
         await prisma.$executeRawUnsafe(
           `UPDATE \`IpnakBallProduct\` SET \`stock\` = \`stock\` + ?, \`updatedAt\` = ? WHERE \`id\` = ?`,
           order.quantity, new Date().toISOString(), order.productId
