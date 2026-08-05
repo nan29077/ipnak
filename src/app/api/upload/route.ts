@@ -6,7 +6,8 @@ import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 
-// Next.js App Router — body size 기본 4MB, 이미지 최대 8MB 허용
+// Next.js App Router route handler는 body size 제한이 없다 (formData()는 스트림 처리).
+// 413 오류는 앞단 Nginx의 client_max_body_size 때문 — 서버에서 10m 이상으로 설정 필요.
 export const maxDuration = 30;
 
 const ALLOWED = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"];

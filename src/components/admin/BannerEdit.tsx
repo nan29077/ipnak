@@ -29,8 +29,13 @@ export function BannerEdit({ banner }: { banner: Banner }) {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "업로드 실패");
+      // Nginx 413 등은 HTML 오류 페이지를 반환하므로 JSON 파싱 전에 방어
+      let data: any = null;
+      try { data = await res.json(); } catch { /* JSON이 아닌 응답 (HTML 오류 페이지 등) */ }
+      if (!res.ok) {
+        if (res.status === 413) throw new Error("파일이 너무 큽니다. 5MB 이하 이미지를 사용해주세요.");
+        throw new Error(data?.error || `업로드 실패 (${res.status})`);
+      }
       setImageUrl(data.url);
     } catch (e: any) {
       toast(e.message, "error");
