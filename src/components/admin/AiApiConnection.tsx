@@ -79,7 +79,7 @@ export function AiApiConnection({ initial }: Props) {
     }
   }
 
-  const inputClass = "w-full rounded-xl border border-navy-100 bg-navy-50/60 px-3 py-2.5 pr-10 text-[13px] text-navy-800 outline-none transition focus:border-aqua-400 focus:bg-white";
+  const inputClass = "w-full rounded-xl border border-navy-200 bg-white px-3 py-2.5 pr-10 text-[13px] text-navy-800 placeholder:text-navy-400 outline-none transition focus:border-aqua-400 focus:ring-1 focus:ring-aqua-400/30";
   const isChatGpt = activeTab === "chatgpt";
 
   return (
@@ -102,11 +102,11 @@ export function AiApiConnection({ initial }: Props) {
 
       <div className="mt-5">
         {isChatGpt ? (
-          <SecretInput label="OpenAI API Key" value={openai} onChange={setOpenai} visible={visible} className={inputClass} />
+          <SecretInput label="OpenAI API Key" value={openai} onChange={setOpenai} visible={visible} className={inputClass} configured={initial.openaiConfigured} />
         ) : activeTab === "sms" ? (
           <div className="space-y-3">
-            <SecretInput label="SMS 서비스 API 키" value={smsApiKey} onChange={setSmsApiKey} visible={visible} className={inputClass} />
-            <SecretInput label="SMS 서비스 Secret" value={smsApiSecret} onChange={setSmsApiSecret} visible={visible} className={inputClass} />
+            <SecretInput label="SMS 서비스 API 키" value={smsApiKey} onChange={setSmsApiKey} visible={visible} className={inputClass} configured={initial.smsConfigured} />
+            <SecretInput label="SMS 서비스 Secret" value={smsApiSecret} onChange={setSmsApiSecret} visible={visible} className={inputClass} configured={initial.smsConfigured} />
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-semibold text-navy-600">발신 번호 (선택)</span>
               <input
@@ -125,8 +125,8 @@ export function AiApiConnection({ initial }: Props) {
           </div>
         ) : (
           <div className="space-y-3">
-            <SecretInput label="NAVER Search Client ID" value={naverClientId} onChange={setNaverClientId} visible={visible} className={inputClass} />
-            <SecretInput label="NAVER Search Client Secret" value={naverClientSecret} onChange={setNaverClientSecret} visible={visible} className={inputClass} />
+            <SecretInput label="NAVER Search Client ID" value={naverClientId} onChange={setNaverClientId} visible={visible} className={inputClass} configured={initial.naverConfigured} />
+            <SecretInput label="NAVER Search Client Secret" value={naverClientSecret} onChange={setNaverClientSecret} visible={visible} className={inputClass} configured={initial.naverConfigured} />
           </div>
         )}
       </div>
@@ -154,11 +154,33 @@ function ApiTabButton({ active, icon, label, configured, onClick }: { active: bo
   );
 }
 
-function SecretInput({ label, value, onChange, visible, className }: { label: string; value: string; onChange: (value: string) => void; visible: boolean; className: string }) {
+function SecretInput({ label, value, onChange, visible, className, configured }: { label: string; value: string; onChange: (value: string) => void; visible: boolean; className: string; configured?: boolean }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[12px] font-semibold text-navy-600">{label}</span>
-      <input type={visible ? "text" : "password"} autoComplete="off" value={value} onChange={(e) => onChange(e.target.value)} placeholder="입력할 때에만 변경할 수 있습니다" className={className} />
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="text-[12px] font-semibold text-navy-600">{label}</span>
+        {configured && !value && (
+          <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+            <CheckCircle2 size={11} /> 등록됨
+          </span>
+        )}
+      </div>
+      {configured && !value ? (
+        <div className="flex items-center gap-2 rounded-xl border border-navy-200 bg-navy-50 px-3 py-2.5">
+          <span className="flex-1 font-mono text-[13px] tracking-widest text-navy-500 select-none">
+            {visible ? "（현재 키 확인 불가 — 새로 입력해야 변경됩니다）" : "••••••••••••••••••••••••••••••••"}
+          </span>
+        </div>
+      ) : (
+        <input
+          type={visible ? "text" : "password"}
+          autoComplete="off"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={configured ? "새 키를 입력하면 덮어씁니다" : "키를 입력하세요"}
+          className={className}
+        />
+      )}
     </label>
   );
 }
