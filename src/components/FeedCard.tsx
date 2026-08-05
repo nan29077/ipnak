@@ -9,7 +9,7 @@ import { MiniRouteMap } from "@/components/MiniRouteMap";
 import Link from "next/link";
 import {
   Heart, MessageCircle, Share2, Bookmark, Tag, MapPin, Ruler, Fish, Send, ChevronLeft, ChevronRight,
-  Navigation, Clock, Route, Lock, Loader2, Maximize2, X,
+  Navigation, Clock, Route, Lock, Loader2, Maximize2, X, MoreVertical, Pencil, Trash2,
 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -49,6 +49,14 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
   const [showBurst, setShowBurst] = useState(false);
   const [likePop, setLikePop] = useState(false);
   const [savePop, setSavePop] = useState(false);
+  // 게시글 수정/삭제 메뉴
+  const [postMenuOpen, setPostMenuOpen] = useState(false);
+  const [postEditOpen, setPostEditOpen] = useState(false);
+  const [editCaption, setEditCaption] = useState("");
+  const [editHashtags, setEditHashtags] = useState("");
+  const [postDeleteOpen, setPostDeleteOpen] = useState(false);
+  const postMenuRef = useRef<HTMLDivElement>(null);
+  const isPostAuthor = currentUserId === post.author.id;
   const lastTapRef = useRef(0);
   const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -249,6 +257,16 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
     return () => el.removeEventListener('touchmove', handleTouchMove);
   }, []); // 마운트 시 한 번만 등록, 최신 값은 ref로 읽음
 
+  // 게시글 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!postMenuOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (postMenuRef.current && !postMenuRef.current.contains(e.target as Node)) setPostMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [postMenuOpen]);
+
   // 캐러셀 트랙 — idx 변경(화살표 클릭) 시 애니메이션으로 이동
   useEffect(() => {
     const track = trackRef.current;
@@ -281,6 +299,25 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
     try { await navigator.clipboard.writeText(url); toast("링크를 복사했습니다", "success"); }
     catch { toast("공유 링크: " + url, "info"); }
   }, [post, toast]);
+
+  async function deletePost() {
+    setPostDeleteOpen(false);
+    const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
+    if (res.ok) { toast("게시글을 삭제했어요", "success"); router.refresh(); }
+    else { toast("삭제에 실패했습니다", "error"); }
+  }
+
+  async function savePostEdit() {
+    const tags = editHashtags.split(",").map((h) => h.trim().replace(/^#/, "")).filter(Boolean);
+    const res = await fetch(`/api/posts/${post.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caption: editCaption, hashtags: tags }),
+    });
+    if (res.ok) { toast("수정했어요", "success"); setPostEditOpen(false); router.refresh(); }
+    else { toast("수정에 실패했습니다", "error"); }
+  }
+
   const multi = slides.length > 1;
 
   return (
@@ -303,6 +340,33 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
           </div>
         </div>
         {badge?.label && <Badge tone={badge.tone}>{badge.label}</Badge>}
+        {isPostAuthor && (
+          <div ref={postMenuRef} className="relative shrink-0">
+            <button
+              onClick={() => setPostMenuOpen((v) => !v)}
+              aria-label="더보기"
+              className="rounded-full p-1.5 text-navy-400 transition-colors hover:bg-navy-50/20"
+            >
+              <MoreVertical size={18} />
+            </button>
+            {postMenuOpen && (
+              <div className="absolute right-0 top-9 z-50 min-w-[130px] rounded-xl border border-navy-100/20 bg-[#142438] p-1 shadow-2xl">
+                <button
+                  onClick={() => { setPostMenuOpen(false); setEditCaption(post.caption ?? ""); setEditHashtags(post.hashtags.join(", ")); setPostEditOpen(true); }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[13px] text-navy-700 transition-colors hover:bg-navy-50/10"
+                >
+                  <Pencil size={15} /> 수정
+                </button>
+                <button
+                  onClick={() => { setPostMenuOpen(false); setPostDeleteOpen(true); }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[13px] text-red-400 transition-colors hover:bg-red-500/10"
+                >
+                  <Trash2 size={15} /> 삭제
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 이미지 캐러셀 + 피싱태그 */}
@@ -646,6 +710,66 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
         onCancel={() => setConfirmOpen(false)}
       />
 
+      {/* 게시글 삭제 확인 */}
+      <ConfirmDialog
+        open={postDeleteOpen}
+        title="게시글을 삭제할까요?"
+        message="삭제한 게시글은 복구할 수 없습니다."
+        confirmLabel="삭제"
+        cancelLabel="취소"
+        danger
+        onConfirm={deletePost}
+        onCancel={() => setPostDeleteOpen(false)}
+      />
+
+      {/* 게시글 수정 모달 */}
+      {postEditOpen && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9998] flex items-end justify-center bg-black/60"
+          onClick={() => setPostEditOpen(false)}
+        >
+          <div
+            className="w-full max-w-[640px] rounded-t-2xl bg-[#142438] p-4 pb-safe"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[15px] font-bold text-navy-900">게시글 수정</p>
+              <button onClick={() => setPostEditOpen(false)} className="rounded-full p-1.5 text-navy-400 hover:bg-navy-50/20">
+                <X size={18} />
+              </button>
+            </div>
+            <textarea
+              value={editCaption}
+              onChange={(e) => setEditCaption(e.target.value)}
+              rows={4}
+              className="w-full resize-none rounded-xl border border-navy-100 bg-navy-50 px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-400 outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-100"
+              placeholder="내용을 입력하세요"
+            />
+            <input
+              value={editHashtags}
+              onChange={(e) => setEditHashtags(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-navy-100 bg-navy-50 px-3 py-2.5 text-[13px] text-navy-800 placeholder-navy-400 outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-100"
+              placeholder="해시태그 (쉼표로 구분, 예: 광어, 배스낚시)"
+            />
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => setPostEditOpen(false)}
+                className="flex-1 rounded-xl border border-navy-100 py-3 text-[14px] font-semibold text-navy-500"
+              >
+                취소
+              </button>
+              <button
+                onClick={savePostEdit}
+                className="flex-1 rounded-xl bg-orange-500 py-3 text-[14px] font-semibold text-white hover:bg-orange-600"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
       <InsufficientPointsDialog
         open={insufficientOpen}
         current={currentBalance}
@@ -743,6 +867,16 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
   const top = comments.filter((c) => !c.parentId);
   const replies = (id: string) => comments.filter((c) => c.parentId === id);
 
+  async function deleteComment(commentId: string) {
+    const res = await fetch(`/api/posts/${postId}/comments/${commentId}`, { method: "DELETE" });
+    if (res.ok) {
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      toast("댓글을 삭제했어요", "success");
+    } else {
+      toast("삭제에 실패했습니다", "error");
+    }
+  }
+
   const commentInput = (
     <div>
       <div className="flex items-center gap-2">
@@ -768,9 +902,9 @@ function CommentSheet({ postId, open, onClose, currentUserId, onCommentAdded }: 
         {loaded && top.length === 0 && <p className="py-6 text-center text-sm text-navy-300">첫 댓글을 남겨보세요</p>}
         {top.map((c) => (
           <div key={c.id}>
-            <CommentRow c={c} onReply={() => startReply(c)} />
+            <CommentRow c={c} onReply={() => startReply(c)} onDelete={() => deleteComment(c.id)} currentUserId={currentUserId} />
             {replies(c.id).map((r) => (
-              <div key={r.id} className="ml-9 mt-2"><CommentRow c={r} onReply={() => startReply(r)} /></div>
+              <div key={r.id} className="ml-9 mt-2"><CommentRow c={r} onReply={() => startReply(r)} onDelete={() => deleteComment(r.id)} currentUserId={currentUserId} /></div>
             ))}
             {replyTo && replyTo.parentId === c.id && (
               <div className="ml-9 mt-2">
@@ -812,7 +946,8 @@ function ReplyInput({ nickname, disabled, onCancel, onSubmit }: { nickname: stri
   );
 }
 
-const CommentRow = memo(function CommentRow({ c, onReply }: { c: any; onReply?: () => void }) {
+const CommentRow = memo(function CommentRow({ c, onReply, onDelete, currentUserId }: { c: any; onReply?: () => void; onDelete?: () => void; currentUserId?: string }) {
+  const isAuthor = !!currentUserId && currentUserId === c.author.id;
   return (
     <div className="flex items-start gap-2">
       <img src={getAvatarUrl(c.author.id, c.author.avatarUrl)} alt="" loading="lazy" decoding="async" className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-navy-100" />
@@ -826,6 +961,9 @@ const CommentRow = memo(function CommentRow({ c, onReply }: { c: any; onReply?: 
           <span className="text-[11px] text-navy-300">{timeAgo(c.createdAt)}</span>
           {onReply && (
             <button onClick={onReply} className="text-[11px] font-semibold text-navy-400 transition-colors hover:text-aqua-400">답글 달기</button>
+          )}
+          {isAuthor && onDelete && (
+            <button onClick={onDelete} className="text-[11px] font-semibold text-red-400 transition-colors hover:text-red-500">삭제</button>
           )}
         </div>
       </div>
