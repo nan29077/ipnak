@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { SocialButtons } from "@/components/SocialButtons";
 import { Button } from "@/components/ui";
@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function login(em: string, pw: string) {
     setLoading(true);
@@ -71,11 +72,22 @@ export default function LoginPage() {
             placeholder="이메일" autoComplete="email"
             className={FIELD_CLASS}
           />
-          <input
-            type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-            placeholder="비밀번호" autoComplete="current-password"
-            className={FIELD_CLASS}
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="비밀번호" autoComplete="current-password"
+              className={`${FIELD_CLASS} pr-11`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+              tabIndex={-1}
+              aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+            >
+              {showPassword ? <EyeOff size={18} strokeWidth={1.5} /> : <Eye size={18} strokeWidth={1.5} />}
+            </button>
+          </div>
           <Button
             type="submit" variant="secondary" full disabled={loading}
             className="mt-1"
