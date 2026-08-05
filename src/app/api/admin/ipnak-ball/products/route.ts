@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from \`crypto\`;
+import { randomUUID } from "crypto";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { IPNAK_TYPE_LABEL, ensureIpnakRawColumns, normalizeProductType } from "@/lib/ipnakProduct";
