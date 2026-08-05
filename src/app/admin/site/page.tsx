@@ -15,6 +15,7 @@ import { PointsToggle } from "@/components/admin/PointsToggle";
 import { GroupPointsToggle } from "@/components/admin/GroupPointsToggle";
 import { AiApiConnection } from "@/components/admin/AiApiConnection";
 import { getAiConnectionStatus } from "@/lib/aiCredentials";
+import { BannerEdit, BANNER_SECTIONS } from "@/components/admin/BannerEdit";
 import { Badge, EmptyState } from "@/components/ui";
 import { kstFormat, cn } from "@/lib/utils";
 
@@ -80,8 +81,9 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
 
       {tab === "banners" ? (
         <>
-          <div className="mb-4">
+          <div className="mb-6">
             <CreateForm actionType="BANNER_CREATE" title="배너/공지 추가" fields={[
+              { name: "section", label: "섹션", type: "select", options: BANNER_SECTIONS, required: true },
               { name: "title", label: "제목", required: true },
               { name: "body", label: "내용" },
               { name: "imageUrl", label: "배너 이미지", type: "image" },
@@ -89,53 +91,72 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
             ]} />
           </div>
 
-          {/* PC 테이블 */}
-          <div className="hidden md:block">
-            <Table head={["이미지", "제목", "내용", "상태", "등록일", "관리"]}>
-              {banners.length === 0 && (
-                <tr><td colSpan={6} className="p-0"><EmptyState title="배너가 없습니다" desc="위 버튼으로 배너/공지를 추가해 보세요." /></td></tr>
-              )}
-              {banners.map((b) => (
-                <tr key={b.id} className={b.active ? "" : "opacity-50"}>
-                  <td className="px-4 py-3"><img src={b.imageUrl || ""} alt="" className="h-10 w-16 rounded-lg object-cover" /></td>
-                  <td className="px-4 py-3 font-semibold text-navy-800">{b.title}</td>
-                  <td className="max-w-[240px] truncate px-4 py-3 text-navy-500">{b.body}</td>
-                  <td className="px-4 py-3">{b.active ? <Badge tone="aqua">노출중</Badge> : <Badge tone="gray">숨김</Badge>}</td>
-                  <td className="px-4 py-3 text-navy-400">{kstFormat(b.createdAt, "MM.dd")}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1.5">
-                      <ActionButton payload={{ type: "BANNER_TOGGLE", id: b.id }} label={b.active ? "숨김" : "노출"} successMsg="변경되었습니다" />
-                      <ActionButton payload={{ type: "BANNER_DELETE", id: b.id }} label="삭제" variant="danger" confirm="이 배너/공지를 삭제할까요?" successMsg="삭제되었습니다" />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-          </div>
+          {BANNER_SECTIONS.map((sec) => {
+            const secBanners = banners.filter((b) => (b as any).section === sec.value || (!( b as any).section && sec.value === "main_top"));
+            return (
+              <div key={sec.value} className="mb-8">
+                <h3 className="mb-3 flex items-center gap-2 text-[13px] font-bold text-navy-700">
+                  <span className="h-2 w-2 rounded-full bg-orange-400" />
+                  {sec.label}
+                  <span className="text-navy-300 font-normal">({secBanners.length}개)</span>
+                </h3>
 
-          {/* 모바일 카드 목록 */}
-          <div className="space-y-3 md:hidden">
-            {banners.length === 0 && <EmptyState title="배너가 없습니다" desc="위 버튼으로 배너/공지를 추가해 보세요." />}
-            {banners.map((b) => (
-              <div key={b.id} className={`rounded-2xl border border-navy-100 bg-white px-3 py-3 shadow-card ${b.active ? "" : "opacity-50"}`}>
-                <div className="flex items-start gap-3">
-                  {b.imageUrl && <img src={b.imageUrl} alt="" className="h-12 w-20 shrink-0 rounded-lg object-cover" />}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-semibold text-navy-800">{b.title}</p>
-                      {b.active ? <Badge tone="aqua">노출중</Badge> : <Badge tone="gray">숨김</Badge>}
-                    </div>
-                    {b.body && <p className="mt-0.5 truncate text-[12px] text-navy-500">{b.body}</p>}
-                    <p className="mt-0.5 text-[11px] text-navy-300">{kstFormat(b.createdAt, "MM.dd")}</p>
-                  </div>
+                {/* PC 테이블 */}
+                <div className="hidden md:block">
+                  <Table head={["이미지", "제목", "내용", "상태", "등록일", "관리"]}>
+                    {secBanners.length === 0 && (
+                      <tr><td colSpan={6} className="p-0"><EmptyState title="배너가 없습니다" desc="위 추가 버튼으로 등록해 보세요." /></td></tr>
+                    )}
+                    {secBanners.map((b) => (
+                      <tr key={b.id} className={b.active ? "" : "opacity-50"}>
+                        <td className="px-4 py-3">
+                          {b.imageUrl
+                            ? <img src={b.imageUrl} alt="" className="h-10 w-16 rounded-lg object-cover" />
+                            : <div className="h-10 w-16 rounded-lg bg-navy-50 flex items-center justify-center text-[10px] text-navy-300">없음</div>}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-navy-800">{b.title}</td>
+                        <td className="max-w-[200px] truncate px-4 py-3 text-navy-500">{b.body}</td>
+                        <td className="px-4 py-3">{b.active ? <Badge tone="aqua">노출중</Badge> : <Badge tone="gray">숨김</Badge>}</td>
+                        <td className="px-4 py-3 text-navy-400">{kstFormat(b.createdAt, "MM.dd")}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1.5">
+                            <BannerEdit banner={{ ...b, section: (b as any).section || "main_top" }} />
+                            <ActionButton payload={{ type: "BANNER_TOGGLE", id: b.id }} label={b.active ? "숨김" : "노출"} successMsg="변경되었습니다" />
+                            <ActionButton payload={{ type: "BANNER_DELETE", id: b.id }} label="삭제" variant="danger" confirm="이 배너를 삭제할까요?" successMsg="삭제되었습니다" />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </Table>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <ActionButton payload={{ type: "BANNER_TOGGLE", id: b.id }} label={b.active ? "숨김" : "노출"} successMsg="변경되었습니다" />
-                  <ActionButton payload={{ type: "BANNER_DELETE", id: b.id }} label="삭제" variant="danger" confirm="이 배너/공지를 삭제할까요?" successMsg="삭제되었습니다" />
+
+                {/* 모바일 카드 */}
+                <div className="space-y-3 md:hidden">
+                  {secBanners.length === 0 && <EmptyState title="배너가 없습니다" desc="위 추가 버튼으로 등록해 보세요." />}
+                  {secBanners.map((b) => (
+                    <div key={b.id} className={`rounded-2xl border border-navy-100 bg-white px-3 py-3 shadow-card ${b.active ? "" : "opacity-50"}`}>
+                      <div className="flex items-start gap-3">
+                        {b.imageUrl && <img src={b.imageUrl} alt="" className="h-12 w-20 shrink-0 rounded-lg object-cover" />}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-semibold text-navy-800">{b.title}</p>
+                            {b.active ? <Badge tone="aqua">노출중</Badge> : <Badge tone="gray">숨김</Badge>}
+                          </div>
+                          {b.body && <p className="mt-0.5 truncate text-[12px] text-navy-500">{b.body}</p>}
+                          <p className="mt-0.5 text-[11px] text-navy-300">{kstFormat(b.createdAt, "MM.dd")}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <BannerEdit banner={{ ...b, section: (b as any).section || "main_top" }} />
+                        <ActionButton payload={{ type: "BANNER_TOGGLE", id: b.id }} label={b.active ? "숨김" : "노출"} successMsg="변경되었습니다" />
+                        <ActionButton payload={{ type: "BANNER_DELETE", id: b.id }} label="삭제" variant="danger" confirm="이 배너를 삭제할까요?" successMsg="삭제되었습니다" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </>
       ) : tab === "pcbg" ? (
         <div className="grid gap-4 lg:grid-cols-2">

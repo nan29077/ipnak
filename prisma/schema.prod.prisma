@@ -709,6 +709,7 @@ model Banner {
   body      String?  @db.Text
   imageUrl  String?  @db.Text
   linkUrl   String?  @db.Text
+  section   String   @default("main_top")
   active    Boolean  @default(true)
   order     Int      @default(0)
   createdAt DateTime @default(now())

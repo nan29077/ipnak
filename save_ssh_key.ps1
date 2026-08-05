@@ -1,0 +1,40 @@
+$keyContent = @"
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpQIBAAKCAQEAxuiPPGSrHNe0KCXHAyRKMYkx130jOOLjviHEIGXY9gK9aDma
+dYXe7QDotetYrHxUEIkTG3tzolysJhimRC5gtpLNqYnY2NukDQVepQvQ754ulZzC
+eFgVTXMDLN5Pf9gy2096Aj6jrxrBruFb8cEBRg3g4SYP/xI2QtI2fODHYNZq7sxh
+zqsokMEGQcUIAtex+IHCCpDHhwwLDqv3cNzM6j8Ptb3i1PXB++VXxCAAmNrf7cI7
+RFx14pe6dyFNCUNdj8fzdeMhWlO/H4aFyQIu6ct3VUY7kPEkCDCAVZA883G8HkOB
+7oacaYRNvmaqs0/DAZW+NLgkGBx556yIdm+hwQIDAQABAoIBAQCpWZuKOdOODQDw
+JanZPO6GWl67L2nrpxFr8efABbbBTffhYxnk8YOpmdqH+MZYpMoWAf7oqST8mZZg
+ISB+cFYbW8YKkLi1eduk0muQbg0H1k+nRf405BnPBRsw+l4JZRN3saUZgCdwkIFS
+2cCkhkUFVg+e4f9AlkrofX2yuNZH1QaAbsdIxaSLp38z/DYm/Bv+6gMN0/R20v35
+tXzC1c4KGxOz3gPWoa365HlTYvI3WqzPWppItodDipg/IDtM9MxlmYwaH0BQrRjm
+kVjSC7zfsO4KfIH7YcsCzxuJ3Ps99p/VpT2faWHkUUoQS8dBDfRJr0R7fLFrKxx6
+vIm7TWu5AoGBAObXoRZBr6WBu+RpdSpM6w9CAGJf/pgC+vK84+ErDTy8ZlKgR74L
+YJoXRLZ3utTspZlPDuy1OXZ2KeLFFpb1iy5odMKQz+gIDb0xPLzCwRpbx3XvYnFE
+5iM8XH3g8upB8trMiAQQ25tNxI1w3+8ORhDB1D4VW50X4sTKmZvpJ+9LAoGBANyV
+/knRinxTpZaVd8MyIP+PSYwdiC62yOdx8h6x2uaSNUds5oXiajyxPXI3nEPN19PB
+UvFQ8pExRbeSXT872HDORcbxCyNMpru1cSl+eZvwfi8+ZzTEI5C6PMBks3f9QMAs
+qm/Z6RCEJcuU/Ud7gIAapnxWqzBMQ55+23/Fiq+jAoGBANGPeS6CTRlcEB2IWxQe
+pdnBGiY0bSTEt9o6/kjAU5EKm31xAhAVtgnNC9T2FocLmj32Fl9vGY5gMSAruZkr
+qcFklHK5EfTbstVI6JGX38O1A/sdaWnYmW/tcS3ZU8y0N+rHeMbwItz3GXMpwDD9
+7T9zJuGBdBzFvVjXb+GpJVbHAoGAIXkdamRCyJUE5rHtx5Ae08kRlxKQLM6N9Bkl
+baT9m8mKDjmnTZ/LEUSwF1n6+4sL+lU22em3tXKtqqqqPcM+F/glPIgtcYDbOFbT
+QkGwAIrhCxhEHwy4fOjV+TgOx+GFZuQgRPLjXB9BgQAt4yAJouboZqvcNGsOQ8nq
+UxxN7FMCgYEApw/uN69iiERBOY4+bbIEJ8avTAW6DKWJ4eNYelG1RVuXc7xkcDQc
+9eQ8ib4Xra3g5rLycZ4kFLBV3XKQsuhobSpS7O/V6smAas1hdecBqg9rHZf6wcuH
+++NvYUXeQeNgCZI+HVRLMrwsFjdwN/eTa59Rt8ldyVAulAWVFWxt+vo=
+-----END RSA PRIVATE KEY-----
+"@
+
+$keyPath = "$env:USERPROFILE\.ssh\ipnak.pem"
+$keyContent | Set-Content -Path $keyPath -Encoding ASCII -NoNewline
+
+# 권한 설정 (본인만 읽기 가능)
+icacls $keyPath /inheritance:r /grant:r "${env:USERNAME}:R"
+
+Write-Host "키 파일 저장 완료: $keyPath"
+Write-Host "이제 아래 명령어로 접속하세요:"
+Write-Host "ssh -i `"$keyPath`" ubuntu@43.201.119.217"
+pause

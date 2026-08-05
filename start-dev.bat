@@ -13,7 +13,7 @@ cd /d "%~dp0"
 echo [ipnak] Project folder: "%CD%"
 echo.
 
-set "PORT=3009"
+set "PORT=3010"
 
 REM --- 0) Free the port: kill whatever is listening on 3009 ---
 echo [ipnak] Releasing port %PORT% if it is in use ...
@@ -92,7 +92,7 @@ if not exist "prisma\dev.db" (
   call npm run db:reset
 ) else (
   echo [ipnak] Local database found - applying schema ...
-  call npx prisma db push >nul 2>&1
+  call npx prisma db push --accept-data-loss >nul 2>&1
 )
 echo.
 

@@ -301,7 +301,7 @@ export async function POST(req: Request) {
         await prisma.banner.update({ where: { id: b.id }, data: { active: !bn?.active } });
         await log("BANNER_TOGGLE", b.id); break;
       case "BANNER_CREATE":
-        await prisma.banner.create({ data: { title: b.title, body: b.body || null, imageUrl: b.imageUrl || null, linkUrl: b.linkUrl || null, active: true } });
+        await prisma.banner.create({ data: { title: b.title, body: b.body || null, imageUrl: b.imageUrl || null, linkUrl: b.linkUrl || null, section: b.section || "main_top", active: true } });
         await log("BANNER_CREATE", undefined, b.title); break;
       case "SETTING_SET": {
         if (String(b.key || "").startsWith("ai_connection_")) return NextResponse.json({ error: "AI 키는 AI API 연결 메뉴에서만 변경할 수 있습니다." }, { status: 400 });
@@ -329,6 +329,18 @@ export async function POST(req: Request) {
         });
         await log("SETTING_SET", key, value); break;
       }
+      case "BANNER_UPDATE":
+        await prisma.banner.update({
+          where: { id: b.id },
+          data: {
+            title: b.title,
+            body: b.body || null,
+            imageUrl: b.imageUrl || null,
+            linkUrl: b.linkUrl || null,
+            section: b.section || "main_top",
+          },
+        });
+        await log("BANNER_UPDATE", b.id, b.title); break;
       case "BANNER_DELETE":
         await prisma.banner.delete({ where: { id: b.id } });
         await log("BANNER_DELETE", b.id); break;
