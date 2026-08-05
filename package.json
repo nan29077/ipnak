@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "predev": "node scripts/check-next-cache.mjs",
-    "dev": "next dev -H 0.0.0.0 -p 3009",
-    "build": "prisma generate && next build",
-    "start": "next start -H 0.0.0.0 -p 3009",
+    "dev": "next dev -H 0.0.0.0 -p 3010",
+    "build": "prisma generate --schema=prisma/schema.prod.prisma && next build",
+    "start": "next start -H 0.0.0.0 -p 3010",
     "lint": "next lint",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
