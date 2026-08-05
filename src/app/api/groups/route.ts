@@ -11,8 +11,8 @@ function createId() {
 export async function GET(req: Request) {
   const user = await getCurrentUser();
   const { searchParams } = new URL(req.url);
-  const region = searchParams.get(\`region\`) || "";
-  const fishSpecies = searchParams.get(\`fishSpecies\`) || "";
+  const region = searchParams.get("region") || "";
+  const fishSpecies = searchParams.get("fishSpecies") || "";
   const search = searchParams.get("search") || "";
 
   let where = `WHERE g.\`isPublic\` = 1`;
