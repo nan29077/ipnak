@@ -107,10 +107,20 @@ export type SpeciesFit = {
 
 // ===== 상수 =====
 
-/** 조위관측소 최신 관측데이터 — 조위·수온·기온·기압·풍향·풍속을 한 번에 준다. */
-const DT_RECENT = "https://apis.data.go.kr/1192136/dtRecent/getObsDtRecent";
-/** 조위관측소 조석예보(고조·저조 시각표) */
-const TIDE_PRE_TAB = "https://apis.data.go.kr/1192136/tideObs/getTideObsPreTab";
+/**
+ * 조위관측소 최신 관측데이터 — 조위·수온·기온·기압·풍향·풍속을 한 번에 준다.
+ * data.go.kr 은 서비스마다 오퍼레이션 경로가 붙는 형태(`.../dtRecent/getObsDtRecent`)와
+ * 베이스 URL 자체가 엔드포인트인 형태(`.../dtRecent`)가 섞여 있어 순서대로 시도한다.
+ */
+const DT_RECENT_ENDPOINTS = [
+  "https://apis.data.go.kr/1192136/dtRecent/getObsDtRecent",
+  "https://apis.data.go.kr/1192136/dtRecent",
+];
+/** 조위관측소 조석예보(고조·저조 시각표) — 위와 같은 이유로 폴백 경로를 함께 둔다. */
+const TIDE_PRE_TAB_ENDPOINTS = [
+  "https://apis.data.go.kr/1192136/tideObs/getTideObsPreTab",
+  "https://apis.data.go.kr/1192136/tideObs",
+];
 const KMA_NCST = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst";
 const FETCH_TIMEOUT = 6000;
 /** 이 거리를 넘으면 해양 관측소 데이터를 쓰지 않는다 (내륙 저수지 등) */
@@ -197,25 +207,76 @@ async function memo<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promis
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
   const value = await fn();
-  cache.set(key, { at: Date.now(), value });
-  // 캐시가 무한정 자라지 않도록 오래된 항목 정리
-  if (cache.size > 200) {
-    for (const [k, v] of cache) if (Date.now() - v.at > 6 * 3600_000) cache.delete(k);
+  // 실패(null)는 캐시하지 않는다 — 일시적 오류가 TTL 동안 굳어 카드가 계속 비는 걸 막는다.
+  if (value != null) {
+    cache.set(key, { at: Date.now(), value });
+    // 캐시가 무한정 자라지 않도록 오래된 항목 정리
+    if (cache.size > 200) {
+      for (const [k, v] of cache) if (Date.now() - v.at > 6 * 3600_000) cache.delete(k);
+    }
   }
   return value;
 }
 
-async function getJson(url: string): Promise<any | null> {
+/** 로그에 인증키가 그대로 찍히지 않도록 serviceKey 값을 가린다. */
+function maskUrl(url: string) {
+  return url.replace(/(serviceKey=)[^&]*/i, "$1***");
+}
+
+const DEBUG_PREFIX = "[ipnak][marine]";
+
+/**
+ * 공공 API 호출 + 진단 로그.
+ * 어떤 URL 로 호출했고, 상태코드가 뭐였고, 본문 앞 500자가 어땠는지 남긴다.
+ * (data.go.kr 은 잘못된 오퍼레이션/키일 때도 200 + XML 로 응답해서 로그 없이는 원인 파악이 어렵다)
+ */
+async function getJson(url: string, label = "api"): Promise<any | null> {
+  const started = Date.now();
   try {
+    console.log(`${DEBUG_PREFIX} ${label} → GET ${maskUrl(url)}`);
     const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT), cache: "no-store" });
+    const text = await res.text().catch(() => "");
+    console.log(
+      `${DEBUG_PREFIX} ${label} ← HTTP ${res.status} (${Date.now() - started}ms, ${text.length}b) ${text.slice(0, 500)}`,
+    );
     if (!res.ok) return null;
-    const text = await res.text();
+    const trimmed = text.trim();
     // 공공 API 는 오류 시 XML/HTML 을 200 으로 내려주는 경우가 있어 JSON 파싱을 방어한다.
-    if (!text.trim().startsWith("{") && !text.trim().startsWith("[")) return null;
-    return JSON.parse(text);
-  } catch {
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch (e: any) {
+      console.log(`${DEBUG_PREFIX} ${label} ! JSON 파싱 실패: ${e?.message || "parse error"}`);
+      return null;
+    }
+  } catch (e: any) {
+    console.log(`${DEBUG_PREFIX} ${label} ! 호출 실패 (${Date.now() - started}ms): ${e?.name || "error"} ${e?.message || ""}`);
     return null;
   }
+}
+
+/**
+ * 엔드포인트 후보를 순서대로 호출해 **행이 실제로 들어있는** 첫 응답을 돌려준다.
+ * 200 이지만 빈 결과/에러 바디인 경우도 다음 후보로 넘어간다.
+ */
+async function getJsonWithFallback(
+  endpoints: string[],
+  query: string,
+  label: string,
+): Promise<any | null> {
+  for (let i = 0; i < endpoints.length; i++) {
+    const url = `${endpoints[i]}${query}`;
+    const json = await getJson(url, `${label}#${i + 1}`);
+    if (!json) continue;
+    const rows = khoaRows(json);
+    if (rows.length > 0) {
+      console.log(`${DEBUG_PREFIX} ${label}#${i + 1} ✓ rows=${rows.length} keys=${Object.keys(rows[0] ?? {}).join(",")}`);
+      return json;
+    }
+    console.log(`${DEBUG_PREFIX} ${label}#${i + 1} ✗ 응답은 왔지만 사용할 행이 없어 다음 경로를 시도합니다.`);
+  }
+  console.log(`${DEBUG_PREFIX} ${label} ✗ 모든 엔드포인트 실패`);
+  return null;
 }
 
 /** 응답 필드명이 문서/버전마다 달라서 후보 키를 순회하며 숫자를 뽑는다. */
@@ -249,18 +310,63 @@ function khoaRows(json: any): any[] {
     json?.response?.body?.items?.item,
     json?.response?.body?.items,
     json?.response?.body?.item,
+    json?.response?.body?.data,
+    json?.response?.body,
     json?.body?.items?.item,
+    json?.body?.items,
+    json?.body?.item,
+    json?.items?.item,
+    json?.items,
+    json?.item,
+    json?.result?.data?.data,
     json?.result?.data,
+    json?.result?.items?.item,
+    json?.result?.item,
+    json?.data?.item,
     json?.data,
     json?.result,
+    json?.list,
+    Array.isArray(json) ? json : null,
   ];
   for (const d of candidates) {
-    if (Array.isArray(d)) {
-      const rows = d.filter((r) => r && typeof r === "object");
-      if (rows.length) return rows;
-    } else if (d && typeof d === "object") {
-      return [d];
-    }
+    const rows = asRows(d);
+    if (rows.length) return rows;
+  }
+  // 위 후보에 없으면 구조가 또 바뀐 것 — 객체 배열을 얕은 깊이로 탐색해 마지막 방어선을 둔다.
+  return deepFindRows(json, 0);
+}
+
+/** 응답 껍데기(페이지 정보·결과코드)에만 쓰이는 키 — 이것만 있는 객체는 관측행이 아니다. */
+const ENVELOPE_KEYS = new Set([
+  "totalCount", "pageNo", "numOfRows", "resultCode", "resultMsg", "returnCode", "returnAuthMsg",
+  "header", "body", "items", "item", "data", "result", "response", "list", "count", "meta",
+]);
+
+/** 값이 "관측행"으로 쓸 만한지 판별 — 배열이면 객체만 추리고, 단일 객체면 실제 데이터 필드가 있어야 한다. */
+function asRows(d: any): any[] {
+  if (Array.isArray(d)) {
+    return d.filter((r) => r && typeof r === "object" && !Array.isArray(r));
+  }
+  if (d && typeof d === "object") {
+    const hasDataField = Object.entries(d).some(
+      ([k, v]) => !ENVELOPE_KEYS.has(k) && (typeof v === "string" || typeof v === "number"),
+    );
+    return hasDataField ? [d] : [];
+  }
+  return [];
+}
+
+/** 응답 스펙이 예상 밖일 때를 위한 얕은 재귀 탐색 (깊이 4 제한, 첫 객체 배열 채택) */
+function deepFindRows(node: any, depth: number): any[] {
+  if (!node || typeof node !== "object" || depth > 4) return [];
+  if (Array.isArray(node)) {
+    const rows = node.filter((r) => r && typeof r === "object" && !Array.isArray(r));
+    if (rows.length) return rows;
+    return [];
+  }
+  for (const v of Object.values(node)) {
+    const found = deepFindRows(v, depth + 1);
+    if (found.length) return found;
   }
   return [];
 }
@@ -383,8 +489,9 @@ async function fetchTide(key: string, lat: number, lng: number): Promise<TideInf
   if (distanceKm > MAX_STATION_KM) return null;
   const date = kstYmd();
 
+  const query = `?serviceKey=${encodeURIComponent(key)}&obsCode=${station.code}&date=${date}&ResultType=json&resultType=json&numOfRows=100&pageNo=1&dataType=JSON`;
   const json = await memo(`tide:${station.code}:${date}`, 3 * 3600_000, () =>
-    getJson(`${TIDE_PRE_TAB}?serviceKey=${encodeURIComponent(key)}&obsCode=${station.code}&date=${date}&resultType=json`),
+    getJsonWithFallback(TIDE_PRE_TAB_ENDPOINTS, query, `tideObs ${station.name}`),
   );
   if (!json) return null;
 
@@ -472,9 +579,46 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
   if (distanceKm > MAX_STATION_KM) return EMPTY_DT_RECENT;
   const date = kstYmd();
 
-  const json = await memo(`dtrecent:${station.code}:${date}:${new Date().getUTCHours()}`, 30 * 60_000, () =>
-    getJson(`${DT_RECENT}?serviceKey=${encodeURIComponent(key)}&obsCode=${station.code}&resultType=json`),
-  );
+  // obsCode 형태 변형: "DT_0001" → "0001" → "1"
+  const numericPart = station.code.replace("DT_", "");
+  const numericStripped = String(parseInt(numericPart, 10));
+  const obsCodeVariants = [
+    station.code,      // "DT_0001"
+    numericPart,       // "0001"
+    numericStripped,   // "1"
+  ];
+  // 파라미터 키 형태 변형 (API 버전/문서마다 다름)
+  const paramKeyVariants = ["obsCode", "ObsCode", "obs_code", "stationCode"];
+
+  // 공통 파라미터 (numOfRows=10 을 먼저 시도, 일부 API에서 누락 시 거부)
+  const baseParams = `serviceKey=${encodeURIComponent(key)}&date=${date}&ResultType=json&resultType=json&numOfRows=10&pageNo=1&dataType=JSON`;
+
+  const cacheKey = `dtrecent:${station.code}:${date}:${new Date().getUTCHours()}`;
+
+  const json = await memo(cacheKey, 30 * 60_000, async () => {
+    // obsCode × paramKey 조합을 순서대로 시도해 첫 성공 응답을 반환한다.
+    for (const obsCode of obsCodeVariants) {
+      for (const paramKey of paramKeyVariants) {
+        const query = `?${baseParams}&${paramKey}=${obsCode}`;
+        const label = `dtRecent ${station.name}(${paramKey}=${obsCode})`;
+        const result = await getJsonWithFallback(DT_RECENT_ENDPOINTS, query, label);
+        if (result) {
+          const rows = khoaRows(result);
+          if (rows.length > 0) {
+            console.log(
+              `${DEBUG_PREFIX} dtRecent ✓ 성공 파라미터: ${paramKey}=${obsCode}, rows=${rows.length}, keys=${Object.keys(rows[rows.length - 1] ?? {}).join(",")}`,
+            );
+            return result;
+          }
+        }
+      }
+    }
+    console.log(
+      `${DEBUG_PREFIX} dtRecent ✗ 모든 파라미터 조합 실패 (${obsCodeVariants.length * paramKeyVariants.length}가지 시도)`,
+    );
+    return null;
+  });
+
   if (!json) return EMPTY_DT_RECENT;
 
   const rows = khoaRows(json);
@@ -487,7 +631,7 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
   );
 
   // --- 수온 ---
-  const temp = pickNum(row, ["water_temp", "waterTemp", "wt", "temp"]);
+  const temp = pickNum(row, ["water_temp", "waterTemp", "wt", "twd", "wtemp", "tw", "temp"]);
   const waterTemp: WaterTempInfo | null =
     temp != null && temp >= -5 && temp <= 40
       ? {
@@ -499,7 +643,7 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
       : null;
 
   // --- 기압 ---
-  const hpaRaw = pickNum(row, ["air_pres", "airPres", "air_press", "airPress", "pressure"]);
+  const hpaRaw = pickNum(row, ["air_pres", "airPres", "air_press", "airPress", "pressure", "ap", "air_pressure", "atm_pres"]);
   let pressure: PressureInfo | null = null;
   if (hpaRaw != null && hpaRaw >= 900 && hpaRaw <= 1100) {
     const at = observedAt ? observedAt.getTime() : Date.now();
@@ -518,8 +662,8 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
   }
 
   // --- 해상 풍향·풍속 ---
-  const deg = pickNum(row, ["wind_dir", "windDir", "dir"]);
-  const speed = pickNum(row, ["wind_speed", "windSpeed", "speed"]);
+  const deg = pickNum(row, ["wind_dir", "windDir", "dir", "wd", "wind_direction"]);
+  const speed = pickNum(row, ["wind_speed", "windSpeed", "speed", "ws", "wind_spd"]);
   const dir = deg != null ? windCodeOf(deg) : null;
   const wind: WindInfo | null =
     deg != null || speed != null
@@ -543,10 +687,14 @@ async function fetchKmaNowcast(key: string, lat: number, lng: number): Promise<{
   const { base_date, base_time } = ncstBase();
 
   const json = await memo(`kma:${nx}:${ny}:${base_date}${base_time}`, 30 * 60_000, () =>
-    getJson(`${KMA_NCST}?serviceKey=${encodeURIComponent(key)}&pageNo=1&numOfRows=100&dataType=JSON&base_date=${base_date}&base_time=${base_time}&nx=${nx}&ny=${ny}`),
+    getJson(
+      `${KMA_NCST}?serviceKey=${encodeURIComponent(key)}&pageNo=1&numOfRows=100&dataType=JSON&base_date=${base_date}&base_time=${base_time}&nx=${nx}&ny=${ny}`,
+      `kma ${nx},${ny}`,
+    ),
   );
-  const items: any[] = json?.response?.body?.items?.item ?? [];
-  if (!Array.isArray(items) || items.length === 0) return { wind: null, air: null };
+  const raw = json?.response?.body?.items?.item;
+  const items: any[] = Array.isArray(raw) ? raw : khoaRows(json);
+  if (items.length === 0) return { wind: null, air: null };
 
   const map = new Map<string, string>();
   for (const it of items) if (it?.category) map.set(String(it.category), String(it.obsrValue));
@@ -621,12 +769,20 @@ export async function getMarineSnapshot(
   let tideApiKey = "";
   let weatherApiKey = "";
   try {
+    // 관리자 화면에 저장된 값이 우선이고, 없으면 .env(TIDE_API_KEY / WEATHER_API_KEY)로 폴백된다.
     const c = await getMarineCredentials();
     tideApiKey = c.tideApiKey;
     weatherApiKey = c.weatherApiKey;
-  } catch {
+  } catch (e: any) {
+    console.log(`${DEBUG_PREFIX} 자격증명 조회 실패: ${e?.message || "error"}`);
     notes.push("공공 API 키를 불러오지 못했습니다.");
   }
+  // 키 값 자체는 절대 찍지 않고, 해결 여부/출처만 남긴다.
+  console.log(
+    `${DEBUG_PREFIX} keys tide=${tideApiKey ? `ok(len ${tideApiKey.length}${tideApiKey === process.env.TIDE_API_KEY ? ", env" : ", db"})` : "none"}` +
+      ` weather=${weatherApiKey ? `ok(len ${weatherApiKey.length}${weatherApiKey === process.env.WEATHER_API_KEY ? ", env" : ", db"})` : "none"}` +
+      ` at ${lat.toFixed(4)},${lng.toFixed(4)}`,
+  );
 
   const { distanceKm } = findNearestStation(lat, lng);
   const inland = distanceKm > MAX_STATION_KM;
@@ -647,6 +803,12 @@ export async function getMarineSnapshot(
 
   // 해상 관측 바람이 낚시에 더 유효하지만, 없으면 기상청 육상 실황으로 대체한다.
   const wind = seaWind ?? kma.wind;
+
+  console.log(
+    `${DEBUG_PREFIX} snapshot inland=${inland} 조석=${tide ? `${tide.events.length}건` : "없음"}` +
+      ` 수온=${waterTemp ? `${waterTemp.tempC}℃` : "없음"} 바람=${wind ? (wind.source ?? "ok") : "없음"}` +
+      ` 기압=${pressure ? `${pressure.hpa}hPa` : "없음"} 기온=${kma.air ? "ok" : "없음"}`,
+  );
 
   return {
     lat,
