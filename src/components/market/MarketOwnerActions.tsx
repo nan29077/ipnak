@@ -1,13 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Loader2, Check } from "lucide-react";
+import { Trash2, Loader2, Check, Pencil } from "lucide-react";
+import Link from "next/link";
 import { useToast } from "@/components/Toast";
 import { MARKET_STATUS } from "@/lib/taxonomy";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
-// 판매자 본인용 하단 바: 판매중/예약중/판매완료 전환 + 삭제
+// 판매자 본인용 하단 바: 판매중/예약중/판매완료 전환 + 수정 + 삭제
 export function MarketOwnerActions({ listingId, initialStatus }: { listingId: string; initialStatus: string }) {
   const router = useRouter();
   const toast = useToast();
@@ -67,6 +68,15 @@ export function MarketOwnerActions({ listingId, initialStatus }: { listingId: st
               </button>
             ))}
           </div>
+          {/* 수정 버튼 — 판매글 수정 페이지로 이동 */}
+          <Link
+            href={`/market/${listingId}/edit`}
+            aria-label="수정"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-navy-100/30 bg-[#162538] text-navy-600 transition-colors hover:bg-navy-50/10"
+          >
+            <Pencil size={18} />
+          </Link>
+          {/* 삭제 버튼 */}
           <button
             onClick={() => setConfirmOpen(true)}
             disabled={busy}
