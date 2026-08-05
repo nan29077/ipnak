@@ -227,22 +227,14 @@ function SecretInput({ label, value, onChange, visible, className, configured }:
           </span>
         )}
       </div>
-      {configured && !value ? (
-        <div className="flex items-center gap-2 rounded-xl border border-navy-200 bg-navy-50 px-3 py-2.5">
-          <span className="flex-1 font-mono text-[13px] tracking-widest text-navy-500 select-none">
-            {visible ? "（현재 키 확인 불가 — 새로 입력해야 변경됩니다）" : "••••••••••••••••••••••••••••••••"}
-          </span>
-        </div>
-      ) : (
-        <input
-          type={visible ? "text" : "password"}
-          autoComplete="off"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={configured ? "새 키를 입력하면 덮어씁니다" : "키를 입력하세요"}
-          className={className}
-        />
-      )}
+      <input
+        type={visible ? "text" : "password"}
+        autoComplete="off"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={configured ? "새 키를 입력하면 덮어씁니다" : "키를 입력하세요"}
+        className={className}
+      />
     </label>
   );
 }
