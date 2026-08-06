@@ -12,9 +12,9 @@ const schema = z.object({
     .string({ required_error: "비밀번호를 입력하세요." })
     .min(8, "비밀번호는 8자 이상이어야 합니다.")
     .regex(PW_REGEX, "비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다."),
-  nickname: z.string({ required_error: "닉네임을 입력하세요." }).min(2, "닉네임은 2자 이상이어야 합니다."),
-  name: z.string().optional(),
-  phone: z.string().optional(),
+  nickname: z.string().min(2, "닉네임은 2자 이상이어야 합니다.").optional(),
+  name: z.string({ required_error: "이름을 입력하세요." }).min(1, "이름을 입력하세요."),
+  phone: z.string({ required_error: "전화번호를 입력하세요." }).min(1, "전화번호를 입력하세요."),
   fishingMethods: z.array(z.string()).optional(),
   fishSpecies: z.array(z.string()).optional(),
   // 구버전 호환 (flat array)
@@ -32,6 +32,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
   const { email, password, nickname, name, phone, fishingMethods, fishSpecies, interests, termsConsent, privacyConsent, locationConsent } = parsed.data;
+  // 닉네임 미입력 시 이메일 앞자리 + 4자리 랜덤 숫자로 자동 생성
+  const finalNickname = nickname || (email.split("@")[0] + Math.floor(1000 + Math.random() * 9000));
 
   const exists = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (exists) {
@@ -50,9 +52,9 @@ export async function POST(req: Request) {
       data: {
         email: email.toLowerCase(),
         passwordHash: await hashPassword(password),
-        nickname,
-        name: name || null,
-        phone: phone || null,
+        nickname: finalNickname,
+        name,
+        phone,
         role: "ANGLER",
         avatarUrl: null,
         interests: interestsPayload,

@@ -177,9 +177,9 @@ export default function SignupPage() {
         body: JSON.stringify({
           email: form.email,
           password: form.password,
-          nickname: form.nickname,
-          name: form.name || undefined,
-          phone: form.phone || undefined,
+          nickname: form.nickname || undefined,
+          name: form.name,
+          phone: form.phone,
           fishingMethods: [...methods, ...customMethods],
           fishSpecies: [...species, ...customSpecies],
           termsConsent: consentTerms,
@@ -254,17 +254,17 @@ export default function SignupPage() {
               <p className="text-[12px] text-red-400">비밀번호가 일치하지 않습니다.</p>
             )}
             <input
-              type="text" required placeholder="닉네임 (2자 이상)"
+              type="text" placeholder="닉네임 (선택, 2자 이상)"
               value={form.nickname} onChange={(e) => setForm({ ...form, nickname: e.target.value })}
               className={FIELD_CLASS}
             />
             <input
-              type="text" placeholder="이름 (선택)"
+              type="text" required placeholder="이름"
               value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               className={FIELD_CLASS}
             />
             <input
-              type="tel" placeholder="전화번호 (선택, 예: 01012345678)"
+              type="tel" required placeholder="전화번호 (예: 01012345678)"
               value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
               className={FIELD_CLASS}
             />
@@ -375,7 +375,7 @@ export default function SignupPage() {
 
           <Button
             type="submit" variant="secondary" full
-            disabled={loading || !allRequired || !!validatePassword(form.password) || (!!form.confirmPassword && form.password !== form.confirmPassword)}
+            disabled={loading || !allRequired || !form.name.trim() || !form.phone.trim() || !!validatePassword(form.password) || (!!form.confirmPassword && form.password !== form.confirmPassword)}
             leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : undefined}
           >
             가입하기
