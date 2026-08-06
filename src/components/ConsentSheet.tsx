@@ -8,9 +8,12 @@
  */
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { MapPin, Shield, FileText, CheckCircle2, Loader2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
+
+// 이 페이지들에서는 ConsentSheet를 표시하지 않음 (약관 확인용 페이지 등)
+const EXEMPT_PATHS = ["/terms", "/privacy", "/location-terms", "/login", "/signup"];
 
 type Props = {
   /** true면 시트를 렌더링하지 않음 */
@@ -19,12 +22,15 @@ type Props = {
 
 export function ConsentSheet({ alreadyConsented }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const toast = useToast();
   const [consentTerms, setConsentTerms] = useState(false);
   const [consentPrivacy, setConsentPrivacy] = useState(false);
   const [consentLocation, setConsentLocation] = useState(false);
   const [consentMarketing, setConsentMarketing] = useState(false);
   const [saving, setSaving] = useState(false);
+  // 동의 완료 후 즉시 시트를 닫기 위한 로컬 상태
+  const [consented, setConsented] = useState(false);
 
   const allRequired = consentTerms && consentPrivacy && consentLocation;
   const allChecked = allRequired && consentMarketing;
@@ -38,7 +44,10 @@ export function ConsentSheet({ alreadyConsented }: Props) {
   }
 
   async function submit() {
-    if (!allRequired) return;
+    if (!allRequired) {
+      toast("필수 항목 3개(이용약관, 개인정보처리방침, 위치정보)에 모두 동의해 주세요.", "error");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/me/consent", {
@@ -52,6 +61,8 @@ export function ConsentSheet({ alreadyConsented }: Props) {
       });
       if (!res.ok) throw new Error("동의 처리에 실패했습니다.");
       toast("약관 동의가 완료됐습니다.", "success");
+      // 즉시 닫기 (router.refresh()와 무관하게 바로 숨김)
+      setConsented(true);
       router.refresh();
     } catch {
       toast("동의 처리 중 오류가 발생했습니다.", "error");
@@ -60,7 +71,9 @@ export function ConsentSheet({ alreadyConsented }: Props) {
     }
   }
 
-  if (alreadyConsented) return null;
+  // 약관 확인 페이지 등에서는 시트 미표시
+  const isExempt = EXEMPT_PATHS.some((p) => pathname.startsWith(p));
+  if (alreadyConsented || consented || isExempt) return null;
 
   return (
     /* 전체 화면 오버레이 — 닫기 불가 */
@@ -165,8 +178,8 @@ export function ConsentSheet({ alreadyConsented }: Props) {
           <button
             type="button"
             onClick={submit}
-            disabled={!allRequired || saving}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-aqua-400 py-3.5 text-[14px] font-bold text-navy-900 transition disabled:opacity-40"
+            disabled={saving}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-aqua-400 py-3.5 text-[14px] font-bold text-navy-900 transition disabled:opacity-60"
           >
             {saving ? <Loader2 size={18} className="animate-spin" /> : null}
             동의하고 시작하기

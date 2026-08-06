@@ -43,7 +43,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="fixed left-1/2 bottom-24 z-[1000] flex w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 flex-col gap-2 md:bottom-8">
+      <div className="fixed left-1/2 bottom-24 z-[99999] flex w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 flex-col gap-2 md:bottom-8">
         {toasts.map((t) => {
           const { bar, iconWrap, Icon } = kindConfig[t.kind];
           return (
