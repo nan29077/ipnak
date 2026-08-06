@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 /** 페이지별 푸터 노출 기본값 (모두 OFF) */
-export const DEFAULT_FOOTER_VISIBILITY: Record<string, boolean> = {
+const DEFAULT_FOOTER_VISIBILITY: Record<string, boolean> = {
   home: false,
   feed: false,
   general: false,
