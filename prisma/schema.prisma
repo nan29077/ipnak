@@ -31,6 +31,7 @@ model User {
   region       String?
   points       Int      @default(0) // 보유 포인트 (포인트 제도)
   naverKey     String?  @unique // 네이버 OAuth 연동 ID
+  kakaoKey     String?  @unique // 카카오 OAuth 연동 ID
   // 약관 동의 여부 (위치정보법 준수)
   termsConsent    Boolean  @default(false) // 이용약관 동의
   privacyConsent  Boolean  @default(false) // 개인정보처리방침 동의

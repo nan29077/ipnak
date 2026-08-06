@@ -1,11 +1,11 @@
 "use client";
 import { useToast } from "@/components/Toast";
 
-// 카카오/네이버/Google 로그인
+// 카카오/네이버 로그인
 // 네이버: /api/auth/naver 로 이동하면 OAuth 플로우 시작
-// 카카오: 추후 연동 예정
+// 카카오: /api/auth/kakao 로 이동하면 OAuth 플로우 시작
 const PROVIDERS = [
-  { key: "kakao", label: "카카오로 시작하기", bg: "#FEE500", color: "#191919", href: null },
+  { key: "kakao", label: "카카오로 시작하기", bg: "#FEE500", color: "#191919", href: "/api/auth/kakao" },
   { key: "naver", label: "네이버로 시작하기", bg: "#03C75A", color: "#ffffff", href: "/api/auth/naver" },
 ];
 
