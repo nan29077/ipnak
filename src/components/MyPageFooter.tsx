@@ -16,10 +16,11 @@ type CompanyInfo = {
 type LegalData = {
   terms_of_service: string;
   privacy_policy: string;
+  location_terms: string;
   company_info: string;
 };
 
-type ModalType = "terms" | "privacy" | null;
+type ModalType = "terms" | "privacy" | "location" | null;
 
 export function MyPageFooter() {
   const [data, setData] = useState<LegalData | null>(null);
@@ -42,8 +43,14 @@ export function MyPageFooter() {
       })()
     : null;
 
-  const modalContent = modal === "terms" ? data?.terms_of_service : data?.privacy_policy;
-  const modalTitle = modal === "terms" ? "이용약관" : "개인정보처리방침";
+  const modalContent =
+    modal === "terms" ? data?.terms_of_service
+    : modal === "privacy" ? data?.privacy_policy
+    : data?.location_terms;
+  const modalTitle =
+    modal === "terms" ? "이용약관"
+    : modal === "privacy" ? "개인정보처리방침"
+    : "위치정보 이용약관";
 
   return (
     <>
@@ -67,7 +74,7 @@ export function MyPageFooter() {
           </div>
         )}
 
-        <div className="mb-5 flex items-center gap-3 text-[12px]">
+        <div className="mb-5 flex flex-wrap items-center gap-3 text-[12px]">
           <button
             type="button"
             onClick={() => setModal("terms")}
@@ -82,6 +89,14 @@ export function MyPageFooter() {
             className="font-semibold text-[#5a7080] underline underline-offset-2 transition-colors hover:text-[#9ab0be]"
           >
             개인정보처리방침
+          </button>
+          <span className="text-[#2a3f50]">|</span>
+          <button
+            type="button"
+            onClick={() => setModal("location")}
+            className="text-[#5a7080] underline underline-offset-2 transition-colors hover:text-[#9ab0be]"
+          >
+            위치정보 이용약관
           </button>
         </div>
 

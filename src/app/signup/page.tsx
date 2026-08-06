@@ -127,6 +127,20 @@ export default function SignupPage() {
   const [species, setSpecies] = useState<string[]>([]);
   const [customSpecies, setCustomSpecies] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  // 약관 동의
+  const [consentTerms, setConsentTerms] = useState(false);
+  const [consentPrivacy, setConsentPrivacy] = useState(false);
+  const [consentLocation, setConsentLocation] = useState(false);
+  const [consentMarketing, setConsentMarketing] = useState(false);
+  const allRequired = consentTerms && consentPrivacy && consentLocation;
+  const allChecked = allRequired && consentMarketing;
+  function toggleAll() {
+    const next = !allChecked;
+    setConsentTerms(next);
+    setConsentPrivacy(next);
+    setConsentLocation(next);
+    setConsentMarketing(next);
+  }
 
   const toggleMethod = (v: string) =>
     setMethods((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v]));
@@ -168,6 +182,9 @@ export default function SignupPage() {
           phone: form.phone || undefined,
           fishingMethods: [...methods, ...customMethods],
           fishSpecies: [...species, ...customSpecies],
+          termsConsent: consentTerms,
+          privacyConsent: consentPrivacy,
+          locationConsent: consentLocation,
         }),
       });
       const data = await res.json();
@@ -281,9 +298,84 @@ export default function SignupPage() {
             />
           </div>
 
+          {/* 약관 동의 */}
+          <div className="rounded-2xl border border-white/[0.1] bg-white/[0.03] p-4 space-y-3">
+            {/* 전체 동의 */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={toggleAll}
+                className="h-4 w-4 rounded accent-aqua-400"
+              />
+              <span className="text-[14px] font-bold text-white/80">전체 동의</span>
+            </label>
+            <div className="border-t border-white/10" />
+            {/* 이용약관 */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consentTerms}
+                onChange={(e) => setConsentTerms(e.target.checked)}
+                className="h-4 w-4 rounded accent-aqua-400"
+              />
+              <span className="flex-1 text-[13px] text-white/60">
+                <span className="text-aqua-400 font-semibold">[필수]</span> 이용약관 동의
+              </span>
+              <a href="/terms" target="_blank" rel="noopener noreferrer"
+                className="shrink-0 text-[11px] text-white/30 underline hover:text-white/50">
+                보기
+              </a>
+            </label>
+            {/* 개인정보처리방침 */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consentPrivacy}
+                onChange={(e) => setConsentPrivacy(e.target.checked)}
+                className="h-4 w-4 rounded accent-aqua-400"
+              />
+              <span className="flex-1 text-[13px] text-white/60">
+                <span className="text-aqua-400 font-semibold">[필수]</span> 개인정보처리방침 동의
+              </span>
+              <a href="/privacy" target="_blank" rel="noopener noreferrer"
+                className="shrink-0 text-[11px] text-white/30 underline hover:text-white/50">
+                보기
+              </a>
+            </label>
+            {/* 위치정보 이용약관 */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consentLocation}
+                onChange={(e) => setConsentLocation(e.target.checked)}
+                className="h-4 w-4 rounded accent-aqua-400"
+              />
+              <span className="flex-1 text-[13px] text-white/60">
+                <span className="text-aqua-400 font-semibold">[필수]</span> 위치정보 이용약관 동의
+              </span>
+              <a href="/location-terms" target="_blank" rel="noopener noreferrer"
+                className="shrink-0 text-[11px] text-white/30 underline hover:text-white/50">
+                보기
+              </a>
+            </label>
+            {/* 마케팅 동의 (선택) */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consentMarketing}
+                onChange={(e) => setConsentMarketing(e.target.checked)}
+                className="h-4 w-4 rounded accent-aqua-400"
+              />
+              <span className="flex-1 text-[13px] text-white/60">
+                <span className="text-white/40 font-semibold">[선택]</span> 마케팅 정보 수신 동의
+              </span>
+            </label>
+          </div>
+
           <Button
             type="submit" variant="secondary" full
-            disabled={loading || !!validatePassword(form.password) || (!!form.confirmPassword && form.password !== form.confirmPassword)}
+            disabled={loading || !allRequired || !!validatePassword(form.password) || (!!form.confirmPassword && form.password !== form.confirmPassword)}
             leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : undefined}
           >
             가입하기

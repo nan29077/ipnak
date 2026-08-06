@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Shield, Building2, Save, Loader2 } from "lucide-react";
+import { FileText, Shield, Building2, Save, Loader2, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 
-type LegalTab = "terms" | "privacy";
+type LegalTab = "terms" | "privacy" | "location";
 
 type CompanyInfo = {
   company: string;
@@ -23,6 +23,7 @@ export function LegalManagement() {
   const [activeTab, setActiveTab] = useState<LegalTab>("terms");
   const [terms, setTerms] = useState("");
   const [privacy, setPrivacy] = useState("");
+  const [locationTerms, setLocationTerms] = useState("");
   const [company, setCompany] = useState<CompanyInfo>({
     company: "",
     representative: "",
@@ -41,6 +42,7 @@ export function LegalManagement() {
       .then((d) => {
         setTerms(d.terms_of_service ?? "");
         setPrivacy(d.privacy_policy ?? "");
+        setLocationTerms(d.location_terms ?? "");
         try {
           const ci: CompanyInfo = JSON.parse(d.company_info ?? "{}");
           setCompany({
@@ -70,6 +72,7 @@ export function LegalManagement() {
         body: JSON.stringify({
           terms_of_service: terms,
           privacy_policy: privacy,
+          location_terms: locationTerms,
           company_info: JSON.stringify(company),
         }),
       });
@@ -124,6 +127,12 @@ export function LegalManagement() {
               label="개인정보처리방침"
               onClick={() => setActiveTab("privacy")}
             />
+            <LegalTabButton
+              active={activeTab === "location"}
+              icon={<MapPin size={15} />}
+              label="위치정보 이용약관"
+              onClick={() => setActiveTab("location")}
+            />
           </div>
 
           <div className="mt-4">
@@ -137,7 +146,7 @@ export function LegalManagement() {
                   placeholder="이용약관을 입력하세요..."
                 />
               </label>
-            ) : (
+            ) : activeTab === "privacy" ? (
               <label className="block">
                 <span className="mb-2 block text-[12px] font-semibold text-navy-600">개인정보처리방침 내용</span>
                 <textarea
@@ -145,6 +154,16 @@ export function LegalManagement() {
                   onChange={(e) => setPrivacy(e.target.value)}
                   className={textareaClass}
                   placeholder="개인정보처리방침을 입력하세요..."
+                />
+              </label>
+            ) : (
+              <label className="block">
+                <span className="mb-2 block text-[12px] font-semibold text-navy-600">위치정보 이용약관 내용</span>
+                <textarea
+                  value={locationTerms}
+                  onChange={(e) => setLocationTerms(e.target.value)}
+                  className={textareaClass}
+                  placeholder="위치정보 이용약관을 입력하세요..."
                 />
               </label>
             )}

@@ -19,6 +19,10 @@ const schema = z.object({
   fishSpecies: z.array(z.string()).optional(),
   // 구버전 호환 (flat array)
   interests: z.array(z.string()).optional(),
+  // 약관 동의 여부 (위치정보법 준수)
+  termsConsent: z.boolean().optional(),
+  privacyConsent: z.boolean().optional(),
+  locationConsent: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -27,7 +31,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
-  const { email, password, nickname, name, phone, fishingMethods, fishSpecies, interests } = parsed.data;
+  const { email, password, nickname, name, phone, fishingMethods, fishSpecies, interests, termsConsent, privacyConsent, locationConsent } = parsed.data;
 
   const exists = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (exists) {
@@ -52,6 +56,9 @@ export async function POST(req: Request) {
         role: "ANGLER",
         avatarUrl: null,
         interests: interestsPayload,
+        termsConsent: termsConsent ?? false,
+        privacyConsent: privacyConsent ?? false,
+        locationConsent: locationConsent ?? false,
       },
     });
     await createSession(user.id);

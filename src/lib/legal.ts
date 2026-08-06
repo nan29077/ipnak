@@ -1,5 +1,47 @@
 import { prisma } from "./prisma";
 
+export const DEFAULT_LOCATION_TERMS = `제1조 (목적)
+본 약관은 주식회사 이십세기소년들(이하 "회사")이 운영하는 입낚 서비스(이하 "서비스")에서 위치기반서비스를 제공함에 있어 이용자의 위치정보 보호 및 이용에 관한 사항을 규정함을 목적으로 합니다.
+
+제2조 (위치정보 수집 항목 및 방법)
+회사는 서비스 제공을 위해 이용자의 GPS 위치, Wi-Fi 기반 위치, 기지국 기반 위치를 수집할 수 있습니다.
+
+제3조 (위치정보 이용 목적)
+수집된 위치정보는 다음 목적에만 이용됩니다.
+① 주변 낚시 포인트 검색 및 추천
+② 근처 조황 정보 제공
+③ 사용자 낚시 기록 및 포인트 저장
+④ 지도 기반 서비스 제공
+
+제4조 (위치정보 수집 원칙)
+① 회사는 서비스 제공에 필요한 최소한의 위치정보만 수집합니다.
+② 이용자가 낚시 기록을 활성화하거나 주변 정보 검색을 요청하는 경우에만 위치정보를 수집합니다.
+③ 백그라운드 상시 위치 추적은 별도 동의 없이 수행하지 않습니다.
+
+제5조 (위치정보 보관 기간)
+① 실시간 위치정보는 서비스 제공 목적 달성 후 즉시 파기됩니다.
+② 이용자가 저장한 낚시 포인트·기록은 회원 탈퇴 시까지 보관되며, 탈퇴 후 지체 없이 삭제됩니다.
+
+제6조 (위치정보 제3자 제공)
+회사는 법령에 근거한 경우를 제외하고 이용자의 동의 없이 위치정보를 제3자에게 제공하지 않습니다.
+
+제7조 (이용자의 권리)
+이용자는 언제든지 다음 권리를 행사할 수 있습니다.
+① 위치정보 이용 동의 철회
+② 위치정보 삭제 요청
+③ 위치정보 이용 내역 확인 요청
+
+제8조 (동의 철회 방법)
+앱 설정 메뉴 → 위치 서비스 OFF 또는 고객센터(nanum2540@naver.com)를 통해 동의를 철회할 수 있습니다.
+
+제9조 (위치정보 보호책임자)
+성명: 박진혜
+이메일: nanum2540@naver.com
+전화: 070-4158-2540
+
+부칙
+본 약관은 2024년 1월 1일부터 시행합니다.`;
+
 export const DEFAULT_TOS = `제1조 (목적)
 이 약관은 주식회사 이십세기소년들(이하 "회사")이 운영하는 입낚 서비스(이하 "서비스")의 이용 조건 및 절차, 회사와 이용자의 권리·의무 및 책임사항을 규정함을 목적으로 합니다.
 
@@ -88,14 +130,16 @@ export const DEFAULT_COMPANY_INFO = JSON.stringify({
 });
 
 export async function getLegalData() {
-  const [tos, privacy, company] = await Promise.all([
+  const [tos, privacy, company, location] = await Promise.all([
     prisma.setting.findUnique({ where: { key: "terms_of_service" } }),
     prisma.setting.findUnique({ where: { key: "privacy_policy" } }),
     prisma.setting.findUnique({ where: { key: "company_info" } }),
+    prisma.setting.findUnique({ where: { key: "location_terms" } }),
   ]);
   return {
     terms_of_service: tos?.value ?? DEFAULT_TOS,
     privacy_policy: privacy?.value ?? DEFAULT_PRIVACY,
     company_info: company?.value ?? DEFAULT_COMPANY_INFO,
+    location_terms: location?.value ?? DEFAULT_LOCATION_TERMS,
   };
 }
