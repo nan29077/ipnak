@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Bot, Megaphone, Monitor, Sliders } from "lucide-react";
+import { Bot, Megaphone, Monitor, Sliders, PanelBottomDashed } from "lucide-react";
+import { FooterManager } from "@/components/admin/FooterManager";
 import { prisma } from "@/lib/prisma";
 import { getBoolSetting, getSetting } from "@/lib/settings";
 import { AdminTitle, Table } from "@/components/admin/ui";
@@ -27,6 +28,7 @@ const TABS = [
   { key: "pcbg", label: "PC 여백 관리", icon: Monitor },
   { key: "appmode", label: "앱 기능 설정", icon: Sliders },
   { key: "api", label: "AI API 연결", icon: Bot },
+  { key: "footer", label: "푸터 관리", icon: PanelBottomDashed },
 ];
 
 export default async function AdminSite({ searchParams }: { searchParams: { tab?: string } }) {
@@ -37,6 +39,8 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
       ? "pcbg"
       : searchParams.tab === "appmode"
       ? "appmode"
+      : searchParams.tab === "footer"
+      ? "footer"
       : "banners";
   const [banners, shopEnabled, shopTagEnabled, pcMarginBg, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabled, groupPointsRequired, aiConnection] = await Promise.all([
     prisma.banner.findMany({ orderBy: { order: "asc" } }),
@@ -165,6 +169,8 @@ export default async function AdminSite({ searchParams }: { searchParams: { tab?
         </div>
       ) : tab === "api" ? (
         <div className="max-w-2xl"><AiApiConnection initial={aiConnection} /></div>
+      ) : tab === "footer" ? (
+        <div className="max-w-2xl"><FooterManager /></div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           <PointsToggle initial={pointsEnabled} />

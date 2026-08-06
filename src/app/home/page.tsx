@@ -5,6 +5,7 @@ import { CurationHome } from "@/components/CurationHome";
 import { getMainSections } from "@/lib/curation";
 import { parseInterests } from "@/lib/interestsUtils";
 import { syncTournamentStatuses } from "@/lib/tournamentStatus";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -57,23 +58,26 @@ export default async function HomeCurationPage() {
   const bottomBanners = bottomBannerRows.filter(bannerFilter).map(toBanner);
 
   return (
-    <CurationHome
-      feedPosts={feedPosts}
-      walkingPosts={walkingPosts}
-      sections={sections}
-      topBanners={topBanners}
-      banners={bottomBanners}
-      ongoingTournaments={ongoingTournaments.map((t) => ({
-        id: t.id, title: t.title, type: t.type, speciesName: t.speciesName,
-        startDate: t.startAt?.toISOString() ?? null,
-        endDate: t.endAt?.toISOString() ?? null,
-        entryCount: t._count.entries,
-      }))}
-      currentUserId={user?.id}
-      personalizedPosts={personalizedPosts}
-      userNickname={userNickname}
-      userInterests={userInterests}
-      hasInterests={hasInterests}
-    />
+    <>
+      <CurationHome
+        feedPosts={feedPosts}
+        walkingPosts={walkingPosts}
+        sections={sections}
+        topBanners={topBanners}
+        banners={bottomBanners}
+        ongoingTournaments={ongoingTournaments.map((t) => ({
+          id: t.id, title: t.title, type: t.type, speciesName: t.speciesName,
+          startDate: t.startAt?.toISOString() ?? null,
+          endDate: t.endAt?.toISOString() ?? null,
+          entryCount: t._count.entries,
+        }))}
+        currentUserId={user?.id}
+        personalizedPosts={personalizedPosts}
+        userNickname={userNickname}
+        userInterests={userInterests}
+        hasInterests={hasInterests}
+      />
+      <SiteFooter pageKey="home" />
+    </>
   );
 }

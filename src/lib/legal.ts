@@ -123,6 +123,7 @@ export const DEFAULT_COMPANY_INFO = JSON.stringify({
   company: "주식회사 이십세기소년들",
   representative: "박진혜",
   businessNumber: "662-86-02270",
+  mailOrderNumber: "2022-고양일산서-0400",
   address: "경기도 고양시 일산서구 킨텍스로 240, 2501호",
   phone: "070-4158-2540",
   email: "nanum2540@naver.com",

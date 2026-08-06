@@ -14,7 +14,7 @@ import { formatWeight } from "@/lib/weightEstimation";
 import { PageHeader, Card, Badge } from "@/components/ui";
 import { ROLE_LABELS } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
-import { MyPageFooter } from "@/components/MyPageFooter";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -234,7 +234,7 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
         entries={data.entries}
         bio={data.user.bio ?? null}
       />
-      <MyPageFooter />
+      <SiteFooter pageKey="me" />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { SiteFooter } from "@/components/SiteFooter";
 import { Search, Users, MapPin, Fish, Plus, ChevronRight, Coins } from "lucide-react";
 import { useAppSettings } from "@/lib/appSettingsContext";
 import { cn } from "@/lib/utils";
@@ -143,6 +144,7 @@ export default function GroupsPage() {
           </div>
         )}
       </div>
+      <SiteFooter pageKey="groups" />
     </div>
   );
 }

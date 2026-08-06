@@ -7,6 +7,7 @@ type CompanyInfo = {
   company: string;
   representative: string;
   businessNumber: string;
+  mailOrderNumber?: string;
   address: string;
   phone: string;
   email: string;
@@ -65,6 +66,9 @@ export function MyPageFooter() {
               대표: {company.representative}
               {company.businessNumber ? ` | 사업자등록번호: ${company.businessNumber}` : ""}
             </p>
+            {company.mailOrderNumber && (
+              <p>통신판매신고번호: {company.mailOrderNumber}</p>
+            )}
             <p>{company.address}</p>
             <p>
               {company.phone ? `전화: ${company.phone}` : ""}

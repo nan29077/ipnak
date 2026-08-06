@@ -9,6 +9,7 @@ import { MarketIntroBanner } from "@/components/market/MarketIntroBanner";
 import { BassOnlyBanner } from "@/components/BassOnlyBanner";
 import { getBoolSetting } from "@/lib/settings";
 import { excludeVirtualWhere } from "@/lib/virtualVisibility";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,7 @@ export default async function MarketPage() {
       </div>
 
       <MarketSellFab />
+      <SiteFooter pageKey="market" />
     </div>
   );
 }

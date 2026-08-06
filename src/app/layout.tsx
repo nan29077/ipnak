@@ -99,7 +99,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </AppSettingsProvider>
           </RecordingProvider>
           {/* 소셜 가입 후 약관 미동의 사용자에게 필수 동의 시트 표시 */}
-          <ConsentSheet alreadyConsented={!user || user.locationConsent === true} />
+          <ConsentSheet alreadyConsented={!user || (user as { locationConsent?: boolean }).locationConsent === true} />
         </ToastProvider>
       </body>
     </html>

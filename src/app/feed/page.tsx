@@ -3,6 +3,7 @@ import { getFeedPostsPage } from "@/lib/queries";
 import { prisma } from "@/lib/prisma";
 import { getBoolSetting } from "@/lib/settings";
 import { isBassOnlyPost } from "@/lib/taxonomy";
+import { SiteFooter } from "@/components/SiteFooter";
 import { FeedList } from "@/components/FeedList";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +19,15 @@ export default async function FeedPage() {
   // 배스 전용 모드: 홈 "피싱 피드" 레일과 동일한 기준으로 배스 관련 글만 노출
   const visiblePosts = bassOnlyMode ? feedResult.posts.filter(isBassOnlyPost) : feedResult.posts;
   return (
-    <FeedList
-      posts={visiblePosts}
-      nextCursor={feedResult.nextCursor}
-      feedKind="FEED"
-      currentUserId={user?.id}
-      banners={banners.map((b) => ({ title: b.title, imageUrl: b.imageUrl, linkUrl: b.linkUrl }))}
-    />
+    <>
+      <FeedList
+        posts={visiblePosts}
+        nextCursor={feedResult.nextCursor}
+        feedKind="FEED"
+        currentUserId={user?.id}
+        banners={banners.map((b) => ({ title: b.title, imageUrl: b.imageUrl, linkUrl: b.linkUrl }))}
+      />
+      <SiteFooter pageKey="feed" />
+    </>
   );
 }

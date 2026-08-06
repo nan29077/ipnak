@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { getFeedPostsPage } from "@/lib/queries";
 import { FeedList } from "@/components/FeedList";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -9,11 +10,14 @@ export default async function GeneralFeedPage() {
   const user = await getCurrentUser();
   const { posts, nextCursor } = await getFeedPostsPage(user?.id, { kind: "GENERAL" });
   return (
-    <FeedList
-      posts={posts}
-      nextCursor={nextCursor}
-      feedKind="GENERAL"
-      currentUserId={user?.id}
-    />
+    <>
+      <FeedList
+        posts={posts}
+        nextCursor={nextCursor}
+        feedKind="GENERAL"
+        currentUserId={user?.id}
+      />
+      <SiteFooter pageKey="general" />
+    </>
   );
 }

@@ -11,6 +11,7 @@ type CompanyInfo = {
   company: string;
   representative: string;
   businessNumber: string;
+  mailOrderNumber?: string;
   address: string;
   phone: string;
   email: string;
@@ -28,6 +29,7 @@ export function LegalManagement() {
     company: "",
     representative: "",
     businessNumber: "",
+    mailOrderNumber: "",
     address: "",
     phone: "",
     email: "",
@@ -49,6 +51,7 @@ export function LegalManagement() {
             company: ci.company ?? "",
             representative: ci.representative ?? "",
             businessNumber: ci.businessNumber ?? "",
+            mailOrderNumber: ci.mailOrderNumber ?? "",
             address: ci.address ?? "",
             phone: ci.phone ?? "",
             email: ci.email ?? "",
@@ -198,6 +201,12 @@ export function LegalManagement() {
                 label="사업자등록번호"
                 value={company.businessNumber}
                 onChange={(v) => setCompany((c) => ({ ...c, businessNumber: v }))}
+                inputClass={inputClass}
+              />
+              <CompanyField
+                label="통신판매신고번호"
+                value={company.mailOrderNumber ?? ""}
+                onChange={(v) => setCompany((c) => ({ ...c, mailOrderNumber: v }))}
                 inputClass={inputClass}
               />
               <CompanyField

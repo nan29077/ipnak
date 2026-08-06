@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import { TournamentList } from "@/components/TournamentList";
 import { effectiveStatus, syncTournamentStatuses } from "@/lib/tournamentStatus";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function TournamentsPage() {
     <div>
       <PageHeader title="온라인 낚시 대회" sub="주간 · 월간 · 왕중왕전" />
       <TournamentList tournaments={data} />
+      <SiteFooter pageKey="tournaments" />
     </div>
   );
 }
