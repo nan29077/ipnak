@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Camera, Images, ImagePlus, X, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { ImageCropEditor } from "@/components/shared/ImageCropEditor";
+import { useNativeCamera } from "@/hooks/useNativeCamera";
 
 export type PickedPhoto = {
   preview: string;   // 로컬 blob URL (화면 표시용)
@@ -76,10 +77,35 @@ export function PhotoPicker({
   const [queue, setQueue] = useState<File[]>([]);
   const [queueTotal, setQueueTotal] = useState(0);
 
+  // 앱(Capacitor)에서는 네이티브 카메라/사진 선택기를 쓰고, 웹에서는 기존 input[type=file] 그대로
+  const { isNativeCameraAvailable, takePhoto, pickFromGallery } = useNativeCamera();
+
   function triggerInput(ref: React.RefObject<HTMLInputElement>) {
     if (!ref.current) return;
     ref.current.value = "";
     ref.current.click();
+  }
+
+  /** 카메라 열기 — 앱이면 네이티브, 아니면 웹 input */
+  async function openCamera() {
+    if (isNativeCameraAvailable) {
+      const files = await takePhoto();
+      // files 가 null 이면 사용자 취소 — 웹 input 을 대신 열지 않는다
+      if (files) await handleFiles(files);
+      return;
+    }
+    triggerInput(cameraRef);
+  }
+
+  /** 갤러리 열기 — 앱이면 네이티브, 아니면 웹 input */
+  async function openGallery() {
+    if (isNativeCameraAvailable) {
+      const limit = single || capture ? 1 : Math.max(1, max - value.length);
+      const files = await pickFromGallery({ limit });
+      if (files) await handleFiles(files);
+      return;
+    }
+    triggerInput(galleryRef);
   }
 
   /** 한 장을 미리보기에 추가하고 업로드까지 진행 */
@@ -109,7 +135,8 @@ export function PhotoPicker({
     }
   }
 
-  async function handleFiles(files: FileList | null) {
+  // FileList(웹 input) 와 File[](네이티브 카메라) 를 모두 받는다
+  async function handleFiles(files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
     setErr("");
     const toProcess = single ? Array.from(files).slice(0, 1) : Array.from(files).slice(0, max - value.length);
@@ -168,19 +195,19 @@ export function PhotoPicker({
         {canAdd && !anyUploading && (
           capture ? (
             <div className="flex gap-1.5">
-              <button type="button" onClick={() => triggerInput(cameraRef)}
+              <button type="button" onClick={() => void openCamera()}
                 className="flex h-24 w-[58px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-navy-200 text-navy-300 transition-colors hover:border-aqua-400 hover:bg-aqua-500/10 hover:text-aqua-400 active:scale-95">
                 <Camera size={20} />
                 <span className="text-[10px] font-medium">카메라</span>
               </button>
-              <button type="button" onClick={() => triggerInput(galleryRef)}
+              <button type="button" onClick={() => void openGallery()}
                 className="flex h-24 w-[58px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-navy-200 text-navy-300 transition-colors hover:border-aqua-400 hover:bg-aqua-500/10 hover:text-aqua-400 active:scale-95">
                 <Images size={20} />
                 <span className="text-[10px] font-medium">갤러리</span>
               </button>
             </div>
           ) : (
-            <button type="button" onClick={() => triggerInput(galleryRef)}
+            <button type="button" onClick={() => void openGallery()}
               className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-navy-200 text-navy-300 transition-colors hover:border-aqua-400 hover:bg-aqua-500/10 hover:text-aqua-400 active:scale-95">
               <ImagePlus size={22} />
               <span className="text-[11px] font-medium">사진 추가</span>

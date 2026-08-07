@@ -9,7 +9,13 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * - 모든 API 호출, 인증, 데이터는 서버에서 처리됨
  *
  * 패키징 준비 순서:
- * 1. npm install @capacitor/core @capacitor/cli @capacitor-community/nfc
+ * 1. npm install (아래 플러그인은 package.json 에 이미 포함됨)
+ *    @capacitor/core @capacitor/cli @capacitor/android @capacitor/ios
+ *    @capacitor/status-bar @capacitor/splash-screen @capacitor/app
+ *    @capacitor/push-notifications @capacitor/local-notifications
+ *    @capacitor/camera @capacitor/haptics @capacitor/geolocation
+ *    @capacitor/share @capacitor/network
+ *    (선택) @capacitor-community/nfc, @capacitor-community/background-geolocation
  * 2. npx cap add android
  * 3. npx cap add ios
  * 4. PROD_URL 을 실제 프로덕션 도메인으로 교체
@@ -52,6 +58,35 @@ const config: CapacitorConfig = {
     // 앱 내 브라우저 설정 (링크 처리)
     Browser: {
       presentationStyle: "popover",
+    },
+    // 상태바 — 앱 본문 배경(#0d1b2a, layout.tsx viewport.themeColor 와 동일)에 맞춰
+    // 다크 배경 + 밝은 아이콘(style: "Dark")으로 고정한다.
+    StatusBar: {
+      style: "DARK",
+      backgroundColor: "#0d1b2a",
+      overlaysWebView: false,
+    },
+    // 스플래시 스크린 — 네이티브 리소스(android/ios 의 splash)를 사용한다.
+    // launchAutoHide: false 로 두고 앱 첫 화면 렌더 후 hideSplash() 로 직접 감춘다
+    // (Live URL 방식이라 서버 응답까지 흰 화면이 보이는 것을 막는다).
+    SplashScreen: {
+      launchShowDuration: 2000,
+      launchAutoHide: false,
+      backgroundColor: "#0d1b2a",
+      androidSplashResourceName: "splash",
+      androidScaleType: "CENTER_CROP",
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
+    },
+    // 푸시 알림 — 앱 실행 시 배지/사운드/알림 표시
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
+    // 로컬 알림 — 물때 타이머 등 예약 알림용 (아이콘/색상은 네이티브 리소스 기준)
+    LocalNotifications: {
+      smallIcon: "ic_stat_icon_config_sample",
+      iconColor: "#eab308",
     },
   },
   android: {

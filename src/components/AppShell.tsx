@@ -13,6 +13,7 @@ import { FeedWriteFab } from "@/components/FeedWriteFab";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { UserProvider } from "@/lib/userContext";
 import { AppDownloadSheet } from "@/components/AppDownloadSheet";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 export type SessionUser = {
   id: string; email: string; nickname: string; role: string; avatarUrl: string | null; points?: number;
@@ -56,7 +57,8 @@ const FAB_HIDDEN_PREFIXES = ["/login", "/signup", "/forgot-password", "/admin", 
 export function AppShell({ user, shopEnabled = true, reservationEnabled = true, pointsEnabled = false, pcMarginBg, children }: { user: SessionUser; shopEnabled?: boolean; reservationEnabled?: boolean; pointsEnabled?: boolean; pcMarginBg?: string; children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   // 비밀번호 찾기도 로그인·회원가입과 같은 인증 화면이라 앱 헤더/내비 없이 전체 화면으로 보여준다.
-  const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/forgot-password") || pathname.startsWith("/admin") || pathname.startsWith("/print") || pathname.startsWith("/landing") || pathname.startsWith("/about");
+  // 온보딩(/onboarding)도 앱 헤더/내비 없이 전체 화면으로 보여준다 (앱 최초 실행 전용 화면)
+  const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/forgot-password") || pathname.startsWith("/admin") || pathname.startsWith("/print") || pathname.startsWith("/landing") || pathname.startsWith("/about") || pathname.startsWith("/onboarding");
   const MOBILE_NAV = buildMobileNav(shopEnabled);
   const DESKTOP_NAV = buildDesktopNav(shopEnabled, reservationEnabled);
   const showFab =
@@ -79,6 +81,8 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
   return (
     <UserProvider user={user}>
     <div>
+      {/* 오프라인 상태 알림 배너 (온라인일 때는 아무것도 렌더하지 않음) */}
+      <OfflineBanner />
       {/* PC 여백 배경: 관리자 설정 이미지(없으면 기본 낚시 풍경) — 데스크톱에서만 */}
       <DesktopPatternBg image={pcMarginBg} />
       {/* 중앙 앱 프레임 + (PC) 우측에 붙는 세로 메뉴를 한 덩어리로 가운데 정렬 */}

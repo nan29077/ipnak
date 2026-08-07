@@ -16,12 +16,30 @@
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
     "db:init-virtual": "node scripts/init-virtual-tables.mjs",
     "db:seed-virtual": "tsx prisma/seed-virtual-members.ts",
-    "db:reset-keep-admin": "tsx prisma/reset-keep-admin.ts"
+    "db:reset-keep-admin": "tsx prisma/reset-keep-admin.ts",
+    "cap:sync": "cap sync",
+    "cap:add:android": "cap add android",
+    "cap:add:ios": "cap add ios",
+    "cap:android": "cap open android",
+    "cap:ios": "cap open ios"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/camera": "^8.2.2",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/geolocation": "^8.2.1",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/local-notifications": "^8.2.1",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "date-fns": "^3.6.0",
@@ -34,6 +52,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/leaflet": "^1.9.12",
     "@types/node": "^20",

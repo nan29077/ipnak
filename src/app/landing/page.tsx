@@ -28,12 +28,18 @@ export default function LandingPage() {
   const isNativeApp = useIsNativeApp();
   const [hovered, setHovered] = useState<"left" | "right" | null>(null);
 
-  // 네이티브 앱(패키징된 Android/iOS)에서는 랜딩 페이지 표시 안 함 → 홈으로 바로 이동
-  // (온보딩 페이지 추가 후에는 /onboarding 으로 변경 예정)
+  // 네이티브 앱(패키징된 Android/iOS)에서는 랜딩 페이지 표시 안 함
+  // → 온보딩을 아직 안 봤으면 /onboarding, 이미 봤으면 /home 으로 바로 이동
+  // (웹에서는 isNativeApp=false 이므로 기존 랜딩 동작 그대로)
   useEffect(() => {
-    if (isNativeApp) {
-      router.replace("/home");
+    if (!isNativeApp) return;
+    let done = true;
+    try {
+      done = !!localStorage.getItem("ipnak_onboarding_done");
+    } catch {
+      done = true; // localStorage 차단 시 온보딩을 반복 노출하지 않는다
     }
+    router.replace(done ? "/home" : "/onboarding");
   }, [isNativeApp, router]);
   const [touched, setTouched] = useState<"top" | "bottom" | null>(null);
   const [topRipples, setTopRipples] = useState<Ripple[]>([]);
