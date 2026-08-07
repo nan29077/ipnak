@@ -918,7 +918,7 @@ function computeTideAlgorithm(
     for (const [tMs, kind] of [
       [highMs, "high" as const],
       [lowMs, "low" as const],
-    ]) {
+    ] as [number, "high" | "low"][]) {
       const kstDate = new Date(tMs + KST_OFFSET_MS);
       if (
         kstDate.getUTCFullYear() === kstNow.getUTCFullYear() &&
