@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, createSession } from "@/lib/auth";
+import { sendAlimtalk } from "@/lib/aligo";
 
 const PW_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]).{8,}$/;
 
@@ -64,6 +65,18 @@ export async function POST(req: Request) {
       },
     });
     await createSession(user.id);
+
+    // 가입 축하 알림톡 발송 (비동기, 실패해도 가입 흐름에 영향 없음)
+    // ALIGO_WELCOME_TPL 환경변수 또는 DB에서 템플릿 코드가 있어야 발송됨
+    const tplCode = process.env.ALIGO_WELCOME_TPL;
+    if (tplCode && phone) {
+      const cleanPhone = phone.replace(/-/g, "");
+      const welcomeMsg = `${name}님, 입낚 가입을 환영합니다!\n낚시 커뮤니티 입낚에서 즐거운 낚시 생활을 시작해보세요.`;
+      sendAlimtalk([{ phone: cleanPhone }], tplCode, welcomeMsg).catch((e) =>
+        console.error("[알림톡] 가입 축하 발송 실패:", e)
+      );
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     // findUnique 확인과 create 사이 경쟁 조건으로 인한 중복(P2002) → 409로 정돈
