@@ -307,6 +307,44 @@ function readResponsesText(data: any): string {
   return parts.join(" ");
 }
 
+/**
+ * 추천 사유 다양화를 위한 랜덤 앵글 목록.
+ * 매 호출마다 하나가 선택되어 OpenAI 가 그 관점을 중심 주제로 삼도록 지시한다.
+ * marine 데이터 유무와 무관하게 항상 적용되며, 앵글에 맞는 구체적 조언을 유도한다.
+ */
+const RECOMMEND_ANGLES = [
+  {
+    key: "tide",
+    instruction:
+      "이번 추천의 핵심 주제는 【조류·물때】다. marine.tide 값을 이용해 현재 물때가 대상 어종의 활성·이동에 어떤 영향을 주는지를 첫 문장에서 구체적으로 설명하고, 그 흐름이 이번 추천 포인트와 어떻게 연결되는지 서술하라. marine이 null이면 시즌(seasonTip)의 전형적인 조류 패턴으로 대체한다.",
+  },
+  {
+    key: "depth",
+    instruction:
+      "이번 추천의 핵심 주제는 【수심·층 공략】이다. 현재 수온(marine.waterTemp)과 계절(seasonTip)을 근거로, 대상 어종이 머무를 가능성이 높은 수심대와 층을 구체적으로 제시하고, 그에 맞는 채비 운영 방법을 설명하라. 수온이 없으면 seasonTip의 계절 수온 경향으로 대체한다.",
+  },
+  {
+    key: "timing",
+    instruction:
+      "이번 추천의 핵심 주제는 【입질 타이밍】이다. 물때(marine.tide)·수온·계절(seasonTip)을 조합해 하루 중 가장 활성이 오르는 시간대(새벽·아침·낮·저녁·야간)를 특정하고, 그 이유와 함께 추천 포인트에서 그 시간대에 어떻게 공략할지를 구체적으로 조언하라.",
+  },
+  {
+    key: "technique",
+    instruction:
+      "이번 추천의 핵심 주제는 【채비·기법】이다. 추천 포인트의 자리 유형(방파제·갯바위·저수지·강 등)과 현재 수온·바람(marine)을 고려해, 이 포인트에서 효과가 높은 채비나 루어 운영 기법을 첫 문장부터 구체적으로 제안하라. marine이 null이면 seasonTip 기반 일반 기법을 제시한다.",
+  },
+  {
+    key: "structure",
+    instruction:
+      "이번 추천의 핵심 주제는 【지형·구조물 공략】이다. 추천 포인트의 지형적 특징(여밭·수중구조물·수초·합수부·테트라 등)과 조류 방향(marine.wind·marine.tide)을 연결해, 물고기가 붙을 가능성이 높은 자리를 좁혀서 설명하라. marine이 없으면 포인트 유형(typeLabel)의 전형적인 지형 공략으로 대체한다.",
+  },
+  {
+    key: "wind_wave",
+    instruction:
+      "이번 추천의 핵심 주제는 【바람·파도 대응】이다. marine.wind(풍향·풍속)와 marine.wave(파고)를 이용해 현재 바람이 이번 포인트에서 낚시에 유리한지 불리한지를 판단하고, 그에 맞는 자리 선택과 캐스팅 방향 조언을 구체적으로 제시하라. marine이 null이면 이 앵글 대신 seasonTip 심화 서술로 대체한다.",
+  },
+] as const;
+
 async function makeOpenAiBasis(
   openaiKey: string,
   points: { name: string; score: number; postCount: number; reason: string; species?: { name: string; count: number }[] }[],
@@ -324,6 +362,16 @@ async function makeOpenAiBasis(
     // seasonTip 은 우리가 관리하는 상수 테이블에서 나온 검증된 문장이라,
     // 조황 데이터가 0건이어도 AI 가 지어내지 않고 기댈 수 있는 근거가 된다.
     const targetMonth = when.month ?? kstMonth();
+
+    // 랜덤 앵글 선택 — 매 호출마다 다른 관점으로 서술하도록 유도한다.
+    // marine이 없으면 바람·파도 앵글(wind_wave)을 제외한 나머지 중에서 고른다.
+    const eligibleAngles = marine
+      ? RECOMMEND_ANGLES
+      : RECOMMEND_ANGLES.filter((a) => a.key !== "wind_wave");
+    const angle = eligibleAngles[Math.floor(Math.random() * eligibleAngles.length)];
+
+    const marinePromptData = marineForPrompt(marine);
+
     const context = JSON.stringify({
       targetSpecies: species,
       targetDate: when.month ? `${when.month}월 ${when.day ?? ""}일`.trim() : null,
@@ -333,7 +381,7 @@ async function makeOpenAiBasis(
         name: p.name, score: p.score, postCount: p.postCount, reason: p.reason,
         topSpecies: (p.species ?? []).slice(0, 3),
       })),
-      marine: marineForPrompt(marine),
+      marine: marinePromptData,
       recentBlogReports: reports.slice(0, 3).map((r) => ({ title: r.title, description: r.description, date: r.date })),
       userProfile: userProfile ?? null,
     });
@@ -347,10 +395,12 @@ async function makeOpenAiBasis(
           "Using ONLY the JSON data below, write a professional fishing recommendation in 3~4 Korean sentences.",
           "Rules:",
           "1) NEVER invent data. Any field that is null is UNKNOWN — never mention it, never guess a value.",
-          "2) If marine data exists: explain the tide phase's impact on feeding windows, how the water temperature affects the target species' activity, and how wind direction/strength affects casting and where fish hold.",
-          "3) If marine data is missing: focus instead on the location's characteristics, the seasonal pattern (seasonTip), and the specific listed spots.",
-          "4) If postCount is 0: say the spot is well known among local anglers by its geographical/structural characteristics — do NOT claim member data that does not exist.",
-          "5) Include specific actionable advice: what time of day, roughly what depth or water layer, and what technique or presentation to try.",
+          // 1번: 랜덤 앵글 — 매 호출마다 다른 관점을 핵심 주제로 삼도록 강제한다.
+          `2) FOCUS ANGLE — ${angle.instruction}`,
+          // 2번: marine 데이터 강제 연결 — 값이 있으면 반드시 어종 행동과 연결해 서술한다.
+          "3) If marine data exists and the FOCUS ANGLE does not already cover it: you MUST explicitly connect at least one marine value (water temperature, tide phase, or wind) to the target species' behavior or the specific recommended spot — do NOT merely list the values, explain the cause-and-effect link.",
+          "4) If marine data is missing: focus instead on the location's characteristics, the seasonal pattern (seasonTip), and the specific listed spots.",
+          "5) If postCount is 0: say the spot is well known among local anglers by its geographical/structural characteristics — do NOT claim member data that does not exist.",
           "6) seasonTip 은 검증된 시즌 정보다. 그 내용을 자연스럽게 녹여 쓰되 문장을 그대로 복사하지 말고 요약·재구성한다.",
           "7) targetSpecies 가 null 이 아니면, 나열된 포인트는 그 어종이 실제로 잡힌 곳만 추린 결과다. 그 사실을 밝히고 다른 어종용 조언은 하지 않는다.",
           "8) targetSpecies 가 null 이면 특정 어종을 단정하지 말고, 그 계절에 노려볼 만한 방향으로 서술한다.",
