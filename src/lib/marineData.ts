@@ -124,6 +124,9 @@ const TIDE_PRE_TAB_ENDPOINTS = [
   "https://apis.data.go.kr/1192136/tideObs",
 ];
 const KMA_NCST = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst";
+/** Open-Meteo — 무료·키 불필요. 기압(surface_pressure) 및 해수면 온도(sea_surface_temperature) 제공 */
+const OPEN_METEO_FORECAST = "https://api.open-meteo.com/v1/forecast";
+const OPEN_METEO_MARINE = "https://marine-api.open-meteo.com/v1/marine";
 const FETCH_TIMEOUT = 6000;
 /** 이 거리를 넘으면 해양 관측소 데이터를 쓰지 않는다 (내륙 저수지 등) */
 const MAX_STATION_KM = 60;
@@ -788,19 +791,30 @@ async function fetchKmaNowcast(key: string, lat: number, lng: number): Promise<{
       }
     : null;
 
-  // PS: 기압(hPa) — 기상청 초단기실황에서 직접 추출
-  const psRaw = num("PS");
-  const pressure: PressureInfo | null =
-    psRaw != null && psRaw >= 900 && psRaw <= 1100
-      ? {
-          hpa: Math.round(psRaw * 10) / 10,
-          trend: "stable", // KMA 실황은 단일 시점이라 추세 계산 불가 → stable 표시
-          changeHpa: null,
-          source: "기상청 초단기실황",
-        }
-      : null;
+  return { wind, air, pressure: null };
+}
 
-  return { wind, air, pressure };
+/**
+ * Open-Meteo 기압 조회 — 무료·키 불필요.
+ * KMA getUltraSrtNcst 에는 기압(PS) 카테고리가 없으므로 별도로 호출한다.
+ */
+async function fetchOpenMeteoPressure(lat: number, lng: number): Promise<PressureInfo | null> {
+  const url = `${OPEN_METEO_FORECAST}?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&current=surface_pressure&timezone=Asia%2FSeoul`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT), cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const hpa = data?.current?.surface_pressure;
+    if (typeof hpa !== "number" || hpa < 900 || hpa > 1100) return null;
+    return {
+      hpa: Math.round(hpa * 10) / 10,
+      trend: "stable",
+      changeHpa: null,
+      source: "Open-Meteo",
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ===== 어종 적합도 =====
@@ -854,11 +868,13 @@ export async function getMarineSnapshot(
   const { distanceKm } = findNearestStation(lat, lng);
   const inland = distanceKm > MAX_STATION_KM;
 
-  const [tide, observed, kma] = await Promise.all([
+  const [tide, observed, kma, openMeteoPressure] = await Promise.all([
     tideApiKey && !inland ? fetchTide(tideApiKey, lat, lng).catch(() => null) : Promise.resolve(null),
     // 수온·기압·해상풍은 최신관측 API 한 번으로 모두 얻는다.
     tideApiKey && !inland ? fetchDtRecent(tideApiKey, lat, lng).catch(() => EMPTY_DT_RECENT) : Promise.resolve(EMPTY_DT_RECENT),
-    weatherApiKey ? fetchKmaNowcast(weatherApiKey, lat, lng).catch(() => ({ wind: null, air: null })) : Promise.resolve({ wind: null, air: null }),
+    weatherApiKey ? fetchKmaNowcast(weatherApiKey, lat, lng).catch(() => ({ wind: null, air: null, pressure: null })) : Promise.resolve({ wind: null, air: null, pressure: null }),
+    // Open-Meteo 기압 — 키 불필요, KMA getUltraSrtNcst에 PS가 없어 별도 호출
+    fetchOpenMeteoPressure(lat, lng).catch(() => null),
   ]);
 
   const { waterTemp, pressure: seaPressure, wind: seaWind } = observed;
@@ -868,10 +884,10 @@ export async function getMarineSnapshot(
   else if (!tide) notes.push("조석예보를 불러오지 못했습니다.");
   if (!weatherApiKey) notes.push("기상청 API 키가 등록되지 않아 날씨 정보를 건너뛰었습니다.");
 
-  // 해상 관측 바람/기압이 낚시에 더 유효하지만, 없으면 기상청 실황으로 대체한다.
+  // 해상 관측 바람이 낚시에 더 유효하지만, 없으면 기상청 실황으로 대체한다.
   const wind = seaWind ?? kma.wind;
-  // 기압: KHOA 해양 관측 우선, 없으면 기상청 초단기실황 PS값 사용
-  const pressure = seaPressure ?? kma.pressure;
+  // 기압: KHOA 해양 관측 → Open-Meteo 순으로 폴백
+  const pressure = seaPressure ?? openMeteoPressure;
 
   console.log(
     `${DEBUG_PREFIX} snapshot inland=${inland} 조석=${tide ? `${tide.events.length}건` : "없음"}` +
