@@ -1,7 +1,8 @@
 "use client";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppSettings } from "@/lib/appSettingsContext";
+import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 
 interface Ripple {
   id: number;
@@ -24,7 +25,16 @@ const ALL_SPECIES_PC_BACKGROUND = "/landing-bear-bass-boat-hero-circle-only.png"
 export default function LandingPage() {
   const router = useRouter();
   const { bassOnlyMode } = useAppSettings();
+  const isNativeApp = useIsNativeApp();
   const [hovered, setHovered] = useState<"left" | "right" | null>(null);
+
+  // 네이티브 앱(패키징된 Android/iOS)에서는 랜딩 페이지 표시 안 함 → 홈으로 바로 이동
+  // (온보딩 페이지 추가 후에는 /onboarding 으로 변경 예정)
+  useEffect(() => {
+    if (isNativeApp) {
+      router.replace("/home");
+    }
+  }, [isNativeApp, router]);
   const [touched, setTouched] = useState<"top" | "bottom" | null>(null);
   const [topRipples, setTopRipples] = useState<Ripple[]>([]);
   const [bottomRipples, setBottomRipples] = useState<Ripple[]>([]);

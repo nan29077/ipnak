@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { Smartphone, Download, X } from "lucide-react";
 import { useToast } from "@/components/Toast";
+import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 
 /** 같은 세션 내 재노출 방지용 sessionStorage 키 */
 const DISMISS_KEY = "ipnak_app_sheet_dismissed";
@@ -19,6 +20,7 @@ const DISMISS_KEY = "ipnak_app_sheet_dismissed";
 export function AppDownloadSheet() {
   const pathname = usePathname() || "/";
   const toast = useToast();
+  const isNativeApp = useIsNativeApp();
   const [open, setOpen] = useState(false);
   // 슬라이드 인/아웃 트랜지션 제어 (true=올라온 상태, false=아래로 내려간 상태)
   const [shown, setShown] = useState(false);
@@ -29,10 +31,12 @@ export function AppDownloadSheet() {
     if (typeof window === "undefined") return;
     // 랜딩 경로에서는 노출 금지
     if (isLanding) return;
+    // 네이티브 앱(패키징된 Android/iOS)에서는 표시 안 함
+    if (isNativeApp) return;
     // 이미 이번 세션에서 선택함 → 표시 안 함
     if (sessionStorage.getItem(DISMISS_KEY)) return;
 
-    // 모바일 판별: 뷰포트 너비(앱 컨벤션 <768) 또는 모바일 UA
+    // 모바일 판별: 뷰포트 너비(앱 컨벤션 <768) 또는 모바일 UA (PC는 이미 md:hidden CSS로 숨김)
     const ua = navigator.userAgent || "";
     const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
     const isMobile = window.innerWidth < 768 || isMobileUa;
@@ -41,7 +45,7 @@ export function AppDownloadSheet() {
     // 진입 직후 살짝 지연을 두어 자연스럽게 올라오게 한다
     const t = setTimeout(() => setOpen(true), 600);
     return () => clearTimeout(t);
-  }, [isLanding]);
+  }, [isLanding, isNativeApp]);
 
   // open 이 되면 다음 프레임에 shown=true 로 전환해 슬라이드 업 트랜지션을 발동
   useEffect(() => {
