@@ -83,9 +83,11 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },
-    // 로컬 알림 — 물때 타이머 등 예약 알림용 (아이콘/색상은 네이티브 리소스 기준)
+    // 로컬 알림 — 물때 타이머 등 예약 알림용
+    // smallIcon: android/app/src/main/res/drawable/ic_stat_ipnak.png (흰색 실루엣 + 투명 배경)
+    // ※ 해당 drawable 이 없으면 안드로이드 기본 정보 아이콘으로 폴백된다 (크래시 없음)
     LocalNotifications: {
-      smallIcon: "ic_stat_icon_config_sample",
+      smallIcon: "ic_stat_ipnak",
       iconColor: "#eab308",
     },
   },
