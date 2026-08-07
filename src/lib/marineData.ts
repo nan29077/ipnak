@@ -734,7 +734,7 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
 
 const PTY_LABEL: Record<string, string> = { "0": "없음", "1": "비", "2": "비/눈", "3": "눈", "4": "소나기", "5": "빗방울", "6": "빗방울눈날림", "7": "눈날림" };
 
-async function fetchKmaNowcast(key: string, lat: number, lng: number): Promise<{ wind: WindInfo | null; air: AirInfo | null }> {
+async function fetchKmaNowcast(key: string, lat: number, lng: number): Promise<{ wind: WindInfo | null; air: AirInfo | null; pressure: PressureInfo | null }> {
   const { nx, ny } = toKmaGrid(lat, lng);
   const { base_date, base_time } = ncstBase();
 
@@ -746,7 +746,7 @@ async function fetchKmaNowcast(key: string, lat: number, lng: number): Promise<{
   );
   const raw = json?.response?.body?.items?.item;
   const items: any[] = Array.isArray(raw) ? raw : khoaRows(json);
-  if (items.length === 0) return { wind: null, air: null };
+  if (items.length === 0) return { wind: null, air: null, pressure: null };
 
   const map = new Map<string, string>();
   for (const it of items) if (it?.category) map.set(String(it.category), String(it.obsrValue));
@@ -788,7 +788,19 @@ async function fetchKmaNowcast(key: string, lat: number, lng: number): Promise<{
       }
     : null;
 
-  return { wind, air };
+  // PS: 기압(hPa) — 기상청 초단기실황에서 직접 추출
+  const psRaw = num("PS");
+  const pressure: PressureInfo | null =
+    psRaw != null && psRaw >= 900 && psRaw <= 1100
+      ? {
+          hpa: Math.round(psRaw * 10) / 10,
+          trend: "stable", // KMA 실황은 단일 시점이라 추세 계산 불가 → stable 표시
+          changeHpa: null,
+          source: "기상청 초단기실황",
+        }
+      : null;
+
+  return { wind, air, pressure };
 }
 
 // ===== 어종 적합도 =====
@@ -849,20 +861,22 @@ export async function getMarineSnapshot(
     weatherApiKey ? fetchKmaNowcast(weatherApiKey, lat, lng).catch(() => ({ wind: null, air: null })) : Promise.resolve({ wind: null, air: null }),
   ]);
 
-  const { waterTemp, pressure, wind: seaWind } = observed;
+  const { waterTemp, pressure: seaPressure, wind: seaWind } = observed;
 
   if (!tideApiKey) notes.push("조석·수온 API 키가 등록되지 않아 물때/수온 정보를 건너뛰었습니다.");
   else if (inland) notes.push("가장 가까운 조위관측소가 멀어 물때·수온을 제공하지 않습니다(내륙 지점).");
   else if (!tide) notes.push("조석예보를 불러오지 못했습니다.");
   if (!weatherApiKey) notes.push("기상청 API 키가 등록되지 않아 날씨 정보를 건너뛰었습니다.");
 
-  // 해상 관측 바람이 낚시에 더 유효하지만, 없으면 기상청 육상 실황으로 대체한다.
+  // 해상 관측 바람/기압이 낚시에 더 유효하지만, 없으면 기상청 실황으로 대체한다.
   const wind = seaWind ?? kma.wind;
+  // 기압: KHOA 해양 관측 우선, 없으면 기상청 초단기실황 PS값 사용
+  const pressure = seaPressure ?? kma.pressure;
 
   console.log(
     `${DEBUG_PREFIX} snapshot inland=${inland} 조석=${tide ? `${tide.events.length}건` : "없음"}` +
       ` 수온=${waterTemp ? `${waterTemp.tempC}℃` : "없음"} 바람=${wind ? (wind.source ?? "ok") : "없음"}` +
-      ` 기압=${pressure ? `${pressure.hpa}hPa` : "없음"} 기온=${kma.air ? "ok" : "없음"}`,
+      ` 기압=${pressure ? `${pressure.hpa}hPa(${pressure.source})` : "없음"} 기온=${kma.air ? "ok" : "없음"}`,
   );
 
   return {
