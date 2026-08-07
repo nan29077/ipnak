@@ -355,7 +355,15 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
             {/* ---- 웹 조황 검색 결과 ---- */}
             <WebReportsSection reports={data.webResults} query={data.query} />
 
-            <Button onClick={() => setData(null)} variant="outline" full leftIcon={<ChevronRight size={16} className="rotate-180" />}>
+            <Button onClick={() => {
+              setData(null);
+              setSido("전체");
+              setSigungu("전체");
+              setMonth(String(today.getMonth() + 1));
+              setDay(String(today.getDate()));
+              setSpecies("전체");
+              setMyCoords(null);
+            }} variant="outline" full leftIcon={<ChevronRight size={16} className="rotate-180" />}>
               조건 다시 설정
             </Button>
           </div>
