@@ -27,6 +27,8 @@ export type ScheduleInput = {
 
 /** 물때 알림 ID 대역 — 다른 알림과 충돌하지 않도록 분리 */
 export const TIDE_NOTIFICATION_ID_BASE = 10_000;
+/** 물때 알림 ID 상한 (스마트피싱 알림 ID 대역 시작 = 20_000) */
+const TIDE_NOTIFICATION_ID_MAX = 20_000;
 
 export function useLocalNotifications() {
   const [permission, setPermission] = useState<"unknown" | "granted" | "denied" | "unsupported">(
@@ -160,7 +162,7 @@ export function useLocalNotifications() {
       const pending = await LocalNotifications.getPending();
       const ids = (pending?.notifications ?? [])
         .map((n: { id: number }) => n.id)
-        .filter((id: number) => id >= TIDE_NOTIFICATION_ID_BASE);
+        .filter((id: number) => id >= TIDE_NOTIFICATION_ID_BASE && id < TIDE_NOTIFICATION_ID_MAX);
       if (ids.length === 0) return true;
       await LocalNotifications.cancel({ notifications: ids.map((id: number) => ({ id })) });
       return true;

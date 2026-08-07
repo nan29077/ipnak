@@ -29,11 +29,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 // 피드 글 삭제 — 작성자 본인만
+// 워킹피드(WALKING_FEED)는 다른 사용자가 열람(unlock)한 경우 삭제 불가
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   let user; try { user = await requireUser(); } catch { return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }); }
-  const post = await prisma.post.findUnique({ where: { id: params.id }, select: { id: true, authorId: true } });
+  const post = await prisma.post.findUnique({ where: { id: params.id }, select: { id: true, authorId: true, postType: true } });
   if (!post) return NextResponse.json({ error: "게시글을 찾을 수 없습니다." }, { status: 404 });
   if (post.authorId !== user.id) return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+
+  // 워킹피드: 본인 이외 열람자가 있으면 삭제 불가
+  if (post.postType === "WALKING_FEED") {
+    const otherUnlockCount = await prisma.walkingFeedUnlock.count({
+      where: { postId: params.id, userId: { not: user.id } },
+    });
+    if (otherUnlockCount > 0) {
+      return NextResponse.json(
+        { error: "다른 사용자가 이미 열람한 워킹피드는 삭제할 수 없습니다." },
+        { status: 403 }
+      );
+    }
+  }
+
   try {
     await prisma.post.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Navigation, Clock, Fish, MapPin, Thermometer, Wind,
-  CloudRain, Sun, Cloud, Zap, CloudSnow, CloudDrizzle, Ruler, X, ZoomIn, ArrowLeft, Loader2,
+  CloudRain, Sun, Cloud, Zap, CloudSnow, CloudDrizzle, Ruler, X, ZoomIn, ArrowLeft, Loader2, Trash2,
 } from "lucide-react";
 import { Sheet, LoadingState } from "@/components/ui";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
@@ -252,6 +252,8 @@ export function TripDetailSheet({
     initial?.walkingFeedPublished ?? false
   );
   const [publishingFeed, setPublishingFeed] = useState(false);
+  const [deletingFeed, setDeletingFeed] = useState(false);
+  const [deleteFeedConfirm, setDeleteFeedConfirm] = useState(false);
   // default로 돌아올 때 최상단 스크롤 복구에 쓰는 sentinel ref
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const prevViewModeRef = useRef<ViewMode>("default");
@@ -321,6 +323,8 @@ export function TripDetailSheet({
       setSelectedCatch(null);
       setWalkingFeedPublished(false);
       setPublishingFeed(false);
+      setDeletingFeed(false);
+      setDeleteFeedConfirm(false);
     }
   }, [open]);
 
@@ -350,6 +354,29 @@ export function TripDetailSheet({
       alert("오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setPublishingFeed(false);
+    }
+  }
+
+  async function handleDeleteWalkingFeed() {
+    if (!data) return;
+    if (!deleteFeedConfirm) {
+      setDeleteFeedConfirm(true);
+      return;
+    }
+    setDeleteFeedConfirm(false);
+    setDeletingFeed(true);
+    try {
+      const res = await fetch(`/api/trips/${data.id}/walking-feed`, { method: "DELETE" });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(result.error || "워킹피드 삭제에 실패했습니다.");
+        return;
+      }
+      setWalkingFeedPublished(false);
+    } catch {
+      alert("오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+      setDeletingFeed(false);
     }
   }
 
@@ -650,13 +677,33 @@ export function TripDetailSheet({
               {/* ── 워킹피드 게시 버튼 (routePoints < 2이면 숨김) ── */}
               {data.routePoints.length >= 2 && (
                 walkingFeedPublished ? (
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-aqua-400/40 bg-aqua-400/10 py-3 text-[14px] font-semibold text-aqua-400 disabled:opacity-70"
-                  >
-                    워킹피드 게시됨
-                  </button>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-aqua-400/40 bg-aqua-400/10 py-3 text-[14px] font-semibold text-aqua-400">
+                        워킹피드 게시됨
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDeleteWalkingFeed}
+                        disabled={deletingFeed}
+                        title={deleteFeedConfirm ? "한 번 더 누르면 삭제됩니다" : "워킹피드 삭제"}
+                        className={`flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-2xl transition-colors disabled:opacity-50 ${
+                          deleteFeedConfirm
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-surface-200 text-navy-400 hover:bg-red-500/10 hover:text-red-400"
+                        }`}
+                      >
+                        {deletingFeed
+                          ? <Loader2 size={16} className="animate-spin" />
+                          : <Trash2 size={16} strokeWidth={1.8} />}
+                      </button>
+                    </div>
+                    {deleteFeedConfirm && (
+                      <p className="text-center text-[11px] font-semibold text-red-400">
+                        한 번 더 누르면 워킹피드가 삭제됩니다
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <button
                     type="button"

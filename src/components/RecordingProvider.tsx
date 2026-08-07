@@ -4,6 +4,16 @@ import { useToast } from "@/components/Toast";
 import { distanceMeters, mockRoute, type LatLng } from "@/lib/map";
 import { km, duration } from "@/lib/utils";
 import { KOREA_SPOTS } from "@/lib/taxonomy";
+import { isNativeRuntime, importLocalNotifications } from "@/lib/capacitorPlugins";
+
+/** 스마트피싱 장시간 알림 — 다른 알림 ID 대역(물때 10_000)과 충돌 방지 */
+const TRIP_ALERT_ID_BASE = 20_000;
+/** 첫 알림 임계: 3시간(초) */
+const TRIP_ALERT_FIRST_SEC = 3 * 3600;
+/** 이후 반복 주기: 1시간(초) */
+const TRIP_ALERT_INTERVAL_SEC = 3600;
+/** 최대 알림 수 (3h~23h = 21개) */
+const TRIP_ALERT_MAX = 21;
 
 export type Status = "idle" | "tracking" | "paused";
 
@@ -98,6 +108,8 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
   const mockTimer = useRef<any>(null);
   const mockIdx = useRef(0);
   const recentGpsPoints = useRef<LatLng[]>([]);
+  /** 스마트피싱 장시간 알림 — 웹 setTimeout 핸들 목록 */
+  const tripAlertTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   // 화면 꺼짐 방지(Screen Wake Lock) — 웹 전용, 미지원 환경에서는 무시
   const wakeLockRef = useRef<any>(null);
   /** release()와 비동기 request() 경합 방지용 세대 카운터 */
@@ -255,6 +267,101 @@ export function RecordingProvider({ children }: { children: React.ReactNode }) {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [status]);
+
+  // ---- 스마트피싱 장시간 알림 (3h 후 첫 알림, 이후 1h마다 반복) ----
+  const clearTripAlertTimers = useCallback(() => {
+    tripAlertTimers.current.forEach((t) => clearTimeout(t));
+    tripAlertTimers.current = [];
+  }, []);
+
+  const cancelNativeTripAlerts = useCallback(async () => {
+    try {
+      const { LocalNotifications } = await importLocalNotifications();
+      if (!LocalNotifications) return;
+      const pending = await LocalNotifications.getPending();
+      const ids = (pending?.notifications ?? [])
+        .map((n: { id: number }) => n.id)
+        .filter((id: number) => id >= TRIP_ALERT_ID_BASE && id < TRIP_ALERT_ID_BASE + TRIP_ALERT_MAX);
+      if (ids.length > 0) {
+        await LocalNotifications.cancel({ notifications: ids.map((id: number) => ({ id })) });
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (status !== "tracking") {
+      clearTripAlertTimers();
+      cancelNativeTripAlerts();
+      return;
+    }
+
+    const currentElapsed = elapsedRef.current;
+    const isNative = isNativeRuntime();
+
+    // 웹: 브라우저 알림 권한 조용히 요청
+    if (!isNative && typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+
+    const nativeAlerts: Array<{ id: number; title: string; body: string; at: Date }> = [];
+
+    for (let i = 0; i < TRIP_ALERT_MAX; i++) {
+      const thresholdSec = TRIP_ALERT_FIRST_SEC + i * TRIP_ALERT_INTERVAL_SEC;
+      const remainingSec = thresholdSec - currentElapsed;
+      if (remainingSec <= 0) continue;
+
+      const remainingMs = remainingSec * 1000;
+      const hours = 3 + i;
+      const body = `스마트피싱이 ${hours}시간 이상 작동 중입니다. 아직 낚시 중이신가요?`;
+
+      if (isNative) {
+        nativeAlerts.push({
+          id: TRIP_ALERT_ID_BASE + i,
+          title: "🎣 스마트피싱 진행 중",
+          body,
+          at: new Date(Date.now() + remainingMs),
+        });
+      } else {
+        const timer = setTimeout(() => {
+          if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+            try {
+              new Notification("🎣 스마트피싱 진행 중", {
+                body,
+                icon: "/favicon.ico",
+                tag: `trip-alert-${i}`,
+              });
+            } catch {}
+          }
+        }, remainingMs);
+        tripAlertTimers.current.push(timer);
+      }
+    }
+
+    if (isNative && nativeAlerts.length > 0) {
+      (async () => {
+        try {
+          const { LocalNotifications } = await importLocalNotifications();
+          if (!LocalNotifications) return;
+          const perm = await LocalNotifications.checkPermissions();
+          if (perm.display !== "granted") await LocalNotifications.requestPermissions();
+          await LocalNotifications.schedule({
+            notifications: nativeAlerts.map((n) => ({
+              id: n.id,
+              title: n.title,
+              body: n.body,
+              schedule: { at: n.at, allowWhileIdle: true },
+              extra: { kind: "trip-alert" },
+            })),
+          });
+        } catch {}
+      })();
+    }
+
+    return () => {
+      clearTripAlertTimers();
+      if (isNative) cancelNativeTripAlerts();
+    };
+  }, [status, clearTripAlertTimers, cancelNativeTripAlerts]);
 
   // ---- Wake Lock 유지 (기록 중에만) ----
   // 잠깐 백그라운드에 다녀오면 락이 자동 해제되므로 visibilitychange에서 재요청한다.

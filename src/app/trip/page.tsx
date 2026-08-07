@@ -32,6 +32,17 @@ export default async function TripPage() {
       }).catch(() => [] as any[])
     : [] as any[];
 
+  // 워킹피드 게시 상태 조회 (PUBLIC인 것만)
+  const walkingFeedPosts = await prisma.post.findMany({
+    where: {
+      tripId: { in: trips.map((t) => t.id) },
+      postType: "WALKING_FEED",
+      visibility: "PUBLIC",
+    },
+    select: { id: true, tripId: true },
+  }).catch(() => [] as any[]);
+  const walkingFeedMap = new Map(walkingFeedPosts.map((p: any) => [p.tripId as string, p.id as string]));
+
   const tripData = trips.map((t) => {
     let catches = t.fishingPoints as any[];
     // 연결된 피쉬 기록이 없으면 세션 시간 범위로 fallback
@@ -59,6 +70,8 @@ export default async function TripPage() {
         lat: f.lat,
         lng: f.lng,
       })),
+      walkingFeedPostId: walkingFeedMap.get(t.id) ?? null,
+      walkingFeedPublished: walkingFeedMap.has(t.id),
     };
   });
 
