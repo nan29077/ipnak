@@ -297,7 +297,13 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
         ) : (
           <div className="space-y-3 pt-0.5">
             {/* 해양·기상 카드 — 공공 API 키가 없으면 이 블록 전체가 렌더되지 않는다 */}
-            <MarineSection marine={data.marine} origin={data.marineOrigin} />
+            <MarineSection
+              marine={data.marine}
+              origin={data.marineOrigin}
+              topPointName={data.marineOrigin?.origin === "point" && data.points[0]
+                ? `${data.points[0].name}${data.points[0].sigungu ? `, ${data.points[0].sigungu}` : ""}`
+                : undefined}
+            />
 
             <div className="rounded-xl bg-orange-500/10 px-3 py-2.5 ring-1 ring-orange-500/20">
               <div className="flex items-center gap-1.5">
@@ -490,8 +496,8 @@ const FIT_TONE: Record<string, string> = {
 };
 
 function MarineSection({
-  marine, origin,
-}: { marine?: MarineData | null; origin?: { origin: "user" | "region" | "point" } | null }) {
+  marine, origin, topPointName,
+}: { marine?: MarineData | null; origin?: { origin: "user" | "region" | "point" } | null; topPointName?: string }) {
   // 키도 없고 데이터도 없으면 숨긴다. 키가 등록돼 있으면 API 호출 실패여도 섹션 프레임은 유지한다.
   if (!marine) return null;
   const hasAny = Boolean(marine.tide || marine.waterTemp || marine.wind || marine.pressure || marine.air?.tempC != null);
@@ -500,7 +506,8 @@ function MarineSection({
 
   const originLabel =
     origin?.origin === "user" ? "현재 위치 기준"
-    : origin?.origin === "point" ? "1위 추천 포인트 기준"
+    : origin?.origin === "point"
+      ? topPointName ? `1위 추천 포인트 기준 (${topPointName})` : "1위 추천 포인트 기준"
     : "선택 지역 기준";
 
   return (

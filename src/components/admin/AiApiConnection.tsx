@@ -137,8 +137,11 @@ export function AiApiConnection({ initial }: Props) {
                 <b> 등록하지 않아도 기존 추천은 그대로 동작</b>하며 해당 카드만 표시되지 않습니다.
               </p>
               <div className="mt-2 flex flex-wrap gap-3">
-                <a href="https://www.khoa.go.kr/oceangrid/gis/category/reference/distribution.do" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">
-                  바다누리 해양정보 신청 <ExternalLink size={11} />
+                <a href="https://www.data.go.kr/data/15001441/openapi.do" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">
+                  조위관측소 최신 관측데이터 신청 <ExternalLink size={11} />
+                </a>
+                <a href="https://www.data.go.kr/data/15019067/openapi.do" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">
+                  조위관측소 실측·예측 조위 신청 <ExternalLink size={11} />
                 </a>
                 <a href="https://www.data.go.kr/data/15084084/openapi.do" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">
                   기상청 단기예보 신청 <ExternalLink size={11} />
