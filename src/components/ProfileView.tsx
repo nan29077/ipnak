@@ -128,7 +128,7 @@ function TabChip({ active, onClick, icon, label }: { active: boolean; onClick: (
   return (
     <button type="button" onClick={onClick}
       className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold btn-press transition-all",
-        active ? "bg-orange-500 text-white shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100")}>
+        active ? "bg-orange-500 text-gray-900 shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100")}>
       {icon} {label}
     </button>
   );

@@ -64,7 +64,7 @@ export function ProductTagPlacer({
               onClick={() => setActiveId(p.id)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium transition btn-press",
-                activeId === p.id ? "bg-orange-500 text-white shadow-soft" : "bg-aqua-50 text-aqua-700 hover:bg-aqua-100",
+                activeId === p.id ? "bg-orange-500 text-gray-900 shadow-soft" : "bg-aqua-50 text-aqua-700 hover:bg-aqua-100",
               )}
             >
               <ShoppingBag size={12} />

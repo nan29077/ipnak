@@ -499,7 +499,7 @@ export function MapScreen({ userId }: { userId?: string }) {
                 <button
                   type="button"
                   onClick={enableGpsFromGuide}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-3 text-[14px] font-bold text-white shadow-lg shadow-orange-500/25 transition-colors hover:bg-orange-600 active:scale-[0.98]"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-3 text-[14px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-colors hover:bg-orange-600 active:scale-[0.98]"
                 >
                   <Navigation size={16} /> GPS 켜기
                 </button>
@@ -1400,7 +1400,7 @@ function DataFishingTutorial({
                 <button
                   type="button"
                   onClick={onNext}
-                  className="flex-1 rounded-2xl bg-orange-500 py-2.5 text-[14px] font-bold text-white shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98] active:bg-orange-600"
+                  className="flex-1 rounded-2xl bg-orange-500 py-2.5 text-[14px] font-bold text-gray-900 shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98] active:bg-orange-600"
                 >
                   {isLast ? "시작하기" : "다음"}
                 </button>

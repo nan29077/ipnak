@@ -1,17 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, CheckCircle2, ExternalLink, Eye, EyeOff, KeyRound, Loader2, MessageSquare, Search, Waves } from "lucide-react";
+import { Bot, CheckCircle2, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Search, Waves } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 
-type ApiTab = "chatgpt" | "naver" | "sms" | "marine";
+type ApiTab = "chatgpt" | "naver" | "marine";
 type Props = {
   initial: {
     openaiConfigured: boolean;
     naverConfigured: boolean;
-    smsConfigured: boolean;
-    smsSender: string;
     /** 해양·기상 공공 API — 이전 버전 데이터에는 없을 수 있어 선택 필드로 둔다 */
     tideConfigured?: boolean;
     weatherConfigured?: boolean;
@@ -25,10 +23,6 @@ export function AiApiConnection({ initial }: Props) {
   const [openai, setOpenai] = useState("");
   const [naverClientId, setNaverClientId] = useState("");
   const [naverClientSecret, setNaverClientSecret] = useState("");
-  // 발신번호는 비밀값이 아니라 현재 설정된 값을 그대로 보여주고 수정하게 한다.
-  const [smsApiKey, setSmsApiKey] = useState("");
-  const [smsApiSecret, setSmsApiSecret] = useState("");
-  const [smsSender, setSmsSender] = useState(initial.smsSender ?? "");
   // 해양·기상 공공 API (AI 포인트 추천의 물때/수온/바람/기압 보강용)
   const [tideApiKey, setTideApiKey] = useState("");
   const [weatherApiKey, setWeatherApiKey] = useState("");
@@ -43,21 +37,13 @@ export function AiApiConnection({ initial }: Props) {
 
     const payload = activeTab === "chatgpt"
       ? { type: "AI_CONNECTION_SAVE", openai }
-      : activeTab === "naver"
-      ? { type: "AI_CONNECTION_SAVE", naverClientId, naverClientSecret }
-      : { type: "AI_CONNECTION_SAVE", smsApiKey, smsApiSecret, smsSender };
+      : { type: "AI_CONNECTION_SAVE", naverClientId, naverClientSecret };
 
     if (activeTab === "chatgpt" && !openai.trim()) {
       return toast("ChatGPT API 키를 입력해 주세요.", "info");
     }
     if (activeTab === "naver" && (!naverClientId.trim() || !naverClientSecret.trim())) {
       return toast("NAVER Client ID와 Client Secret을 모두 입력해 주세요.", "error");
-    }
-    if (activeTab === "sms" && !smsApiKey.trim() && !smsApiSecret.trim() && !smsSender.trim()) {
-      return toast("저장할 SMS 연동 정보를 입력해 주세요.", "info");
-    }
-    if (activeTab === "sms" && (Boolean(smsApiKey.trim()) !== Boolean(smsApiSecret.trim()))) {
-      return toast("SMS API 키와 Secret은 함께 입력해 주세요.", "error");
     }
 
     setSaving(true);
@@ -74,12 +60,8 @@ export function AiApiConnection({ initial }: Props) {
       else if (activeTab === "naver") {
         setNaverClientId("");
         setNaverClientSecret("");
-      } else {
-        // 발신번호는 화면에 계속 보여줘야 하므로 비우지 않는다.
-        setSmsApiKey("");
-        setSmsApiSecret("");
       }
-      toast(`${activeTab === "chatgpt" ? "ChatGPT" : activeTab === "naver" ? "NAVER 검색" : "SMS"} API 연결 정보를 저장했습니다.`, "success");
+      toast(`${activeTab === "chatgpt" ? "ChatGPT" : "NAVER 검색"} API 연결 정보를 저장했습니다.`, "success");
       router.refresh();
     } catch (error: unknown) {
       toast(error instanceof Error ? error.message : "저장하지 못했습니다.", "error");
@@ -130,7 +112,6 @@ export function AiApiConnection({ initial }: Props) {
       <div className="mt-5 flex overflow-x-auto border-b border-navy-100" role="tablist" aria-label="외부 API 종류">
         <ApiTabButton active={isChatGpt} icon={<Bot size={15} />} label="ChatGPT API" configured={initial.openaiConfigured} onClick={() => setActiveTab("chatgpt")} />
         <ApiTabButton active={activeTab === "naver"} icon={<Search size={15} />} label="NAVER 검색 API" configured={initial.naverConfigured} onClick={() => setActiveTab("naver")} />
-        <ApiTabButton active={activeTab === "sms"} icon={<MessageSquare size={15} />} label="휴대폰 인증(SMS)" configured={initial.smsConfigured} onClick={() => setActiveTab("sms")} />
         <ApiTabButton active={activeTab === "marine"} icon={<Waves size={15} />} label="해양·기상 API" configured={Boolean(initial.tideConfigured && initial.weatherConfigured)} onClick={() => setActiveTab("marine")} />
       </div>
 
@@ -165,26 +146,6 @@ export function AiApiConnection({ initial }: Props) {
               </div>
             </div>
           </div>
-        ) : activeTab === "sms" ? (
-          <div className="space-y-3">
-            <SecretInput label="SMS 서비스 API 키" value={smsApiKey} onChange={setSmsApiKey} visible={visible} className={inputClass} configured={initial.smsConfigured} />
-            <SecretInput label="SMS 서비스 Secret" value={smsApiSecret} onChange={setSmsApiSecret} visible={visible} className={inputClass} configured={initial.smsConfigured} />
-            <label className="block">
-              <span className="mb-1.5 block text-[12px] font-semibold text-navy-600">발신 번호 (선택)</span>
-              <input
-                type="tel"
-                autoComplete="off"
-                value={smsSender}
-                onChange={(e) => setSmsSender(e.target.value)}
-                placeholder="예: 01012345678 (사전 등록된 발신번호)"
-                className={inputClass}
-              />
-            </label>
-            <p className="rounded-xl bg-amber-400/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-amber-500 ring-1 ring-amber-400/20">
-              현재는 <b>키 저장까지만</b> 지원합니다. 실제 문자 발송 연동은 아직 되어 있지 않습니다.
-              알리고·CoolSMS 등 사용하실 서비스의 키를 미리 등록해 두세요.
-            </p>
-          </div>
         ) : (
           <div className="space-y-3">
             <SecretInput label="NAVER Search Client ID" value={naverClientId} onChange={setNaverClientId} visible={visible} className={inputClass} configured={initial.naverConfigured} />
@@ -200,7 +161,7 @@ export function AiApiConnection({ initial }: Props) {
         </button>
       </div>
 
-      <button disabled={saving} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[13px] font-bold text-white transition hover:bg-orange-600 disabled:opacity-60">
+      <button disabled={saving} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[13px] font-bold text-gray-900 transition hover:bg-orange-600 disabled:opacity-60">
         {saving ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />} 연결 정보 저장
       </button>
     </form>

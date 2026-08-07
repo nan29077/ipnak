@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, FileImage, MessageCircle, Flag, Trophy, ClipboardCheck,
   Anchor, CalendarDays, ShoppingBag, Fish, SlidersHorizontal, Settings, Shield,
-  LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins, Store, DatabaseZap, Package, Bot,
+  LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins, Store, DatabaseZap, Package, Bot, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -70,6 +70,12 @@ const GROUPS: MenuGroup[] = [
     ],
   },
   {
+    title: "알림 · 메시지",
+    items: [
+      { href: "/admin/alimtalk", label: "알림톡 · SMS 관리", icon: Bell },
+    ],
+  },
+  {
     title: "사이트 설정",
     items: [
       { href: "/admin/site", label: "사이트 관리", icon: SlidersHorizontal },
@@ -107,7 +113,7 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
                 <Link key={m.href} href={m.href}
                   aria-current={on ? "page" : undefined}
                   className={cn("flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors btn-press",
-                    on ? "bg-orange-500 text-white shadow-soft" : "text-gray-400 hover:bg-white/[0.06] hover:text-white")}>
+                    on ? "bg-orange-500 text-gray-900 shadow-soft" : "text-gray-400 hover:bg-white/[0.06] hover:text-white")}>
                   <Icon size={18} className={cn(!on && "text-gray-500")} /> {m.label}
                 </Link>
               );
@@ -135,7 +141,7 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
       {/* 데스크톱: 좌측 고정 사이드바 */}
       <aside className="sticky top-0 hidden h-screen w-[244px] shrink-0 flex-col border-r border-white/10 bg-gray-900 md:flex">
         <div className="flex items-center gap-2 px-5 pt-6">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-gray-900">
             <Shield size={18} />
           </span>
           <span className="text-lg font-extrabold tracking-tight text-white">입낚 관리자</span>
@@ -161,7 +167,7 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
         >
           <div className="pt-safe flex items-center justify-between px-4 pt-4">
             <span className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-white">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-gray-900">
                 <Shield size={16} />
               </span>
               <span className="font-extrabold tracking-tight text-white">입낚 관리자</span>
@@ -192,7 +198,7 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
             >
               <Menu size={21} strokeWidth={1.9} />
             </button>
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-white">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-gray-900">
               <Shield size={16} />
             </span>
             <span className="font-extrabold tracking-tight text-navy-800">입낚 관리자</span>

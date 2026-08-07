@@ -83,7 +83,7 @@ export function BallManualInput({ onRegistered }: { onRegistered?: () => void })
             <button
               type="submit"
               disabled={!ballId.trim() || loading}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-orange-500 px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-40"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-orange-500 px-3 py-2 text-[13px] font-semibold text-gray-900 transition-colors hover:bg-orange-600 disabled:opacity-40"
             >
               {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
               등록

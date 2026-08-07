@@ -662,7 +662,7 @@ export function TripDetailSheet({
                     type="button"
                     onClick={handlePublishFeed}
                     disabled={publishingFeed}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-[14px] font-semibold text-gray-900 transition-colors hover:bg-orange-600 disabled:opacity-50"
                   >
                     {publishingFeed && <Loader2 size={16} className="animate-spin" />}
                     {publishingFeed ? "게시 중..." : "워킹피드에 올리기"}

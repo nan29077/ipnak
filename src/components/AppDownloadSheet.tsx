@@ -133,7 +133,7 @@ export function AppDownloadSheet() {
           <div className="flex w-full flex-col gap-3">
             <button
               onClick={handleDownload}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-[0_4px_20px_rgba(234,179,8,0.35)] transition-all hover:bg-orange-400 active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-[0_4px_20px_rgba(234,179,8,0.35)] transition-all hover:bg-orange-400 active:scale-[0.98]"
             >
               <Download size={18} strokeWidth={2.1} />
               앱 다운로드 받으러 가기

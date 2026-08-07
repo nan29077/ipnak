@@ -81,7 +81,7 @@ export function ChargePanel({
 
       <button
         onClick={proceed}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft transition-colors hover:bg-orange-600"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-gray-900 shadow-soft transition-colors hover:bg-orange-600"
       >
         <Coins size={17} /> {amount.toLocaleString()}P 충전하기
       </button>

@@ -211,7 +211,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
               <div className="flex flex-col items-center gap-1">
                 <div className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold transition-all",
-                  done ? "bg-orange-500 text-white" :
+                  done ? "bg-orange-500 text-gray-900" :
                   active ? "bg-orange-500/20 ring-2 ring-orange-500 text-orange-400" :
                   "bg-white/[0.06] text-white/25"
                 )}>
@@ -251,7 +251,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
                     >
                       <X size={13} />
                     </button>
-                    <span className="absolute bottom-2 right-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">대표</span>
+                    <span className="absolute bottom-2 right-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-gray-900">대표</span>
                   </div>
                 ) : (
                   <div className={cn(
@@ -546,7 +546,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
                 else if (step === 2) toast("가격을 입력해 주세요", "error");
               }}
               disabled={!!uploading}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-3 text-[13px] font-bold text-white transition-all hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-3 text-[13px] font-bold text-gray-900 transition-all hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
             >
               다음 <ChevronRight size={15} />
             </button>
@@ -555,7 +555,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
               type="button"
               onClick={handleSubmit}
               disabled={submitting}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-3 text-[13px] font-bold text-white transition-all hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-3 text-[13px] font-bold text-gray-900 transition-all hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
             >
               {submitting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
               {submitting ? "등록 중..." : "상품 등록 완료"}
@@ -614,7 +614,7 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
       <button
         type="button"
         onClick={openModal}
-        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-bold text-white shadow-soft transition-all hover:bg-orange-600 active:scale-[0.97]"
+        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-bold text-gray-900 shadow-soft transition-all hover:bg-orange-600 active:scale-[0.97]"
       >
         <Plus size={15} /> 상품 등록
       </button>

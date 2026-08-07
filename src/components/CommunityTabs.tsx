@@ -56,7 +56,7 @@ export function CommunityTabs() {
             className={cn(
               "flex flex-col items-center gap-1.5 rounded-2xl py-3 text-[12px] font-semibold transition-all active:scale-[0.96]",
               active
-                ? "bg-orange-500 text-white shadow-soft"
+                ? "bg-orange-500 text-gray-900 shadow-soft"
                 : "bg-navy-50 text-navy-500 hover:bg-navy-100"
             )}
           >

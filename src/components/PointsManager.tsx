@@ -125,7 +125,7 @@ export function PointsManager({
               onClick={() => reloadTx(k)}
               className={cn(
                 "rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors",
-                filter === k ? "bg-orange-500 text-white" : "bg-navy-50/10 text-navy-400 hover:bg-navy-50/20",
+                filter === k ? "bg-orange-500 text-gray-900" : "bg-navy-50/10 text-navy-400 hover:bg-navy-50/20",
               )}
             >
               {label}
@@ -220,7 +220,7 @@ function GiftSheet({ open, onClose, balance, onDone }: { open: boolean; onClose:
       <button
         onClick={gift}
         disabled={loading}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft disabled:opacity-60"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-gray-900 shadow-soft disabled:opacity-60"
       >
         {loading ? <Loader2 size={18} className="animate-spin" /> : <><Gift size={17} /> 선물하기</>}
       </button>

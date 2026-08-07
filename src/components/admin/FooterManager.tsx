@@ -103,7 +103,7 @@ export function FooterManager() {
         type="button"
         onClick={save}
         disabled={saving || loading}
-        className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[13px] font-bold text-white transition hover:bg-orange-600 disabled:opacity-60"
+        className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[13px] font-bold text-gray-900 transition hover:bg-orange-600 disabled:opacity-60"
       >
         {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
         저장

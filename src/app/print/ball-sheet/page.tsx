@@ -99,7 +99,7 @@ export default function BallSheetPrintPage() {
         .hd-badge {
           flex-shrink: 0;
           padding: 3px 8px; border-radius: 6px;
-          background: #eab308; color: #fff;
+          background: #eab308; color: #111827;
           font-size: 10.5px; font-weight: 800; letter-spacing: .03em;
         }
         .hd-title { font-size: 14px; font-weight: 600; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -116,7 +116,7 @@ export default function BallSheetPrintPage() {
         .btn:active { transform: scale(.96); }
         .btn.ghost { background: #222; color: #aaa; border: 1px solid #253848; }
         .btn.ghost:hover { background: #282828; color: #ddd; }
-        .btn.primary { background: #eab308; color: #fff; font-weight: 700; }
+        .btn.primary { background: #eab308; color: #111827; font-weight: 700; }
         .btn.primary:hover { background: #ca8a04; }
         .btn.icon { width: 34px; height: 34px; padding: 0; justify-content: center; background: transparent; color: #555; }
         .btn.icon:hover { background: #222; color: #aaa; }

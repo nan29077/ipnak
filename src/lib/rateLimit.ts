@@ -14,6 +14,25 @@ function pruneExpired(now: number) {
 }
 
 /**
+ * 클라이언트 IP 추출 (레이트 리밋 키 용도).
+ * - X-Forwarded-For 는 클라이언트가 임의 값을 붙여 보낼 수 있어 스푸핑에 취약하다.
+ * - 신뢰 우선순위: 프록시(Nginx)가 직접 설정하는 x-real-ip → XFF 의 "마지막" IP(프록시가 추가한 값).
+ *   (첫 번째 IP 는 클라이언트가 위조해 넣을 수 있으므로 사용하지 않는다)
+ * - 개발 환경에서는 항상 127.0.0.1 로 처리한다.
+ */
+export function getClientIp(req: Request): string {
+  if (process.env.NODE_ENV !== "production") return "127.0.0.1";
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) {
+    const parts = fwd.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  return "unknown";
+}
+
+/**
  * @param key     - 제한 대상 식별자 (예: `"scan:127.0.0.1"`)
  * @param limit   - 윈도우 내 최대 허용 횟수
  * @param windowMs - 윈도우 크기 (ms)

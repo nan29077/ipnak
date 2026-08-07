@@ -1,15 +1,12 @@
 import "server-only";
 import { randomBytes, randomInt } from "crypto";
 import { prisma } from "./prisma";
-import { getAiCredentials } from "./aiCredentials";
+import { sendSMS, getAligoSettings } from "./aligo";
 
 /**
  * 비밀번호 찾기(휴대폰 인증) 공통 로직.
- *
- * 현재 상태: SMS 발송은 연동되어 있지 않다.
- * 관리자 > 사이트 관리 > "AI API 연결" > 휴대폰 인증(SMS) 탭에서 키를 등록하면
- * isSmsReady()가 true가 되고, 아래 sendResetCodeSms()의 TODO 지점만 채우면
- * 이메일 입력 → 인증번호 발송 → 검증 → 새 비밀번호 설정 흐름이 그대로 동작한다.
+ * SMS 발송은 Aligo를 통해 이루어진다 (lib/aligo.ts).
+ * 관리자 > 알림톡 관리 > 설정 탭에서 Aligo API 키를 등록하면 isSmsReady()가 true가 된다.
  */
 
 const KEY_PREFIX = "pwreset_";
@@ -31,20 +28,17 @@ function storeKey(email: string) {
   return `${KEY_PREFIX}${email.trim().toLowerCase()}`;
 }
 
-/** SMS 연동 여부 — 키와 시크릿이 모두 등록돼 있어야 발송 가능으로 본다. */
+/** SMS 연동 여부 — Aligo API 키가 설정돼 있어야 발송 가능으로 본다. */
 export async function isSmsReady(): Promise<boolean> {
-  const { smsApiKey, smsApiSecret } = await getAiCredentials();
-  return Boolean(smsApiKey && smsApiSecret);
+  const settings = await getAligoSettings();
+  return Boolean(settings);
 }
 
-/**
- * 회원의 휴대폰 번호를 찾는다.
- *
- * 주의: User 모델에는 아직 휴대폰 번호 필드가 없다.
- * 지금은 회원이 남긴 주문의 구매자 연락처를 사용하며, 없으면 null이다.
- * 회원가입에 휴대폰 입력이 추가되면 이 함수만 User.phone을 읽도록 바꾸면 된다.
- */
+/** 회원의 휴대폰 번호를 찾는다 (User.phone 우선, 없으면 최근 주문 buyerPhone 사용) */
 export async function resolveUserPhone(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { phone: true } }).catch(() => null);
+  if (user?.phone?.trim()) return user.phone.trim();
+  // 폴백: 최근 주문 구매자 연락처
   const order = await prisma.ballOrder.findFirst({
     where: { userId },
     orderBy: { createdAt: "desc" },
@@ -53,18 +47,12 @@ export async function resolveUserPhone(userId: string): Promise<string | null> {
   return order?.buyerPhone?.trim() || null;
 }
 
-/**
- * 인증번호 SMS 발송 지점.
- * 지금은 실제 발송을 하지 않고 발송 대상만 기록한다.
- * SMS 서비스(알리고·CoolSMS 등) 연동 시 이 함수 안에서 호출하면 된다.
- */
+/** 비밀번호 재설정 인증번호 SMS 발송 (Aligo) */
 export async function sendResetCodeSms(phone: string, code: string): Promise<void> {
-  const { smsSender } = await getAiCredentials();
-  // TODO(SMS 연동): 아래 로그를 실제 발송 API 호출로 교체
-  //   await fetch("https://api.coolsms.co.kr/...", { ... 발신번호 smsSender, 수신 phone, 본문 code ... })
-  console.info(
-    `[비밀번호 찾기] SMS 발송 예정 (미연동) — 발신 ${smsSender || "(미설정)"} → 수신 ${maskPhone(phone)} / 인증번호 ${code}`
-  );
+  const result = await sendSMS(phone, `[입낚] 비밀번호 재설정 인증번호: ${code} (5분간 유효)`);
+  if (!result.success) {
+    console.error(`[비밀번호 찾기] SMS 발송 실패 → ${maskPhone(phone)}: ${result.message}`);
+  }
 }
 
 /** 로그·화면 노출용 마스킹 (010-****-1234) */

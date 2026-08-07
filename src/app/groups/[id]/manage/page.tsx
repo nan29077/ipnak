@@ -194,11 +194,11 @@ export default function GroupManagePage() {
             {TABS.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={cn("flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-semibold transition-all",
-                  tab === t.key ? "bg-orange-500 text-white" : "bg-navy-50/10 text-navy-400 hover:bg-navy-50/20")}>
+                  tab === t.key ? "bg-orange-500 text-gray-900" : "bg-navy-50/10 text-navy-400 hover:bg-navy-50/20")}>
                 {t.icon} {t.label}
                 {t.key === "pending" && pending.length > 0 && (
                   <span className={cn("rounded-full px-1.5 py-px text-[10px] font-bold",
-                    tab === "pending" ? "bg-white/25 text-white" : "bg-orange-500 text-white")}>
+                    tab === "pending" ? "bg-white/25 text-white" : "bg-orange-500 text-gray-900")}>
                     {pending.length}
                   </span>
                 )}
@@ -423,7 +423,7 @@ export default function GroupManagePage() {
                       placeholder="ex) 배스, 주말출조, 초보환영" className="manage-input" />
                   </Field>
                   <button type="submit" disabled={saving}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-[14px] font-extrabold text-white shadow-soft disabled:opacity-60">
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-[14px] font-extrabold text-gray-900 shadow-soft disabled:opacity-60">
                     {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} strokeWidth={1.5} />}
                     {saving ? "저장 중..." : "저장하기"}
                   </button>
@@ -514,7 +514,7 @@ export default function GroupManagePage() {
                 }
               }}
               disabled={acting === transferTarget.userId + "transfer"}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 py-2.5 text-[13px] font-bold text-white disabled:opacity-60">
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 py-2.5 text-[13px] font-bold text-gray-900 disabled:opacity-60">
               {acting === transferTarget.userId + "transfer" && <Loader2 size={13} className="animate-spin" />}
               양도하기
             </button>
@@ -596,7 +596,7 @@ function Avatar({ m }: { m: Member }) {
 
 function RoleBadge({ role }: { role: string }) {
   if (role === "leader")
-    return <span className="shrink-0 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">단장</span>;
+    return <span className="shrink-0 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-gray-900">단장</span>;
   if (role === "sub_leader")
     return <span className="shrink-0 rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-bold text-blue-400">부단장</span>;
   return <span className="shrink-0 rounded-full bg-navy-50/20 px-1.5 py-0.5 text-[10px] font-bold text-navy-400">단원</span>;

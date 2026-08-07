@@ -142,21 +142,34 @@ export async function changePoints(
  *  - 워킹 피드 열람 적립은 relatedUserId(열람자)가 있어 제외된다.
  *  - 댓글 적립은 relatedPostId 를 남기지 않아(=null) 제외된다.
  */
-async function countPostRewardsToday(userId: string): Promise<number> {
+async function countPostRewardsToday(userId: string, db: any = prisma): Promise<number> {
   const since = kstDayStart();
-  return prisma.pointTransaction.count({
+  return db.pointTransaction.count({
     where: { userId, type: "EARN", relatedUserId: null, relatedPostId: { not: null }, createdAt: { gte: since } },
   });
 }
 
-/** 피드 글 작성 적립 — 하루 5회 한도. 포인트 제도 OFF 이면 무동작. */
+/**
+ * 트랜잭션 안에서 해당 회원 행에 쓰기 잠금을 건다 (points 를 0 증가 = no-op 업데이트).
+ * MySQL(InnoDB)에서 같은 회원의 동시 적립 요청을 직렬화해
+ * "한도 카운트 → 적립" 사이의 race condition 을 막는다. (SQLite 는 쓰기 자체가 직렬화됨)
+ */
+async function lockUserRow(tx: any, userId: string): Promise<void> {
+  await tx.user.update({ where: { id: userId }, data: { points: { increment: 0 } }, select: { id: true } });
+}
+
+/** 피드 글 작성 적립 — 하루 5회 한도. 포인트 제도 OFF 이면 무동작.
+ *  한도 확인과 적립을 하나의 트랜잭션으로 묶어 동시 요청으로 한도를 초과하는 것을 방지한다. */
 export async function awardPostReward(userId: string, postId: string): Promise<number | null> {
   try {
     if (!(await pointsEnabled())) return null;
-    const count = await countPostRewardsToday(userId);
-    if (count >= POINT_RULES.POST_DAILY_LIMIT) return null;
-    await changePoints(userId, POINT_RULES.POST_REWARD, "EARN", "피드 글 작성 적립", { postId }, "POST");
-    return POINT_RULES.POST_REWARD;
+    return await prisma.$transaction(async (tx) => {
+      await lockUserRow(tx, userId);
+      const count = await countPostRewardsToday(userId, tx);
+      if (count >= POINT_RULES.POST_DAILY_LIMIT) return null;
+      await applyPoints(tx, userId, POINT_RULES.POST_REWARD, "EARN", "피드 글 작성 적립", { postId }, "POST");
+      return POINT_RULES.POST_REWARD;
+    });
   } catch {
     return null;
   }
@@ -190,9 +203,9 @@ export async function postRewardStatus(
  * 종류(일반 댓글·낚시단 댓글)와 무관하게 source="COMMENT" 하나의 버킷으로 합산한다.
  * 글 작성 적립(source="POST")과는 버킷이 완전히 분리된다.
  */
-async function countCommentRewardsToday(userId: string): Promise<number> {
+async function countCommentRewardsToday(userId: string, db: any = prisma): Promise<number> {
   const since = kstDayStart();
-  return prisma.pointTransaction.count({
+  return db.pointTransaction.count({
     where: { userId, type: "EARN", source: "COMMENT", createdAt: { gte: since } },
   });
 }
@@ -220,10 +233,13 @@ export async function commentRewardStatus(
 export async function awardCommentReward(userId: string): Promise<number | null> {
   try {
     if (!(await pointsEnabled())) return null;
-    const count = await countCommentRewardsToday(userId);
-    if (count >= POINT_RULES.COMMENT_DAILY_LIMIT) return null;
-    await changePoints(userId, POINT_RULES.COMMENT_REWARD, "EARN", "댓글 작성 적립", undefined, "COMMENT");
-    return POINT_RULES.COMMENT_REWARD;
+    return await prisma.$transaction(async (tx) => {
+      await lockUserRow(tx, userId);
+      const count = await countCommentRewardsToday(userId, tx);
+      if (count >= POINT_RULES.COMMENT_DAILY_LIMIT) return null;
+      await applyPoints(tx, userId, POINT_RULES.COMMENT_REWARD, "EARN", "댓글 작성 적립", undefined, "COMMENT");
+      return POINT_RULES.COMMENT_REWARD;
+    });
   } catch {
     return null;
   }

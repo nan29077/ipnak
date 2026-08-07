@@ -43,7 +43,7 @@ export function MarketTabs() {
               className={cn(
                 "flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-[13px] font-bold transition-all active:scale-[0.98]",
                 active
-                  ? "bg-orange-500 text-white shadow-soft"
+                  ? "bg-orange-500 text-gray-900 shadow-soft"
                   : "text-navy-400 hover:bg-white/5 hover:text-navy-700"
               )}
             >

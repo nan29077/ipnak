@@ -194,7 +194,7 @@ export function LogBoard({
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-2">
                 <p className="line-clamp-2 text-[10px] font-semibold leading-tight text-white">{p.title}</p>
               </div>
-              <span className="absolute left-1.5 top-1.5 rounded bg-orange-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">{p.boardLabel}</span>
+              <span className="absolute left-1.5 top-1.5 rounded bg-orange-500/90 px-1.5 py-0.5 text-[9px] font-bold text-gray-900">{p.boardLabel}</span>
             </Link>
           ))}
         </div>

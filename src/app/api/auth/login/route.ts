@@ -11,10 +11,19 @@ const MAX_ATTEMPTS = 10;
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
 function clientIp() {
+  // 개발 환경에서는 항상 로컬 IP 로 처리
+  if (process.env.NODE_ENV !== "production") return "127.0.0.1";
   const h = headers();
+  // X-Forwarded-For 는 클라이언트가 위조 가능 → 프록시가 설정한 x-real-ip 우선,
+  // XFF 를 쓸 때도 마지막(프록시가 추가한) IP 만 신뢰한다.
+  const realIp = h.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
   const forwarded = h.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return h.get("x-real-ip") || "unknown";
+  if (forwarded) {
+    const parts = forwarded.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  return "unknown";
 }
 
 function rateLimited(ip: string) {

@@ -72,22 +72,18 @@ export async function POST(req: Request) {
 
   try {
     if (b.type === "AI_CONNECTION_SAVE") {
-      const values = [b.openai, b.naverClientId, b.naverClientSecret, b.smsApiKey, b.smsApiSecret, b.smsSender];
+      const values = [b.openai, b.naverClientId, b.naverClientSecret];
       if (values.some((v) => v != null && (typeof v !== "string" || v.length > 512))) {
         return NextResponse.json({ error: "API 키 형식이 올바르지 않습니다." }, { status: 400 });
       }
       if ((Boolean(b.naverClientId) && !b.naverClientSecret) || (!b.naverClientId && Boolean(b.naverClientSecret))) {
         return NextResponse.json({ error: "네이버 Client ID와 Secret을 함께 입력해 주세요." }, { status: 400 });
       }
-      if ((Boolean(b.smsApiKey) && !b.smsApiSecret) || (!b.smsApiKey && Boolean(b.smsApiSecret))) {
-        return NextResponse.json({ error: "SMS API 키와 Secret을 함께 입력해 주세요." }, { status: 400 });
-      }
       const entries: [AiCredentialName, string][] = ([
         ["openai", b.openai], ["naverClientId", b.naverClientId], ["naverClientSecret", b.naverClientSecret],
-        ["smsApiKey", b.smsApiKey], ["smsApiSecret", b.smsApiSecret], ["smsSender", b.smsSender],
       ] as [AiCredentialName, string][]).filter((entry) => Boolean(entry[1]));
       await Promise.all(entries.map(([name, value]) => prisma.setting.upsert({ where: { key: aiSettingKey(name) }, update: { value: protectAiCredential(value) }, create: { key: aiSettingKey(name), value: protectAiCredential(value) } })));
-      await log("AI_CONNECTION_SAVE", "AI_API", `OpenAI: ${b.openai ? "updated" : "unchanged"}, NAVER: ${b.naverClientId ? "updated" : "unchanged"}, SMS: ${b.smsApiKey || b.smsSender ? "updated" : "unchanged"}`);
+      await log("AI_CONNECTION_SAVE", "AI_API", `OpenAI: ${b.openai ? "updated" : "unchanged"}, NAVER: ${b.naverClientId ? "updated" : "unchanged"}`);
       return NextResponse.json({ ok: true });
     }
     switch (b.type) {

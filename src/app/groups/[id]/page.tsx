@@ -297,7 +297,7 @@ export default function GroupDetailPage() {
                 <Crown size={18} strokeWidth={1.5} /> 내가 운영하는 낚시단입니다
               </div>
               <Link href={`/groups/${id}/manage`}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft">
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-gray-900 shadow-soft">
                 <Settings size={18} /> 낚시단 관리
               </Link>
             </div>
@@ -325,7 +325,7 @@ export default function GroupDetailPage() {
                 </div>
               )}
               <button onClick={join} disabled={joining}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft disabled:opacity-60">
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-gray-900 shadow-soft disabled:opacity-60">
                 {joining ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
                 {joining ? "신청 중..." : "가입 신청하기"}
               </button>
@@ -470,7 +470,7 @@ function CommunityTab({ groupId }: { groupId: string }) {
           </button>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickImage} />
           <button onClick={submit} disabled={submitting || (!content.trim() && !imageData)}
-            className="rounded-full bg-orange-500 px-4 py-1.5 text-[13px] font-bold text-white disabled:opacity-50">
+            className="rounded-full bg-orange-500 px-4 py-1.5 text-[13px] font-bold text-gray-900 disabled:opacity-50">
             {submitting ? "올리는 중..." : "올리기"}
           </button>
         </div>
@@ -714,7 +714,7 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
                     className="min-w-0 flex-1 rounded-full bg-navy-50/10 px-3 py-1.5 text-[16px] text-navy-800 outline-none placeholder:text-navy-400"
                   />
                   <button onClick={submitReply} disabled={replySubmitting || !replyInput.trim()}
-                    className="rounded-full bg-orange-500 p-1.5 text-white disabled:opacity-50">
+                    className="rounded-full bg-orange-500 p-1.5 text-gray-900 disabled:opacity-50">
                     <Send size={13} strokeWidth={1.5} />
                   </button>
                 </div>
@@ -734,7 +734,7 @@ function PostCard({ groupId, post, onUpdate }: { groupId: string; post: GroupPos
               />
               <CommentPhotoButton size={15} onUploaded={setCommentPhoto} />
               <button onClick={submitComment} disabled={commentSubmitting || (!commentInput.trim() && !commentPhoto)}
-                className="rounded-full bg-orange-500 p-2 text-white disabled:opacity-50">
+                className="rounded-full bg-orange-500 p-2 text-gray-900 disabled:opacity-50">
                 <Send size={14} strokeWidth={1.5} />
               </button>
             </div>
@@ -800,7 +800,7 @@ function PointsTab({ groupId }: { groupId: string }) {
           <p className="text-[12px] text-navy-400">회원들이 공유한 낚시 포인트</p>
         </div>
         <button onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1.5 rounded-full bg-orange-500 px-4 py-2 text-[13px] font-bold text-white shadow-soft">
+          className="flex items-center gap-1.5 rounded-full bg-orange-500 px-4 py-2 text-[13px] font-bold text-gray-900 shadow-soft">
           <Plus size={15} /> 포인트공유추가
         </button>
       </div>
@@ -1132,7 +1132,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
                 className="min-w-0 flex-1 rounded-xl bg-[#2a2a2a] px-3.5 py-2.5 text-[16px] text-navy-800 outline-none placeholder:text-navy-500 ring-1 ring-navy-100/20 focus:ring-orange-500/50"
               />
               <button onClick={searchAddress} disabled={addressSearching || !addressQuery.trim()}
-                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50">
+                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2.5 text-[13px] font-bold text-gray-900 disabled:opacity-50">
                 {addressSearching ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
                 검색
               </button>
@@ -1153,7 +1153,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
               </p>
             )}
             <button onClick={() => { setFromTrips(false); setError(""); setStep("form"); }} disabled={!lat || !lng}
-              className="w-full rounded-2xl bg-orange-500 py-3 text-[14px] font-bold text-white disabled:opacity-40">
+              className="w-full rounded-2xl bg-orange-500 py-3 text-[14px] font-bold text-gray-900 disabled:opacity-40">
               이 위치로 선택
             </button>
           </div>
@@ -1190,7 +1190,7 @@ function AddPointModal({ groupId, onClose, onAdded }: {
               />
             </div>
             <button onClick={submit} disabled={submitting || !title.trim() || (!tripId && (!lat || !lng))}
-              className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-soft disabled:opacity-50">
+              className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-soft disabled:opacity-50">
               {submitting ? <Loader2 size={18} className="animate-spin mx-auto" /> : "포인트 공유하기"}
             </button>
           </div>

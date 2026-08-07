@@ -277,7 +277,7 @@ export function IpnakBallProductForm({ type = "ball", label = "입낚볼" }: { t
       <button
         type="submit"
         disabled={loading}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-bold text-gray-900 hover:bg-orange-600 disabled:opacity-50"
       >
         {loading ? <Loader2 size={15} className="animate-spin" /> : null}
         상품 등록
@@ -456,7 +456,7 @@ export function IpnakBallProductEditModal({ product }: { product: ProductData })
                 <input type="checkbox" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} className="h-4 w-4 accent-orange-500" />
                 <span className="text-sm text-navy-600">활성화</span>
               </label>
-              <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50">
+              <button type="submit" disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 py-2.5 text-sm font-bold text-gray-900 hover:bg-orange-600 disabled:opacity-50">
                 {loading ? <Loader2 size={15} className="animate-spin" /> : <Pencil size={15} />} 수정 저장
               </button>
             </form>

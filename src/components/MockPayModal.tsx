@@ -87,7 +87,7 @@ export function MockPayModal({
         <div className="p-5 pb-[max(20px,env(safe-area-inset-bottom))]">
           <button
             onClick={pay}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft transition-colors hover:bg-orange-600"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-gray-900 shadow-soft transition-colors hover:bg-orange-600"
           >
             <CreditCard size={17} /> ₩{amount.toLocaleString()} 결제하기
           </button>

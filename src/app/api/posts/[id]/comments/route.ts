@@ -57,13 +57,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       include: { author: { select: { id: true, nickname: true, avatarUrl: true } } },
     });
 
+    // 게시글 작성자 조회 — 알림과 포인트 지급 조건에 공통으로 재사용
+    const post = await prisma.post.findUnique({ where: { id: params.id }, select: { authorId: true } }).catch(() => null);
+
     // 알림 생성 — 실패해도 댓글 등록 자체는 성공 처리
     try {
       const link = `/post/${params.id}`;
       const targets: { userId: string; type: string; body: string }[] = [];
 
       // 게시글 작성자에게 댓글 알림 (본인 제외)
-      const post = await prisma.post.findUnique({ where: { id: params.id }, select: { authorId: true } });
       if (post && post.authorId !== user.id) {
         targets.push({ userId: post.authorId, type: "COMMENT", body: `${user.nickname}님이 댓글을 남겼습니다` });
       }
@@ -83,8 +85,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     } catch { /* 알림 실패는 무시 */ }
 
-    // 댓글 작성 적립 (+10P, 한도 없음) — 실패해도 댓글 등록은 성공 처리
-    const pointsEarned = (await awardCommentReward(user.id)) ?? 0;
+    // 댓글 작성 적립 (+10P, 한도 없음) — 자기 글에는 미지급, 실패해도 댓글 등록은 성공 처리
+    const pointsEarned = post?.authorId !== user.id ? ((await awardCommentReward(user.id)) ?? 0) : 0;
 
     return NextResponse.json({ comment, pointsEarned });
   } catch {

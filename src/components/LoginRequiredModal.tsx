@@ -101,7 +101,7 @@ export function LoginRequiredModal({ open, onClose, feature }: LoginRequiredModa
               onClick={() => { onClose(); router.push("/login"); }}
               className="
                 w-full rounded-xl py-3.5 text-[15px] font-bold
-                bg-orange-500 text-white
+                bg-orange-500 text-gray-900
                 shadow-[0_4px_20px_rgba(234,179,8,0.35)]
                 active:scale-[0.98] transition-all
                 hover:bg-orange-400

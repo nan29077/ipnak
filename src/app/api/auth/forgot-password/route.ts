@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rateLimit";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 import { isSmsReady, issueResetCode, purgeExpiredResetCodes, CODE_TTL_MS } from "@/lib/passwordReset";
 
 /**
@@ -11,7 +11,7 @@ import { isSmsReady, issueResetCode, purgeExpiredResetCodes, CODE_TTL_MS } from 
  * (가입 여부가 드러나면 계정 존재 여부를 확인하는 데 악용될 수 있다)
  */
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(req);
   if (!rateLimit(`forgot:${ip}`, 5, 60_000)) {
     return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, { status: 429 });
   }

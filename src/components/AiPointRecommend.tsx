@@ -7,6 +7,7 @@ import {
   ChevronRight, Loader2, Ruler, Search, Waves, Droplets, Globe, ExternalLink,
   Map as MapIcon, Maximize2, X,
   Thermometer, Wind, Gauge, Navigation, TrendingDown, Minus, Clock, LocateFixed, Info,
+  CloudRain, CloudSnow, Sun,
 } from "lucide-react";
 import { Sheet, Button, Badge, Card, Select, Skeleton } from "@/components/ui";
 import { PointMiniMap } from "@/components/map/PointMiniMap";
@@ -46,7 +47,7 @@ type MarineData = {
   waterTemp: { stationName: string; distanceKm: number; tempC: number; observedAt: string | null } | null;
   wind: { deg: number | null; code: string | null; label: string | null; speedMs: number | null; strength: string | null; source: string } | null;
   pressure: { hpa: number; trend: "rising" | "falling" | "stable"; changeHpa: number | null; source: string } | null;
-  air: { tempC: number | null; humidity: number | null; precipitation: string | null; source: string } | null;
+  air: { tempC: number | null; humidity: number | null; precipitation: string | null; rainMm: number | null; source: string } | null;
   speciesFit: { name: string; water: "민물" | "바다"; status: "최적" | "양호" | "보통" | "비활성" }[];
   configured: { tide: boolean; weather: boolean };
   notes: string[];
@@ -124,6 +125,10 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
   async function openRecommendation() {
     try {
       const res = await fetch("/api/ai/status", { cache: "no-store" });
+      if (res.status === 401) {
+        toast("AI 포인트 추천은 로그인 후 이용할 수 있습니다.", "info");
+        return;
+      }
       const status = await res.json();
       // 해양·기상 키만 등록돼 있어도 물때·수온 카드 + 데이터 휴리스틱 추천은 의미가 있다.
       if (!status.openaiConfigured && !status.naverConfigured && !status.tideConfigured && !status.weatherConfigured) {
@@ -197,7 +202,7 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
         <button
           onClick={openRecommendation}
           aria-label="AI 포인트 추천"
-          className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-orange-500/95 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-card backdrop-blur btn-press transition-colors hover:bg-orange-600"
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-orange-500/95 px-3.5 py-2.5 text-[13px] font-semibold text-gray-900 shadow-card backdrop-blur btn-press transition-colors hover:bg-orange-600"
         >
           <Sparkles size={15} />
           AI 포인트 추천
@@ -208,7 +213,7 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
           aria-label="AI 포인트 추천"
           className="mx-3 mt-3 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/15 to-[#0d1b2a] px-4 py-3.5 text-left shadow-card btn-press transition-colors hover:from-orange-500/25"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-soft">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-gray-900 shadow-soft">
             <Sparkles size={20} />
           </span>
           <span className="min-w-0 flex-1">
@@ -487,10 +492,11 @@ const FIT_TONE: Record<string, string> = {
 function MarineSection({
   marine, origin,
 }: { marine?: MarineData | null; origin?: { origin: "user" | "region" | "point" } | null }) {
-  // 공공 API 키 미등록·호출 실패·내륙 지점이면 카드를 아예 그리지 않는다 (기존 추천은 그대로 동작)
+  // 키도 없고 데이터도 없으면 숨긴다. 키가 등록돼 있으면 API 호출 실패여도 섹션 프레임은 유지한다.
   if (!marine) return null;
   const hasAny = Boolean(marine.tide || marine.waterTemp || marine.wind || marine.pressure || marine.air?.tempC != null);
-  if (!hasAny) return null;
+  const hasKey = marine.configured.tide || marine.configured.weather;
+  if (!hasAny && !hasKey) return null;
 
   const originLabel =
     origin?.origin === "user" ? "현재 위치 기준"
@@ -508,10 +514,13 @@ function MarineSection({
       {marine.tide && <TideTimeline tide={marine.tide} />}
 
       <div className="mt-2.5 grid grid-cols-3 gap-2">
-        <WaterTempCard temp={marine.waterTemp} airTempC={marine.air?.tempC ?? null} />
+        <WaterTempCard temp={marine.waterTemp} />
         <WindCard wind={marine.wind} />
         <PressureCard pressure={marine.pressure} />
       </div>
+
+      {/* 기상청 초단기실황 — 기온·습도·강수 (키는 있는데 관측이 비면 각 항목이 '정보 없음') */}
+      <WeatherStrip air={marine.air} />
 
       {marine.waterTemp && marine.speciesFit.length > 0 && (
         <div className="mt-2.5 rounded-xl bg-white/[0.03] px-3 py-2.5">
@@ -529,6 +538,13 @@ function MarineSection({
             ))}
           </div>
         </div>
+      )}
+
+      {!hasAny && hasKey && (
+        <p className="mt-2 flex items-start gap-1 text-[10.5px] leading-relaxed text-navy-300">
+          <Info size={11} className="mt-[1px] shrink-0" />
+          해양 데이터를 가져오지 못했습니다. 잠시 후 다시 추천받아보세요.
+        </p>
       )}
 
       {(marine.tide || marine.waterTemp) && (
@@ -626,7 +642,7 @@ function MarineStat({
   );
 }
 
-function WaterTempCard({ temp, airTempC }: { temp: MarineData["waterTemp"]; airTempC: number | null }) {
+function WaterTempCard({ temp }: { temp: MarineData["waterTemp"] }) {
   if (!temp) {
     return <MarineStat muted icon={<Thermometer size={12} />} label="수온" value="—" sub="정보 없음" />;
   }
@@ -635,8 +651,45 @@ function WaterTempCard({ temp, airTempC }: { temp: MarineData["waterTemp"]; airT
       icon={<Thermometer size={12} />}
       label="수온"
       value={<>{temp.tempC}<span className="text-[11px] font-semibold text-navy-400">℃</span></>}
-      sub={airTempC != null ? `기온 ${airTempC}℃` : temp.stationName}
+      // 기온은 아래 날씨 줄(WeatherStrip)에서 따로 보여주므로 여기서는 관측소 이름을 밝힌다
+      sub={temp.stationName}
     />
+  );
+}
+
+/**
+ * 기상청 초단기실황 줄 — 기온 · 습도 · 강수(형태+시간당 강수량).
+ * air 자체가 없으면(키 미등록/호출 실패) 줄 전체를 숨기고,
+ * 일부 항목만 비면 그 항목만 "정보 없음"으로 처리한다.
+ */
+function WeatherStrip({ air }: { air: MarineData["air"] }) {
+  if (!air) return null;
+  const rainy = air.precipitation != null && air.precipitation !== "없음";
+  const PrecipIcon = !rainy
+    ? Sun
+    : air.precipitation!.includes("눈") && !air.precipitation!.includes("비")
+      ? CloudSnow
+      : CloudRain;
+  return (
+    <div className="mt-2 flex items-stretch divide-x divide-white/8 rounded-xl bg-white/[0.03] py-2 ring-1 ring-white/8">
+      <span className="flex flex-1 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-navy-600">
+        <Thermometer size={12} className="shrink-0 text-aqua-400" />
+        기온 <span className={air.tempC != null ? "text-navy-800" : "text-navy-300"}>{air.tempC != null ? `${air.tempC}℃` : "정보 없음"}</span>
+      </span>
+      <span className="flex flex-1 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-navy-600">
+        <Droplets size={12} className="shrink-0 text-aqua-400" />
+        습도 <span className={air.humidity != null ? "text-navy-800" : "text-navy-300"}>{air.humidity != null ? `${air.humidity}%` : "정보 없음"}</span>
+      </span>
+      <span className="flex flex-1 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-navy-600">
+        <PrecipIcon size={12} className={`shrink-0 ${rainy ? "text-orange-400" : "text-aqua-400"}`} />
+        강수 <span className={air.precipitation != null ? (rainy ? "text-orange-400" : "text-navy-800") : "text-navy-300"}>
+          {air.precipitation ?? "정보 없음"}
+        </span>
+        {rainy && air.rainMm != null && air.rainMm > 0 && (
+          <span className="text-[10px] text-navy-400">{air.rainMm}mm</span>
+        )}
+      </span>
+    </div>
   );
 }
 
@@ -698,6 +751,7 @@ function RecommendSkeleton() {
           <Skeleton className="h-[62px] rounded-xl" />
           <Skeleton className="h-[62px] rounded-xl" />
         </div>
+        <Skeleton className="mt-2 h-8 w-full rounded-xl" />
       </div>
       <Skeleton className="h-16 w-full rounded-xl" />
       <Skeleton className="h-28 w-full rounded-2xl" />
@@ -721,7 +775,7 @@ function PointCard({
   return (
     <Card className="p-3">
       <div className="flex items-start gap-2">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[12px] font-bold text-white">{rank}</span>
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[12px] font-bold text-gray-900">{rank}</span>
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 text-[15px] font-bold text-navy-900">
             <Compass size={14} className="shrink-0 text-orange-400" />

@@ -116,7 +116,7 @@ export default function ShippingPage() {
                     <p className="text-[13px] font-bold text-navy-800">{addr.name}</p>
                     <p className="text-[12px] text-navy-400">{addr.phone}</p>
                     {addr.isDefault === 1 && (
-                      <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">기본</span>
+                      <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-gray-900">기본</span>
                     )}
                   </div>
                   <p className="mt-0.5 text-[12px] text-navy-500">{addr.address}</p>
@@ -158,7 +158,7 @@ export default function ShippingPage() {
             <label className="flex items-center gap-2 cursor-pointer">
               <div
                 onClick={() => setIsDefault(!isDefault)}
-                className={"flex h-5 w-5 items-center justify-center rounded border transition-colors " + (isDefault ? "border-orange-400 bg-orange-500 text-white" : "border-navy-100/30 bg-[#0d1b2a]")}
+                className={"flex h-5 w-5 items-center justify-center rounded border transition-colors " + (isDefault ? "border-orange-400 bg-orange-500 text-gray-900" : "border-navy-100/30 bg-[#0d1b2a]")}
               >
                 {isDefault && <Check size={12} strokeWidth={3} />}
               </div>
@@ -176,7 +176,7 @@ export default function ShippingPage() {
                 type="button"
                 onClick={handleAdd}
                 disabled={saving}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 py-2.5 text-[13px] font-bold text-white hover:bg-orange-600 disabled:opacity-60"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 py-2.5 text-[13px] font-bold text-gray-900 hover:bg-orange-600 disabled:opacity-60"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 저장

@@ -112,6 +112,7 @@ export function BallLinkSection() {
   const linked = balls && balls.length > 0 ? balls[0] : null;
   const [guideOpen, setGuideOpen] = useState(false);
   const [linkGuideOpen, setLinkGuideOpen] = useState(false);
+  const [linkGuideTab, setLinkGuideTab] = useState<"android" | "iphone">("android");
   const [exampleOpen, setExampleOpen] = useState(false);
   const [ballExampleOpen, setBallExampleOpen] = useState(false);
   const [manualId, setManualId] = useState("");
@@ -184,7 +185,7 @@ export function BallLinkSection() {
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && registerManual()}
-                placeholder="볼 ID 입력 (예: IPNK-XXXX)"
+                placeholder="예: IPNK-XXXXXX"
                 style={{ fontSize: "16px" }}
                 className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
               />
@@ -192,11 +193,19 @@ export function BallLinkSection() {
                 type="button"
                 onClick={registerManual}
                 disabled={!manualId.trim() || registering}
-                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors active:bg-orange-600 disabled:opacity-50"
+                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-gray-900 transition-colors active:bg-orange-600 disabled:opacity-50"
               >
                 {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => { setLinkGuideTab("iphone"); setLinkGuideOpen(true); }}
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
+            >
+              <CircleHelp size={15} strokeWidth={2} />
+              입낚볼 연동방법 보기
+            </button>
           </div>
         ) : (
           <>
@@ -204,14 +213,14 @@ export function BallLinkSection() {
               type="button"
               onClick={tagAndRegister}
               disabled={supported === null || reading}
-              className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2 text-[13px] font-semibold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-60"
             >
               {reading ? <Loader2 size={16} className="animate-spin" /> : <Nfc size={16} strokeWidth={1.9} />}
               {reading ? "볼을 태그해 주세요..." : "볼에 NFC 태그하기"}
             </button>
             <button
               type="button"
-              onClick={() => setLinkGuideOpen(true)}
+              onClick={() => { setLinkGuideTab("android"); setLinkGuideOpen(true); }}
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
             >
               <CircleHelp size={15} strokeWidth={2} />
@@ -246,7 +255,7 @@ export function BallLinkSection() {
         <button
           type="button"
           onClick={() => setPurchaseOpen(true)}
-          className="mb-2 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-orange-600 active:scale-[0.98]"
+          className="mb-2 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-bold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.98]"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
           입낚볼 구매하러 가기
@@ -286,7 +295,7 @@ export function BallLinkSection() {
               <button
                 type="button"
                 onClick={() => router.push("/print/ball-sheet")}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-2 py-2.5 text-[12px] font-bold text-white active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-2 py-2.5 text-[12px] font-bold text-gray-900 active:scale-[0.98]"
               >
                 <Download size={15} /> 입낚볼 이미지 인쇄
               </button>
@@ -307,31 +316,90 @@ export function BallLinkSection() {
       </Sheet>
 
       <Sheet open={linkGuideOpen} onClose={() => setLinkGuideOpen(false)} title="입낚볼 연동 방법" size="md">
-        <div className="space-y-4 pb-2">
-          <div className="rounded-2xl border border-orange-500/25 bg-orange-500/10 p-3.5">
-            <p className="text-[14px] font-bold text-orange-300">입낚볼 NFC 태그로 계정을 연결해요.</p>
-            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">연동 후에는 내 입낚볼 ID와 관련 측정 기록을 앱에서 확인할 수 있어요.</p>
-          </div>
-          <GuideStep icon={<Nfc size={18} />} title="1. NFC 태그하기를 눌러 주세요">
-            이 페이지의 ‘볼에 NFC 태그하기’ 버튼을 누른 뒤, 휴대전화의 NFC 기능을 켜 주세요.
-          </GuideStep>
-          <GuideStep icon={<Smartphone size={18} />} title="2. 휴대전화 뒷면을 입낚볼에 가까이 대세요">
-            태그가 읽힐 때까지 휴대전화를 잠시 움직이지 말고 가까이 유지해 주세요. 읽기가 끝나면 연결 완료 메시지가 표시돼요.
-          </GuideStep>
-          <GuideStep icon={<Check size={18} />} title="3. 연결 상태를 확인해요">
-            카드에 볼 ID와 ‘연결됨’ 표시가 나타나면 완료예요. NFC는 Android Chrome 등 지원되는 환경에서 이용할 수 있어요.
-          </GuideStep>
-          <div className="rounded-xl bg-navy-50 px-3.5 py-3 text-[12px] leading-relaxed text-navy-400">
-            태그가 인식되지 않으면 휴대전화 케이스를 벗기거나 NFC 위치를 조금씩 바꿔 다시 시도해 주세요.
-          </div>
+        {/* 탭 */}
+        <div className="mb-4 flex rounded-xl bg-navy-50 p-1">
           <button
             type="button"
-            onClick={() => setBallExampleOpen(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-500/35 bg-orange-500/10 py-3 text-[13px] font-bold text-orange-300 active:scale-[0.98]"
+            onClick={() => setLinkGuideTab("android")}
+            className={
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-bold transition-colors " +
+              (linkGuideTab === "android"
+                ? "bg-[#1a2e44] text-orange-300 shadow"
+                : "text-navy-400 hover:text-navy-600")
+            }
           >
-            <ImageIcon size={16} /> 입낚볼/입낚키링 사용 예시보기
+            <Nfc size={15} strokeWidth={2} />
+            안드로이드
+          </button>
+          <button
+            type="button"
+            onClick={() => setLinkGuideTab("iphone")}
+            className={
+              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-bold transition-colors " +
+              (linkGuideTab === "iphone"
+                ? "bg-[#1a2e44] text-aqua-300 shadow"
+                : "text-navy-400 hover:text-navy-600")
+            }
+          >
+            <Smartphone size={15} strokeWidth={2} />
+            아이폰
           </button>
         </div>
+
+        {/* 안드로이드 탭 */}
+        {linkGuideTab === "android" && (
+          <div className="space-y-4 pb-2">
+            <div className="rounded-2xl border border-orange-500/25 bg-orange-500/10 p-3.5">
+              <p className="text-[14px] font-bold text-orange-300">입낚볼 NFC 태그로 계정을 연결해요.</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-navy-400">연동 후에는 내 입낚볼 ID와 관련 측정 기록을 앱에서 확인할 수 있어요.</p>
+            </div>
+            <GuideStep icon={<Nfc size={18} />} title="1. NFC 태그하기를 눌러 주세요">
+              이 페이지의 ‘볼에 NFC 태그하기’ 버튼을 누른 뒤, 휴대전화의 NFC 기능을 켜 주세요.
+            </GuideStep>
+            <GuideStep icon={<Smartphone size={18} />} title="2. 휴대전화 뒷면을 입낚볼에 가까이 대세요">
+              태그가 읽힐 때까지 휴대전화를 잠시 움직이지 말고 가까이 유지해 주세요. 읽기가 끝나면 연결 완료 메시지가 표시돼요.
+            </GuideStep>
+            <GuideStep icon={<Check size={18} />} title="3. 연결 상태를 확인해요">
+              카드에 볼 ID와 ‘연결됨’ 표시가 나타나면 완료예요. NFC는 Android Chrome 등 지원되는 환경에서 이용할 수 있어요.
+            </GuideStep>
+            <div className="rounded-xl bg-navy-50 px-3.5 py-3 text-[12px] leading-relaxed text-navy-400">
+              태그가 인식되지 않으면 휴대전화 케이스를 벗기거나 NFC 위치를 조금씩 바꿔 다시 시도해 주세요.
+            </div>
+            <button
+              type="button"
+              onClick={() => setBallExampleOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-500/35 bg-orange-500/10 py-3 text-[13px] font-bold text-orange-300 active:scale-[0.98]"
+            >
+              <ImageIcon size={16} /> 입낚볼/입낚키링 사용 예시보기
+            </button>
+          </div>
+        )}
+
+        {/* 아이폰 탭 */}
+        {linkGuideTab === "iphone" && (
+          <div className="space-y-4 pb-2">
+            <div className="rounded-2xl border border-aqua-500/25 bg-aqua-500/10 p-3.5">
+              <p className="text-[14px] font-bold text-aqua-300">박스에 인쇄된 코드를 직접 입력해서 연결해요.</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-navy-400">아이폰은 NFC 웹 태그를 지원하지 않아요. 대신 볼 ID 코드를 직접 입력하면 간단히 연동할 수 있어요.</p>
+            </div>
+            <GuideStep icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>} title="1. 입낚볼 박스에서 코드를 확인하세요">
+              박스 측면 또는 볼 본체에 인쇄된 볼 ID를 확인하세요.
+              <div className="mt-2.5 flex items-center justify-center rounded-xl border border-aqua-500/30 bg-[#0d1b2a] py-3">
+                <span className="font-mono text-[18px] font-extrabold tracking-widest text-aqua-300">IPNK-000000</span>
+              </div>
+              <p className="mt-1.5 text-[11px] text-navy-400">코드 형식: IPNK + 숫자 6자리</p>
+            </GuideStep>
+            <GuideStep icon={<Check size={18} />} title="2. 아래 입력창에 코드를 입력하세요">
+              연동 화면의 입력창에 볼 ID 코드를 그대로 입력한 뒤 ‘등록’ 버튼을 눌러 주세요.
+            </GuideStep>
+            <GuideStep icon={<CircleHelp size={18} />} title="3. 연결 상태를 확인하세요">
+              ‘연결됨’ 표시가 나타나면 완료예요. 이후 AI 측정 기록이 해당 볼 ID에 자동으로 연결돼요.
+            </GuideStep>
+            <div className="rounded-xl bg-navy-50 px-3.5 py-3 text-[12px] leading-relaxed text-navy-400">
+              코드는 영문 대소문자를 구분하지 않아요. 예를 들어 <span className="font-mono font-semibold text-aqua-300">ipnk-123456</span>과 <span className="font-mono font-semibold text-aqua-300">IPNK-123456</span>은 동일하게 인식돼요.
+            </div>
+          </div>
+        )}
       </Sheet>
 
       <Sheet open={exampleOpen} onClose={() => setExampleOpen(false)} title="인쇄 기준물 촬영 예시" size="lg">
@@ -557,7 +625,7 @@ export function MyBallManager() {
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && registerManual()}
-                placeholder="볼 ID 입력 (예: IPNK-XXXX)"
+                placeholder="예: IPNK-XXXXXX"
                 style={{ fontSize: "16px" }}
                 className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
               />
@@ -565,7 +633,7 @@ export function MyBallManager() {
                 type="button"
                 onClick={registerManual}
                 disabled={!manualId.trim() || registering}
-                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors active:bg-orange-600 disabled:opacity-50"
+                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-gray-900 transition-colors active:bg-orange-600 disabled:opacity-50"
               >
                 {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
               </button>
@@ -577,7 +645,7 @@ export function MyBallManager() {
             type="button"
             onClick={tagAndRegister}
             disabled={supported === null || reading}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-semibold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
           >
             {reading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={2.2} />}
             {reading ? "볼을 태그해 주세요..." : "볼 등록 (NFC 태그)"}

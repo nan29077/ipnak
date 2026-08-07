@@ -426,7 +426,7 @@ export default function LandingPage() {
 
             <button
               onClick={(e) => { e.stopPropagation(); enterApp(); }}
-              className="mt-1 rounded-full px-7 py-2 text-sm font-bold text-white transition-all duration-400 md:mt-2 md:px-8 md:py-2.5"
+              className="mt-1 rounded-full px-7 py-2 text-sm font-bold text-gray-900 transition-all duration-400 md:mt-2 md:px-8 md:py-2.5"
               style={{
                 background: isBottomActive
                   ? "linear-gradient(135deg, #eab308, #ca8a04)"

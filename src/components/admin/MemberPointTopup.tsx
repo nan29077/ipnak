@@ -162,7 +162,7 @@ export function MemberPointTopup({ userId, nickname, points }: { userId: string;
                     />
                     <button
                       onClick={applyCustomInput}
-                      className="shrink-0 rounded-lg bg-amber-400 px-3 py-2 text-[12px] font-bold text-white hover:bg-amber-500"
+                      className="shrink-0 rounded-lg bg-amber-400 px-3 py-2 text-[12px] font-bold text-gray-900 hover:bg-amber-500"
                     >
                       적용
                     </button>
@@ -205,7 +205,7 @@ export function MemberPointTopup({ userId, nickname, points }: { userId: string;
                 <div className="mb-2 flex items-center gap-1.5">
                   {([["all", "전체"], ["earn", "충전·적립"], ["spend", "사용·차감"]] as const).map(([k, label]) => (
                     <button key={k} onClick={() => loadHistory(k)}
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${filter === k ? "bg-orange-500 text-white" : "bg-navy-50/60 text-navy-400"}`}>
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${filter === k ? "bg-orange-500 text-gray-900" : "bg-navy-50/60 text-navy-400"}`}>
                       {label}
                     </button>
                   ))}

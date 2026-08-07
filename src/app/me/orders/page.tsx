@@ -60,7 +60,7 @@ export default async function OrdersPage() {
             <ShoppingBag size={28} className="text-navy-300" />
           </div>
           <p className="text-navy-400 text-[14px]">구매내역이 없습니다</p>
-          <Link href="/shop" className="rounded-xl bg-orange-500 px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-orange-600">
+          <Link href="/shop" className="rounded-xl bg-orange-500 px-5 py-2.5 text-[14px] font-semibold text-gray-900 hover:bg-orange-600">
             쇼핑하러 가기
           </Link>
         </div>

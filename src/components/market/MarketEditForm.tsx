@@ -112,7 +112,7 @@ export function MarketEditForm({ listingId, initial }: Props) {
                 type="button"
                 onClick={() => setTradeMethod(m.key)}
                 className={`flex-1 rounded-xl py-2.5 text-[13px] font-semibold transition-all ${
-                  tradeMethod === m.key ? "bg-orange-500 text-white" : "bg-navy-50 text-navy-500 hover:bg-navy-100"
+                  tradeMethod === m.key ? "bg-orange-500 text-gray-900" : "bg-navy-50 text-navy-500 hover:bg-navy-100"
                 }`}
               >
                 {m.label}

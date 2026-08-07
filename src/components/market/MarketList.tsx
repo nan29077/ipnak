@@ -130,7 +130,7 @@ export function MarketList({ items: initialItems }: { items: MarketItem[] }) {
           onClick={() => setHideSold((v) => !v)}
           className={cn(
             "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors",
-            hideSold ? "bg-orange-500 text-white" : "bg-navy-50 text-navy-500 hover:bg-navy-100"
+            hideSold ? "bg-orange-500 text-gray-900" : "bg-navy-50 text-navy-500 hover:bg-navy-100"
           )}
         >
           <SlidersHorizontal size={13} /> 판매중만
@@ -269,7 +269,7 @@ function Chip({ children, active, onClick }: { children: React.ReactNode; active
       onClick={onClick}
       className={cn(
         "inline-flex items-center whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition-all active:scale-[0.97]",
-        active ? "bg-orange-500 text-white shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100"
+        active ? "bg-orange-500 text-gray-900 shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100"
       )}
     >
       {children}
@@ -366,7 +366,7 @@ function MarketFilterDropdown({
                 className={cn(
                   "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[13px] transition-colors",
                   active
-                    ? "bg-orange-500 text-white"
+                    ? "bg-orange-500 text-gray-900"
                     : "text-white/70 hover:bg-white/5 hover:text-white"
                 )}
               >

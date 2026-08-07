@@ -111,9 +111,16 @@ export async function GET(req: Request) {
   const naverName = naverProfile.name ?? null;
   const naverAvatar = naverProfile.profile_image ?? null;
 
+  // ── 세션 토큰 사전 생성 (신규/연동 경로 트랜잭션 내 재사용) ──────
+  // createSession()은 cookies().set()을 내부적으로 사용하므로
+  // 리디렉션 응답에 쿠키를 직접 붙이기 위해 토큰 생성 로직을 인라인 처리한다.
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + MAX_AGE * 1000);
+
   // ── 사용자 찾기 / 생성 ───────────────────────────────────────────
   // 우선순위: naverKey 일치 → email 일치 → 신규 생성
-  let userId: string;
+  let userId!: string;
+  let sessionCreated = false;
 
   try {
     // 1) 이미 네이버 연동된 계정
@@ -123,39 +130,45 @@ export async function GET(req: Request) {
     if (byNaverKey) {
       userId = byNaverKey.id;
     } else if (naverEmail) {
-      // 2) 이메일로 기존 가입 계정 찾기 → naverKey 연동
+      // 2) 같은 이메일의 기존 계정이 있으면 자동 연동하지 않는다 (계정 탈취 방지).
+      //    소셜 프로필의 이메일만으로 기존 계정에 로그인 권한을 주면,
+      //    타인 이메일로 소셜 계정을 만들어 기존 회원 계정을 탈취할 수 있다.
       const byEmail = await prisma.user.findUnique({
         where: { email: naverEmail },
+        select: { id: true },
       });
       if (byEmail) {
-        await prisma.user.update({
-          where: { id: byEmail.id },
-          data: { naverKey: naverId },
-        });
-        userId = byEmail.id;
+        const res = NextResponse.redirect(`${baseUrl}/login?error=social_email_exists`);
+        res.cookies.delete("naver_oauth_state");
+        return res;
       } else {
-        // 3) 신규 가입 — 이메일+naverKey로 생성
+        // 3) 신규 가입 — 이메일+naverKey로 생성, 세션까지 원자적으로 생성 (고아 계정 방지)
         // 닉네임: 네이버 닉네임 사용, 없으면 'naver_' + naverId 앞 8자리
         const nickname =
           naverNickname && naverNickname.trim().length >= 2
             ? naverNickname.trim()
             : `naver_${naverId.slice(0, 8)}`;
 
-        const newUser = await prisma.user.create({
-          data: {
-            email: naverEmail,
-            passwordHash: "", // 소셜 로그인 — 비밀번호 없음
-            nickname,
-            name: naverName ?? null,
-            avatarUrl: naverAvatar ?? null,
-            role: "ANGLER",
-            naverKey: naverId,
-          },
+        const newUser = await prisma.$transaction(async (tx) => {
+          const u = await tx.user.create({
+            data: {
+              email: naverEmail,
+              passwordHash: "", // 소셜 로그인 — 비밀번호 없음
+              nickname,
+              name: naverName ?? null,
+              avatarUrl: naverAvatar ?? null,
+              role: "ANGLER",
+              naverKey: naverId,
+            },
+          });
+          await tx.session.create({ data: { token, userId: u.id, expiresAt } });
+          return u;
         });
         userId = newUser.id;
+        sessionCreated = true;
       }
     } else {
-      // 이메일 없이 naverKey만으로 신규 가입
+      // 이메일 없이 naverKey만으로 신규 가입, 세션까지 원자적으로 생성 (고아 계정 방지)
       const nickname =
         naverNickname && naverNickname.trim().length >= 2
           ? naverNickname.trim()
@@ -163,35 +176,37 @@ export async function GET(req: Request) {
 
       // email이 없으면 고유 플레이스홀더 생성
       const fallbackEmail = `naver_${naverId}@naver.oauth`;
-      const newUser = await prisma.user.create({
-        data: {
-          email: fallbackEmail,
-          passwordHash: "",
-          nickname,
-          name: naverName ?? null,
-          avatarUrl: naverAvatar ?? null,
-          role: "ANGLER",
-          naverKey: naverId,
-        },
+      const newUser = await prisma.$transaction(async (tx) => {
+        const u = await tx.user.create({
+          data: {
+            email: fallbackEmail,
+            passwordHash: "",
+            nickname,
+            name: naverName ?? null,
+            avatarUrl: naverAvatar ?? null,
+            role: "ANGLER",
+            naverKey: naverId,
+          },
+        });
+        await tx.session.create({ data: { token, userId: u.id, expiresAt } });
+        return u;
       });
       userId = newUser.id;
+      sessionCreated = true;
     }
   } catch (err: any) {
     console.error("[Naver OAuth] 사용자 처리 오류:", err);
     return NextResponse.redirect(`${baseUrl}/login?error=naver_user_fail`);
   }
 
-  // ── 세션 생성 + 쿠키 설정 + /home 리디렉션 ─────────────────────
-  // createSession()은 cookies().set()을 내부적으로 사용하므로
-  // 리디렉션 응답에 쿠키를 직접 붙이기 위해 토큰 생성 로직을 인라인 처리한다.
-  const token = randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + MAX_AGE * 1000);
-
-  try {
-    await prisma.session.create({ data: { token, userId, expiresAt } });
-  } catch (err) {
-    console.error("[Naver OAuth] 세션 생성 오류:", err);
-    return NextResponse.redirect(`${baseUrl}/login?error=naver_session_fail`);
+  // ── 세션 생성 (naverKey 이미 연동된 기존 계정만 이 경로) + 쿠키 설정 + /home 리디렉션 ─
+  if (!sessionCreated) {
+    try {
+      await prisma.session.create({ data: { token, userId, expiresAt } });
+    } catch (err) {
+      console.error("[Naver OAuth] 세션 생성 오류:", err);
+      return NextResponse.redirect(`${baseUrl}/login?error=naver_session_fail`);
+    }
   }
 
   const response = NextResponse.redirect(`${baseUrl}/home`);

@@ -158,7 +158,7 @@ function NotificationSettingsPanel() {
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
               pushStatus === "denied" || pushStatus === "unsupported"
                 ? "bg-navy-100/20 text-navy-400"
-                : "bg-orange-500 text-white"
+                : "bg-orange-500 text-gray-900"
             }`}>
               {pushLabel}
             </span>
@@ -473,7 +473,7 @@ export function MePageTabs({
                           <p className="text-[11px] text-navy-400">{g.category}{g.region ? ` · ${g.region}` : ""} · {Number(g.memberCount)}명</p>
                         </div>
                         {g.role === "leader" && (
-                          <span className="shrink-0 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">단장</span>
+                          <span className="shrink-0 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-gray-900">단장</span>
                         )}
                       </Link>
                     ))}
@@ -598,7 +598,7 @@ export function MePageTabs({
                     <div><p className="text-[12px] font-semibold text-navy-800">채팅</p><p className="text-[10px] text-navy-400">{marketChatCount}개</p></div>
                   </Link>
                 </div>
-                <Link href="/market/new" className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 py-2.5 text-[13px] font-semibold text-white">
+                <Link href="/market/new" className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 py-2.5 text-[13px] font-semibold text-gray-900">
                   <Plus size={15} /> 판매하기
                 </Link>
               </div>
@@ -664,7 +664,7 @@ export function MePageTabs({
                   )}
                   {shopTagEnabled && (
                     <Link href="/referral" className="flex items-center gap-3 py-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white"><Tag size={17} /></span>
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-gray-900"><Tag size={17} /></span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13px] font-bold text-navy-900">피싱태그 수익</span>
                         <span className="block text-[11px] text-navy-400">내 글의 피싱태그로 적립된 리퍼럴 수익</span>
@@ -689,7 +689,7 @@ export function MePageTabs({
                 onClick={() => setSettingsSubTab("ball")}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors ${
                   settingsSubTab === "ball"
-                    ? "bg-orange-500 text-white"
+                    ? "bg-orange-500 text-gray-900"
                     : "text-navy-400 hover:text-navy-600"
                 }`}
               >
@@ -700,7 +700,7 @@ export function MePageTabs({
                 onClick={() => setSettingsSubTab("config")}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors ${
                   settingsSubTab === "config"
-                    ? "bg-orange-500 text-white"
+                    ? "bg-orange-500 text-gray-900"
                     : "text-navy-400 hover:text-navy-600"
                 }`}
               >

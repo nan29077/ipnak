@@ -31,7 +31,7 @@ export function MarketSeedButton() {
     <button
       onClick={run}
       disabled={loading}
-      className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3 py-2 text-[13px] font-semibold text-white shadow-soft hover:bg-orange-600 active:scale-[0.97] disabled:opacity-50 transition-colors"
+      className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3 py-2 text-[13px] font-semibold text-gray-900 shadow-soft hover:bg-orange-600 active:scale-[0.97] disabled:opacity-50 transition-colors"
     >
       {loading ? <Loader2 size={14} className="animate-spin" /> : <DatabaseZap size={14} />}
       더미 데이터 생성

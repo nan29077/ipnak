@@ -152,7 +152,7 @@ export default async function MePage({ searchParams }: { searchParams?: { ipnakB
       <div className="flex items-center gap-4 px-5 py-6">
         <Link href="/me/edit" className="relative shrink-0">
           <img src={getAvatarUrl(user.id, user.avatarUrl)} alt={user.nickname} className="h-[72px] w-[72px] rounded-full object-cover shadow-aqua" />
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white ring-2 ring-[#0d1b2a]">
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-gray-900 ring-2 ring-[#0d1b2a]">
             <Pencil size={11} />
           </span>
         </Link>

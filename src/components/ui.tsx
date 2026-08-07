@@ -55,7 +55,7 @@ export function Chip({ children, active, onClick, as, size = "md", className }: 
     "inline-flex items-center whitespace-nowrap rounded-full font-semibold transition-all active:scale-[0.97]",
     size === "sm" ? "px-2.5 py-1 text-[12px]" : "px-3 py-1.5 text-[13px]",
     active
-      ? "bg-orange-500 text-white shadow-soft"
+      ? "bg-orange-500 text-gray-900 shadow-soft"
       : "bg-navy-50 text-navy-500 hover:bg-navy-100",
     className
   );
@@ -141,9 +141,9 @@ export function Sheet({ open, onClose, title, children, stickyContent, footer, s
 
   if (!open || !mounted) return null;
 
-  const maxH = size === "md" ? "max-h-[52vh]" : size === "diary" ? "max-h-[67vh]" : "max-h-[88vh]";
+  const maxH = size === "md" ? "max-h-[52vh]" : size === "diary" ? "max-h-[67vh]" : "max-h-[80vh]";
   // 키보드가 올라온 경우 실제 보이는 뷰포트 높이를 기준으로 패널 max-height 제한
-  // (88vh는 레이아웃 뷰포트 기준이라 키보드를 고려하지 않으므로 px로 덮어씀)
+  // (80vh는 레이아웃 뷰포트 기준이라 키보드를 고려하지 않으므로 px로 덮어씀)
   const panelMaxHStyle = kbOffset > 0 && vvHeight > 0
     ? { maxHeight: `${vvHeight - 12}px` }
     : {};
@@ -203,7 +203,7 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "outline";
 type ButtonSize = "sm" | "md" | "lg";
 
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-orange-500 text-white shadow-soft hover:bg-orange-600 focus-visible:ring-orange-400",
+  primary: "bg-orange-500 text-gray-900 shadow-soft hover:bg-orange-600 focus-visible:ring-orange-400",
   secondary: "bg-aqua-500 text-white shadow-soft hover:bg-aqua-600 focus-visible:ring-aqua-300",
   ghost: "bg-transparent text-navy-700 hover:bg-navy-50",
   danger: "bg-red-500 text-white hover:bg-red-600 focus-visible:ring-red-300",
@@ -253,7 +253,7 @@ export function PrimaryButton({ children, className, ...rest }: React.ButtonHTML
 
 export function LinkButton({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
   return (
-    <Link href={href} className={cn("inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft transition-all outline-none active:scale-[0.97] hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-1 focus-visible:ring-offset-[#0d1b2a]", className)}>
+    <Link href={href} className={cn("inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-3 text-[15px] font-semibold text-gray-900 shadow-soft transition-all outline-none active:scale-[0.97] hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-1 focus-visible:ring-offset-[#0d1b2a]", className)}>
       {children}
     </Link>
   );

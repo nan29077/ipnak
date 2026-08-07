@@ -208,7 +208,7 @@ function LogComments({ postId, count, currentUserId, onRequireLogin }: { postId:
             className="flex-1 rounded-full border border-navy-100 bg-[#162538] px-4 py-2.5 text-sm text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500" />
           <CommentPhotoButton disabled={!currentUserId} onUploaded={setPhoto} onError={(m) => toast(m, "error")} />
           {/* 내용·사진이 모두 없으면 보낼 게 없으므로 비활성 */}
-          <button onClick={send} disabled={sending || (!text.trim() && !photo)} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-white shadow-soft btn-press hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-orange-500"><Send size={16} /></button>
+          <button onClick={send} disabled={sending || (!text.trim() && !photo)} aria-label="댓글 전송" className="rounded-full bg-orange-500 p-2.5 text-gray-900 shadow-soft btn-press hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-orange-500"><Send size={16} /></button>
         </div>
         {photo && <CommentPhotoPreview url={photo} onRemove={() => setPhoto(null)} />}
         <CommentRewardNotice className="mt-1.5" />
@@ -253,7 +253,7 @@ function LogReplyInput({ nickname, disabled, onCancel, onSubmit }: { nickname: s
         placeholder={disabled ? "로그인 후 답글을 달 수 있어요" : "답글 달기..."}
         className="flex-1 rounded-full border border-navy-100 bg-[#162538] px-3.5 py-2 text-[13px] text-navy-800 placeholder-navy-300 outline-none transition focus:border-orange-500"
       />
-      <button onClick={() => onSubmit(text)} disabled={!text.trim()} aria-label="답글 전송" className="rounded-full bg-orange-500 p-2 text-white btn-press hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-orange-500"><Send size={14} /></button>
+      <button onClick={() => onSubmit(text)} disabled={!text.trim()} aria-label="답글 전송" className="rounded-full bg-orange-500 p-2 text-gray-900 btn-press hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-orange-500"><Send size={14} /></button>
       <button onClick={onCancel} aria-label="답글 취소" className="rounded-full p-1.5 text-navy-300 transition-colors hover:bg-navy-50 hover:text-navy-500"><X size={16} /></button>
     </div>
   );

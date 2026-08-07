@@ -244,7 +244,7 @@ export function SpeciesIdentifySection({ imageUrl, currentSpecies, onApply }: Pr
               <button
                 type="button"
                 onClick={() => onApply(species)}
-                className="w-full rounded-xl bg-orange-500 py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-orange-600 active:scale-[0.98]"
+                className="w-full rounded-xl bg-orange-500 py-2.5 text-[13px] font-bold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.98]"
               >
                 이 어종으로 저장
               </button>

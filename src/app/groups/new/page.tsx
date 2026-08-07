@@ -116,7 +116,7 @@ export default function NewGroupPage() {
         )}
 
         <button type="submit" disabled={loading}
-          className={`${showCreateCost ? "mt-2" : "mt-4"} w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-white shadow-soft disabled:opacity-60`}>
+          className={`${showCreateCost ? "mt-2" : "mt-4"} w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-extrabold text-gray-900 shadow-soft disabled:opacity-60`}>
           {loading ? "생성 중..." : "낚시단 만들기"}
         </button>
       </form>

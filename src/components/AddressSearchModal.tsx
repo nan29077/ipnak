@@ -89,7 +89,7 @@ export function AddressSearchModal({
         <div className="relative h-[min(560px,70vh)] bg-white">
           <div ref={embedRef} className="h-full w-full" />
           {loading && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#151b21] text-white/60"><Loader2 size={28} className="animate-spin text-orange-400" /><p className="text-sm">주소 검색을 불러오는 중...</p></div>}
-          {error && <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#151b21] px-8 text-center"><Search size={32} className="text-orange-400" /><p className="mt-3 text-sm font-semibold text-white">{error}</p><button type="button" onClick={onClose} className="mt-5 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white">직접 입력하기</button></div>}
+          {error && <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#151b21] px-8 text-center"><Search size={32} className="text-orange-400" /><p className="mt-3 text-sm font-semibold text-white">{error}</p><button type="button" onClick={onClose} className="mt-5 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-gray-900">직접 입력하기</button></div>}
         </div>
         <footer className="border-t border-white/10 bg-[#151b21] px-5 py-3 text-center text-[11px] text-white/40">주소 선택 후 상세주소를 이어서 입력해 주세요.</footer>
       </section>

@@ -31,7 +31,7 @@ export function Pagination({ page, totalPages, total }: { page: number; totalPag
       {nums.map((n) => (
         <button key={n} onClick={() => go(n)}
           className={cn("inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[13px] font-semibold transition-colors",
-            n === page ? "bg-orange-500 text-white shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100")}>
+            n === page ? "bg-orange-500 text-gray-900 shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100")}>
           {n}
         </button>
       ))}

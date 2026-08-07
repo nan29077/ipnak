@@ -40,7 +40,7 @@ export default async function AdminCurationPage({ searchParams }: { searchParams
         {sectionList.map((s) => (
           <Link key={s.key} href={`/admin/curation?section=${s.key}`}
             className={cn("rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors",
-              s.key === section ? "bg-orange-500 text-white shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100")}>
+              s.key === section ? "bg-orange-500 text-gray-900 shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100")}>
             {s.title}
           </Link>
         ))}

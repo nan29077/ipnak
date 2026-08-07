@@ -266,13 +266,13 @@ export function IpnakBallPurchase({
   return <>
     {!hideCard && enabledTypes.length > 0 && <div className="overflow-hidden rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-500/15 via-[#202020] to-aqua-500/10 p-4">
       <div className="flex items-start gap-3">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-soft"><TypeIcon size={23} /></span>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-gray-900 shadow-soft"><TypeIcon size={23} /></span>
         <div className="min-w-0 flex-1">
           <p className="text-[16px] font-extrabold text-navy-900">스마트 계측의 시작, {enabledTypes.map((t) => TYPE_LABEL[t]).join(" · ")}</p>
           <p className="mt-0.5 text-[12px] text-navy-400">NFC 연동으로 나의 어획 기록을 더 간편하게</p>
         </div>
       </div>
-      <button onClick={() => { setStep("intro"); setOpen(true); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-extrabold text-white">
+      <button onClick={() => { setStep("intro"); setOpen(true); }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-extrabold text-gray-900">
         {enabledTypes.length > 1 ? "구매하기" : `${TYPE_LABEL[enabledTypes[0]]} 구매하기`}
       </button>
     </div>}

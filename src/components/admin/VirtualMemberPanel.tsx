@@ -344,7 +344,7 @@ export function VirtualMemberPanel({
         </button>
         <button onClick={() => run("runnow", { type: "RUN_NOW" })} disabled={busy || members.length === 0 || !config.active}
           title={!config.active ? "AI 가상회원 활성화 스위치를 먼저 켜주세요." : undefined}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2.5 text-[12.5px] font-semibold text-white transition-all hover:bg-orange-600 active:scale-[0.97] disabled:opacity-50">
+          className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2.5 text-[12.5px] font-semibold text-gray-900 transition-all hover:bg-orange-600 active:scale-[0.97] disabled:opacity-50">
           {loading === "runnow" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} 지금 활동 생성
         </button>
         <button onClick={() => router.refresh()} disabled={busy}
@@ -520,7 +520,7 @@ export function VirtualMemberPanel({
                 </button>
               </div>
               <button onClick={saveApiKey} disabled={busy}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2.5 text-[12.5px] font-bold text-white transition hover:bg-orange-600 disabled:opacity-50">
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2.5 text-[12.5px] font-bold text-gray-900 transition hover:bg-orange-600 disabled:opacity-50">
                 {loading === "apikey" ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />} 저장
               </button>
             </div>
@@ -607,7 +607,7 @@ function KindChip({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition-colors",
         active
-          ? "border-orange-500 bg-orange-500 text-white"
+          ? "border-orange-500 bg-orange-500 text-gray-900"
           : "border-navy-100/40 text-navy-400 hover:bg-white/[0.06] hover:text-navy-700",
       )}
     >
@@ -652,7 +652,7 @@ function NumberSetting({
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11.5px] text-navy-400">{unit}</span>
         </div>
         <button onClick={onSave} disabled={busy}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2.5 text-[12.5px] font-bold text-white transition hover:bg-orange-600 disabled:opacity-50">
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2.5 text-[12.5px] font-bold text-gray-900 transition hover:bg-orange-600 disabled:opacity-50">
           {saving ? <Loader2 size={14} className="animate-spin" /> : null} 저장
         </button>
       </div>

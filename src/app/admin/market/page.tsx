@@ -87,7 +87,7 @@ export default async function AdminMarketPage({ searchParams }: { searchParams: 
           <Link key={s || "ALL"} href={s ? `/admin/market?status=${s}` : "/admin/market"}
             className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${
               statusFilter === s || (!statusFilter && !s)
-                ? "bg-orange-500 text-white"
+                ? "bg-orange-500 text-gray-900"
                 : "bg-navy-50/10 text-navy-400 hover:bg-navy-50/20"
             }`}>
             {s ? marketStatusLabel(s) : "전체"}

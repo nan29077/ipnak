@@ -270,7 +270,7 @@ export default async function MarketDetailPage({ params }: { params: { id: strin
       ) : (
         <div className="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-navy-100/20 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative">
           <div className="mx-auto max-w-[640px]">
-            <Link href="/login" className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-[15px] font-semibold text-white shadow-soft">
+            <Link href="/login" className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-[15px] font-semibold text-gray-900 shadow-soft">
               로그인하고 거래하기
             </Link>
           </div>

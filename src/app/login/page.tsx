@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -22,6 +22,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // 소셜 로그인 콜백에서 넘어온 에러 안내 (useSearchParams 대신 window 사용 — Suspense 불필요)
+  useEffect(() => {
+    const err = new URLSearchParams(window.location.search).get("error");
+    if (err === "social_email_exists") {
+      toast("이미 해당 이메일로 가입된 계정이 있습니다. 일반 로그인을 이용해주세요.", "error");
+      window.history.replaceState(null, "", "/login");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function login(em: string, pw: string) {
     setLoading(true);

@@ -263,7 +263,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
       <button
         type="button"
         onClick={openBuySheet}
-        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-[14px] font-semibold text-white shadow-soft btn-press transition-colors outline-none hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-aqua-300 focus-visible:ring-offset-1"
+        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-[14px] font-semibold text-gray-900 shadow-soft btn-press transition-colors outline-none hover:bg-orange-600 focus-visible:ring-2 focus-visible:ring-aqua-300 focus-visible:ring-offset-1"
       >
         <ShoppingBag size={16} /> 구매하기
       </button>
@@ -368,7 +368,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
                       <p className="text-[12px] font-semibold text-white">{addr.name} <span className="text-navy-400 font-normal">{addr.phone}</span></p>
                       <p className="text-[11px] text-navy-400 truncate">{addr.address} {addr.addressDetail}</p>
                     </div>
-                    {addr.isDefault === 1 && <span className="shrink-0 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">기본</span>}
+                    {addr.isDefault === 1 && <span className="shrink-0 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-gray-900">기본</span>}
                   </button>
                 ))}
                 <Link href="/me/shipping" className="block text-center text-[11px] text-orange-400 hover:underline pt-1">+ 배송지 추가</Link>
@@ -442,7 +442,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
           <button
             type="button"
             onClick={openPg}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[15px] font-bold text-white hover:bg-orange-600 transition-colors"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[15px] font-bold text-gray-900 hover:bg-orange-600 transition-colors"
           >
             <CreditCard size={18} /> {won(payableAmount)} 결제하기
           </button>
@@ -467,7 +467,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
                 <p className="text-[18px] font-bold text-white">결제가 완료되었습니다</p>
                 <p className="mt-1 text-[13px] text-navy-400">구매내역에서 확인하실 수 있습니다</p>
               </div>
-              <button type="button" onClick={closePg} className="mt-2 w-full rounded-xl bg-orange-500 py-3 text-[14px] font-bold text-white hover:bg-orange-600">확인</button>
+              <button type="button" onClick={closePg} className="mt-2 w-full rounded-xl bg-orange-500 py-3 text-[14px] font-bold text-gray-900 hover:bg-orange-600">확인</button>
             </div>
           ) : pgResult === "fail" ? (
             <div className="p-8 flex flex-col items-center gap-4 text-center">
@@ -538,7 +538,7 @@ export function ProductPurchaseBar({ product, initialQuantity }: { product: Prod
                 type="button"
                 onClick={handlePay}
                 disabled={pgLoading}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[15px] font-bold text-white hover:bg-orange-600 transition-colors disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[15px] font-bold text-gray-900 hover:bg-orange-600 transition-colors disabled:opacity-60"
               >
                 {pgLoading ? <><Loader2 size={16} className="animate-spin" /> 결제 처리 중...</> : <><CreditCard size={16} /> 결제 완료</>}
               </button>

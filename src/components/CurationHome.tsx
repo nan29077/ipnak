@@ -408,10 +408,10 @@ function EditorialCard({ post }: { post: CurationCardPost }) {
     <Link href={post.href} className="relative block h-44 w-[290px] shrink-0 overflow-hidden rounded-2xl shadow-card">
       {post.thumbnail
         ? <img src={post.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-        : <div className="absolute inset-0 bg-gradient-to-br from-orange-600 to-orange-900" />}
+        : <img src={noImageSrc(post.id)} alt="이미지 없음" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full bg-[#f9e9cc] object-contain" />}
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
       <div className="absolute inset-0 flex flex-col justify-end p-4">
-        <span className="mb-1 inline-flex w-fit items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">
+        <span className="mb-1 inline-flex w-fit items-center gap-1 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-gray-900">
           <IconStar size={9} /> 회원 추천
         </span>
         <p className="line-clamp-2 text-[16px] font-extrabold leading-tight text-white drop-shadow">{post.title}</p>

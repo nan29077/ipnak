@@ -39,7 +39,7 @@ export default async function AdminSettings() {
             {logs.length === 0 && <p className="py-4 text-center text-sm text-navy-300">로그 없음</p>}
             {logs.map((l) => (
               <div key={l.id} className="flex items-center gap-2 text-[12px]">
-                <span className="rounded bg-orange-500 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">{l.action}</span>
+                <span className="rounded bg-orange-500 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-900">{l.action}</span>
                 <span className="truncate text-navy-500">{l.detail || l.target || ""}</span>
                 <span className="ml-auto shrink-0 text-navy-300">{kstFormat(l.createdAt, "MM.dd HH:mm")}</span>
               </div>

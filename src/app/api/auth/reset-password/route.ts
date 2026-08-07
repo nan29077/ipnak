@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
-import { rateLimit } from "@/lib/rateLimit";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 import { consumeResetToken } from "@/lib/passwordReset";
 
 // 회원가입·비밀번호 변경과 동일한 강도 기준
@@ -13,7 +13,7 @@ const PW_REGEX = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?
  * 인증번호 검증을 통과해 받은 1회용 토큰으로만 비밀번호를 바꿀 수 있다.
  */
 export async function PATCH(req: Request) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(req);
   if (!rateLimit(`resetpw:${ip}`, 10, 60_000)) {
     return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, { status: 429 });
   }

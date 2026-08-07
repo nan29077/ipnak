@@ -794,7 +794,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
         className={
           "flex h-[72px] w-[72px] flex-col items-center justify-center gap-1 rounded-full text-[11px] font-bold transition-all active:scale-[0.94] " +
           (canConfirm
-            ? "bg-yellow-400/80 text-white shadow-lg shadow-yellow-400/40"
+            ? "bg-yellow-400/80 text-gray-900 shadow-lg shadow-yellow-400/40"
             : "bg-yellow-400/15 text-yellow-100/35")
         }
       >
@@ -994,7 +994,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
           <div className="flex flex-wrap justify-center gap-2">
             <button
               onClick={() => setRetry((n) => n + 1)}
-              className="inline-flex items-center gap-1.5 rounded-[14px] bg-orange-500 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600"
+              className="inline-flex items-center gap-1.5 rounded-[14px] bg-orange-500 px-4 py-2 text-[13px] font-semibold text-gray-900 transition-colors hover:bg-orange-600"
             >
               <RefreshCw size={15} /> 재시도
             </button>
@@ -1053,7 +1053,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
             className={
               "flex h-[60px] w-[60px] flex-col items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-all active:scale-[0.94] " +
               (canConfirm
-                ? "bg-yellow-400/80 text-white shadow-lg shadow-yellow-400/40"
+                ? "bg-yellow-400/80 text-gray-900 shadow-lg shadow-yellow-400/40"
                 : "bg-yellow-400/15 text-yellow-100/35")
             }
           >
@@ -1140,7 +1140,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
             <button
               type="button"
               onClick={closeAfterFishMissing}
-              className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+              className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
             >
               예
             </button>
@@ -1184,7 +1184,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
             <button
               type="button"
               onClick={closeAfterRefMissing}
-              className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+              className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
             >
               예
             </button>
@@ -1230,7 +1230,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
             <button
               type="button"
               onClick={() => { setCameraConsent(); setConsented(true); }}
-              className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+              className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
             >
               카메라 허용하기
             </button>

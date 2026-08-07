@@ -126,7 +126,7 @@ export default function EditProfilePage() {
             </div>
             <button
               onClick={() => fileRef.current?.click()}
-              className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-white shadow-soft transition-colors hover:bg-orange-600"
+              className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-gray-900 shadow-soft transition-colors hover:bg-orange-600"
             >
               <Camera size={15} />
             </button>

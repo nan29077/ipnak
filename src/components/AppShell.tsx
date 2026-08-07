@@ -166,7 +166,7 @@ function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[
             href="/measure"
             aria-current={measureActive ? "page" : undefined}
             className={cn(
-              "-mt-5 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-orange-500 text-white shadow-lg shadow-orange-500/30 ring-[3px] transition-all active:scale-95",
+              "-mt-5 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-orange-500 text-gray-900 shadow-lg shadow-orange-500/30 ring-[3px] transition-all active:scale-95",
               measureActive ? "ring-orange-300/70 shadow-orange-500/50" : "ring-[#0d1b2a]"
             )}
             aria-label="AI 측정"

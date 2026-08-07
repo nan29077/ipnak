@@ -77,6 +77,8 @@ export type AirInfo = {
   humidity: number | null;
   /** 강수형태 문자열 (없음/비/비눈/눈/소나기) */
   precipitation: string | null;
+  /** 1시간 강수량(mm) — KMA RN1. 강수 없음이면 0 또는 null */
+  rainMm: number | null;
   source: string;
 };
 
@@ -730,7 +732,7 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
   return { waterTemp, pressure, wind };
 }
 
-const PTY_LABEL: Record<string, string> = { "0": "없음", "1": "비", "2": "비/눈", "3": "눈", "5": "빗방울", "6": "빗방울눈날림", "7": "눈날림" };
+const PTY_LABEL: Record<string, string> = { "0": "없음", "1": "비", "2": "비/눈", "3": "눈", "4": "소나기", "5": "빗방울", "6": "빗방울눈날림", "7": "눈날림" };
 
 async function fetchKmaNowcast(key: string, lat: number, lng: number): Promise<{ wind: WindInfo | null; air: AirInfo | null }> {
   const { nx, ny } = toKmaGrid(lat, lng);
@@ -774,11 +776,14 @@ async function fetchKmaNowcast(key: string, lat: number, lng: number): Promise<{
   const t1h = num("T1H");
   const reh = num("REH");
   const pty = map.get("PTY");
+  // RN1 은 mm 숫자이지만 "강수없음" 같은 문자열이 올 수 있어 num() 이 null 을 돌려주면 그대로 둔다.
+  const rn1 = num("RN1");
   const air: AirInfo | null = t1h != null || reh != null
     ? {
         tempC: t1h,
         humidity: reh,
         precipitation: pty != null ? (PTY_LABEL[pty] ?? null) : null,
+        rainMm: rn1 != null && rn1 >= 0 ? Math.round(rn1 * 10) / 10 : null,
         source: "기상청 초단기실황",
       }
     : null;
@@ -890,7 +895,9 @@ export function marineForPrompt(m: MarineSnapshot | null) {
     풍속ms: m.wind?.speedMs ?? null,
     기압hPa: m.pressure?.hpa ?? null,
     기압변화: m.pressure ? m.pressure.trend : null,
+    습도pct: m.air?.humidity ?? null,
     강수: m.air?.precipitation ?? null,
+    시간당강수량mm: m.air?.rainMm ?? null,
     수온기준활성어종: m.speciesFit.filter((s) => s.status === "최적").map((s) => s.name),
   };
 }

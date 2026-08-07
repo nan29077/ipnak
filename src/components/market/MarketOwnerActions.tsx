@@ -61,7 +61,7 @@ export function MarketOwnerActions({ listingId, initialStatus }: { listingId: st
                 onClick={() => changeStatus(s.key)}
                 className={cn(
                   "flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-[13px] font-semibold transition-all",
-                  status === s.key ? "bg-orange-500 text-white shadow-soft" : "text-navy-500 hover:bg-[#162538]"
+                  status === s.key ? "bg-orange-500 text-gray-900 shadow-soft" : "text-navy-500 hover:bg-[#162538]"
                 )}
               >
                 {status === s.key && <Check size={13} />}{s.label}

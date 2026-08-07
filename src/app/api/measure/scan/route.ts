@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { getAiCredentials } from "@/lib/aiCredentials";
 import { requireUser } from "@/lib/auth";
 import { classifyOpenAiError } from "@/lib/openaiError";
-import { rateLimit } from "@/lib/rateLimit";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 
 /**
  * AI 자동 스캔 계측
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
 
   // IP당 분당 30회 제한 — 라이브 스캐너가 2초 간격 폴링(분당 최대 ~30회)이므로 이에 맞춘 상한.
   // (기존 5회 제한은 폴링 6번째부터 전부 429가 되어 기준물 미감지 판정이 불가능했음)
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(req);
   if (!rateLimit(`scan:${ip}`, 30, 60_000)) {
     return NextResponse.json({ ok: false, reason: "rate-limited" }, { status: 429 });
   }

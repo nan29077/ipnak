@@ -72,7 +72,7 @@ export function PolicySettingsPanel({
         type="button"
         onClick={handleSave}
         disabled={saving}
-        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-[14px] font-semibold text-gray-900 transition-colors hover:bg-orange-600 disabled:opacity-60"
       >
         {saving ? (
           <><Loader2 size={15} className="animate-spin" /> 저장 중...</>

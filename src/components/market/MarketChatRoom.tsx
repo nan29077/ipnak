@@ -215,7 +215,7 @@ export function MarketChatRoom({
                       className={cn(
                         "max-w-full whitespace-pre-wrap break-words px-3.5 py-2.5 text-[14px] leading-relaxed",
                         mine
-                          ? "bg-orange-500 text-white"
+                          ? "bg-orange-500 text-gray-900"
                           : "bg-[#1e3148] text-navy-800",
                         // 말풍선 모양
                         mine
@@ -303,7 +303,7 @@ export function MarketChatRoom({
           onClick={send}
           disabled={sending || !text.trim()}
           aria-label="전송"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white shadow-soft transition-colors hover:bg-orange-600 active:scale-95 disabled:opacity-40"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500 text-gray-900 shadow-soft transition-colors hover:bg-orange-600 active:scale-95 disabled:opacity-40"
         >
           {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={17} />}
         </button>

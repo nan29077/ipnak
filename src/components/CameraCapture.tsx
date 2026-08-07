@@ -246,7 +246,7 @@ export function CameraCapture({ onCapture, onClose }: Props) {
             </p>
             <button
               onClick={() => setRetry((r) => r + 1)}
-              className="flex items-center gap-2 rounded-2xl bg-orange-500 px-8 py-3 text-sm font-bold text-white"
+              className="flex items-center gap-2 rounded-2xl bg-orange-500 px-8 py-3 text-sm font-bold text-gray-900"
             >
               <RefreshCw size={16} /> 카메라 재시도
             </button>

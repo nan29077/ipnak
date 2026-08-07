@@ -108,7 +108,7 @@ export default function IpnakBallShopPage() {
         <div className="flex w-full max-w-[320px] flex-col gap-2.5">
           <button
             onClick={() => router.push("/me?tab=settings")}
-            className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white"
+            className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900"
           >
             마이페이지로
           </button>
@@ -167,7 +167,7 @@ export default function IpnakBallShopPage() {
                     </div>
                   )}
                   {product.stock > 0 && product.stock <= 10 && (
-                    <div className="absolute right-3 top-3 rounded-full bg-orange-500/90 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                    <div className="absolute right-3 top-3 rounded-full bg-orange-500/90 px-3 py-1 text-[11px] font-bold text-gray-900 backdrop-blur-sm">
                       잔여 {product.stock}개
                     </div>
                   )}
@@ -198,7 +198,7 @@ export default function IpnakBallShopPage() {
                       setError("");
                       setStep("form");
                     }}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[15px] font-bold text-white transition-colors hover:bg-orange-600 active:scale-[0.99] disabled:opacity-40"
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-[15px] font-bold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.99] disabled:opacity-40"
                   >
                     <ShoppingBag size={17} strokeWidth={2} />
                     {product.stock <= 0 ? "품절" : "구매하기"}
@@ -351,7 +351,7 @@ export default function IpnakBallShopPage() {
           <button
             onClick={handleOrder}
             disabled={submitting || !selectedAddressId || addresses.length === 0}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-4 text-[16px] font-extrabold text-white transition-colors hover:bg-orange-600 active:scale-[0.99] disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-4 text-[16px] font-extrabold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.99] disabled:opacity-50"
           >
             {submitting ? (
               <Loader2 size={20} className="animate-spin" />

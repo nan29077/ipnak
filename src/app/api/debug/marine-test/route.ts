@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getMarineCredentials } from "@/lib/aiCredentials";
+import { getCurrentUser } from "@/lib/auth";
 
 const KST = 9 * 3600_000;
 function kstYmd() {
@@ -41,6 +42,14 @@ async function testUrl(url: string, label: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+  }
+  if (user.role !== "SUPER_ADMIN") {
+    return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+  }
+
   const lat = parseFloat(req.nextUrl.searchParams.get("lat") ?? "37.4517");
   const lng = parseFloat(req.nextUrl.searchParams.get("lng") ?? "126.5924");
 

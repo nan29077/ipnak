@@ -40,7 +40,7 @@ export function ActionButton({
 
   const cls = {
     default: "bg-navy-50 text-navy-700 hover:bg-navy-100",
-    primary: "bg-orange-500 text-white shadow-soft hover:bg-orange-600",
+    primary: "bg-orange-500 text-gray-900 shadow-soft hover:bg-orange-600",
     danger: "bg-red-50 text-red-600 hover:bg-red-100",
     ghost: "text-navy-400 hover:bg-navy-50",
   }[variant];

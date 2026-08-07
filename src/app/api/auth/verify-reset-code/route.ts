@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rateLimit";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 import { verifyResetCode, MAX_ATTEMPTS } from "@/lib/passwordReset";
 
 /**
@@ -8,7 +8,7 @@ import { verifyResetCode, MAX_ATTEMPTS } from "@/lib/passwordReset";
  * 성공 시 새 비밀번호 설정에 쓸 1회용 토큰을 발급한다.
  */
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(req);
   if (!rateLimit(`verifycode:${ip}`, 10, 60_000)) {
     return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, { status: 429 });
   }

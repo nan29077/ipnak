@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { SocialButtons } from "@/components/SocialButtons";
 import { Button } from "@/components/ui";
@@ -127,6 +127,12 @@ export default function SignupPage() {
   const [species, setSpecies] = useState<string[]>([]);
   const [customSpecies, setCustomSpecies] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  // 휴대폰 OTP 인증
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
   // 약관 동의
   const [consentTerms, setConsentTerms] = useState(false);
   const [consentPrivacy, setConsentPrivacy] = useState(false);
@@ -160,6 +166,46 @@ export default function SignupPage() {
   };
   const removeCustomSpecies = (v: string) =>
     setCustomSpecies((s) => s.filter((x) => x !== v));
+
+  async function sendOtp() {
+    if (!form.phone.trim()) { toast("전화번호를 입력하세요.", "error"); return; }
+    setOtpSending(true);
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: form.phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "발송 실패");
+      setOtpSent(true);
+      toast("인증번호가 발송되었습니다. (5분간 유효)", "success");
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setOtpSending(false);
+    }
+  }
+
+  async function verifyOtp() {
+    if (!otpCode.trim()) { toast("인증번호를 입력하세요.", "error"); return; }
+    setOtpVerifying(true);
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: form.phone, code: otpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "인증 실패");
+      setPhoneVerified(true);
+      toast("휴대폰 인증 완료!", "success");
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setOtpVerifying(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -263,11 +309,60 @@ export default function SignupPage() {
               value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               className={FIELD_CLASS}
             />
-            <input
-              type="tel" required placeholder="전화번호 (예: 01012345678)"
-              value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className={FIELD_CLASS}
-            />
+            {/* 전화번호 + OTP 인증 */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="tel"
+                  required
+                  placeholder="전화번호 (예: 01012345678)"
+                  value={form.phone}
+                  onChange={(e) => {
+                    setForm({ ...form, phone: e.target.value });
+                    setOtpSent(false);
+                    setPhoneVerified(false);
+                    setOtpCode("");
+                  }}
+                  disabled={phoneVerified}
+                  className={`${FIELD_CLASS} flex-1 disabled:opacity-60`}
+                />
+                {phoneVerified ? (
+                  <span className="flex shrink-0 items-center gap-1 rounded-[16px] bg-emerald-500/20 px-3 text-[12px] font-semibold text-emerald-400">
+                    <CheckCircle2 size={13} /> 인증완료
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={sendOtp}
+                    disabled={otpSending || !form.phone.trim()}
+                    className="shrink-0 rounded-[16px] bg-aqua-400/20 px-3 py-2 text-[12px] font-semibold text-aqua-300 transition hover:bg-aqua-400/30 disabled:opacity-40"
+                  >
+                    {otpSending ? <Loader2 size={14} className="animate-spin" /> : otpSent ? "재발송" : "인증번호 받기"}
+                  </button>
+                )}
+              </div>
+              {otpSent && !phoneVerified && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="인증번호 6자리"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    className={`${FIELD_CLASS} flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={verifyOtp}
+                    disabled={otpVerifying || otpCode.length < 6}
+                    className="shrink-0 rounded-[16px] bg-aqua-400/20 px-3 py-2 text-[12px] font-semibold text-aqua-300 transition hover:bg-aqua-400/30 disabled:opacity-40"
+                  >
+                    {otpVerifying ? <Loader2 size={14} className="animate-spin" /> : "확인"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 낚시 방식 */}
@@ -375,11 +470,14 @@ export default function SignupPage() {
 
           <Button
             type="submit" variant="secondary" full
-            disabled={loading || !allRequired || !form.name.trim() || !form.phone.trim() || !!validatePassword(form.password) || (!!form.confirmPassword && form.password !== form.confirmPassword)}
+            disabled={loading || !allRequired || !form.name.trim() || !form.phone.trim() || !phoneVerified || !!validatePassword(form.password) || (!!form.confirmPassword && form.password !== form.confirmPassword)}
             leftIcon={loading ? <Loader2 size={18} className="animate-spin" /> : undefined}
           >
             가입하기
           </Button>
+          {!phoneVerified && form.phone.trim() && (
+            <p className="text-center text-[12px] text-amber-400">휴대폰 인증을 완료해야 가입할 수 있습니다.</p>
+          )}
         </form>
 
         {/* 구분선 */}

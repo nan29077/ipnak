@@ -104,7 +104,7 @@ export function PcMarginBg({ initial }: { initial: string }) {
           onClick={() => save(value, "PC 여백 배경을 저장했습니다")}
           disabled={loading || !value.trim()}
           className={cn(
-            "flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-50"
+            "flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2.5 text-[14px] font-semibold text-gray-900 transition-colors hover:bg-orange-600 disabled:opacity-50"
           )}
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : null}

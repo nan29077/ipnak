@@ -93,7 +93,7 @@ export default function TripMemoInline({ tripId, initialMemo }: Props) {
         <button
           onClick={save}
           disabled={saving}
-          className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white"
+          className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-gray-900"
         >
           <Check size={11} strokeWidth={2.5} />
         </button>

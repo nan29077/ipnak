@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { getAiCredentials } from "@/lib/aiCredentials";
 import { requireUser } from "@/lib/auth";
 import { classifyOpenAiError } from "@/lib/openaiError";
-import { rateLimit } from "@/lib/rateLimit";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 
 /**
  * 어종 자동 인식 (OpenAI Vision)
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   // 계측 1회당 1번 호출되는 흐름이라 계측 스캔(30회/분)보다 낮게 잡는다.
   // 집계는 회원 단위 — 프록시가 x-forwarded-for 를 주지 않는 환경에서는 모든 요청이
   // 같은 "unknown" 버킷에 몰려 회원끼리 서로의 한도를 깎아먹는다.
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = getClientIp(req);
   if (!rateLimit(`species:${userId || ip}`, 10, 60_000)) {
     return NextResponse.json({ ok: false, reason: "rate-limited" }, { status: 429 });
   }

@@ -47,7 +47,7 @@ export function PayRewardsButton({ tournamentId, title, rewards }: {
     <button onClick={run} disabled={loading}
       className={cn(
         "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold btn-press transition-colors outline-none focus-visible:ring-2 focus-visible:ring-aqua-300 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
-        "bg-orange-500 text-white shadow-soft hover:bg-orange-600",
+        "bg-orange-500 text-gray-900 shadow-soft hover:bg-orange-600",
       )}>
       {loading ? <Loader2 size={12} className="animate-spin" /> : <Award size={12} strokeWidth={1.8} />} 보상 지급
     </button>

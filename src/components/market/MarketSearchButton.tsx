@@ -60,7 +60,7 @@ export function MarketSearchButton() {
       <button
         type="submit"
         aria-label="중고마켓 찾기"
-        className="m-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-white shadow-soft transition-colors hover:bg-orange-400 active:scale-95"
+        className="m-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-gray-900 shadow-soft transition-colors hover:bg-orange-400 active:scale-95"
       >
         <Search size={17} strokeWidth={2.2} />
       </button>

@@ -141,7 +141,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
         </button>
         <button
           onClick={() => { setShowAdd(v => !v); setAddError(""); }}
-          className="flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+          className="flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-orange-600"
         >
           <Plus className="h-4 w-4" />
           볼 ID 등록
@@ -180,7 +180,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
               <button
                 type="submit"
                 disabled={addLoading}
-                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-orange-600 disabled:opacity-50"
               >
                 {addLoading ? "등록 중..." : "등록"}
               </button>
@@ -275,7 +275,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
             <button
               key={p}
               onClick={() => { setPage(p); fetchList(query, p); }}
-              className={`h-8 w-8 rounded-lg text-sm font-semibold ${p === page ? "bg-orange-500 text-white" : "border border-navy-100 text-navy-500 hover:bg-navy-50"}`}
+              className={`h-8 w-8 rounded-lg text-sm font-semibold ${p === page ? "bg-orange-500 text-gray-900" : "border border-navy-100 text-navy-500 hover:bg-navy-50"}`}
             >
               {p}
             </button>

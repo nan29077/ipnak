@@ -445,7 +445,7 @@ function SmartRulerImpl({
               onClick={() => pickReference(r.key)}
               title={r.hint}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${
-                refKey === r.key ? "bg-orange-500 text-white" : "bg-navy-50 text-navy-600"
+                refKey === r.key ? "bg-orange-500 text-gray-900" : "bg-navy-50 text-navy-600"
               }`}
             >
               {REF_ICONS[r.key]}
@@ -546,7 +546,7 @@ function SmartRulerImpl({
           <RotateCcw size={16} /> 재측정
         </button>
         <button onClick={complete} disabled={measuredCm == null}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-semibold text-white disabled:opacity-40">
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-semibold text-gray-900 disabled:opacity-40">
           <Check size={16} /> 측정 완료
         </button>
       </div>

@@ -353,7 +353,7 @@ export default function AboutPage() {
         {/* 버전 입장 버튼 */}
         <button
           onClick={enterApp}
-          className="rounded-full bg-[#eab308] px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-yellow-500/30 transition hover:bg-yellow-400 active:scale-95 md:px-6 md:py-2.5 md:text-sm"
+          className="rounded-full bg-[#eab308] px-3.5 py-2 text-xs font-bold text-gray-900 shadow-lg shadow-yellow-500/30 transition hover:bg-yellow-400 active:scale-95 md:px-6 md:py-2.5 md:text-sm"
         >
           <span className="md:hidden">입장 →</span>
           <span className="hidden md:inline">PC 버전 입장 →</span>

@@ -230,7 +230,7 @@ function MenuLink({ item, pathname, onClose }: { item: Item; pathname: string; o
       className={cn(
         "flex w-full items-center gap-3.5 px-5 py-3 text-[15px] font-medium transition-colors",
         active
-          ? "bg-orange-500 text-white"
+          ? "bg-orange-500 text-gray-900"
           : "text-white/80 hover:bg-white/5 active:bg-white/10"
       )}
     >

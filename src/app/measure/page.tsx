@@ -712,7 +712,7 @@ export default function MeasurePage() {
                 href="/landing"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-3 text-[14px] font-bold text-white shadow-md shadow-orange-500/30 transition-all hover:bg-orange-600 active:scale-[0.97]"
+                className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-3 text-[14px] font-bold text-gray-900 shadow-md shadow-orange-500/30 transition-all hover:bg-orange-600 active:scale-[0.97]"
               >
                 <Smartphone size={15} strokeWidth={2} />
                 모바일 앱으로 이용하기
@@ -1051,7 +1051,7 @@ export default function MeasurePage() {
               <button
                 type="button"
                 onClick={() => setDiaryOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all hover:bg-orange-600 active:scale-[0.97]"
+                className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[15px] font-semibold text-gray-900 shadow-soft transition-all hover:bg-orange-600 active:scale-[0.97]"
               >
                 <BookOpen size={16} strokeWidth={1.9} />
                 계측일지 보기
@@ -1196,7 +1196,7 @@ export default function MeasurePage() {
               <button
                 type="button"
                 onClick={() => { setRefMissing(false); reset(); }}
-                className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+                className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
               >
                 확인
               </button>
@@ -1313,7 +1313,7 @@ function AiMeasureTutorial({
           <button
             type="button"
             onClick={onNext}
-            className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+            className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
           >
             {isLast ? "카메라 촬영" : "다음"}
           </button>

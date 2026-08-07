@@ -117,7 +117,7 @@ function ChipRow({ label, chips, active, hrefFor }: { label: string; chips: { k:
         {chips.map((c) => (
           <Link key={c.k} href={hrefFor(c.k)}
             className={cn("inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-[12.5px] font-semibold transition-colors",
-              active === c.k ? "bg-orange-500 text-white shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100")}>
+              active === c.k ? "bg-orange-500 text-gray-900 shadow-soft" : "bg-navy-50 text-navy-500 hover:bg-navy-100")}>
             {c.l}
           </Link>
         ))}

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rateLimit";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { distanceMeters } from "@/lib/map";
@@ -154,6 +154,55 @@ const GENERAL_SEASON_TIPS: Record<number, string> = {
   12: "초겨울 저수온기로 접어들어요. 어군이 깊은 곳에 뭉치니 포인트를 넓게 옮기기보다 한 자리를 깊게 파는 게 유리해요.",
 };
 
+// ===== 사용자 출조 이력 프로파일 =====
+
+/**
+ * 사용자의 최근 출조 글(좌표 있는 글)을 분석해 선호 어종·수역 타입을 반환한다.
+ * take:50 으로 최근 이력만 보고 부담을 최소화한다.
+ */
+async function getUserFishingProfile(userId: string) {
+  const userPosts = await prisma.post.findMany({
+    where: { authorId: userId, lat: { not: null }, lng: { not: null }, hidden: false },
+    select: { lat: true, lng: true, speciesName: true, fishingType: true, location: true, region: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
+  // 어종 빈도 집계
+  const speciesCount: Record<string, number> = {};
+  for (const p of userPosts) {
+    if (p.speciesName) speciesCount[p.speciesName] = (speciesCount[p.speciesName] || 0) + 1;
+  }
+  const preferredSpecies = Object.entries(speciesCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  // 수역 선호(민물/바다) 집계
+  const waterCount: Record<string, number> = {};
+  for (const p of userPosts) {
+    if (p.fishingType) waterCount[p.fishingType] = (waterCount[p.fishingType] || 0) + 1;
+  }
+
+  return { userPosts, preferredSpecies, waterCount, speciesCount };
+}
+
+/**
+ * 위도·경도를 시군구 목록(pool)과 비교해 가장 가까운 시군구를 반환한다.
+ * 50km 초과면 null — 바다 한가운데 등 엉뚱한 매핑을 방지한다.
+ * pool 은 반복 호출 비용 절감을 위해 호출부에서 한 번만 생성해 넘긴다.
+ */
+function findNearestSigungu(lat: number, lng: number, pool: PoolItem[]): PoolItem | null {
+  let best: PoolItem | null = null;
+  let bestDist = Infinity;
+  const MAX_DIST = 50_000; // 50 km
+  for (const sg of pool) {
+    const d = distanceMeters({ lat, lng }, { lat: sg.lat, lng: sg.lng });
+    if (d < bestDist) { bestDist = d; best = sg; }
+  }
+  return bestDist <= MAX_DIST ? best : null;
+}
+
 /** KST 기준 현재 월 (서버 타임존이 UTC 여도 한국 계절과 어긋나지 않게 한다) */
 function kstMonth() {
   return new Date(Date.now() + 9 * 3600_000).getUTCMonth() + 1;
@@ -265,6 +314,7 @@ async function makeOpenAiBasis(
   species: string | null,
   marine: MarineSnapshot | null,
   when: { month: number | null; day: number | null },
+  userProfile?: { preferredSpecies: string[]; preferredRegions: string[]; waterType: string | null } | null,
 ) {
   if (!openaiKey) return "";
   try {
@@ -285,6 +335,7 @@ async function makeOpenAiBasis(
       })),
       marine: marineForPrompt(marine),
       recentBlogReports: reports.slice(0, 3).map((r) => ({ title: r.title, description: r.description, date: r.date })),
+      userProfile: userProfile ?? null,
     });
     const res = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -304,6 +355,7 @@ async function makeOpenAiBasis(
           "7) targetSpecies 가 null 이 아니면, 나열된 포인트는 그 어종이 실제로 잡힌 곳만 추린 결과다. 그 사실을 밝히고 다른 어종용 조언은 하지 않는다.",
           "8) targetSpecies 가 null 이면 특정 어종을 단정하지 말고, 그 계절에 노려볼 만한 방향으로 서술한다.",
           "9) 존댓말. 낚시인이 읽는 전문적인 조사(釣師) 어조. 마크다운·불릿·이모지·머리말 금지. 평문 문단 하나로만 쓴다.",
+          "10) userProfile 이 null 이 아닌 경우, 해당 사용자의 과거 출조 이력(선호 어종·자주 간 지역·수역 타입)을 자연스럽게 언급해 맞춤형 느낌을 주되, 문장이 길어지지 않도록 한 문장 이내로만 반영한다.",
           `JSON: ${context}`,
         ].join("\n"),
       }),
@@ -356,14 +408,16 @@ function topSigunguByPosts(pool: PoolItem[], posts: AnyPost[], n: number): PoolI
 
 export async function POST(req: Request) {
   // 외부 AI·검색 API 비용이 발생하므로 로그인한 회원만 호출할 수 있다.
+  // 사용자 출조 이력 기반 맞춤 추천을 위해 user 객체를 보관한다.
+  let currentUser: Awaited<ReturnType<typeof requireUser>> | null = null;
   try {
-    await requireUser();
+    currentUser = await requireUser();
   } catch {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   }
 
   // IP당 분당 3회 제한 — 네이버/OpenAI API 비용 절감
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(req);
   if (!rateLimit(`recommend:${ip}`, 3, 60_000)) {
     return NextResponse.json({ error: "rate-limited" }, { status: 429 });
   }
@@ -419,6 +473,8 @@ export async function POST(req: Request) {
   // ---- 후보 포인트 구성 ----
   let cands: Cand[] = [];
   let broadened = false;
+  // 전체 지역 맞춤 추천 시 사용자 프로파일 (OpenAI 프롬프트에도 전달)
+  let userFishingProfile: { preferredSpecies: string[]; preferredRegions: string[]; waterType: string | null } | null = null;
 
   const sg = sidoName && sgName ? findSigungu(sidoName, sgName) : null;
 
@@ -447,8 +503,49 @@ export async function POST(req: Request) {
     const top = topSigunguByPosts(pool, seedPosts, 5);
     for (const e of top) cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
   } else {
-    const top = topSigunguByPosts(allSigungu(), seedPosts, 6);
-    for (const e of top) cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
+    // 전체 지역 — 사용자 출조 이력이 충분하면 맞춤 추천, 없으면 커뮤니티 인기 지역으로 폴백
+    let usedUserHistory = false;
+    if (currentUser) {
+      try {
+        const profile = await getUserFishingProfile(currentUser.id);
+        if (profile.userPosts.length >= 3) {
+          const allPool = allSigungu();
+          // 글별 위치 → 가장 가까운 시군구 매핑 후 빈도 집계
+          const sigunguCount: Record<string, { item: PoolItem; count: number }> = {};
+          for (const p of profile.userPosts) {
+            if (p.lat == null || p.lng == null) continue;
+            const sg = findNearestSigungu(p.lat, p.lng, allPool);
+            if (!sg) continue;
+            const key = `${sg.sidoName}_${sg.name}`;
+            if (!sigunguCount[key]) sigunguCount[key] = { item: sg, count: 0 };
+            sigunguCount[key].count++;
+          }
+          const topUserSigungu = Object.values(sigunguCount)
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5)
+            .map((v) => v.item);
+          if (topUserSigungu.length > 0) {
+            for (const e of topUserSigungu) {
+              cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
+            }
+            // OpenAI 프롬프트에 전달할 사용자 컨텍스트 저장
+            const topWater = Object.entries(profile.waterCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+            userFishingProfile = {
+              preferredSpecies: profile.preferredSpecies,
+              preferredRegions: topUserSigungu.slice(0, 3).map((sg) => `${sg.sidoName} ${sg.name}`),
+              waterType: topWater,
+            };
+            usedUserHistory = true;
+          }
+        }
+      } catch {
+        // 사용자 이력 조회 실패 → 커뮤니티 기반 로직으로 폴백
+      }
+    }
+    if (!usedUserHistory) {
+      const top = topSigunguByPosts(allSigungu(), seedPosts, 6);
+      for (const e of top) cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
+    }
   }
 
   // 중복 제거
@@ -558,7 +655,7 @@ export async function POST(req: Request) {
   // 추천할 포인트가 없으면 AI 를 부르지 않는다 — 호출 비용만 나가고,
   // 근거 없는 문장이 위에서 만든 "못 찾았어요 + 다음 행동" 안내를 덮어쓴다.
   const aiBasis = points.length > 0
-    ? await makeOpenAiBasis(openai, points, webResults, species, marine, { month, day })
+    ? await makeOpenAiBasis(openai, points, webResults, species, marine, { month, day }, userFishingProfile)
     : "";
 
   /**

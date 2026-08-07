@@ -327,7 +327,7 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex items-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[14px] font-semibold text-white shadow-soft transition-colors hover:bg-orange-600"
+                  className="inline-flex items-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[14px] font-semibold text-gray-900 shadow-soft transition-colors hover:bg-orange-600"
                 >
                   <Camera size={16} strokeWidth={1.9} />
                   첫 측정 시작하기

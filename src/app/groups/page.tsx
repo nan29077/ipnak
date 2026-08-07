@@ -71,7 +71,7 @@ export default function GroupsPage() {
                 <Coins size={12} strokeWidth={1.8} /> 10,000P 필요
               </span>
             )}
-            <Link href="/groups/new" className="flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-[13px] font-bold text-white shadow-soft">
+            <Link href="/groups/new" className="flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-[13px] font-bold text-gray-900 shadow-soft">
               <Plus size={15} /> 만들기
             </Link>
           </div>
@@ -88,7 +88,7 @@ export default function GroupsPage() {
                 className="w-full rounded-xl bg-navy-50/10 py-2 pl-8 pr-3 text-[13px] text-navy-800 placeholder:text-navy-300 outline-none border border-navy-100/20 focus:border-orange-500/50"
               />
             </div>
-            <button type="submit" className="rounded-xl bg-orange-500/90 px-3 py-2 text-[13px] font-bold text-white">검색</button>
+            <button type="submit" className="rounded-xl bg-orange-500/90 px-3 py-2 text-[13px] font-bold text-gray-900">검색</button>
           </form>
         </div>
         {/* 카테고리 탭 */}
@@ -96,7 +96,7 @@ export default function GroupsPage() {
           {CATEGORIES.map(c => (
             <button key={c} onClick={() => setCat(c)}
               className={cn("whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-semibold transition-all",
-                cat === c ? "bg-orange-500 text-white" : "bg-navy-50/10 text-navy-400 hover:bg-navy-50/20")}>
+                cat === c ? "bg-orange-500 text-gray-900" : "bg-navy-50/10 text-navy-400 hover:bg-navy-50/20")}>
               {c}
             </button>
           ))}
@@ -135,7 +135,7 @@ export default function GroupsPage() {
                 필터 초기화
               </button>
             ) : (
-              <Link href="/groups/new" className="rounded-full bg-orange-500 px-4 py-2 text-[13px] font-bold text-white">첫 낚시단 만들기</Link>
+              <Link href="/groups/new" className="rounded-full bg-orange-500 px-4 py-2 text-[13px] font-bold text-gray-900">첫 낚시단 만들기</Link>
             )}
           </div>
         ) : (

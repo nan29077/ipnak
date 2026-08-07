@@ -141,6 +141,9 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ===== 게시글 / 피드 =====
@@ -189,6 +192,10 @@ model Post {
   productTags      PostProductTag[]
   referralEvents   ReferralEvent[]
   curationFeatures CurationFeature[]
+
+  @@index([authorId])
+  @@index([kind])
+  @@index([hidden, visibility, createdAt])
 }
 
 // ===== 메인 동적 섹션 (최고관리자가 정의·정렬·노출 관리) =====
@@ -256,6 +263,9 @@ model Comment {
   replies   Comment[] @relation("Replies")
   hidden    Boolean   @default(false)
   createdAt DateTime  @default(now())
+
+  @@index([postId])
+  @@index([authorId])
 }
 
 model Like {
@@ -289,6 +299,7 @@ model Follow {
   createdAt   DateTime @default(now())
 
   @@unique([followerId, followingId])
+  @@index([followingId])
 }
 
 model ShareEvent {
@@ -329,6 +340,9 @@ model FishingTrip {
   memo          String?        @db.Text
   routePoints   RoutePoint[]
   fishingPoints FishingPoint[]
+
+  @@index([userId])
+  @@index([endedAt])
 }
 
 model RoutePoint {
@@ -616,6 +630,8 @@ model Notification {
   postId    String? // 관련 게시글
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId, read])
 }
 
 model AdminLog {
@@ -750,6 +766,10 @@ model MarketListing {
   images    MarketImage[]
   favorites MarketFavorite[]
   chats     MarketChat[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model MarketImage {
@@ -944,4 +964,17 @@ model VirtualActivity {
   @@index([memberId])
   @@index([kind])
   @@index([createdAt])
+}
+
+// 휴대폰 본인인증 OTP (회원가입 시 SMS 발송)
+model PhoneVerification {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  verified  Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
 }

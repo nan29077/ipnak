@@ -93,7 +93,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
               href={`/admin/ipnak-ball?tab=${tab}&kind=${t}`}
               className={cn(
                 "flex-1 rounded-xl border px-4 py-2.5 text-center text-sm font-bold transition-colors",
-                kind === t ? "border-orange-500 bg-orange-500 text-white" : "border-navy-100 text-navy-400 hover:border-orange-400/60 hover:text-orange-400"
+                kind === t ? "border-orange-500 bg-orange-500 text-gray-900" : "border-navy-100 text-navy-400 hover:border-orange-400/60 hover:text-orange-400"
               )}
             >
               {IPNAK_TYPE_LABEL[t]}
@@ -171,7 +171,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
                             ? <div className="relative h-12 w-12">
                                 <img src={parseFirstImage(p.imageUrl)!} alt={p.name} className="h-12 w-12 rounded-lg object-contain bg-[#0d1b2a] border border-navy-100" />
                                 {imageCount(p.imageUrl) > 1 && (
-                                  <span className="absolute -right-1 -top-1 rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">{imageCount(p.imageUrl)}</span>
+                                  <span className="absolute -right-1 -top-1 rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-gray-900">{imageCount(p.imageUrl)}</span>
                                 )}
                               </div>
                             : <span className="text-xs text-navy-300">없음</span>
@@ -202,7 +202,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
                             ? <>
                                 <img src={parseFirstImage(p.imageUrl)!} alt={p.name} className="h-full w-full rounded-xl object-contain" />
                                 {imageCount(p.imageUrl) > 1 && (
-                                  <span className="absolute -right-1.5 -top-1.5 rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-white">{imageCount(p.imageUrl)}</span>
+                                  <span className="absolute -right-1.5 -top-1.5 rounded-full bg-orange-500 px-1.5 text-[10px] font-bold text-gray-900">{imageCount(p.imageUrl)}</span>
                                 )}
                               </>
                             : <span className="flex h-full w-full items-center justify-center text-[10px] text-navy-400">없음</span>
