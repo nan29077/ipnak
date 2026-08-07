@@ -82,6 +82,18 @@ export type AirInfo = {
   source: string;
 };
 
+export type WaveInfo = {
+  /** 유효파고 (m) */
+  heightM: number;
+  /** 파주기 (초) */
+  periodS: number | null;
+  /** 파향 (도, 기상학적: 파도가 오는 방향) */
+  directionDeg: number | null;
+  /** 파향 한글 (북/북동/동 ...) */
+  directionLabel: string | null;
+  source: string;
+};
+
 export type MarineSnapshot = {
   lat: number;
   lng: number;
@@ -92,6 +104,8 @@ export type MarineSnapshot = {
   wind: WindInfo | null;
   pressure: PressureInfo | null;
   air: AirInfo | null;
+  /** Open-Meteo Marine — 파고·파주기·파향 (키 불필요) */
+  wave: WaveInfo | null;
   /** 수온 기준 어종 적합도 (수온이 있을 때만) */
   speciesFit: SpeciesFit[];
   configured: { tide: boolean; weather: boolean };
@@ -173,6 +187,48 @@ export const TIDE_STATIONS: { code: string; name: string; lat: number; lng: numb
   { code: "DT_0056", name: "진해", lat: 35.1000, lng: 128.6667 },
   { code: "DT_0063", name: "마산", lat: 35.1975, lng: 128.5764 },
 ];
+
+/**
+ * 관측소별 M2 조석 파라미터 — 달의 자오선 통과 후 만조까지의 위상 지연(시간)과 평균 진폭(cm).
+ * KHOA 공개 조화상수 기반 근사치. 알고리즘 물때 계산에 사용. 오차 약 ±0.5~2h.
+ */
+const STATION_TIDE_PARAMS: Record<string, { phaseLagH: number; amplitudeCm: number }> = {
+  DT_0001: { phaseLagH: 5.5, amplitudeCm: 410 },  // 인천
+  DT_0002: { phaseLagH: 6.0, amplitudeCm: 390 },  // 평택
+  DT_0003: { phaseLagH: 4.8, amplitudeCm: 250 },  // 영광
+  DT_0004: { phaseLagH: 5.0, amplitudeCm: 230 },  // 진도
+  DT_0005: { phaseLagH: 4.5, amplitudeCm: 80 },   // 제주
+  DT_0006: { phaseLagH: 5.8, amplitudeCm: 70 },   // 부산
+  DT_0007: { phaseLagH: 10.0, amplitudeCm: 15 },  // 묵호
+  DT_0008: { phaseLagH: 4.5, amplitudeCm: 290 },  // 목포
+  DT_0009: { phaseLagH: 5.8, amplitudeCm: 380 },  // 안산
+  DT_0010: { phaseLagH: 4.5, amplitudeCm: 85 },   // 서귀포
+  DT_0011: { phaseLagH: 5.2, amplitudeCm: 130 },  // 여수
+  DT_0012: { phaseLagH: 4.8, amplitudeCm: 200 },  // 완도
+  DT_0013: { phaseLagH: 5.2, amplitudeCm: 360 },  // 군산
+  DT_0016: { phaseLagH: 9.8, amplitudeCm: 30 },   // 후포
+  DT_0017: { phaseLagH: 5.8, amplitudeCm: 350 },  // 대산
+  DT_0018: { phaseLagH: 7.0, amplitudeCm: 110 },  // 통영
+  DT_0020: { phaseLagH: 5.5, amplitudeCm: 340 },  // 보령
+  DT_0021: { phaseLagH: 10.5, amplitudeCm: 12 },  // 속초
+  DT_0022: { phaseLagH: 5.0, amplitudeCm: 155 },  // 고흥발포
+  DT_0023: { phaseLagH: 5.8, amplitudeCm: 415 },  // 강화대교
+  DT_0024: { phaseLagH: 6.5, amplitudeCm: 100 },  // 삼천포
+  DT_0025: { phaseLagH: 5.0, amplitudeCm: 140 },  // 거문도
+  DT_0026: { phaseLagH: 6.2, amplitudeCm: 80 },   // 거제도
+  DT_0027: { phaseLagH: 4.8, amplitudeCm: 85 },   // 성산포
+  DT_0028: { phaseLagH: 4.8, amplitudeCm: 100 },  // 추자도
+  DT_0029: { phaseLagH: 8.0, amplitudeCm: 10 },   // 울릉도
+  DT_0031: { phaseLagH: 4.5, amplitudeCm: 210 },  // 흑산도
+  DT_0035: { phaseLagH: 4.8, amplitudeCm: 210 },  // 어청도
+  DT_0036: { phaseLagH: 5.0, amplitudeCm: 270 },  // 위도
+  DT_0038: { phaseLagH: 5.7, amplitudeCm: 400 },  // 인천송도
+  DT_0043: { phaseLagH: 5.3, amplitudeCm: 310 },  // 서천마량
+  DT_0044: { phaseLagH: 5.5, amplitudeCm: 350 },  // 태안
+  DT_0047: { phaseLagH: 5.8, amplitudeCm: 65 },   // 부산항신항
+  DT_0056: { phaseLagH: 6.5, amplitudeCm: 95 },   // 진해
+  DT_0063: { phaseLagH: 7.0, amplitudeCm: 90 },   // 마산
+};
 
 /**
  * 어종별 활성 수온대 (섭씨).
@@ -817,6 +873,154 @@ async function fetchOpenMeteoPressure(lat: number, lng: number): Promise<Pressur
   }
 }
 
+// ===== 알고리즘 조석 예측 =====
+
+/**
+ * 달의 자오선 통과 시각(Moon Upper Transit Time)을 근사한다.
+ * 2000-01-07 02:28 UTC = 한국(127°E) 기준 약 11:28 KST — 신월 직후 달의 남중시각.
+ * 이후 24시간 50.47분마다 반복된다.
+ */
+function latestMoonTransit(): number {
+  const REF_TRANSIT_UTC = Date.UTC(2000, 0, 7, 2, 28);
+  const TRANSIT_PERIOD_MS = (24 * 60 + 50.47) * 60_000;
+  const now = Date.now();
+  const n = Math.floor((now - REF_TRANSIT_UTC) / TRANSIT_PERIOD_MS);
+  const t = REF_TRANSIT_UTC + n * TRANSIT_PERIOD_MS;
+  return t > now ? t - TRANSIT_PERIOD_MS : t;
+}
+
+/**
+ * KHOA API 없을 때 조석 이벤트를 천문조석 알고리즘으로 근사 계산한다.
+ * M2 주조(주기 12.42h)만 사용하므로 오차 약 ±0.5~2h — 낚시 참고용으로 충분하다.
+ */
+function computeTideAlgorithm(
+  station: (typeof TIDE_STATIONS)[0],
+  distanceKm: number,
+): TideInfo | null {
+  const params = STATION_TIDE_PARAMS[station.code];
+  if (!params) return null;
+
+  const M2_PERIOD_MS = 12.420601 * 3600_000;
+  const phaseLagMs = params.phaseLagH * 3600_000;
+  const transit = latestMoonTransit();
+
+  // 가장 최근 달 남중 이후 위상 지연을 더해 첫 만조 시각 산출
+  const firstHighMs = transit + phaseLagMs;
+
+  // 오늘(KST) 에 해당하는 이벤트를 수집
+  const now = Date.now();
+  const kstNow = new Date(now + KST_OFFSET_MS);
+  const events: TideEvent[] = [];
+
+  for (let i = -4; i <= 8; i++) {
+    const highMs = firstHighMs + i * M2_PERIOD_MS;
+    const lowMs = highMs + M2_PERIOD_MS / 2;
+    for (const [tMs, kind] of [
+      [highMs, "high" as const],
+      [lowMs, "low" as const],
+    ]) {
+      const kstDate = new Date(tMs + KST_OFFSET_MS);
+      if (
+        kstDate.getUTCFullYear() === kstNow.getUTCFullYear() &&
+        kstDate.getUTCMonth() === kstNow.getUTCMonth() &&
+        kstDate.getUTCDate() === kstNow.getUTCDate()
+      ) {
+        events.push({
+          time: new Date(tMs).toISOString(),
+          label: hhmm(new Date(tMs)),
+          kind,
+          levelCm: kind === "high" ? params.amplitudeCm : null,
+        });
+      }
+    }
+  }
+
+  events.sort((a, b) => a.time.localeCompare(b.time));
+  if (events.length === 0) return null;
+
+  let prev: TideEvent | null = null;
+  let next: TideEvent | null = null;
+  for (const e of events) {
+    const t = new Date(e.time).getTime();
+    if (t <= now) prev = e;
+    else if (!next) next = e;
+  }
+
+  let progress = 0;
+  if (prev && next) {
+    const a = new Date(prev.time).getTime();
+    const b = new Date(next.time).getTime();
+    progress = b > a ? Math.min(1, Math.max(0, (now - a) / (b - a))) : 0;
+  }
+
+  const lunarDay = approximateLunarDay();
+  return {
+    stationName: `${station.name} (근사)`,
+    stationCode: station.code,
+    distanceKm,
+    events,
+    prev,
+    next,
+    phase: next ? (next.kind === "high" ? "밀물" : "썰물") : null,
+    progress,
+    mulddae: mulddaeOf(lunarDay),
+    lunarDay,
+  };
+}
+
+// ===== Open-Meteo Marine (파고·파주기·파향·수온) =====
+
+/**
+ * Open-Meteo Marine API — 무료·키 불필요.
+ * 파고(m)·파주기(초)·파향(도)·해수면온도(℃) 를 한 번에 가져온다.
+ * KHOA API 대안으로 수온 폴백 및 파고 데이터 제공용.
+ */
+async function fetchOpenMeteoMarine(
+  lat: number,
+  lng: number,
+): Promise<{ wave: WaveInfo | null; waterTemp: WaterTempInfo | null }> {
+  const url =
+    `${OPEN_METEO_MARINE}?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}` +
+    `&current=wave_height,wave_direction,wave_period,sea_surface_temperature&timezone=Asia%2FSeoul`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT), cache: "no-store" });
+    if (!res.ok) return { wave: null, waterTemp: null };
+    const data = await res.json();
+    const cur = data?.current;
+    if (!cur) return { wave: null, waterTemp: null };
+
+    const wh: number | null = typeof cur.wave_height === "number" ? cur.wave_height : null;
+    const wp: number | null = typeof cur.wave_period === "number" ? cur.wave_period : null;
+    const wd: number | null = typeof cur.wave_direction === "number" ? cur.wave_direction : null;
+    const sst: number | null = typeof cur.sea_surface_temperature === "number" ? cur.sea_surface_temperature : null;
+
+    const wave: WaveInfo | null =
+      wh != null && wh >= 0
+        ? {
+            heightM: Math.round(wh * 10) / 10,
+            periodS: wp != null ? Math.round(wp * 10) / 10 : null,
+            directionDeg: wd != null ? Math.round(wd) : null,
+            directionLabel: wd != null ? windCodeOf(wd).label : null,
+            source: "Open-Meteo Marine",
+          }
+        : null;
+
+    const waterTemp: WaterTempInfo | null =
+      sst != null && sst > -5 && sst < 50
+        ? {
+            stationName: "Open-Meteo",
+            distanceKm: 0,
+            tempC: Math.round(sst * 10) / 10,
+            observedAt: null,
+          }
+        : null;
+
+    return { wave, waterTemp };
+  } catch {
+    return { wave: null, waterTemp: null };
+  }
+}
+
 // ===== 어종 적합도 =====
 
 export function speciesFitFor(tempC: number, water?: "민물" | "바다" | null): SpeciesFit[] {
@@ -865,33 +1069,46 @@ export async function getMarineSnapshot(
       ` at ${lat.toFixed(4)},${lng.toFixed(4)}`,
   );
 
-  const { distanceKm } = findNearestStation(lat, lng);
+  const { station: nearestStation, distanceKm } = findNearestStation(lat, lng);
   const inland = distanceKm > MAX_STATION_KM;
 
-  const [tide, observed, kma, openMeteoPressure] = await Promise.all([
+  const [tideApi, observed, kma, openMeteoPressure, openMeteoMarine] = await Promise.all([
     tideApiKey && !inland ? fetchTide(tideApiKey, lat, lng).catch(() => null) : Promise.resolve(null),
     // 수온·기압·해상풍은 최신관측 API 한 번으로 모두 얻는다.
     tideApiKey && !inland ? fetchDtRecent(tideApiKey, lat, lng).catch(() => EMPTY_DT_RECENT) : Promise.resolve(EMPTY_DT_RECENT),
     weatherApiKey ? fetchKmaNowcast(weatherApiKey, lat, lng).catch(() => ({ wind: null, air: null, pressure: null })) : Promise.resolve({ wind: null, air: null, pressure: null }),
     // Open-Meteo 기압 — 키 불필요, KMA getUltraSrtNcst에 PS가 없어 별도 호출
     fetchOpenMeteoPressure(lat, lng).catch(() => null),
+    // Open-Meteo Marine — 파고·파주기·파향·수온 (키 불필요)
+    !inland ? fetchOpenMeteoMarine(lat, lng).catch(() => ({ wave: null, waterTemp: null })) : Promise.resolve({ wave: null, waterTemp: null }),
   ]);
 
-  const { waterTemp, pressure: seaPressure, wind: seaWind } = observed;
+  // KHOA API 실측 → 알고리즘 근사치 순으로 폴백
+  const tide = tideApi ?? (!inland ? computeTideAlgorithm(nearestStation, distanceKm) : null);
+  const { waterTemp: khoaWaterTemp, pressure: seaPressure, wind: seaWind } = observed;
 
-  if (!tideApiKey) notes.push("조석·수온 API 키가 등록되지 않아 물때/수온 정보를 건너뛰었습니다.");
-  else if (inland) notes.push("가장 가까운 조위관측소가 멀어 물때·수온을 제공하지 않습니다(내륙 지점).");
-  else if (!tide) notes.push("조석예보를 불러오지 못했습니다.");
+  // 수온: KHOA 실측 → Open-Meteo Marine 순으로 폴백
+  const waterTemp = khoaWaterTemp ?? openMeteoMarine.waterTemp;
+
+  if (tideApiKey) {
+    if (inland) notes.push("가장 가까운 조위관측소가 멀어 물때·수온을 제공하지 않습니다(내륙 지점).");
+    else if (!tideApi) notes.push("조석예보 API 응답 없음 — 천문조석 알고리즘으로 대체합니다 (오차 ±1h).");
+  } else if (!inland) {
+    notes.push("KHOA API 키 미등록 — 물때는 천문조석 알고리즘, 수온은 Open-Meteo 위성값을 사용합니다.");
+  }
   if (!weatherApiKey) notes.push("기상청 API 키가 등록되지 않아 날씨 정보를 건너뛰었습니다.");
 
   // 해상 관측 바람이 낚시에 더 유효하지만, 없으면 기상청 실황으로 대체한다.
   const wind = seaWind ?? kma.wind;
   // 기압: KHOA 해양 관측 → Open-Meteo 순으로 폴백
   const pressure = seaPressure ?? openMeteoPressure;
+  // 파고: Open-Meteo Marine (항상 시도)
+  const wave = openMeteoMarine.wave;
 
   console.log(
-    `${DEBUG_PREFIX} snapshot inland=${inland} 조석=${tide ? `${tide.events.length}건` : "없음"}` +
-      ` 수온=${waterTemp ? `${waterTemp.tempC}℃` : "없음"} 바람=${wind ? (wind.source ?? "ok") : "없음"}` +
+    `${DEBUG_PREFIX} snapshot inland=${inland} 조석=${tide ? `${tide.events.length}건(${tideApi ? "KHOA" : "알고리즘"})` : "없음"}` +
+      ` 수온=${waterTemp ? `${waterTemp.tempC}℃(${waterTemp.stationName})` : "없음"}` +
+      ` 파고=${wave ? `${wave.heightM}m` : "없음"} 바람=${wind ? (wind.source ?? "ok") : "없음"}` +
       ` 기압=${pressure ? `${pressure.hpa}hPa(${pressure.source})` : "없음"} 기온=${kma.air ? "ok" : "없음"}`,
   );
 
@@ -904,6 +1121,7 @@ export async function getMarineSnapshot(
     wind,
     pressure,
     air: kma.air,
+    wave,
     speciesFit: waterTemp ? speciesFitFor(waterTemp.tempC, water ?? null) : [],
     configured: { tide: Boolean(tideApiKey), weather: Boolean(weatherApiKey) },
     notes,
@@ -928,6 +1146,9 @@ export function marineForPrompt(m: MarineSnapshot | null) {
     습도pct: m.air?.humidity ?? null,
     강수: m.air?.precipitation ?? null,
     시간당강수량mm: m.air?.rainMm ?? null,
+    파고m: m.wave?.heightM ?? null,
+    파주기초: m.wave?.periodS ?? null,
+    파향: m.wave?.directionLabel ?? null,
     수온기준활성어종: m.speciesFit.filter((s) => s.status === "최적").map((s) => s.name),
   };
 }

@@ -48,6 +48,7 @@ type MarineData = {
   wind: { deg: number | null; code: string | null; label: string | null; speedMs: number | null; strength: string | null; source: string } | null;
   pressure: { hpa: number; trend: "rising" | "falling" | "stable"; changeHpa: number | null; source: string } | null;
   air: { tempC: number | null; humidity: number | null; precipitation: string | null; rainMm: number | null; source: string } | null;
+  wave: { heightM: number; periodS: number | null; directionDeg: number | null; directionLabel: string | null; source: string } | null;
   speciesFit: { name: string; water: "민물" | "바다"; status: "최적" | "양호" | "보통" | "비활성" }[];
   configured: { tide: boolean; weather: boolean };
   notes: string[];
@@ -500,7 +501,7 @@ function MarineSection({
 }: { marine?: MarineData | null; origin?: { origin: "user" | "region" | "point" } | null; topPointName?: string }) {
   // 키도 없고 데이터도 없으면 숨긴다. 키가 등록돼 있으면 API 호출 실패여도 섹션 프레임은 유지한다.
   if (!marine) return null;
-  const hasAny = Boolean(marine.tide || marine.waterTemp || marine.wind || marine.pressure || marine.air?.tempC != null);
+  const hasAny = Boolean(marine.tide || marine.waterTemp || marine.wind || marine.pressure || marine.air?.tempC != null || marine.wave);
   const hasKey = marine.configured.tide || marine.configured.weather;
   if (!hasAny && !hasKey) return null;
 
@@ -525,6 +526,32 @@ function MarineSection({
         <WindCard wind={marine.wind} />
         <PressureCard pressure={marine.pressure} />
       </div>
+
+      {/* 파고·파주기·파향 — Open-Meteo Marine (키 불필요) */}
+      {marine.wave && (
+        <div className="mt-2 flex items-center gap-4 rounded-xl bg-white/[0.05] px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <Waves size={12} className="shrink-0 text-aqua-400" />
+            <div>
+              <p className="text-[9.5px] text-navy-400">파고</p>
+              <p className="text-[12.5px] font-bold text-white">{marine.wave.heightM}m</p>
+            </div>
+          </div>
+          {marine.wave.periodS != null && (
+            <div>
+              <p className="text-[9.5px] text-navy-400">파주기</p>
+              <p className="text-[12.5px] font-bold text-white">{marine.wave.periodS}초</p>
+            </div>
+          )}
+          {marine.wave.directionLabel && (
+            <div>
+              <p className="text-[9.5px] text-navy-400">파향</p>
+              <p className="text-[12.5px] font-bold text-white">{marine.wave.directionLabel}</p>
+            </div>
+          )}
+          <p className="ml-auto text-[9px] text-navy-400">{marine.wave.source}</p>
+        </div>
+      )}
 
       {/* 기상청 초단기실황 — 기온·습도·강수 (키는 있는데 관측이 비면 각 항목이 '정보 없음') */}
       <WeatherStrip air={marine.air} />
@@ -554,11 +581,17 @@ function MarineSection({
         </p>
       )}
 
-      {(marine.tide || marine.waterTemp) && (
+      {(marine.tide || marine.waterTemp || marine.wave) && (
         <p className="mt-2 flex items-start gap-1 text-[10.5px] leading-relaxed text-navy-300">
           <Info size={11} className="mt-[1px] shrink-0" />
-          국립해양조사원 {marine.tide?.stationName ?? marine.waterTemp?.stationName} 관측소
-          {marine.tide?.distanceKm != null && ` (약 ${marine.tide.distanceKm}km)`}
+          {marine.tide
+            ? `${marine.tide.stationName.includes("(근사)") ? "천문조석 알고리즘" : `국립해양조사원 ${marine.tide.stationName} 관측소`}${marine.tide.distanceKm != null ? ` (약 ${marine.tide.distanceKm}km)` : ""}`
+            : marine.waterTemp?.stationName === "Open-Meteo"
+              ? "Open-Meteo Marine 위성 수온"
+              : marine.waterTemp
+                ? `국립해양조사원 ${marine.waterTemp.stationName}`
+                : ""}
+          {marine.wave && ` · 파고 Open-Meteo Marine`}
           {marine.air?.source ? ` · ${marine.air.source}` : ""}
           {" · 물때는 음력 기반 근사치예요."}
         </p>

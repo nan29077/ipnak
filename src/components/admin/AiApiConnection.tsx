@@ -121,7 +121,7 @@ export function AiApiConnection({ initial }: Props) {
         ) : activeTab === "marine" ? (
           <div className="space-y-3">
             <SecretInput
-              label="국립해양조사원 조석예보 API 키 (물때 · 수온 · 기압)"
+              label="KHOA 오션그리드 API 키 (물때 실측·수온 정밀값)"
               value={tideApiKey} onChange={setTideApiKey} visible={visible} className={inputClass}
               configured={Boolean(initial.tideConfigured)}
             />
@@ -131,17 +131,14 @@ export function AiApiConnection({ initial }: Props) {
               configured={Boolean(initial.weatherConfigured)}
             />
             <div className="rounded-xl bg-aqua-500/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-aqua-600 ring-1 ring-aqua-500/20">
-              <p className="font-semibold">AI 포인트 추천 정확도 보강용 공공 API입니다.</p>
+              <p className="font-semibold">AI 포인트 추천 보강용 해양·기상 API입니다.</p>
               <p className="mt-1">
-                키를 등록하면 추천 화면에 물때 타임라인·수온·풍향·기압 카드가 함께 표시되고, AI가 그 데이터를 근거로 추천 사유를 씁니다.
-                <b> 등록하지 않아도 기존 추천은 그대로 동작</b>하며 해당 카드만 표시되지 않습니다.
+                <b>키 없이도 기본 데이터가 자동 제공됩니다</b> — 물때는 천문조석 알고리즘(오차 ±1h), 파고·파주기·파향·수온은 Open-Meteo Marine(무료)으로 표시됩니다.
+                KHOA 키를 등록하면 실측 수온·조위로 정밀도가 올라가고, 기상청 키를 등록하면 기온·풍향·풍속이 추가됩니다.
               </p>
               <div className="mt-2 flex flex-wrap gap-3">
-                <a href="https://www.data.go.kr/data/15001441/openapi.do" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">
-                  조위관측소 최신 관측데이터 신청 <ExternalLink size={11} />
-                </a>
-                <a href="https://www.data.go.kr/data/15019067/openapi.do" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">
-                  조위관측소 실측·예측 조위 신청 <ExternalLink size={11} />
+                <a href="https://khoa.go.kr/oceandata/main.do" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">
+                  KHOA 오션그리드 신규 API 신청 <ExternalLink size={11} />
                 </a>
                 <a href="https://www.data.go.kr/data/15084084/openapi.do" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">
                   기상청 단기예보 신청 <ExternalLink size={11} />
