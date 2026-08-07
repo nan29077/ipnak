@@ -32,7 +32,7 @@ import {
   importLocalNotifications,
 } from "@/lib/capacitorPlugins";
 
-export const ONBOARDING_DONE_KEY = "ipnak_onboarding_done";
+const ONBOARDING_DONE_KEY = "ipnak_onboarding_done";
 
 const BRAND = "#eab308";
 const BG_DARK = "#0d1b2a";
