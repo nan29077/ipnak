@@ -36,6 +36,16 @@ export async function POST(req: Request) {
   // 닉네임 미입력 시 이메일 앞자리 + 4자리 랜덤 숫자로 자동 생성
   const finalNickname = nickname || (email.split("@")[0] + Math.floor(1000 + Math.random() * 9000));
 
+  // 전화번호 인증 우회 방어: 서버에서 verified 상태를 반드시 확인
+  const cleanPhone = phone.replace(/-/g, "").trim();
+  const verified = await prisma.phoneVerification.findFirst({
+    where: { phone: cleanPhone, verified: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!verified) {
+    return NextResponse.json({ ok: false, reason: "phone-not-verified" }, { status: 400 });
+  }
+
   const exists = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (exists) {
     return NextResponse.json({ error: "이미 가입된 이메일입니다." }, { status: 409 });

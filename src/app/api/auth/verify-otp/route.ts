@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
   const { phone, code } = await req.json().catch(() => ({}));
@@ -8,6 +9,15 @@ export async function POST(req: Request) {
   }
 
   const cleaned = phone.replace(/-/g, "").trim();
+
+  // 브루트포스 방어: 전화번호당 5분 10회, IP당 5분 20회
+  const ip = getClientIp(req);
+  if (!rateLimit(`otp-verify:${cleaned}`, 10, 300_000)) {
+    return NextResponse.json({ ok: false, reason: "rate-limited" }, { status: 429 });
+  }
+  if (!rateLimit(`otp-verify-ip:${ip}`, 20, 300_000)) {
+    return NextResponse.json({ ok: false, reason: "rate-limited" }, { status: 429 });
+  }
 
   const record = await prisma.phoneVerification.findFirst({
     where: {
