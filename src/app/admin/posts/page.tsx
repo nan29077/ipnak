@@ -30,7 +30,11 @@ export default async function AdminPosts({ searchParams }: { searchParams: { q?:
           )}
           {posts.map((p) => (
             <tr key={p.id} className={p.hidden ? "opacity-50" : ""}>
-              <td className="px-4 py-3"><img src={p.images[0]?.url || ""} alt="" className="h-10 w-10 rounded-lg object-cover" /></td>
+              <td className="px-4 py-3">
+                {p.images[0]?.url
+                  ? <img src={p.images[0].url} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                  : <div className="h-10 w-10 rounded-lg bg-navy-100" />}
+              </td>
               <td className="px-4 py-3 font-semibold text-navy-800">{p.author.nickname}</td>
               <td className="px-4 py-3 text-navy-500">{TYPE[p.postType]}</td>
               <td className="max-w-[200px] truncate px-4 py-3 text-navy-500">{p.caption}</td>
