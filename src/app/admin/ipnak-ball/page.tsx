@@ -64,13 +64,29 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
   const label = IPNAK_TYPE_LABEL[kind];
 
   // 볼 ID 레지스트리 (registry 탭)
-  type RegistryRow = { id: string; ballId: string; memo: string | null; isActive: number; createdAt: string };
+  type RegistryRow = {
+    id: string;
+    ballId: string;
+    memo: string | null;
+    isActive: number;
+    createdAt: string;
+    linkedUserId: string | null;
+    linkedUserNickname: string | null;
+    linkedUserPhone: string | null;
+  };
   let registryItems: RegistryRow[] = [];
   let registryTotal = 0;
   if (tab === "registry") {
     const [rows, countRows] = await Promise.all([
       prisma.$queryRawUnsafe<RegistryRow[]>(
-        `SELECT id, ballId, memo, isActive, createdAt FROM IpnakBallRegistry ORDER BY createdAt DESC LIMIT 50`
+        `SELECT r.id, r.ballId, r.memo, r.isActive, r.createdAt,
+                lb.userId as linkedUserId,
+                u.nickname as linkedUserNickname,
+                u.phone as linkedUserPhone
+         FROM IpnakBallRegistry r
+         LEFT JOIN LinkedBall lb ON lb.ballId = r.ballId
+         LEFT JOIN User u ON u.id = lb.userId
+         ORDER BY r.createdAt DESC LIMIT 50`
       ),
       prisma.$queryRawUnsafe<{ cnt: number | bigint }[]>(
         `SELECT COUNT(*) as cnt FROM IpnakBallRegistry`

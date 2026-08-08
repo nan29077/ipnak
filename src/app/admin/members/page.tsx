@@ -74,9 +74,9 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
 
       {/* PC 테이블 */}
       <div className="hidden md:block">
-        <Table head={["닉네임", "이메일", "역할", "게시글", "팔로워", "포인트", "가입일", "관리"]}>
+        <Table head={["닉네임", "이메일", "역할", "게시글", "팔로워", "포인트", "가입일", "입낚볼", "관리"]}>
           {users.length === 0 && (
-            <tr><td colSpan={8} className="p-0"><EmptyState title="회원이 없습니다" desc={q || role ? "검색 결과가 없습니다." : undefined} /></td></tr>
+            <tr><td colSpan={9} className="p-0"><EmptyState title="회원이 없습니다" desc={q || role ? "검색 결과가 없습니다." : undefined} /></td></tr>
           )}
           {users.map((u) => (
             <tr key={u.id}>
@@ -88,15 +88,6 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                       <span className="font-semibold text-navy-800">{u.nickname}</span>
                       {isSuspended(u) && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">정지</span>}
                     </div>
-                    {u.linkedBalls && u.linkedBalls.length > 0 && (
-                      <div className="mt-0.5 flex flex-wrap gap-1">
-                        {u.linkedBalls.map(lb => (
-                          <span key={lb.ballId} className="font-mono text-[10px] bg-orange-50 text-orange-600 border border-orange-200 rounded px-1.5 py-0.5">
-                            {lb.ballId}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               </td>
@@ -106,6 +97,20 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
               <td className="px-4 py-3 text-navy-500">{u._count.followedBy}</td>
               <td className="px-4 py-3 font-semibold text-amber-600">{(u.points ?? 0).toLocaleString()}P</td>
               <td className="px-4 py-3 text-navy-400">{kstFormat(u.createdAt, "yyyy.MM.dd")}</td>
+              <td className="px-4 py-3">
+                {u.linkedBalls && u.linkedBalls.length > 0 ? (
+                  <div className="flex flex-col gap-1">
+                    {u.linkedBalls.map(lb => (
+                      <div key={lb.ballId} className="flex items-center gap-1">
+                        <span className="font-mono text-[10px] bg-orange-50 text-orange-600 border border-orange-200 rounded px-1.5 py-0.5 whitespace-nowrap">{lb.ballId}</span>
+                        <span className="text-[10px] font-semibold text-green-600 whitespace-nowrap">연동중</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-xs text-navy-300">-</span>
+                )}
+              </td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-1.5">
                   <MemberPointTopup userId={u.id} nickname={u.nickname} points={u.points ?? 0} />
@@ -155,16 +160,17 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                   {isSuspended(u) && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">정지</span>}
                 </div>
                 <p className="truncate text-[12px] text-navy-400">{u.email}</p>
-                {u.linkedBalls && u.linkedBalls.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {u.linkedBalls.map(lb => (
-                      <span key={lb.ballId} className="font-mono text-[10px] bg-orange-50 text-orange-600 border border-orange-200 rounded px-1.5 py-0.5">
-                        {lb.ballId}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
+              {u.linkedBalls && u.linkedBalls.length > 0 && (
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  {u.linkedBalls.map(lb => (
+                    <div key={lb.ballId} className="flex flex-col items-end gap-0.5">
+                      <span className="font-mono text-[10px] bg-orange-50 text-orange-600 border border-orange-200 rounded px-1.5 py-0.5 whitespace-nowrap">{lb.ballId}</span>
+                      <span className="text-[10px] font-semibold text-green-600">연동중</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-navy-400">
               <span>게시글 {u._count.posts}</span>
