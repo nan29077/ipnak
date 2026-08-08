@@ -39,7 +39,10 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
     prisma.user.count({ where }),
     prisma.user.findMany({
       where,
-      include: { _count: { select: { posts: true, followedBy: true } } },
+      include: {
+        _count: { select: { posts: true, followedBy: true } },
+        linkedBalls: { select: { ballId: true } },
+      },
       orderBy: SORTS[sort],
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -78,10 +81,23 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
           {users.map((u) => (
             <tr key={u.id}>
               <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <img src={getAvatarUrl(u.id, u.avatarUrl)} alt="" className="h-7 w-7 rounded-full object-cover" />
-                  <span className="font-semibold text-navy-800">{u.nickname}</span>
-                  {isSuspended(u) && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">정지</span>}
+                <div className="flex items-start gap-2">
+                  <img src={getAvatarUrl(u.id, u.avatarUrl)} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover mt-0.5" />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-navy-800">{u.nickname}</span>
+                      {isSuspended(u) && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">정지</span>}
+                    </div>
+                    {u.linkedBalls && u.linkedBalls.length > 0 && (
+                      <div className="mt-0.5 flex flex-wrap gap-1">
+                        {u.linkedBalls.map(lb => (
+                          <span key={lb.ballId} className="font-mono text-[10px] bg-orange-50 text-orange-600 border border-orange-200 rounded px-1.5 py-0.5">
+                            {lb.ballId}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </td>
               <td className="px-4 py-3 text-navy-500">{u.email}</td>
@@ -139,6 +155,15 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                   {isSuspended(u) && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">정지</span>}
                 </div>
                 <p className="truncate text-[12px] text-navy-400">{u.email}</p>
+                {u.linkedBalls && u.linkedBalls.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {u.linkedBalls.map(lb => (
+                      <span key={lb.ballId} className="font-mono text-[10px] bg-orange-50 text-orange-600 border border-orange-200 rounded px-1.5 py-0.5">
+                        {lb.ballId}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-navy-400">

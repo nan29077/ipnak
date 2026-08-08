@@ -9,7 +9,19 @@ type RegistryItem = {
   memo: string | null;
   isActive: boolean;
   createdAt: string;
+  linkedUserId?: string | null;
+  linkedUserNickname?: string | null;
+  linkedUserPhone?: string | null;
 };
+
+// 전화번호 마스킹: 010-1234-5678 → 010-****-5678
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11) return `${digits.slice(0, 3)}-****-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0, 3)}-****-${digits.slice(6)}`;
+  return phone;
+}
 
 type Props = {
   initialItems: RegistryItem[];
@@ -95,7 +107,10 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
 
   // 삭제
   const handleDelete = async (item: RegistryItem) => {
-    if (!confirm(`볼 ID '${item.ballId}'를 삭제하시겠습니까?\n이미 사용자에게 연동된 볼은 영향을 받지 않습니다.`)) return;
+    const linkedInfo = item.linkedUserNickname
+      ? `\n현재 [${item.linkedUserNickname}] 회원과 연동 중입니다. 삭제 시 연동이 함께 해제됩니다.`
+      : "";
+    if (!confirm(`볼 ID '${item.ballId}'를 삭제하시겠습니까?${linkedInfo}`)) return;
     const res = await fetch("/api/admin/ipnak-ball/registry", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -212,6 +227,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
             <tr className="border-b border-navy-100 bg-navy-50 text-left text-xs font-semibold text-navy-500">
               <th className="px-4 py-3">볼 ID</th>
               <th className="px-4 py-3">메모</th>
+              <th className="px-4 py-3">연동 회원</th>
               <th className="px-4 py-3">상태</th>
               <th className="px-4 py-3">등록일</th>
               <th className="px-4 py-3 text-center">관리</th>
@@ -220,7 +236,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-navy-400">
+                <td colSpan={6} className="px-4 py-12 text-center text-navy-400">
                   등록된 볼 ID가 없습니다.
                 </td>
               </tr>
@@ -234,6 +250,18 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-navy-500">{item.memo ?? <span className="text-navy-300">-</span>}</td>
+                <td className="px-4 py-3">
+                  {item.linkedUserNickname ? (
+                    <div>
+                      <p className="text-sm font-semibold text-navy-800 leading-tight">{item.linkedUserNickname}</p>
+                      {item.linkedUserPhone && (
+                        <p className="text-xs text-navy-400">{maskPhone(item.linkedUserPhone)}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-navy-300">미등록</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${item.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"}`}>
                     {item.isActive ? "활성" : "비활성"}
@@ -289,7 +317,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
         <p>1. NFC Tools Pro 앱에서 NFC 칩에 텍스트(예: IPNK-000001)를 쓰기합니다.</p>
         <p>2. 이 화면에서 동일한 ID를 등록하면 사용자가 NFC 태그 또는 수동 입력으로 볼을 연동할 수 있습니다.</p>
         <p>3. 비활성 처리 시 해당 ID로 새 연동이 불가능해집니다. 분실·불량 볼 관리에 활용하세요.</p>
-        <p>4. 삭제해도 이미 연동된 사용자 데이터(LinkedBall)에는 영향이 없습니다.</p>
+        <p>4. 삭제 시 해당 볼과 연동된 회원의 연동 정보(LinkedBall)도 함께 삭제됩니다.</p>
       </div>
     </div>
   );

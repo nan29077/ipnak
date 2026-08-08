@@ -43,20 +43,30 @@ export async function GET(req: Request) {
       isActive: number | boolean;
       createdAt: string;
       updatedAt: string;
+      linkedUserId: string | null;
+      linkedUserNickname: string | null;
+      linkedUserPhone: string | null;
     };
 
-    const where = q ? `WHERE ballId LIKE ? OR memo LIKE ?` : ``;
+    const where = q ? `WHERE r.ballId LIKE ? OR r.memo LIKE ?` : ``;
+    const whereCount = q ? `WHERE ballId LIKE ? OR memo LIKE ?` : ``;
     const params = q ? [`%${q}%`, `%${q}%`] : [];
 
     const [rows, countRows] = await Promise.all([
       prisma.$queryRawUnsafe<RowType[]>(
-        `SELECT id, ballId, memo, isActive, createdAt, updatedAt
-         FROM IpnakBallRegistry ${where}
-         ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+        `SELECT r.id, r.ballId, r.memo, r.isActive, r.createdAt, r.updatedAt,
+                lb.userId as linkedUserId,
+                u.nickname as linkedUserNickname,
+                u.phone as linkedUserPhone
+         FROM IpnakBallRegistry r
+         LEFT JOIN LinkedBall lb ON lb.ballId = r.ballId
+         LEFT JOIN User u ON u.id = lb.userId
+         ${where}
+         ORDER BY r.createdAt DESC LIMIT ? OFFSET ?`,
         ...params, take, skip
       ),
       prisma.$queryRawUnsafe<[{ cnt: number }]>(
-        `SELECT COUNT(*) as cnt FROM IpnakBallRegistry ${where}`,
+        `SELECT COUNT(*) as cnt FROM IpnakBallRegistry ${whereCount}`,
         ...params
       ),
     ]);
@@ -152,6 +162,18 @@ export async function DELETE(req: Request) {
   if (!id) return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
 
   try {
+    // 1. 삭제할 볼의 ballId 조회
+    const rows = await prisma.$queryRawUnsafe<[{ ballId: string }]>(
+      `SELECT ballId FROM IpnakBallRegistry WHERE id = ?`, id
+    );
+    const ballId = rows[0]?.ballId;
+
+    // 2. LinkedBall 먼저 삭제 (연동 회원 계정에서도 연동 해제)
+    if (ballId) {
+      await prisma.$executeRawUnsafe(`DELETE FROM LinkedBall WHERE ballId = ?`, ballId);
+    }
+
+    // 3. 레지스트리에서 삭제
     await prisma.$executeRawUnsafe(`DELETE FROM IpnakBallRegistry WHERE id = ?`, id);
     return NextResponse.json({ ok: true });
   } catch (e) {
