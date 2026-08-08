@@ -211,8 +211,9 @@ export async function POST(req: Request) {
         if (b.id === user.id) return NextResponse.json({ error: "자기 자신의 상태는 변경할 수 없습니다." }, { status: 400 });
         const target = await prisma.user.findUnique({ where: { id: b.id } });
         if (!target) return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
-        await prisma.user.update({ where: { id: b.id }, data: { isActive: !target.isActive } });
-        await log(target.isActive ? "USER_SUSPEND" : "USER_UNSUSPEND", b.id); break;
+        const currentActive = (target as any).isActive !== false;
+        await (prisma.user.update as any)({ where: { id: b.id }, data: { isActive: !currentActive } });
+        await log(currentActive ? "USER_SUSPEND" : "USER_UNSUSPEND", b.id); break;
       }
       case "USER_DELETE": {
         if (!b.id || typeof b.id !== "string") return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
