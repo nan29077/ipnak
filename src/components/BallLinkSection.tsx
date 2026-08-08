@@ -10,12 +10,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, Camera, Crosshair, Download, Image as ImageIcon, Smartphone, Unlink, KeyRound } from "lucide-react";
+import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, Camera, Crosshair, Download, Image as ImageIcon, Smartphone, Unlink, KeyRound, ChevronDown, ChevronUp, Hand } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import NfcService from "@/services/NfcService";
 import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
 import { useUser } from "@/lib/userContext";
 import { Sheet } from "@/components/ui";
+import { isIOSDevice } from "@/lib/device";
+import { ID_SAMPLE, ID_FORMAT_LABEL, LEGACY_ID_SAMPLE } from "@/lib/nfcTag";
 
 const NFC_UNSUPPORTED_MSG = "이 기기에서는 NFC를 지원하지 않습니다. Android Chrome에서 이용해 주세요.";
 const NFC_READ_TIMEOUT_MS = 20000;
@@ -191,11 +193,119 @@ function useKeyringLink() {
   return { supported, keyrings, reading, tagAndRegister, refresh };
 }
 
+/** 아이폰인지 확인 (SSR 에서는 false — 첫 렌더 후 useEffect 로 확정) */
+function useIsIOS() {
+  const [ios, setIos] = useState(false);
+  useEffect(() => { setIos(isIOSDevice()); }, []);
+  return ios;
+}
+
+/**
+ * 아이폰 전용 연동 안내 (측정 페이지 볼·키링 카드 공용)
+ *
+ * 아이폰은 앱 안에서 NFC 를 직접 읽지 못한다. 대신 태그에 URL 이 적혀 있으면
+ * 폰에 갖다 대는 순간 화면 상단에 배너가 뜨고, 그 배너를 탭하면 앱/웹이 열린다.
+ * 그래서 "직접 입력"을 전면에 두는 대신 태그 사용법을 먼저 보여주고,
+ * 수동 입력은 fallback 으로 접어 둔다.
+ */
+function IosTagPrompt({
+  kind, manualId, onManualIdChange, registering, onRegister, onOpenGuide,
+}: {
+  kind: "ball" | "keyring";
+  manualId: string;
+  onManualIdChange: (v: string) => void;
+  registering: boolean;
+  onRegister: () => void;
+  onOpenGuide: () => void;
+}) {
+  const [manualOpen, setManualOpen] = useState(false);
+  const label = kind === "ball" ? "입낚볼" : "입낚키링";
+  const shortLabel = kind === "ball" ? "볼" : "키링";
+
+  return (
+    <div className="space-y-2">
+      {/* 태그 안내 — 아이폰의 기본 동작(상단 배너)을 그대로 설명한다 */}
+      <div className="rounded-2xl border border-aqua-500/25 bg-aqua-500/10 p-3.5">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-aqua-500/15 text-aqua-300">
+            <Nfc size={17} strokeWidth={2} />
+            <span className="absolute inset-0 animate-ping rounded-full bg-aqua-400/20" />
+          </span>
+          <p className="text-[13px] font-bold text-aqua-200">
+            {shortLabel}을 아이폰에 가져다 대세요
+          </p>
+        </div>
+        <ol className="mt-2.5 space-y-1.5 pl-[46px] text-[12px] leading-relaxed text-navy-400">
+          <li className="flex gap-1.5">
+            <Hand size={13} strokeWidth={2} className="mt-0.5 shrink-0 text-aqua-400" />
+            <span>{label}을 아이폰 <b className="font-semibold text-navy-500">윗부분</b>에 가까이 대세요.</span>
+          </li>
+          <li className="flex gap-1.5">
+            <Smartphone size={13} strokeWidth={2} className="mt-0.5 shrink-0 text-aqua-400" />
+            <span>화면 상단에 뜨는 <b className="font-semibold text-navy-500">입낚 배너를 탭</b>하세요.</span>
+          </li>
+          <li className="flex gap-1.5">
+            <Check size={13} strokeWidth={2.4} className="mt-0.5 shrink-0 text-aqua-400" />
+            <span>연동과 측정 화면이 한 번에 열려요.</span>
+          </li>
+        </ol>
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpenGuide}
+        className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
+      >
+        <CircleHelp size={15} strokeWidth={2} />
+        입낚볼/입낚키링 연동 방법
+      </button>
+
+      {/* fallback — 태그가 안 될 때를 위한 수동 입력 (기본은 접힘) */}
+      <div className="overflow-hidden rounded-[14px] border border-navy-100">
+        <button
+          type="button"
+          onClick={() => setManualOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-3.5 py-2.5 text-left transition-colors hover:bg-navy-50"
+        >
+          <span className="text-[12px] font-semibold text-navy-400">직접 입력하기</span>
+          {manualOpen
+            ? <ChevronUp size={14} className="shrink-0 text-navy-300" />
+            : <ChevronDown size={14} className="shrink-0 text-navy-300" />}
+        </button>
+        {manualOpen && (
+          <div className="space-y-2 border-t border-navy-100 px-3.5 pb-3.5 pt-3">
+            <p className="text-[12px] text-navy-400">박스에 표시된 아이디를 직접 입력하세요.</p>
+            <div className="flex gap-2">
+              <input
+                value={manualId}
+                onChange={(e) => onManualIdChange(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && onRegister()}
+                placeholder={`예: ${ID_SAMPLE[kind]}`}
+                style={{ fontSize: "16px" }}
+                className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
+              />
+              <button
+                type="button"
+                onClick={onRegister}
+                disabled={!manualId.trim() || registering}
+                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-gray-900 transition-colors active:bg-orange-600 disabled:opacity-50"
+              >
+                {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── 측정 페이지: 입낚볼 연동 카드 ── */
 export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: { ballEnabled?: boolean; keyringEnabled?: boolean } = {}) {
   const router = useRouter();
   const { supported, balls, reading, tagAndRegister, refresh } = useBallLink();
   const toast = useToast();
+  const isIOS = useIsIOS();
   const linked = balls && balls.length > 0 ? balls[0] : null;
   const [guideOpen, setGuideOpen] = useState(false);
   const [linkGuideOpen, setLinkGuideOpen] = useState(false);
@@ -262,7 +372,18 @@ export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: 
       {/* 볼이 연동되지 않은 경우에만 표시 (로딩 중 플래시 방지: balls !== null 체크) */}
       {balls !== null && !linked && (
         supported === false ? (
-          /* iPhone 등 NFC 미지원 — ID 직접 입력 */
+          isIOS ? (
+            /* 아이폰 — 태그 → 상단 배너 탭 안내 (수동 입력은 접어서 fallback 유지) */
+            <IosTagPrompt
+              kind="ball"
+              manualId={manualId}
+              onManualIdChange={setManualId}
+              registering={registering}
+              onRegister={registerManual}
+              onOpenGuide={() => { setLinkGuideTab("iphone"); setLinkGuideOpen(true); }}
+            />
+          ) : (
+          /* NFC 미지원 데스크톱 브라우저 등 — ID 직접 입력 */
           <div className="space-y-2">
             <p className="pl-[46px] text-left text-[13px] text-navy-400">
               박스에 표시된 아이디를 직접 입력하세요.
@@ -272,7 +393,7 @@ export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: 
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && registerManual()}
-                placeholder="예: IPNK-XXXXXX"
+                placeholder={`예: ${ID_SAMPLE.ball}`}
                 style={{ fontSize: "16px" }}
                 className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
               />
@@ -294,6 +415,7 @@ export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: 
               입낚볼/입낚키링 연동 방법
             </button>
           </div>
+          )
         ) : (
           <>
             <button
@@ -633,37 +755,52 @@ export function IpnakLinkGuideSheet({
         </div>
       )}
 
-      {/* 아이폰 탭 */}
+      {/* 아이폰 탭 — 태그(상단 배너) 방식이 기본, 직접 입력은 fallback */}
       {tab === "iphone" && (
         <div className="space-y-4 pb-2">
           <div className="rounded-2xl border border-aqua-500/25 bg-aqua-500/10 p-3.5">
-            <p className="text-[14px] font-bold text-aqua-300">박스에 인쇄된 코드를 직접 입력해서 연결해요.</p>
-            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">아이폰은 NFC 웹 태그를 지원하지 않아요. 대신 {label} ID 코드를 직접 입력하면 간단히 연동할 수 있어요.</p>
+            <p className="text-[14px] font-bold text-aqua-300">{label}을 폰에 대면 상단에 배너가 떠요.</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">
+              아이폰은 앱을 켜지 않아도 NFC 태그를 읽어요. 배너를 탭하면 연동과 계측 화면이 한 번에 열립니다.
+            </p>
           </div>
-          <GuideStep icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>} title={`1. ${label} 박스에서 코드를 확인하세요`}>
-            {activeProduct === "ball"
-              ? "박스 측면 또는 볼 본체에 인쇄된 볼 ID를 확인하세요."
-              : "박스 측면 또는 키링 본체에 인쇄된 키링 ID를 확인하세요."}
+          <GuideStep icon={<Smartphone size={18} />} title={`1. ${label}을 아이폰 윗부분에 대세요`}>
+            잠금 화면이나 홈 화면 상태에서 {activeProduct === "ball" ? "볼" : "키링"}을 아이폰 상단(카메라 근처)에 가까이 대주세요.
+            {activeProduct === "keyring" && " 키링은 평평한 바닥에 놓고 폰을 위에서 가까이 대면 잘 읽혀요."}
+          </GuideStep>
+          <GuideStep icon={<Nfc size={18} />} title="2. 화면 위에 뜨는 입낚 배너를 탭하세요">
+            배너를 탭하면 입낚이 열리면서 태그한 {activeProduct === "ball" ? "볼" : "키링"} ID가 자동으로 선택돼요.
+            처음 태그한 {activeProduct === "ball" ? "볼" : "키링"}이면 등록 확인 화면이 먼저 나와요.
+          </GuideStep>
+          <GuideStep icon={<Check size={18} />} title="3. 바로 AI 계측을 시작하세요">
+            이미 등록된 {activeProduct === "ball" ? "볼" : "키링"}이면 확인 절차 없이 곧장 계측 화면이 열려요.
+          </GuideStep>
+          {activeProduct === "keyring" && <KeyringFlatNotice />}
+
+          {/* fallback — 태그가 읽히지 않을 때 */}
+          <div className="rounded-2xl border border-orange-500/25 bg-orange-500/10 p-3.5">
+            <p className="text-[13px] font-bold text-orange-300">배너가 뜨지 않으면 코드를 직접 입력하세요</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">
+              연동 화면의 ‘직접 입력하기’를 펼쳐 박스 측면 또는 {activeProduct === "ball" ? "볼" : "키링"} 본체에 인쇄된 ID를 입력하면 돼요.
+            </p>
             <div className="mt-2.5 flex items-center justify-center rounded-xl border border-aqua-500/30 bg-[#0d1b2a] py-3">
               <span className="font-mono text-[18px] font-extrabold tracking-widest text-aqua-300">
-                {activeProduct === "ball" ? "IPNK-000000" : "IPNK-KR-000000"}
+                {ID_SAMPLE[activeProduct]}
               </span>
             </div>
             <p className="mt-1.5 text-[11px] text-navy-400">
-              코드 형식: {activeProduct === "ball" ? "IPNK + 숫자 6자리" : "IPNK-KR + 숫자 6자리"}
+              코드 형식: {ID_FORMAT_LABEL[activeProduct]}
             </p>
-          </GuideStep>
-          <GuideStep icon={<Check size={18} />} title="2. 아래 입력창에 코드를 입력하세요">
-            연동 화면의 입력창에 {label} ID 코드를 그대로 입력한 뒤 ‘등록’ 버튼을 눌러 주세요.
-          </GuideStep>
-          <GuideStep icon={<CircleHelp size={18} />} title="3. 연결 상태를 확인하세요">
-            ‘연결됨’ 표시가 나타나면 완료예요. 이후 AI 측정 기록이 해당 {activeProduct === "ball" ? "볼" : "키링"} ID에 자동으로 연결돼요.
-          </GuideStep>
-          {activeProduct === "keyring" && <KeyringFlatNotice />}
+            <p className="mt-1 text-[11px] text-navy-400">
+              먼저 구매하신 제품은 <span className="font-mono">{LEGACY_ID_SAMPLE[activeProduct]}</span> 형식일 수 있어요. 이 코드도 그대로 사용할 수 있습니다.
+            </p>
+          </div>
+
           <div className="rounded-xl bg-navy-50 px-3.5 py-3 text-[12px] leading-relaxed text-navy-400">
             코드는 영문 대소문자를 구분하지 않아요. 예를 들어{" "}
-            <span className="font-mono font-semibold text-aqua-300">{activeProduct === "ball" ? "ipnk-123456" : "ipnk-kr-123456"}</span>과{" "}
-            <span className="font-mono font-semibold text-aqua-300">{activeProduct === "ball" ? "IPNK-123456" : "IPNK-KR-123456"}</span>은 동일하게 인식돼요.
+            <span className="font-mono font-semibold text-aqua-300">{ID_SAMPLE[activeProduct].toLowerCase()}</span>과{" "}
+            <span className="font-mono font-semibold text-aqua-300">{ID_SAMPLE[activeProduct]}</span>은 동일하게 인식돼요.
+            아이폰 NFC 읽기는 iPhone 7 이상에서 동작해요.
           </div>
         </div>
       )}
@@ -820,7 +957,7 @@ export function MyBallManager() {
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && registerManual()}
-                placeholder="예: IPNK-XXXXXX"
+                placeholder={`예: ${ID_SAMPLE.ball}`}
                 style={{ fontSize: "16px" }}
                 className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
               />
@@ -1013,7 +1150,7 @@ export function MyKeyringManager() {
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && registerManual()}
-                placeholder="예: IPNK-KR-XXXXXX"
+                placeholder={`예: ${ID_SAMPLE.keyring}`}
                 style={{ fontSize: "16px" }}
                 className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
               />
@@ -1084,6 +1221,7 @@ export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true 
   const { supported, keyrings, reading, tagAndRegister, refresh } = useKeyringLink();
   const toast = useToast();
   const currentUser = useUser();
+  const isIOS = useIsIOS();
   const linked = keyrings && keyrings.length > 0 ? keyrings[0] : null;
   const [linkGuideOpen, setLinkGuideOpen] = useState(false);
   const [linkGuideTab, setLinkGuideTab] = useState<"android" | "iphone">("android");
@@ -1147,7 +1285,18 @@ export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true 
       {/* 키링이 연동되지 않은 경우에만 표시 (로딩 중 플래시 방지) */}
       {keyrings !== null && !linked && (
         supported === false ? (
-          /* iPhone 등 NFC 미지원 — ID 직접 입력 */
+          isIOS ? (
+            /* 아이폰 — 태그 → 상단 배너 탭 안내 (수동 입력은 접어서 fallback 유지) */
+            <IosTagPrompt
+              kind="keyring"
+              manualId={manualId}
+              onManualIdChange={setManualId}
+              registering={registering}
+              onRegister={registerManual}
+              onOpenGuide={() => { setLinkGuideTab("iphone"); setLinkGuideOpen(true); }}
+            />
+          ) : (
+          /* NFC 미지원 데스크톱 브라우저 등 — ID 직접 입력 */
           <div className="space-y-2">
             <p className="pl-[46px] text-left text-[13px] text-navy-400">
               박스에 표시된 아이디를 직접 입력하세요.
@@ -1157,7 +1306,7 @@ export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true 
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && registerManual()}
-                placeholder="예: IPNK-KR-XXXXXX"
+                placeholder={`예: ${ID_SAMPLE.keyring}`}
                 style={{ fontSize: "16px" }}
                 className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
               />
@@ -1179,6 +1328,7 @@ export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true 
               입낚볼/입낚키링 연동 방법
             </button>
           </div>
+          )
         ) : (
           <>
             <button

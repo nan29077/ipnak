@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Hash, Loader2, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/components/Toast";
+import { ID_SAMPLE } from "@/lib/nfcTag";
 
 export function BallManualInput({ onRegistered }: { onRegistered?: () => void }) {
   const toast = useToast();
@@ -76,7 +77,7 @@ export function BallManualInput({ onRegistered }: { onRegistered?: () => void })
             <input
               value={ballId}
               onChange={(e) => setBallId(e.target.value)}
-              placeholder="예: IPNAK-2024-XXXX"
+              placeholder={`예: ${ID_SAMPLE.ball}`}
               maxLength={64}
               className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-[13px] text-white placeholder:text-white/25 outline-none focus:border-orange-500/60 focus:ring-1 focus:ring-orange-500/30"
             />

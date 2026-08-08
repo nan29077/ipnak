@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isNativeRuntime, getNativePlatform, importNfc } from "@/lib/capacitorPlugins";
 import { hapticSuccess, hapticError } from "@/hooks/useHaptics";
+import { parseTagPayload } from "@/lib/nfcTag";
 
 export type NfcStatus =
   | "unsupported" // iOS 앱 / 웹 / NFC 미지원 기기
@@ -46,21 +47,23 @@ type Options = {
   onResult?: (result: NfcResult) => void;
 };
 
-/** NDEF 레코드 payload(byte 배열 또는 base64)에서 텍스트 추출 */
+/**
+ * NDEF 레코드 payload(byte 배열 또는 문자열)에서 볼/키링 ID 추출
+ * - 구형 텍스트 태그("IPNK-000001")와 신규 URL 태그(https://ipnak.kr/ball?id=BALL-000001) 모두 지원
+ * - 상태 바이트·언어코드·URI 프리픽스 제거는 parseTagPayload 가 담당한다.
+ */
 function decodeNdefText(record: any): string | null {
   try {
     // @capacitor-community/nfc: record.payload 는 number[] 또는 문자열
     const payload = record?.payload ?? record?.data;
     if (!payload) return null;
-    if (typeof payload === "string") return payload.trim() || null;
-    const bytes = Array.isArray(payload) ? Uint8Array.from(payload) : new Uint8Array(payload);
-    let text = new TextDecoder().decode(bytes);
-    // NDEF Text 레코드는 앞에 상태 바이트 + 언어코드("en"/"ko")가 붙는다 → 제거
-    text = text.replace(/^[\x00-\x08]?(en|ko|kr)?/i, "").trim();
-    // URI 레코드(ipnak://ball/XXXX 또는 https://ipnak.com/ball/XXXX)면 마지막 세그먼트가 볼 ID
-    const m = /\/ball\/([A-Za-z0-9-]+)/.exec(text);
-    if (m) return m[1];
-    return text || null;
+    const raw =
+      typeof payload === "string"
+        ? payload
+        : new TextDecoder().decode(
+            Array.isArray(payload) ? Uint8Array.from(payload) : new Uint8Array(payload)
+          );
+    return parseTagPayload(raw)?.id ?? null;
   } catch {
     return null;
   }

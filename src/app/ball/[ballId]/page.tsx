@@ -1,7 +1,9 @@
 /**
  * 입낚볼 QR / 딥링크 랜딩 페이지
  *
- * URL: /ball/[ballId]  예: /ball/IPNAK-2024-A1B2
+ * URL: /ball/[ballId]  예: /ball/BALL-000001
+ * ※ NFC 태그 신규 표준은 쿼리형(/ball?id=BALL-000001) 이며 src/app/ball/page.tsx 가 처리한다.
+ *   이 경로형은 기존 QR·구형 태그 호환용으로 남겨 둔다.
  *
  * 동작 흐름:
  * 1. 입낚볼에 인쇄된 QR 코드 스캔 또는 NFC URL 태그 읽기

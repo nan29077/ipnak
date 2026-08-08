@@ -2,6 +2,9 @@
 
 import { useState, useCallback } from "react";
 import { Search, Plus, Trash2, ToggleLeft, ToggleRight, Tag, RefreshCw } from "lucide-react";
+import { buildTagUrl, ID_SAMPLE, LEGACY_ID_SAMPLE } from "@/lib/nfcTag";
+import { TagUrlCopyButton } from "@/components/admin/TagUrlCopyButton";
+import { NfcTagProgrammingGuide } from "@/components/admin/NfcTagProgrammingGuide";
 
 type RegistryItem = {
   id: string;
@@ -164,7 +167,7 @@ export function IpnakKeyringRegistryTab({ initialItems, initialTotal }: Props) {
                 type="text"
                 value={newKeyringId}
                 onChange={e => setNewKeyringId(e.target.value.toUpperCase())}
-                placeholder="예: IPNK-KR-000001"
+                placeholder={`예: ${ID_SAMPLE.keyring}`}
                 className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] px-3 py-2 text-sm text-navy-800 outline-none focus:border-orange-400/70"
               />
             </div>
@@ -234,6 +237,7 @@ export function IpnakKeyringRegistryTab({ initialItems, initialTotal }: Props) {
                   <div className="flex items-center gap-2">
                     <Tag className="h-3.5 w-3.5 text-orange-400 shrink-0" />
                     <span className="font-mono font-semibold text-navy-800">{item.keyringId}</span>
+                    <TagUrlCopyButton url={buildTagUrl("keyring", item.keyringId)} />
                   </div>
                 </td>
                 <td className="px-4 py-3 text-navy-500">{item.memo ?? <span className="text-navy-300">-</span>}</td>
@@ -298,13 +302,23 @@ export function IpnakKeyringRegistryTab({ initialItems, initialTotal }: Props) {
         </div>
       )}
 
+      {/* NFC 태그 프로그래밍 안내 (접이식) */}
+      <NfcTagProgrammingGuide kind="keyring" />
+
       {/* 안내 박스 */}
-      <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700 leading-relaxed">
+      <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700 leading-relaxed">
         <p className="mb-1 font-semibold">키링 ID 등록 가이드</p>
-        <p>1. NFC Tools Pro 앱에서 NFC 칩에 텍스트(예: IPNK-KR-000001)를 쓰기합니다.</p>
+        <p>
+          1. NFC 칩에 <strong>URL(URI) 레코드</strong>로{" "}
+          <span className="font-mono">{buildTagUrl("keyring", ID_SAMPLE.keyring)}</span> 형식의 주소를 씁니다.
+          (자세한 방법은 위 <strong>NFC 태그 프로그래밍 안내</strong> 참고)
+        </p>
         <p>2. 이 화면에서 동일한 ID를 등록하면 사용자가 NFC 태그 또는 수동 입력으로 키링을 연동할 수 있습니다.</p>
         <p>3. 비활성 처리 시 해당 ID로 새 연동이 불가능해집니다. 분실·불량 키링 관리에 활용하세요.</p>
         <p>4. 삭제 시 해당 키링과 연동된 회원의 연동 정보(LinkedKeyring)도 함께 삭제됩니다.</p>
+        <p className="mt-1">
+          ※ 구형 <span className="font-mono">{LEGACY_ID_SAMPLE.keyring}</span> 형식 ID도 그대로 등록·인식됩니다.
+        </p>
       </div>
     </div>
   );

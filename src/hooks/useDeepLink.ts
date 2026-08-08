@@ -5,6 +5,8 @@
  * 지원 링크 형태
  * - 커스텀 스킴:  ipnak://ball/BALL-0001,  ipnak://post/abc123
  * - 유니버설 링크: https://ipnak.com/ball/BALL-0001  (Android App Links / iOS Universal Links)
+ * - NFC 태그 URL: https://ipnak.kr/ball?id=BALL-000001, https://ipnak.kr/keyring?id=KRING-000001
+ *   (쿼리스트링은 경로와 함께 그대로 넘겨 /ball 라우트가 처리한다)
  *
  * 동작
  * - 앱 실행 중 링크가 열리면 @capacitor/app 의 appUrlOpen 이벤트를 받아 경로를 파싱하고
@@ -22,8 +24,11 @@ import { isNativeRuntime, importApp } from "@/lib/capacitorPlugins";
 
 /** 앱에서 허용하는 커스텀 스킴 */
 const APP_SCHEME = "ipnak://";
-/** 유니버설 링크 호스트 화이트리스트 — 외부 도메인으로 이동하지 않도록 검증 */
-const ALLOWED_HOSTS = ["ipnak.com", "www.ipnak.com"];
+/**
+ * 유니버설 링크 호스트 화이트리스트 — 외부 도메인으로 이동하지 않도록 검증
+ * (NFC 태그 URL 이 ipnak.kr 도메인을 쓰므로 함께 허용한다)
+ */
+const ALLOWED_HOSTS = ["ipnak.com", "www.ipnak.com", "ipnak.kr", "www.ipnak.kr"];
 
 /**
  * 딥링크 URL 을 앱 내부 경로("/ball/XXX")로 변환한다.

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { takePostLoginRedirect, POST_LOGIN_REDIRECT_COOKIE } from "@/lib/safeRedirect";
 
 // 세션 쿠키 이름은 src/lib/auth.ts와 통일
 const COOKIE = "ipnak_session";
@@ -219,10 +220,12 @@ export async function GET(req: Request) {
     }
   }
 
-  const response = NextResponse.redirect(`${baseUrl}/home`);
+  // 로그인 전에 보던 내부 경로(NFC 태그 랜딩 등)가 있으면 그쪽으로 돌려보낸다.
+  const response = NextResponse.redirect(`${baseUrl}${takePostLoginRedirect(cookieHeader) ?? "/home"}`);
 
-  // naver_oauth_state 쿠키 제거
+  // naver_oauth_state / 복귀 경로 쿠키 제거
   response.cookies.delete("naver_oauth_state");
+  response.cookies.delete(POST_LOGIN_REDIRECT_COOKIE);
 
   // 세션 쿠키 설정
   response.cookies.set(COOKIE, token, {

@@ -92,17 +92,18 @@ const config: CapacitorConfig = {
     },
   },
   android: {
-    // 딥링크 처리: ipnak://ball/BALL-ID 형식 URL 스킴
+    // 딥링크 처리
+    // - https://ipnak.com|ipnak.kr /ball, /keyring  (NFC 태그 URL·QR 공용)
+    // - NFC 태그는 https://ipnak.kr/ball?id=BALL-000001 형식으로 기록한다
     intentFilters: [
       {
         action: "android.intent.action.VIEW",
         autoVerify: true,
         data: [
-          {
-            scheme: "https",
-            host: "ipnak.com",
-            pathPrefix: "/ball",
-          },
+          { scheme: "https", host: "ipnak.com", pathPrefix: "/ball" },
+          { scheme: "https", host: "ipnak.com", pathPrefix: "/keyring" },
+          { scheme: "https", host: "ipnak.kr", pathPrefix: "/ball" },
+          { scheme: "https", host: "ipnak.kr", pathPrefix: "/keyring" },
         ],
         categories: [
           "android.intent.category.DEFAULT",
@@ -113,7 +114,8 @@ const config: CapacitorConfig = {
   },
   ios: {
     // 딥링크 처리: Universal Links (Associated Domains 엔타이틀먼트 필요)
-    // Xcode → Signing & Capabilities → Associated Domains → applinks:ipnak.com 추가
+    // Xcode → Signing & Capabilities → Associated Domains →
+    //   applinks:ipnak.com, applinks:ipnak.kr 추가 (태그 URL 도메인 포함)
     scheme: "ipnak",
     // 화면 회전: 세로 고정
     limitsNavigationsToAppBoundDomains: true,

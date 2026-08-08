@@ -9,6 +9,7 @@ import { useToast } from "@/components/Toast";
 import { SocialButtons } from "@/components/SocialButtons";
 import { Button } from "@/components/ui";
 import { useAnglerLabel } from "@/lib/appSettingsContext";
+import { sanitizeRedirect, POST_LOGIN_REDIRECT_COOKIE } from "@/lib/safeRedirect";
 
 /** 활동정지 안내 팝업 */
 function SuspendedAlert({ onClose }: { onClose: () => void }) {
@@ -57,6 +58,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [suspendedAlert, setSuspendedAlert] = useState(false);
+  // 로그인 후 되돌아갈 내부 경로 (?redirect=/ball?id=XXX — NFC 태그 진입)
+  const [redirectTo, setRedirectTo] = useState<string | null>(null);
+
+  // ?redirect= 를 읽어 두고, 소셜 로그인 콜백도 쓸 수 있도록 짧은 쿠키에 남긴다.
+  // (소셜 콜백은 서버 리디렉션이라 이 페이지의 state 를 볼 수 없다)
+  useEffect(() => {
+    const target = sanitizeRedirect(new URLSearchParams(window.location.search).get("redirect"));
+    setRedirectTo(target);
+    if (target) {
+      document.cookie = `${POST_LOGIN_REDIRECT_COOKIE}=${encodeURIComponent(target)}; path=/; max-age=300; samesite=lax`;
+    }
+  }, []);
 
   // 소셜 로그인 콜백에서 넘어온 에러 안내 (useSearchParams 대신 window 사용 — Suspense 불필요)
   useEffect(() => {
@@ -83,8 +96,10 @@ export default function LoginPage() {
       if (res.status === 403) { setSuspendedAlert(true); return; }
       if (!res.ok) throw new Error(data.error || "로그인 실패");
       toast("로그인 되었습니다", "success");
+      // 되돌아갈 경로가 있으면(NFC 태그 진입 등) 그쪽을 우선한다.
+      document.cookie = `${POST_LOGIN_REDIRECT_COOKIE}=; path=/; max-age=0; samesite=lax`;
       // replace: 로그인 페이지가 뒤로가기 히스토리에 남지 않도록
-      router.replace(data.role === "SUPER_ADMIN" ? "/admin" : "/home");
+      router.replace(redirectTo ?? (data.role === "SUPER_ADMIN" ? "/admin" : "/home"));
       router.refresh();
     } catch (e: any) {
       toast(e.message, "error");
@@ -111,6 +126,18 @@ export default function LoginPage() {
           />
           <p className="text-[13px] text-white/45">나만의 낚시 기록을 시작하세요</p>
         </div>
+
+        {/* NFC 태그로 진입했는데 비로그인인 경우 — 왜 로그인 화면이 떴는지 알려준다 */}
+        {redirectTo && /^\/(ball|keyring)\?/.test(redirectTo) && (
+          <div className="mb-5 rounded-[16px] border border-aqua-400/25 bg-aqua-400/10 px-4 py-3 text-center">
+            <p className="text-[13px] font-semibold text-aqua-200">
+              {redirectTo.startsWith("/keyring") ? "입낚키링" : "입낚볼"} 태그를 인식했어요
+            </p>
+            <p className="mt-0.5 text-[12px] text-white/45">
+              로그인하면 이어서 연동하고 바로 측정할 수 있어요.
+            </p>
+          </div>
+        )}
 
         {/* 이메일 로그인 폼 */}
         <form

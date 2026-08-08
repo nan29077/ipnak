@@ -32,6 +32,8 @@ import { useRecording } from "@/components/RecordingProvider";
 import { DiarySheet } from "@/components/DiarySheet";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { entryFeeConfirmText, fetchEntryFeeInfo, type EntryFeeInfo } from "@/lib/tournamentFee";
+import { IphoneTagGuideModal, IOS_TAG_GUIDE_KEY } from "@/components/IphoneTagGuideModal";
+import { isIOSDevice } from "@/lib/device";
 
 type Phase =
   | "IDLE"
@@ -66,6 +68,12 @@ export default function MeasurePage() {
   // 대회 페이지에서 'AI 카메라 계측' 클릭 시 카메라 자동 시작
   const autoCamera = searchParams.get("autoCamera") === "1";
 
+  // NFC 태그 URL(/ball?id=XXX, /keyring?id=XXX)에서 넘어온 진입
+  // — 태그한 볼·키링 ID 가 선택된 상태로 계측 화면이 열린다.
+  const tagBallId = (searchParams.get("ballId") || "").trim().toUpperCase() || null;
+  const tagKeyringId = (searchParams.get("keyringId") || "").trim().toUpperCase() || null;
+  const fromTag = searchParams.get("fromTag") === "1";
+
   const [phase, setPhase] = useState<Phase>("IDLE");
   const [liveScanOpen, setLiveScanOpen] = useState(false); // 실시간 AI 스캐너 열림 여부
   const browserLandscape = false; // 가로 방향에서도 정상 표시
@@ -93,15 +101,17 @@ export default function MeasurePage() {
   // 스마트피싱(기록 중) 화면에서 진입했는지 (?from=fishing) — 완료 후 복귀 안내
   const [fromFishing, setFromFishing] = useState(false);
   // 현재 연동된 입낚볼 ID (측정 저장 시 ballId 연결에 사용)
-  const [activeBallId, setActiveBallId] = useState<string | null>(null);
+  // 태그로 들어왔으면 태그한 ID 를 그대로 선택 상태로 둔다.
+  const [activeBallId, setActiveBallId] = useState<string | null>(tagBallId);
   // 현재 연동된 입낚키링 ID (키링 모드 측정 저장 시 keyringId 연결에 사용)
-  const [activeKeyringId, setActiveKeyringId] = useState<string | null>(null);
+  const [activeKeyringId, setActiveKeyringId] = useState<string | null>(tagKeyringId);
 
   // 입낚볼 / 입낚키링 서비스 스위치 (관리자 설정) — 측정 모드·연동 섹션 노출 기준
   const [ballEnabled, setBallEnabled] = useState(true);
   const [keyringEnabled, setKeyringEnabled] = useState(false);
   // 기준물 측정 모드 — 볼(구, 어느 각도든 40mm) / 키링(평면 디스크, 수직 촬영 필요)
-  const [refType, setRefType] = useState<"ball" | "keyring">("ball");
+  // 키링 태그로 들어왔으면 키링 모드로 시작한다.
+  const [refType, setRefType] = useState<"ball" | "keyring">(tagKeyringId ? "keyring" : "ball");
   const anyRefEnabled = ballEnabled || keyringEnabled;
   // 스위치 로딩 완료 여부 — 로딩 전에는 카메라 자동 열기를 보류한다.
   const [flagsLoaded, setFlagsLoaded] = useState(false);
@@ -133,7 +143,9 @@ export default function MeasurePage() {
   }, []);
 
   // 연동된 입낚볼 ID 로드 (측정 기록과 볼 연결)
+  // 태그로 지정된 ID 가 있으면 그것이 우선이므로 덮어쓰지 않는다.
   useEffect(() => {
+    if (tagBallId) return;
     fetch("/api/balls", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -141,10 +153,11 @@ export default function MeasurePage() {
         if (first?.ballId) setActiveBallId(first.ballId);
       })
       .catch(() => {});
-  }, []);
+  }, [tagBallId]);
 
   // 연동된 입낚키링 ID 로드 (키링 모드 측정 기록과 키링 연결)
   useEffect(() => {
+    if (tagKeyringId) return;
     fetch("/api/keyrings", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -152,7 +165,7 @@ export default function MeasurePage() {
         if (first?.keyringId) setActiveKeyringId(first.keyringId);
       })
       .catch(() => {});
-  }, []);
+  }, [tagKeyringId]);
 
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -476,7 +489,7 @@ export default function MeasurePage() {
         weather: tags?.weather?.weather ?? null,
         temperature: tags?.weather?.temperature ?? null,
         tidePhase: tags?.tide?.tidePhase ?? null,
-        ballId: activeBallId ?? null,
+        ballId: refType === "ball" ? (activeBallId ?? null) : null,
         keyringId: refType === "keyring" ? activeKeyringId ?? null : null,
       });
 
@@ -515,7 +528,7 @@ export default function MeasurePage() {
           tripId: sessionId ?? null,
           shareToFeed: false,
           pointVisibility: "EXACT",
-          ballId: activeBallId ?? null,
+          ballId: refType === "ball" ? (activeBallId ?? null) : null,
           keyringId: refType === "keyring" ? activeKeyringId ?? null : null,
         }),
       }).catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
@@ -667,12 +680,37 @@ export default function MeasurePage() {
     setLiveScanOpen(true); // 앱 내 실시간 AI 스캐너 열기
   }, [loggedIn, anyRefEnabled]);
 
+  /* ── 아이폰 1회성 태그 안내 ──
+     태그로 계측 화면에 진입한 아이폰 사용자에게 처음 한 번만 사용법을 알려준다.
+     안내가 떠 있는 동안에는 카메라 자동 열기를 미룬다(팝업 뒤에서 카메라가 열리는 것 방지). */
+  const [iosTagGuide, setIosTagGuide] = useState(false);
+  const iosTagGuideRef = useRef(false);
+
+  useEffect(() => {
+    if (!fromTag || !isIOSDevice()) return;
+    try {
+      if (localStorage.getItem(IOS_TAG_GUIDE_KEY)) return;
+    } catch { return; }
+    iosTagGuideRef.current = true;
+    setIosTagGuide(true);
+  }, [fromTag]);
+
+  const closeIosTagGuide = useCallback(() => {
+    try { localStorage.setItem(IOS_TAG_GUIDE_KEY, "1"); } catch { /* noop */ }
+    iosTagGuideRef.current = false;
+    setIosTagGuide(false);
+    // 안내를 닫으면 이어서 평소처럼 카메라를 연다 (PC·비로그인·첫 튜토리얼은 openCamera 가 처리)
+    openCamera();
+  }, [openCamera]);
+
   // autoCamera 모드: 페이지 마운트 즉시 카메라 열기 (대회 제출 플로우에서 단계 줄이기)
   // 또는 일반 진입 시에도 모바일이면 자동 카메라 열기
   // (볼·키링 스위치를 확인한 뒤 실행 — 둘 다 꺼져 있으면 열지 않는다)
   useEffect(() => {
     if (!flagsLoaded || !anyRefEnabled) return;
     const t = setTimeout(() => {
+      // 아이폰 태그 안내가 떠 있으면 안내를 닫은 뒤에 연다
+      if (iosTagGuideRef.current) return;
       // autoCamera 파라미터가 있으면 무조건 열기 (대회 모드)
       if (autoCamera) { setLiveScanOpen(true); return; }
       // 모바일 진입 시 자동으로 AI 카메라 열기 (비로그인이면 IDLE에서 클릭 유도)
@@ -819,6 +857,21 @@ export default function MeasurePage() {
               <div className="flex items-center gap-2 rounded-xl border border-aqua-500/30 bg-aqua-500/10 px-3 py-2">
                 <MapIcon size={15} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
                 <p className="text-[12px] font-medium text-aqua-300">스마트피싱 기록 중 — 측정 후 뒤로가면 기록 화면으로 돌아가요.</p>
+              </div>
+            )}
+
+            {/* NFC 태그로 진입한 경우 — 어떤 볼·키링이 선택됐는지 알려준다 */}
+            {fromTag && (tagBallId || tagKeyringId) && (
+              <div className="flex items-center gap-2.5 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-2.5">
+                {tagKeyringId ? (
+                  <KeyRound size={15} strokeWidth={1.9} className="shrink-0 text-orange-400" />
+                ) : (
+                  <CircleDashed size={15} strokeWidth={1.9} className="shrink-0 text-orange-400" />
+                )}
+                <p className="min-w-0 text-[12px] font-medium text-orange-200">
+                  {tagKeyringId ? "입낚키링" : "입낚볼"}{" "}
+                  <span className="font-mono font-bold">{tagKeyringId ?? tagBallId}</span> 선택됨 — 바로 측정할 수 있어요
+                </p>
               </div>
             )}
 
@@ -1188,6 +1241,9 @@ export default function MeasurePage() {
           </div>
         )}
       </div>
+
+      {/* ── 아이폰 태그 사용법 1회성 안내 (태그로 진입한 아이폰 사용자 한정) ── */}
+      <IphoneTagGuideModal open={iosTagGuide} onClose={closeIosTagGuide} />
 
       {/* ── 첫 방문 튜토리얼 오버레이 ── */}
       {tutorialOpen && (
