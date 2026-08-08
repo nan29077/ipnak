@@ -205,7 +205,7 @@ export default function MeasurePage() {
     scanTimerRef.current = timeoutId;
 
     try {
-      const dataUrl = work.toDataURL("image/jpeg", 0.82);
+      const dataUrl = work.toDataURL("image/jpeg", 0.92);
       const res = await fetch("/api/measure/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -77,11 +77,15 @@ const SPARKLES = Array.from({ length: 34 }, (_, i) => {
   };
 });
 
-const POLL_INTERVAL_MS = 2000; // 스캔 폴링 주기
+const POLL_INTERVAL_MS = 1500; // 스캔 폴링 주기
 const SCAN_MAX_PX = 1024;      // 전송 프레임 최대 해상도 (속도/정확도 균형)
 const REQ_TIMEOUT_MS = 9000;   // 개별 요청 하드 타임아웃
 const CONFIDENCE_MIN = 0.7;    // 이 미만이면 실패 처리 (measure 페이지와 동일 기준)
 const SHIMMER_MS = 1800;       // 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 도는 시간
+// 이 신뢰도 이상이면 1회 성공만으로 즉시 윤슬 진행,
+// 미만이면 연속 2회 성공해야 윤슬로 넘어간다 (오탐으로 인한 잘못된 자동 측정 방지)
+const CONFIDENCE_INSTANT = 0.85;
+const CONSECUTIVE_SUCCESS_NEEDED = 2;
 // 물고기는 인식됐는데 기준물만 연속으로 못 잡은 횟수 — 이 횟수를 넘으면 안내 후 카메라 종료
 // (AI 응답 한 번의 실수로 카메라가 닫히지 않도록 2회 연속을 요구)
 const REF_MISS_LIMIT = 2;
@@ -235,6 +239,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
   const fishMissRef = useRef(0);  // 물고기 연속 미감지 횟수 (볼 O · 물고기 X)
   const bothMissRef = useRef(0);  // 둘 다 연속 미감지 횟수 (볼 X · 물고기 X)
   const totalFailRef = useRef(0); // "판정 불가" 응답(타임아웃·AI 오류 등) 연속 횟수
+  const consecutiveSuccessRef = useRef(0); // 스캔 연속 성공 횟수 (낮은 신뢰도 확인용)
 
   /** FishScanGlow 감지 상태 수신 (state + ref 동시 갱신) */
   const handleScanStatus = useCallback((s: ContourStatus) => {
@@ -601,12 +606,22 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
           bothMissRef.current = 0;
           totalFailRef.current = 0;
           setDet(detection);
-          // 물고기 + 기준물 모두 인식 → 윤슬 한 바퀴 후 자동 측정
-          goStage("shimmer");
+          // 물고기 + 기준물 모두 인식 → 윤슬 한 바퀴 후 자동 측정.
+          // 다만 신뢰도가 낮으면(< CONFIDENCE_INSTANT) 한 번 더 같은 결과가 나올 때까지
+          // 확인한 뒤 진행한다 (단발 오탐으로 잘못 측정되는 것 방지).
+          consecutiveSuccessRef.current += 1;
+          if (
+            detection.confidence >= CONFIDENCE_INSTANT ||
+            consecutiveSuccessRef.current >= CONSECUTIVE_SUCCESS_NEEDED
+          ) {
+            consecutiveSuccessRef.current = 0;
+            goStage("shimmer");
+          }
         } else {
           // 실패/인식 안 됨 → 오버레이 제거 (스펙: 카메라 화면만 유지)
           successRef.current = null;
           setDet(null);
+          consecutiveSuccessRef.current = 0; // 연속 성공 카운터 리셋
           if (data?.ok === false && data?.reason === "no-ball") {
             totalFailRef.current = 0; // 확정 판정 수신 → 판정 불가 연속 카운터 리셋
             // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 —
@@ -661,6 +676,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
         if (!stopped) {
           successRef.current = null;
           setDet(null);
+          consecutiveSuccessRef.current = 0; // 연속 성공 카운터 리셋
           // 클라이언트 요청 타임아웃(9초 abort)·네트워크 오류도 "판정 불가"로 집계
           totalFailRef.current += 1;
           if (totalFailRef.current >= TOTAL_FAIL_LIMIT) goStage("no-fish-warning");

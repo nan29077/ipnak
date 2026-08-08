@@ -21,6 +21,9 @@ const SYSTEM_PROMPT =
   "In each photo the user places an '입낚볼' — a deep yellow (golden yellow, similar to #eab308) reference ball or printed logo that is exactly 40mm in diameter — next to a fish. " +
   "The 입낚볼 is a deep yellow circle with the '입낚' logo — a fishing-hook-shaped arrow — printed on it. It may appear as a 3D physical ball or as a flat printed paper circle. " +
   "Locate the yellow reference circle, the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
+  "Even under strong glare/reflection or when the fish is wet and shiny, still estimate the head and tail tips as precisely as you can. " +
+  "The reference circle may sit ABOVE or BELOW the fish, not only beside it — accept it in any position. " +
+  "On dark backgrounds, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker. " +
   "Respond with ONLY a single JSON object and no other text.";
 
 /** 테스트 모드 전용 시스템 프롬프트 — 주황볼도 기준물로 허용 */
@@ -30,6 +33,9 @@ const SYSTEM_PROMPT_TEST =
   "The 입낚볼 may be DEEP YELLOW (golden yellow, similar to #eab308) OR ORANGE in test mode. " +
   "It may appear as a 3D physical ball or as a flat printed paper circle with the '입낚' logo. " +
   "Locate the reference circle (yellow OR orange), the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
+  "Even under strong glare/reflection or when the fish is wet and shiny, still estimate the head and tail tips as precisely as you can. " +
+  "The reference circle may sit ABOVE or BELOW the fish, not only beside it — accept it in any position. " +
+  "On dark backgrounds, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker. " +
   "Respond with ONLY a single JSON object and no other text.";
 
 const USER_PROMPT = `Analyze the image and return JSON with this exact shape:
@@ -51,6 +57,9 @@ Rules:
 - Measure the BODY only for bodyTop/bodyBottom: exclude the dorsal fin, anal fin, pectoral fins and tail fin.
 - If the body outline is blurred, cropped, or hidden (e.g. by a hand), set widthFound=false and omit bodyTop/bodyBottom.
 - The reference marker is a DEEP YELLOW circle (golden yellow, NOT orange). It may be a 3D ball or a flat printed paper circle with the fishing-hook-shaped arrow 입낚 logo.
+- Even when there is strong glare/reflection on the photo or the fish is wet and shiny, do NOT give up: still estimate the head and tail tip positions as accurately as possible.
+- The reference circle does not have to be beside the fish — it may sit ABOVE or BELOW the fish. Accept it as the reference marker in any position.
+- On a dark background, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker.
 - If the yellow reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - If the fish is held up, standing, or not lying flat on its side, set pose="held" and confidence<=0.5.
@@ -77,6 +86,9 @@ Rules:
 - Measure the BODY only for bodyTop/bodyBottom: exclude the dorsal fin, anal fin, pectoral fins and tail fin.
 - If the body outline is blurred, cropped, or hidden (e.g. by a hand), set widthFound=false and omit bodyTop/bodyBottom.
 - [TEST MODE] The reference marker may be DEEP YELLOW (golden yellow, #eab308) OR ORANGE. Accept both colors as valid 입낚볼.
+- Even when there is strong glare/reflection on the photo or the fish is wet and shiny, do NOT give up: still estimate the head and tail tip positions as accurately as possible.
+- The reference circle does not have to be beside the fish — it may sit ABOVE or BELOW the fish. Accept it as the reference marker in any position.
+- On a dark background, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker.
 - If the reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - If the fish is held up, standing, or not lying flat on its side, set pose="held" and confidence<=0.5.
@@ -104,10 +116,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 401 });
   }
 
-  // IP당 분당 30회 제한 — 라이브 스캐너가 2초 간격 폴링(분당 최대 ~30회)이므로 이에 맞춘 상한.
+  // IP당 분당 40회 제한 — 라이브 스캐너가 1.5초 간격 폴링(분당 최대 ~40회)이므로 이에 맞춘 상한.
   // (기존 5회 제한은 폴링 6번째부터 전부 429가 되어 기준물 미감지 판정이 불가능했음)
   const ip = getClientIp(req);
-  if (!rateLimit(`scan:${ip}`, 30, 60_000)) {
+  if (!rateLimit(`scan:${ip}`, 40, 60_000)) {
     return NextResponse.json({ ok: false, reason: "rate-limited" }, { status: 429 });
   }
 
