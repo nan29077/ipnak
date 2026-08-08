@@ -209,10 +209,11 @@ export async function POST(req: Request) {
       case "USER_SUSPEND": {
         if (!b.id || typeof b.id !== "string") return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
         if (b.id === user.id) return NextResponse.json({ error: "자기 자신의 상태는 변경할 수 없습니다." }, { status: 400 });
-        const target = await prisma.user.findUnique({ where: { id: b.id } });
-        if (!target) return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
-        const currentActive = (target as any).isActive !== false;
-        await (prisma.user.update as any)({ where: { id: b.id }, data: { isActive: !currentActive } });
+        // Prisma 생성 클라이언트가 isActive를 모를 수 있어 raw SQL로 직접 처리
+        const rows: any[] = await prisma.$queryRaw`SELECT isActive FROM \`User\` WHERE id = ${b.id} LIMIT 1`;
+        if (!rows || rows.length === 0) return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
+        const currentActive = rows[0].isActive !== 0 && rows[0].isActive !== false;
+        await prisma.$executeRaw`UPDATE \`User\` SET isActive = ${!currentActive} WHERE id = ${b.id}`;
         await log(currentActive ? "USER_SUSPEND" : "USER_UNSUSPEND", b.id); break;
       }
       case "USER_DELETE": {

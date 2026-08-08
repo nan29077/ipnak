@@ -60,8 +60,9 @@ export async function getCurrentUser() {
     include: { user: true },
   });
   if (!session || session.expiresAt < new Date()) return null;
-  // 활동정지 계정은 기존 세션도 즉시 무효 처리
-  if ((session.user as any).isActive === false) return null;
+  // 활동정지 계정은 기존 세션도 즉시 무효 처리 (raw SQL로 직접 확인)
+  const activeRows: any[] = await prisma.$queryRaw`SELECT isActive FROM \`User\` WHERE id = ${session.userId} LIMIT 1`;
+  if (activeRows[0]?.isActive === 0 || activeRows[0]?.isActive === false) return null;
   const { passwordHash, ...safe } = session.user;
   return safe;
 }
