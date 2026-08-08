@@ -24,6 +24,7 @@ const SYSTEM_PROMPT =
   "Even under strong glare/reflection or when the fish is wet and shiny, still estimate the head and tail tips as precisely as you can. " +
   "The reference circle may sit ABOVE or BELOW the fish, not only beside it — accept it in any position. " +
   "On dark backgrounds, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker. " +
+  "If the fish is held up but fully visible with proper perspective (ball and fish appear to be in the same plane), measurement is still possible with high confidence. " +
   "Respond with ONLY a single JSON object and no other text.";
 
 /** 테스트 모드 전용 시스템 프롬프트 — 주황볼도 기준물로 허용 */
@@ -36,6 +37,7 @@ const SYSTEM_PROMPT_TEST =
   "Even under strong glare/reflection or when the fish is wet and shiny, still estimate the head and tail tips as precisely as you can. " +
   "The reference circle may sit ABOVE or BELOW the fish, not only beside it — accept it in any position. " +
   "On dark backgrounds, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker. " +
+  "If the fish is held up but fully visible with proper perspective (ball and fish appear to be in the same plane), measurement is still possible with high confidence. " +
   "Respond with ONLY a single JSON object and no other text.";
 
 const USER_PROMPT = `Analyze the image and return JSON with this exact shape:
@@ -49,7 +51,7 @@ const USER_PROMPT = `Analyze the image and return JSON with this exact shape:
   "bodyTop": { "x": number, "y": number },     // on the widest cross-section of the BODY, the point on one side of the outline, normalized
   "bodyBottom": { "x": number, "y": number },  // the opposite point of that same cross-section, normalized
   "pose": "flat" | "held" | "unknown",   // "flat" = fish lying on its side flat on the ground; "held" = held up / standing / angled; "unknown" if unclear
-  "confidence": number         // 0.0~1.0 overall confidence that ball + head + tail are correctly located AND the fish lies flat
+  "confidence": number         // 0.0~1.0 overall confidence that ball + head + tail are correctly located. High confidence is possible for held fish if perspective matches and full fish is visible.
 }
 Rules:
 - All coordinates MUST be within 0..1. x is relative to image width, y to image height.
@@ -62,8 +64,10 @@ Rules:
 - On a dark background, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker.
 - If the yellow reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
-- If the fish is held up, standing, or not lying flat on its side, set pose="held" and confidence<=0.5.
-- Only set pose="flat" and a high confidence when you are sure the fish lies flat on its side and both endpoints are clear.
+- pose: "flat" if fish is lying on its side on a flat surface; "held" if fish is being held up or is not flat; "unknown" if unclear.
+- If pose="held" but the ball and fish are in proper perspective (same plane, proportional size) AND the entire fish (head to tail) is clearly visible, confidence may be 0.7~0.9.
+- If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
+- Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
 Return ONLY the JSON object.`;
 
 /** 테스트 모드 전용 유저 프롬프트 — 주황볼도 기준물로 허용 */
@@ -78,7 +82,7 @@ const USER_PROMPT_TEST = `Analyze the image and return JSON with this exact shap
   "bodyTop": { "x": number, "y": number },     // on the widest cross-section of the BODY, the point on one side of the outline, normalized
   "bodyBottom": { "x": number, "y": number },  // the opposite point of that same cross-section, normalized
   "pose": "flat" | "held" | "unknown",   // "flat" = fish lying on its side flat on the ground; "held" = held up / standing / angled; "unknown" if unclear
-  "confidence": number         // 0.0~1.0 overall confidence that ball + head + tail are correctly located AND the fish lies flat
+  "confidence": number         // 0.0~1.0 overall confidence that ball + head + tail are correctly located. High confidence is possible for held fish if perspective matches and full fish is visible.
 }
 Rules:
 - All coordinates MUST be within 0..1. x is relative to image width, y to image height.
@@ -91,8 +95,10 @@ Rules:
 - On a dark background, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker.
 - If the reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
-- If the fish is held up, standing, or not lying flat on its side, set pose="held" and confidence<=0.5.
-- Only set pose="flat" and a high confidence when you are sure the fish lies flat on its side and both endpoints are clear.
+- pose: "flat" if fish is lying on its side on a flat surface; "held" if fish is being held up or is not flat; "unknown" if unclear.
+- If pose="held" but the ball and fish are in proper perspective (same plane, proportional size) AND the entire fish (head to tail) is clearly visible, confidence may be 0.7~0.9.
+- If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
+- Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
 Return ONLY the JSON object.`;
 
 function num(v: unknown): number | null {
@@ -116,10 +122,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 401 });
   }
 
-  // IP당 분당 40회 제한 — 라이브 스캐너가 1.5초 간격 폴링(분당 최대 ~40회)이므로 이에 맞춘 상한.
-  // (기존 5회 제한은 폴링 6번째부터 전부 429가 되어 기준물 미감지 판정이 불가능했음)
+  // IP당 분당 45회 제한 — 빈 프레임 차단으로 실제 호출이 줄어드니 여유 확보
   const ip = getClientIp(req);
-  if (!rateLimit(`scan:${ip}`, 40, 60_000)) {
+  if (!rateLimit(`scan:${ip}`, 45, 60_000)) {
     return NextResponse.json({ ok: false, reason: "rate-limited" }, { status: 429 });
   }
 

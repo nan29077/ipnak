@@ -17,6 +17,8 @@ import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 import { FishScanGlow } from "./FishScanGlow";
 import { FishShimmer } from "./FishShimmer";
 import type { ContourStatus } from "@/lib/fishContour";
+import { createFrameFilter } from "@/lib/frameFilter";
+import type { FrameFilterMode } from "@/lib/frameFilter";
 
 type Point = { x: number; y: number };
 type Norm = { x: number; y: number };
@@ -78,6 +80,9 @@ const SPARKLES = Array.from({ length: 34 }, (_, i) => {
 });
 
 const POLL_INTERVAL_MS = 1500; // 스캔 폴링 주기
+// idle 상태에서 연속으로 건너뛸 수 있는 최대 틱 수
+// 이 횟수를 초과하면 idle이어도 강제 호출 (물고기를 놓치지 않기 위한 안전망)
+const IDLE_SKIP_LIMIT = 3; // 3틱 = 4.5초
 const SCAN_MAX_PX = 1024;      // 전송 프레임 최대 해상도 (속도/정확도 균형)
 const REQ_TIMEOUT_MS = 9000;   // 개별 요청 하드 타임아웃
 const CONFIDENCE_MIN = 0.7;    // 이 미만이면 실패 처리 (measure 페이지와 동일 기준)
@@ -224,6 +229,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
   const abortRef = useRef<AbortController | null>(null);
   // 마지막 성공 프레임 + 정규화 감지 좌표 (측정하기 확정용)
   const successRef = useRef<{ work: HTMLCanvasElement; det: Detection } | null>(null);
+  const frameFilterRef = useRef(
+    createFrameFilter((process.env.NEXT_PUBLIC_FRAME_FILTER_MODE as FrameFilterMode) || "none")
+  );
+  const idleSkipCountRef = useRef(0);
 
   const [camStatus, setCamStatus] = useState<Cam>("loading");
   const [camError, setCamError] = useState("");
@@ -535,6 +544,18 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
         frame.getContext("2d")!.drawImage(v, 0, 0, frame.width, frame.height);
         const dataUrl = frame.toDataURL("image/jpeg", 0.8);
 
+        // 빈 프레임 차단: FishScanGlow 윤곽 감지 없으면 건너뜀 (API 비용 절감)
+        // IDLE_SKIP_LIMIT 틱 초과 시 강제 호출 (물고기를 놓치지 않는 안전망)
+        if (scanStatusRef.current === "idle") {
+          idleSkipCountRef.current += 1;
+          if (idleSkipCountRef.current < IDLE_SKIP_LIMIT) return;
+        }
+        idleSkipCountRef.current = 0;
+
+        // 프레임 사전 필터 (현재 none 모드 — 항상 통과. YOLO 활성화 시 빈 프레임 차단)
+        const filterResult = await frameFilterRef.current(frame);
+        if (!filterResult.pass) return;
+
         const controller = new AbortController();
         abortRef.current = controller;
         const to = setTimeout(() => controller.abort(), REQ_TIMEOUT_MS);
@@ -556,7 +577,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
         const ok =
           data?.ok &&
           data.ball && data.head && data.tail &&
-          data.pose === "flat" &&
+          (data.pose === "flat" || data.pose === "held") &&
           typeof data.confidence === "number" &&
           data.confidence >= CONFIDENCE_MIN &&
           typeof data.ball.r === "number" && data.ball.r > 0;
@@ -813,7 +834,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
       ? { main: "물고기가 너무 작게 보여요", sub: "조금 더 가까이에서 비춰주세요", locked: false }
       : scanStatus === "too-large"
       ? { main: "물고기가 화면에 꽉 찼어요", sub: "조금 더 멀리서 비춰주세요", locked: false }
-      : { main: "물고기를 화면 중앙에 놓아주세요", sub: "바닥에 옆으로 눕히고 입낚볼도 함께 보이게 맞춰주세요", locked: false };
+      : { main: "물고기를 화면 중앙에 놓아주세요", sub: "입낚볼과 함께 물고기 전체가 화면에 보이게 맞춰주세요", locked: false };
 
   /* ── 안내 문구 본문 (세로/가로 공용) — 단계별로 하나만 렌더 ── */
   const guidanceBody = stage === "shimmer" ? (
