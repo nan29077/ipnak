@@ -1,0 +1,1415 @@
+"use client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import Link from "next/link";
+import { Play, Pause, Square, Navigation, Fish, Ruler, MapPin, Search, Clock, ClipboardList, Share2, ChevronRight, ChevronLeft, MapPinOff, ChevronDown, ChevronUp, Trash2, Maximize2, Expand, X, Eye, LocateFixed, ShieldCheck, Map as MapIcon2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { MapView } from "@/components/map/MapView";
+import { Sheet, Button, Card, Badge } from "@/components/ui";
+import { useToast } from "@/components/Toast";
+import { useRecording, type TripRec } from "@/components/RecordingProvider";
+import { TripDetailSheet, type TripDetail } from "@/components/TripDetailSheet";
+import { AiPointRecommend } from "@/components/AiPointRecommend";
+import { BassOnlyBanner } from "@/components/BassOnlyBanner";
+import { distanceMeters, type LatLng, type MapMarker } from "@/lib/map";
+import { km, duration, stopwatch, timeAgo } from "@/lib/utils";
+import { KOREA_SPOTS } from "@/lib/taxonomy";
+import { getAvatarUrl } from "@/lib/avatarUtils";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
+
+const GPS_PREFERENCE_KEY = "ipnak:data-fishing:gps-enabled";
+
+const MAP_TUTORIAL_KEY = "ipnak:map:tutorial:done";
+
+export function MapScreen({ userId }: { userId?: string }) {
+  const toast = useToast();
+  const router = useRouter();
+  const loggedIn = !!userId;
+  const [loginModal, setLoginModal] = useState(false);
+  // 기록 세션은 전역(RecordingProvider)에서 관리 — 페이지를 벗어나거나 새로고침/재실행해도 유지됨
+  const { status, route, distance, elapsed, savedTrips, activeCatches, start, pause, finish, postToFeed, removeTrip, lastPoint, gpsWarning, dismissGpsWarning } = useRecording();
+  const [center, setCenter] = useState<LatLng>({ lat: KOREA_SPOTS[0].lat, lng: KOREA_SPOTS[0].lng });
+  const [points, setPoints] = useState<any[]>([]);
+  const [myPoints, setMyPoints] = useState<any[]>([]);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [recordsOpen, setRecordsOpen] = useState(false);
+  const [detailTrip, setDetailTrip] = useState<{ tripId?: string | null; initial?: TripDetail | null } | null>(null);
+  // 마지막 기록 카드 접기/펼치기
+  const [lastRecOpen, setLastRecOpen] = useState(true);
+  // 피쉬 기록 없음 팝업
+  const [noCatchModal, setNoCatchModal] = useState(false);
+  // 기록 삭제 확인
+  const [deleteTarget, setDeleteTarget] = useState<TripRec | null>(null);
+  // 화면 켜둠 안내 배너 — 닫으면 해당 기록 세션 동안 숨김
+  const [wakeTipClosed, setWakeTipClosed] = useState(false);
+
+  // 내 포인트 드롭다운
+  const [myPointsDropOpen, setMyPointsDropOpen] = useState(false);
+  const myPointsDropRef = useRef<HTMLDivElement>(null);
+
+  // ---- 스마트피싱 튜토리얼 ----
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+
+  // ---- 낚시 포인트 검색 ----
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [geoResults, setGeoResults] = useState<{ name: string; lat: number; lng: number }[]>([]);
+
+  const spotResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return KOREA_SPOTS.filter((s) => s.name.includes(searchQuery)).slice(0, 3);
+  }, [searchQuery]);
+
+  const pointResults = useMemo(() => {
+    if (searchQuery.trim().length < 2) return [];
+    const q = searchQuery.toLowerCase();
+    return myPoints
+      .filter((p) =>
+        (p.speciesName && p.speciesName.toLowerCase().includes(q)) ||
+        (p.region && p.region.toLowerCase().includes(q)) ||
+        (p.gearSetup && p.gearSetup.toLowerCase().includes(q))
+      )
+      .slice(0, 5);
+  }, [searchQuery, myPoints]);
+
+  // 내 포인트 지역 목록 (드롭다운용) — 기록된 물고기 포인트를 지역별로 그룹핑
+  const myRegions = useMemo(() => {
+    const map = new Map<string, { region: string; latSum: number; lngSum: number; count: number }>();
+    for (const p of myPoints) {
+      const region = p.region || "기타";
+      if (!map.has(region)) map.set(region, { region, latSum: 0, lngSum: 0, count: 0 });
+      const e = map.get(region)!;
+      e.latSum += p.lat;
+      e.lngSum += p.lng;
+      e.count += 1;
+    }
+    return Array.from(map.values())
+      .map((e) => ({ region: e.region, lat: e.latSum / e.count, lng: e.lngSum / e.count, count: e.count }))
+      .sort((a, b) => b.count - a.count);
+  }, [myPoints]);
+
+  // ---- 지도 상세 풀스크린 모드 (배경 모드 bgMode 와 별개) ----
+  const [mapDetailMode, setMapDetailMode] = useState(false);
+
+  // ---- 풀스크린 배경 모드 ----
+  const [bgMode, setBgMode] = useState(false);
+  const [screenOff, setScreenOff] = useState(false);
+  const [bgClock, setBgClock] = useState<Date>(() => new Date());
+  const sleepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bgClockIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function handleBgInteraction() {
+    setScreenOff(false);
+    if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
+    sleepTimerRef.current = setTimeout(() => setScreenOff(true), 60_000);
+  }
+
+  useEffect(() => {
+    if (!bgMode) {
+      if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
+      if (bgClockIntervalRef.current) clearInterval(bgClockIntervalRef.current);
+      setScreenOff(false);
+      return;
+    }
+    setBgClock(new Date());
+    bgClockIntervalRef.current = setInterval(() => setBgClock(new Date()), 1000);
+    handleBgInteraction();
+    return () => {
+      if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
+      if (bgClockIntervalRef.current) clearInterval(bgClockIntervalRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bgMode]);
+
+  // 스마트피싱 종료 시 배경 모드 자동 해제
+  useEffect(() => { if (status === "idle") setBgMode(false); }, [status]);
+
+  // 기록 종료 시 안내 배너 상태 초기화 → 다음 세션에서 다시 1회 노출
+  useEffect(() => { if (status === "idle") setWakeTipClosed(false); }, [status]);
+
+  // 스마트피싱 튜토리얼 — 회원별 최초 1회
+  useEffect(() => {
+    try {
+      const key = userId ? `${MAP_TUTORIAL_KEY}:${userId}` : MAP_TUTORIAL_KEY;
+      if (!localStorage.getItem(key)) {
+        const t = setTimeout(() => setTutorialOpen(true), 600);
+        return () => clearTimeout(t);
+      }
+    } catch { /* noop */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  function completeTutorial() {
+    setTutorialOpen(false);
+    try {
+      const key = userId ? `${MAP_TUTORIAL_KEY}:${userId}` : MAP_TUTORIAL_KEY;
+      localStorage.setItem(key, "1");
+    } catch { /* noop */ }
+  }
+
+  // 내 포인트 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!myPointsDropOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (myPointsDropRef.current && !myPointsDropRef.current.contains(e.target as Node)) {
+        setMyPointsDropOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [myPointsDropOpen]);
+
+  // 검색어 → Nominatim 지오코딩 (한국 지역 검색)
+  // AbortController로 이전 요청 취소 — 늦게 도착한 응답이 최신 검색 결과를 덮어쓰는 race 방지
+  useEffect(() => {
+    if (searchQuery.trim().length < 2) { setGeoResults([]); return; }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=4&countrycodes=kr&accept-language=ko`,
+          { signal: controller.signal }
+        );
+        const data = await res.json();
+        if (controller.signal.aborted) return;
+        setGeoResults(
+          (data as any[]).slice(0, 4).map((d) => ({
+            name: d.display_name.split(",")[0].trim(),
+            lat: parseFloat(d.lat),
+            lng: parseFloat(d.lon),
+          }))
+        );
+      } catch {
+        if (!controller.signal.aborted) setGeoResults([]);
+      }
+    }, 500);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [searchQuery]);
+
+  // GPS idle 상태 추적 (기록 전에도 현재 위치 마커 표시)
+  const [idlePos, setIdlePos] = useState<LatLng | null>(null);
+  const [gpsAvail, setGpsAvail] = useState<boolean | null>(null); // null=미확인, true/false=결과
+  const [gpsEnabled, setGpsEnabled] = useState(false);
+  const [gpsPreferenceLoaded, setGpsPreferenceLoaded] = useState(false);
+  const [gpsGuideOpen, setGpsGuideOpen] = useState(false);
+  const idleWatchRef = useRef<number | null>(null);
+  // 사용자가 검색/포인트 선택으로 수동 이동한 경우 GPS 자동 추적 일시 정지
+  const userMovedRef = useRef(false);
+  const userMovedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 기록 종료 후 동선을 지도에 유지 (finish() 시 route가 초기화돼도 마지막 경로 보존)
+  const [finishedRoute, setFinishedRoute] = useState<LatLng[]>([]);
+  const prevSavedCount = useRef(0);
+
+  function setGpsTrackingEnabled(enabled: boolean) {
+    setGpsEnabled(enabled);
+    try {
+      window.localStorage.setItem(GPS_PREFERENCE_KEY, String(enabled));
+    } catch { /* localStorage unavailable */ }
+  }
+
+  useEffect(() => {
+    try {
+      const enabled = window.localStorage.getItem(GPS_PREFERENCE_KEY) === "true";
+      setGpsEnabled(enabled);
+      if (!enabled) setGpsGuideOpen(true);
+    } catch { /* localStorage unavailable */ }
+    setGpsPreferenceLoaded(true);
+  }, []);
+
+  // 내 피싱 포인트만 로드 (다른 사용자 포인트는 지도에 표시 안 함)
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/points/mine").then((r) => r.json()).then((d) => { if (!cancelled) setMyPoints(d.points || []); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // 수동 이동 타이머 언마운트 정리 (타이머 누수 방지)
+  useEffect(() => () => {
+    if (userMovedTimerRef.current) clearTimeout(userMovedTimerRef.current);
+  }, []);
+
+  // idle 상태: GPS 현재 위치 실시간 추적 (기록 중에는 RecordingProvider가 담당)
+  function startIdleGpsWatch() {
+    if (!navigator.geolocation || idleWatchRef.current !== null) return;
+    setGpsAvail(null);
+    idleWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const p: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setIdlePos(p);
+        setGpsAvail(true);
+        setGpsTrackingEnabled(true);
+        // 사용자가 수동으로 지도를 이동한 경우 GPS 자동 센터 이동 일시 정지
+        if (!userMovedRef.current) setCenter(p);
+      },
+      () => { setGpsAvail(false); },
+      typeof window !== "undefined" && window.innerWidth >= 1024
+        ? { enableHighAccuracy: false, timeout: 12000, maximumAge: 30000 }
+        : { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+  }
+
+  // 사용자 수동 이동: 10초 후 GPS 추적 재개
+  function moveToManual(pos: LatLng) {
+    setCenter(pos);
+    userMovedRef.current = true;
+    if (userMovedTimerRef.current) clearTimeout(userMovedTimerRef.current);
+    userMovedTimerRef.current = setTimeout(() => { userMovedRef.current = false; }, 10000);
+  }
+
+  useEffect(() => {
+    if (!gpsPreferenceLoaded) return;
+    if (status !== "idle") {
+      if (idleWatchRef.current !== null) {
+        navigator.geolocation?.clearWatch(idleWatchRef.current);
+        idleWatchRef.current = null;
+      }
+      return;
+    }
+    if (!navigator.geolocation) { setGpsAvail(false); return; }
+
+    // 사용자가 GPS를 켜 둔 경우에는 새로고침 뒤에도 즉시 추적을 재개한다.
+    if (gpsEnabled) {
+      startIdleGpsWatch();
+      return () => {
+        if (idleWatchRef.current !== null) {
+          navigator.geolocation.clearWatch(idleWatchRef.current);
+          idleWatchRef.current = null;
+        }
+      };
+    }
+
+    // 사용자가 GPS를 명시적으로 껐거나 아직 활성화하지 않은 상태 — 자동 재시작하지 않는다.
+    // (첫 방문 안내는 마운트 시 useEffect에서 별도 처리)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, gpsEnabled, gpsPreferenceLoaded]);
+
+  // 새 기록이 저장되면(finish 완료) 동선을 지도에 표시
+  useEffect(() => {
+    if (savedTrips.length > prevSavedCount.current) {
+      const newest = savedTrips[0];
+      if (newest.route && newest.route.length > 1) {
+        setFinishedRoute(newest.route);
+        // 종료 위치로 지도 중심 이동
+        const last = newest.route[newest.route.length - 1];
+        setCenter(last);
+      }
+    }
+    prevSavedCount.current = savedTrips.length;
+  }, [savedTrips]);
+
+  // 새 기록 시작 시 이전 완료 동선 초기화
+  useEffect(() => {
+    if (status === "tracking") setFinishedRoute([]);
+  }, [status]);
+
+  // 기록 진행 중에는 최신 위치로 지도 중심 이동
+  useEffect(() => {
+    if (status !== "idle" && lastPoint) setCenter(lastPoint);
+  }, [lastPoint, status]);
+
+  function openDetail(rec: TripRec) {
+    const catchesInitial = (rec.catches ?? []) as TripDetail['catches'];
+    const serverId = rec.id.startsWith("local-") ? undefined : rec.id;
+    if (rec.route && rec.route.length > 0) {
+      // 방금 기록한 임시 데이터: 로컬 catches 즉시 표시 + 서버 ID 있으면 API로 전체 데이터 보완
+      setDetailTrip({
+        initial: {
+          id: rec.id,
+          distanceM: rec.distanceM,
+          durationSec: rec.durationSec,
+          createdAt: rec.createdAt,
+          routePoints: rec.route,
+          catches: catchesInitial,
+        },
+        tripId: serverId,
+      });
+    } else {
+      // 서버 저장 기록: id로 상세 조회 (로컬 catches 있으면 초기값으로 표시)
+      setDetailTrip({
+        tripId: rec.id,
+        initial: catchesInitial.length > 0 ? {
+          id: rec.id,
+          distanceM: rec.distanceM,
+          durationSec: rec.durationSec,
+          createdAt: rec.createdAt,
+          routePoints: [],
+          catches: catchesInitial,
+        } : undefined,
+      });
+    }
+  }
+
+  // 지도에 표시할 동선: 기록 중이면 실시간 route, idle이면 마지막 완료 동선
+  const displayRoute = status !== "idle" ? route : finishedRoute;
+
+  // 피쉬 마커: 위치가 있는 activeCatches를 30m 반경으로 그룹핑
+  const catchGroups: { position: LatLng; catches: typeof activeCatches }[] = [];
+  for (const c of activeCatches) {
+    if (c.lat == null || c.lng == null) continue;
+    const pos: LatLng = { lat: c.lat, lng: c.lng };
+    const group = catchGroups.find((g) => distanceMeters(g.position, pos) < 30);
+    if (group) {
+      group.catches.push(c);
+    } else {
+      catchGroups.push({ position: pos, catches: [c] });
+    }
+  }
+
+  // 내 포인트만 지도에 표시
+  const allPoints = myPoints;
+
+  const markers: MapMarker[] = [
+    // 기록 중: 현재 위치 마커
+    ...(route.length > 0 ? [{ id: "me", position: route[route.length - 1], kind: "current" as const, title: "현재 위치" }] : []),
+    // idle: GPS 현재 위치 마커 (기록 전에도 표시)
+    ...(status === "idle" && idlePos ? [{ id: "idle-me", position: idlePos, kind: "current" as const, title: "내 위치" }] : []),
+    // 피싱 포인트 — 물고기 마커 (사진 섬네일)
+    ...allPoints.map((p) => ({
+      id: p.id,
+      position: { lat: p.lat, lng: p.lng },
+      kind: "fish" as const,
+      title: p.speciesName ?? "피싱 포인트",
+      data: { ...p, count: 1, photoUrl: p.photoUrl },
+    })),
+    // 현재 세션 피쉬 마커 (물고기 아이콘)
+    ...catchGroups.map((g, i) => ({
+      id: `fish-catch-${i}`,
+      position: g.position,
+      kind: "fish" as const,
+      title: g.catches.length > 1 ? `${g.catches.length}마리` : (g.catches[0]?.speciesName ?? "피쉬"),
+      data: { count: g.catches.length, catches: g.catches },
+    })),
+  ];
+
+  // PC(1024px↑)는 GPS 칩이 없어 enableHighAccuracy 불가 → IP 기반으로 폴백, 타임아웃 늘림
+  const geoOptions = (highAccuracy = true): PositionOptions =>
+    window.innerWidth >= 1024
+      ? { enableHighAccuracy: false, timeout: 12000, maximumAge: 30000 }
+      : { enableHighAccuracy: highAccuracy, timeout: 8000 };
+
+  function locateMe() {
+    if (!navigator.geolocation) {
+      toast("이 브라우저에서는 위치 서비스를 지원하지 않습니다", "info");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const currentPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setIdlePos(currentPosition);
+        setGpsAvail(true);
+        setGpsTrackingEnabled(true);
+        startIdleGpsWatch();
+        moveToManual(currentPosition);
+        toast("현재 위치로 지도를 이동했습니다", "success");
+      },
+      (err) => {
+        if (err.code === 1) {
+          toast("위치 권한을 허용해 주세요. 브라우저 주소창 왼쪽의 자물쇠 아이콘 → 위치 허용", "info");
+        } else {
+          toast("현재 위치를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.", "info");
+        }
+      },
+      geoOptions(),
+    );
+  }
+
+  // GPS 버튼 클릭 — 꺼져 있으면 권한 재요청, 켜져 있으면 현재 위치로 이동
+  function requestGps() {
+    if (gpsEnabled) {
+      if (idleWatchRef.current !== null) {
+        navigator.geolocation?.clearWatch(idleWatchRef.current);
+        idleWatchRef.current = null;
+      }
+      setGpsTrackingEnabled(false);
+      setGpsAvail(null);
+      toast("GPS를 껐습니다", "info");
+      return;
+    }
+    if (!navigator.geolocation) {
+      toast("이 브라우저는 위치 서비스를 지원하지 않습니다", "info");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const p: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setIdlePos(p);
+        setGpsAvail(true);
+        setGpsTrackingEnabled(true);
+        startIdleGpsWatch();
+        setCenter(p);
+        toast("위치를 불러왔습니다", "success");
+      },
+      (err) => {
+        setGpsAvail(false);
+        if (err.code === 1) {
+          toast("위치 권한을 허용해 주세요. 브라우저 주소창 왼쪽 자물쇠 → 위치 허용", "info");
+        } else {
+          toast("위치를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.", "info");
+        }
+      },
+      geoOptions(),
+    );
+  }
+
+  function enableGpsFromGuide() {
+    setGpsGuideOpen(false);
+    requestGps();
+  }
+
+  return (
+    <div className="relative h-[calc(100dvh-7.75rem)] max-h-[calc(100dvh-7.75rem)] w-full overflow-hidden overscroll-none md:h-[calc(100dvh-3.25rem)] md:max-h-[calc(100dvh-3.25rem)]">
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="스마트피싱 기록 기능" />
+      {gpsGuideOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center px-5" role="dialog" aria-modal="true" aria-labelledby="gps-guide-title">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-[3px]"
+            aria-label="GPS 안내 닫기"
+            onClick={() => setGpsGuideOpen(false)}
+          />
+          <div className="animate-scalein relative w-full max-w-[360px] overflow-hidden rounded-[28px] border border-white/10 bg-[#162538] shadow-2xl shadow-black/60">
+            <div className="h-1 w-full bg-gradient-to-r from-orange-700 via-orange-400 to-aqua-400" />
+            <div className="px-6 pb-6 pt-7 text-center">
+              <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-orange-500/15 ring-1 ring-orange-500/30">
+                <LocateFixed size={30} className="text-orange-400" strokeWidth={1.8} />
+                <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-aqua-500 text-white ring-4 ring-[#162538]">
+                  <ShieldCheck size={13} strokeWidth={2.2} />
+                </span>
+              </div>
+              <h2 id="gps-guide-title" className="mt-5 text-[20px] font-extrabold tracking-tight text-white">GPS를 켜고 낚시를 기록해요</h2>
+              <p className="mx-auto mt-2 max-w-[290px] text-[14px] leading-6 text-navy-500">
+                현재 위치를 확인하면 낚시 중 이동한 경로와 거리, 조과 위치가 자동으로 기록됩니다.
+              </p>
+              <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-aqua-500/10 px-3.5 py-3 text-left ring-1 ring-aqua-500/20">
+                <ShieldCheck size={17} className="mt-0.5 shrink-0 text-aqua-400" />
+                <p className="text-[12px] leading-5 text-navy-500">위치 정보는 스마트피싱 기록을 만드는 데만 사용해요.</p>
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setGpsGuideOpen(false)}
+                  className="rounded-2xl bg-white/[0.06] px-4 py-3 text-[14px] font-semibold text-navy-500 ring-1 ring-white/10 transition-colors hover:bg-white/10 active:scale-[0.98]"
+                >
+                  나중에
+                </button>
+                <button
+                  type="button"
+                  onClick={enableGpsFromGuide}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-4 py-3 text-[14px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-colors hover:bg-orange-600 active:scale-[0.98]"
+                >
+                  <Navigation size={16} /> GPS 켜기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      {/* 상단 컨트롤 영역 — fixed로 헤더 바로 아래 고정 (지도 터치 스크롤 영향 없음) */}
+      <div
+        className="fixed z-[1000] px-3"
+        style={{
+          top: "calc(env(safe-area-inset-top, 0px) + 52px + 0.75rem)",
+          left: "max(0px, calc(50vw - 380px))",
+          width: "min(640px, 100vw)",
+          display: "grid",
+          gridTemplateColumns: "1fr auto auto",
+          gap: "8px",
+        }}
+      >
+        {/* 1행 Col1: AI 포인트 추천 */}
+        <div className="min-w-0" data-tutorial-step="2">
+          <AiPointRecommend variant="bar" />
+        </div>
+        {/* 1행 Col2: 내 기록 */}
+        <button
+          data-tutorial-step="7"
+          onClick={() => { if (!loggedIn) { router.push('/login'); return; } setRecordsOpen(true); }}
+          aria-label="내 스마트피싱 기록"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-2xl bg-[#0d1b2a]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#162538]"
+        >
+          <ClipboardList size={15} className="text-orange-500" />
+          내 기록
+        </button>
+        {/* 1행 Col3: 전체화면 */}
+        <button
+          onClick={() => setMapDetailMode(true)}
+          aria-label="지도 전체화면"
+          className="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-2xl bg-[#0d1b2a]/95 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#162538]"
+        >
+          <Expand size={15} className="text-aqua-400" />
+        </button>
+        {/* 2행 Col1: 검색 (현위치 버튼 내장) */}
+        <div data-tutorial-step="1" className="relative flex min-w-0 items-center gap-2.5 rounded-2xl bg-[#0d1b2a]/95 px-3.5 py-2.5 shadow-card backdrop-blur">
+          <Search size={15} className="shrink-0 text-navy-300" />
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            onKeyDown={(e) => { if (e.key === "Escape") { setSearchQuery(""); setSearchFocused(false); searchInputRef.current?.blur(); } }}
+            placeholder="낚시 포인트 검색"
+            className="min-w-0 flex-1 bg-transparent text-base text-navy-700 placeholder:text-navy-300 outline-none md:text-[13px]"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="shrink-0 text-navy-400 hover:text-navy-700">
+              <X size={13} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={locateMe}
+            aria-label="현위치로 지도 이동"
+            title="현위치"
+            className="shrink-0 text-aqua-400 transition-transform active:scale-90 hover:text-aqua-300"
+          >
+            <Navigation size={15} />
+          </button>
+          {/* 드롭다운 결과 */}
+          {searchFocused && (spotResults.length > 0 || pointResults.length > 0 || geoResults.length > 0 || searchQuery.length >= 2) && (
+            <div className="absolute left-0 right-0 top-full z-[1002] mt-1.5 overflow-hidden rounded-2xl border border-navy-100 bg-[#162538] shadow-card">
+              {spotResults.length > 0 && (
+                <>
+                  <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400">주요 지역</p>
+                  {spotResults.map((s) => (
+                    <button
+                      key={s.name}
+                      onPointerDown={() => { moveToManual({ lat: s.lat, lng: s.lng }); setSearchQuery(s.name); setSearchFocused(false); setGeoResults([]); }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <MapPin size={14} className="shrink-0 text-aqua-400" />
+                      <span className="text-[13px] font-semibold text-navy-700">{s.name}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+              {geoResults.length > 0 && (
+                <>
+                  <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${spotResults.length > 0 ? " border-t border-navy-100" : ""}`}>지역 검색</p>
+                  {geoResults.map((g, i) => (
+                    <button
+                      key={i}
+                      onPointerDown={() => { moveToManual({ lat: g.lat, lng: g.lng }); setSearchQuery(g.name); setSearchFocused(false); setGeoResults([]); }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <Navigation size={14} className="shrink-0 text-aqua-300" />
+                      <span className="text-[13px] font-semibold text-navy-700">{g.name}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+              {pointResults.length > 0 && (
+                <>
+                  <p className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-navy-400${(spotResults.length > 0 || geoResults.length > 0) ? " border-t border-navy-100" : ""}`}>내 낚시 포인트</p>
+                  {pointResults.map((p) => (
+                    <button
+                      key={p.id}
+                      onPointerDown={() => { moveToManual({ lat: p.lat, lng: p.lng }); setSelected(p); setSearchQuery(p.speciesName || p.region || ""); setSearchFocused(false); }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <Fish size={14} className="shrink-0 text-green-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-navy-700">{p.speciesName || "어종 미상"}</p>
+                        {p.region && <p className="truncate text-[11px] text-navy-400">{p.region}</p>}
+                      </div>
+                    </button>
+                  ))}
+                </>
+              )}
+              {searchQuery.length >= 2 && spotResults.length === 0 && pointResults.length === 0 && geoResults.length === 0 && (
+                <p className="py-5 text-center text-[13px] text-navy-400">검색 결과가 없습니다</p>
+              )}
+            </div>
+          )}
+        </div>
+        {/* 2행 Col2+3: 내 포인트 드롭다운 */}
+        <div ref={myPointsDropRef} className="relative" style={{ gridColumn: "span 2" }}>
+          <button
+            data-tutorial-step="3"
+            onClick={() => setMyPointsDropOpen((v) => !v)}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[#0d1b2a]/95 px-3 py-2.5 text-[12px] font-semibold text-navy-700 shadow-card backdrop-blur btn-press transition-colors hover:bg-[#162538]"
+          >
+            <MapPin size={14} className="text-aqua-400" />
+            내 포인트
+            <ChevronDown size={12} className={`transition-transform duration-200${myPointsDropOpen ? " rotate-180" : ""}`} />
+          </button>
+          {myPointsDropOpen && (
+            <div className="absolute right-0 top-full z-[1002] mt-1.5 min-w-[180px] overflow-hidden rounded-2xl border border-white/10 bg-[#162538] shadow-card">
+              {myRegions.length === 0 ? (
+                <p className="px-4 py-4 text-center text-[12px] text-navy-400">기록된 포인트가 없습니다</p>
+              ) : (
+                myRegions.map((r) => (
+                  <button
+                    key={r.region}
+                    onPointerDown={() => { moveToManual({ lat: r.lat, lng: r.lng }); setMyPointsDropOpen(false); }}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-navy-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <MapPin size={13} className="shrink-0 text-aqua-400" />
+                      <span className="text-[13px] font-semibold text-navy-700">{r.region}</span>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-aqua-500/15 px-1.5 py-0.5 text-[10px] font-bold text-aqua-400">{r.count}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+        {/* 3행: 배스낚시 전용 모드 안내 — 모드 OFF 이면 렌더링되지 않아 기존 레이아웃 그대로 */}
+        <BassOnlyBanner
+          text="배스낚시 전용 모드 — 배스 포인트 위주로 표시돼요"
+          className="bg-[#0d1b2a]/95 shadow-card backdrop-blur"
+          style={{ gridColumn: "1 / -1" }}
+        />
+      </div>
+
+      <div data-tutorial-step="0" className="absolute inset-0 z-0 pointer-events-none" aria-hidden="true" />
+      <MapView center={center} route={displayRoute} markers={markers} onMarkerClick={(m) => m.data && setSelected(m.data)} />
+
+      {/* 통계 + 컨트롤 — 모바일: fixed(nav 위), PC: absolute(지도 하단) */}
+      <div data-tutorial-step="4" className="map-controls-bar">
+        <div className="mx-auto max-w-[640px] rounded-2xl bg-[#0d1b2a]/95 p-3 shadow-card backdrop-blur">
+          {/* GPS 꺼짐 경고 */}
+          {status === "idle" && gpsAvail === false && (
+            <div className="mb-2 overflow-hidden rounded-2xl ring-1 ring-orange-500/30" style={{ background: "linear-gradient(135deg,#1a1000 0%,#1e1200 100%)" }}>
+              <div className="h-[2px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400 to-orange-700/30" />
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-500/15 ring-1 ring-orange-500/25">
+                  <MapPinOff size={15} className="text-orange-400" strokeWidth={1.7} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-semibold text-orange-300">GPS가 꺼져 있습니다</p>
+                  <p className="text-[11px] text-orange-400/60">위치 권한을 허용하거나 GPS를 켜주세요</p>
+                </div>
+                <button
+                  onClick={requestGps}
+                  className="shrink-0 rounded-xl bg-orange-500/20 px-2.5 py-1.5 text-[11px] font-bold text-orange-300 ring-1 ring-orange-500/30 transition-colors active:opacity-70"
+                >
+                  켜기
+                </button>
+              </div>
+            </div>
+          )}
+          {/* 마지막 기록 요약 — 기록 종료 후 idle 상태에서 표시 */}
+          {status === "idle" && savedTrips.length > 0 && (() => {
+            const last = savedTrips[0];
+            return (
+              <div className="mb-2 overflow-hidden rounded-xl border border-aqua-500/25 bg-aqua-500/10">
+                <button
+                  onClick={() => setLastRecOpen(v => !v)}
+                  className="flex w-full items-center justify-between px-3 py-2"
+                >
+                  <span className="text-[12px] font-bold text-aqua-400">마지막 기록</span>
+                  <span className="flex items-center gap-1.5 text-[11px] text-navy-300">
+                    {timeAgo(last.createdAt)}
+                    {lastRecOpen ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                  </span>
+                </button>
+                {lastRecOpen && (
+                  <div className="border-t border-aqua-500/20 px-3 pb-2.5 pt-2">
+                    <div className="flex gap-3 text-center">
+                      <div className="flex-1">
+                        <p className="text-[10px] text-navy-400">이동거리</p>
+                        <p className="text-[14px] font-bold text-navy-800">{km(last.distanceM)}</p>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] text-navy-400">경과시간</p>
+                        <p className="text-[14px] font-bold text-navy-800">{duration(last.durationSec)}</p>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] text-navy-400">어획</p>
+                        <p className="text-[14px] font-bold text-navy-800">{(last.catches?.length ?? 0) > 0 ? last.catches!.length : ((last as any).catchCount ?? 0)}마리</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => openDetail(last)}
+                      className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-aqua-500/20 py-1.5 text-[12px] font-semibold text-aqua-400"
+                    >
+                      워킹 상세보기 <ChevronRight size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          {/* 종료 후 동선 안내 배지 */}
+          {status === "idle" && finishedRoute.length > 1 && (
+            <div className="mb-2 flex items-center justify-between rounded-xl bg-aqua-500/15 px-3 py-1.5">
+              <span className="text-[12px] font-semibold text-aqua-400">마지막 동선이 지도에 표시됩니다</span>
+              <button onClick={() => setFinishedRoute([])} className="text-[11px] text-navy-300 hover:text-white">지우기</button>
+            </div>
+          )}
+          {/* 화면 켜둠 안내 — 기록 중 1회 노출, 닫으면 해당 세션 동안 숨김 */}
+          {status === "tracking" && !wakeTipClosed && (
+            <div className="mb-2 rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/8">
+              <div className="flex items-center gap-2">
+                <Maximize2 size={12} strokeWidth={1.8} className="shrink-0 text-aqua-400" />
+                <p className="min-w-0 flex-1 truncate text-[13px] leading-snug text-navy-300">
+                  전체화면 모드로 기록하면 배터리 소모가 줄어듭니다
+                </p>
+                <button
+                  onClick={() => setWakeTipClosed(true)}
+                  aria-label="안내 닫기"
+                  className="shrink-0 rounded-lg p-1 text-navy-400 transition-colors hover:bg-white/10 hover:text-white active:opacity-70"
+                >
+                  <X size={13} strokeWidth={1.8} />
+                </button>
+              </div>
+              <button
+                onClick={() => { setBgMode(true); setWakeTipClosed(true); }}
+                className="mt-2 w-full rounded-lg bg-aqua-500/20 py-1.5 text-[11px] font-semibold text-aqua-300 transition-colors hover:bg-aqua-500/30 active:opacity-70"
+              >
+                알뜰 화면으로 전환하기 →
+              </button>
+            </div>
+          )}
+          <div className="mb-3 grid grid-cols-3 divide-x divide-navy-100 text-center">
+            <Metric icon={<Navigation size={15} />} label="이동거리" value={km(distance)} />
+            <Metric icon={<Play size={15} />} label="경과시간" value={stopwatch(elapsed)} />
+            <Metric icon={<Fish size={15} />} label="어획수" value={`${activeCatches.length}`} />
+          </div>
+          <div className="flex justify-center gap-2">
+            {status === "idle" && (
+              <>
+                <Button
+                  data-tutorial-step="5"
+                  onClick={() => { if (!loggedIn) { setLoginModal(true); return; } start(); }}
+                  variant="primary"
+                  className="flex-1 whitespace-nowrap"
+                  leftIcon={<Clock size={18} />}
+                >
+                  기록 시작
+                </Button>
+                {/* GPS 토글 버튼 — 켜짐: 컬러/ON, 꺼짐: 흑백/OFF */}
+                <button
+                  data-tutorial-step="4-gps"
+                  onClick={requestGps}
+                  className={[
+                    "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[16px] border px-4 py-2.5 text-[14px] font-semibold transition-all btn-press active:scale-[0.97]",
+                    gpsEnabled
+                      ? "border-orange-500/60 bg-orange-500/15 text-orange-400"
+                      : "border-navy-100/30 bg-white/5 text-navy-400 grayscale",
+                  ].join(" ")}
+                >
+                  <Navigation size={18} className={gpsEnabled ? "text-orange-400" : "text-navy-400"} />
+                  GPS {gpsEnabled ? "ON" : "OFF"}
+                </button>
+              </>
+            )}
+            {status === "tracking" && (
+              <>
+                <Button onClick={pause} variant="outline" className="flex-1 whitespace-nowrap" leftIcon={<Pause size={18} />}>일시정지</Button>
+                <Link
+                  data-tutorial-step="6"
+                  href="/measure?from=fishing"
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[16px] bg-aqua-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft btn-press transition-colors hover:bg-aqua-600 active:scale-[0.97]"
+                >
+                  <Fish size={18} /> 피쉬
+                </Link>
+                <Button onClick={finish} variant="danger" className="flex-1 whitespace-nowrap" leftIcon={<Square size={18} />}>종료</Button>
+                {/* 풀스크린 배경 버튼 — 아이콘 전용 */}
+                <button
+                  onClick={() => setBgMode(true)}
+                  aria-label="배경으로 설정"
+                  className="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-[14px] bg-white/5 text-navy-400 ring-1 ring-white/8 transition-colors active:opacity-70 hover:bg-white/10"
+                >
+                  <Maximize2 size={17} />
+                </button>
+              </>
+            )}
+            {status === "paused" && (
+              <>
+                <Button onClick={start} className="flex-1 whitespace-nowrap" leftIcon={<Play size={18} />}>다시 시작</Button>
+                <Button onClick={finish} variant="danger" className="flex-1 whitespace-nowrap" leftIcon={<Square size={18} />}>종료</Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* GPS 부족 폐기 안내 시트 */}
+      <Sheet open={gpsWarning} onClose={dismissGpsWarning} title="스마트피싱 기록 실패" size="md">
+        <div className="flex flex-col items-center gap-5 py-6 px-2 text-center">
+          <p className="text-sm text-navy-400">
+            GPS 좌표가 부족하여 스마트피싱 기록이 저장되지 않았습니다.
+          </p>
+          <Button onClick={dismissGpsWarning} className="w-full">닫기</Button>
+        </div>
+      </Sheet>
+
+      {/* 내 스마트피싱 기록 시트 */}
+      <Sheet open={recordsOpen} onClose={() => setRecordsOpen(false)} title="내 스마트피싱 기록" size="md">
+        {savedTrips.length === 0 ? (
+          <p className="py-12 text-center text-sm text-navy-300">
+            아직 저장된 기록이 없습니다.<br />“기록 시작”으로 동선을 기록해보세요.
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {savedTrips.map((t) => (
+              <Card key={t.id} className="p-3" onClick={() => openDetail(t)}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge tone="aqua" className="gap-1"><Navigation size={11} />{km(t.distanceM)}</Badge>
+                    <Badge tone="navy" className="gap-1"><Clock size={11} />{duration(t.durationSec)}</Badge>
+                    {(() => {
+                      const count = (t.catches?.length ?? 0) > 0 ? t.catches!.length : ((t as any).catchCount ?? 0);
+                      return count > 0 ? (
+                        <Badge tone="green" className="gap-1"><Fish size={11} />{count}마리</Badge>
+                      ) : null;
+                    })()}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 text-[11px] text-navy-300">
+                      {timeAgo(t.createdAt)}<ChevronRight size={13} />
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); }}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-navy-300 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                      aria-label="기록 삭제"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <div className="flex-1">
+                    {t.postId ? (
+                      <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-aqua-500">
+                        <Share2 size={14} /> 워킹 피드에 게시됨
+                      </span>
+                    ) : (
+                      <Button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try { await postToFeed(t); }
+                          catch (err: any) { if (err?.code === "NO_FISH") setNoCatchModal(true); }
+                        }}
+                        disabled={t.posting} variant="primary" size="sm" full leftIcon={<Share2 size={15} />}
+                      >
+                        {t.posting ? "올리는 중..." : "워킹 피드에 올리기"}
+                      </Button>
+                    )}
+                  </div>
+                  <Button
+                    onClick={(e) => { e.stopPropagation(); openDetail(t); }}
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Eye size={14} />}
+                  >
+                    상세 보기
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </Sheet>
+
+      {/* 스마트피싱 기록 상세 시트 */}
+      <TripDetailSheet
+        open={!!detailTrip}
+        onClose={() => setDetailTrip(null)}
+        tripId={detailTrip?.tripId}
+        initial={detailTrip?.initial}
+      />
+
+      {/* ---- 풀스크린 배경 모드 ---- */}
+      {bgMode && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9998] select-none"
+          style={{ background: "#06080a" }}
+          onClick={handleBgInteraction}
+        >
+          {screenOff ? (
+            /* 화면 꺼짐 — 완전히 어두운 상태 */
+            <div className="flex h-full flex-col items-center justify-center gap-2">
+              <p className="text-[15px] font-semibold tracking-wide" style={{ color: "rgba(251,146,60,0.7)" }}>탭하여 화면 켜기</p>
+            </div>
+          ) : (
+            /* 화면 켜짐 — 스마트피싱 풀스크린 UI */
+            <div className="flex h-full flex-col items-center justify-between px-5 pb-14 pt-16">
+              {/* 시계 */}
+              <div className="flex flex-col items-center">
+                <p className="text-[80px] font-extralight leading-none tracking-tight text-white">
+                  {bgClock.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                </p>
+                <p className="mt-2.5 text-[15px] text-white/45">
+                  {bgClock.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" })}
+                </p>
+              </div>
+
+              {/* 통계 + 컨트롤 */}
+              <div className="w-full space-y-3">
+                {/* 통계 카드 */}
+                <div className="overflow-hidden rounded-[24px] ring-1 ring-white/8" style={{ background: "rgba(255,255,255,0.05)" }}>
+                  <div className="px-4 pb-1 pt-3">
+                    <p className="text-[11px] font-semibold text-white/30">스마트피싱 진행 중</p>
+                  </div>
+                  <div className="grid grid-cols-3 divide-x divide-white/8 pb-4 pt-1 text-center">
+                    {[
+                      { label: "이동거리", value: km(distance) },
+                      { label: "경과시간", value: stopwatch(elapsed) },
+                      { label: "어획수", value: `${activeCatches.length}마리` },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="px-1">
+                        <p className="text-[11px] text-white/30">{label}</p>
+                        <p className="mt-0.5 text-[22px] font-bold text-white">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 컨트롤 버튼 */}
+                <div className="flex gap-2.5">
+                  {status === "tracking" ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); pause(); handleBgInteraction(); }}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-[18px] py-3.5 text-[13px] font-semibold text-white/75 ring-1 ring-white/12"
+                      style={{ background: "rgba(255,255,255,0.07)" }}
+                    >
+                      <Pause size={17} /> 일시정지
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); start(); handleBgInteraction(); }}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-[18px] py-3.5 text-[13px] font-semibold text-white/75 ring-1 ring-white/12"
+                      style={{ background: "rgba(255,255,255,0.07)" }}
+                    >
+                      <Play size={17} /> 재개
+                    </button>
+                  )}
+                  {/* 피쉬 — 물고기 사진 촬영 페이지로 이동 */}
+                  <Link
+                    href="/measure?from=fishing"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-[18px] py-3.5 text-[13px] font-semibold text-aqua-300 ring-1 ring-aqua-500/30"
+                    style={{ background: "rgba(20,184,166,0.12)" }}
+                  >
+                    <Fish size={17} /> 피쉬
+                  </Link>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); finish(); }}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-[18px] py-3.5 text-[13px] font-semibold text-red-300 ring-1 ring-red-500/30"
+                    style={{ background: "rgba(239,68,68,0.12)" }}
+                  >
+                    <Square size={17} /> 종료
+                  </button>
+                </div>
+              </div>
+
+              {/* 앱으로 돌아가기 */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setBgMode(false); }}
+                className="rounded-[18px] px-10 py-3 text-[14px] font-semibold text-white/40 ring-1 ring-white/10"
+                style={{ background: "rgba(255,255,255,0.05)" }}
+              >
+                앱으로 돌아가기
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body,
+      )}
+
+      {/* ---- 지도 상세 풀스크린 (지도만 100vw×100vh, 컨트롤/헤더 없이) ---- */}
+      {mapDetailMode && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9990]" style={{ width: "100vw", height: "100vh", background: "#06080a" }}>
+          {/* 중심·마커·동선 상태 그대로 전달 — 핀치줌·드래그로 마커 확인 가능 */}
+          <MapView center={center} route={displayRoute} markers={markers} onMarkerClick={(m) => m.data && setSelected(m.data)} />
+
+          {/* 닫기 (우측 상단) */}
+          <button
+            onClick={() => setMapDetailMode(false)}
+            aria-label="지도 전체화면 닫기"
+            className="absolute right-4 z-[9991] inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#0d1b2a]/95 text-navy-800 shadow-card ring-1 ring-white/15 backdrop-blur btn-press transition-colors hover:bg-[#162538]"
+            style={{ top: "max(1rem, env(safe-area-inset-top, 0px))" }}
+          >
+            <X size={20} />
+          </button>
+        </div>,
+        document.body,
+      )}
+
+      {/* 피쉬 기록 없음 팝업 — createPortal로 document.body에 렌더 (z-index 스택 탈출) */}
+      {noCatchModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 px-5 backdrop-blur-[3px]">
+          <div
+            className="w-full max-w-[320px] overflow-hidden rounded-[24px] shadow-2xl ring-1 ring-aqua-500/20"
+            style={{ background: "linear-gradient(160deg,#0c1e2e 0%,#172430 100%)" }}
+          >
+            {/* 상단 웨이브 스트라이프 */}
+            <div className="h-[3px] w-full bg-gradient-to-r from-aqua-700/40 via-aqua-400 to-aqua-700/40" />
+
+            <div className="flex flex-col items-center px-6 pb-6 pt-7">
+              <div className="flex h-[60px] w-[60px] items-center justify-center rounded-[18px] bg-aqua-500/12 ring-1 ring-aqua-500/25">
+                <Fish size={26} strokeWidth={1.6} className="text-aqua-400" />
+              </div>
+              <p className="mt-4 text-center text-[16px] font-bold text-white">피쉬 기록이 없습니다</p>
+              <p className="mt-2 text-center text-[13px] leading-relaxed text-white/48">
+                워킹 피드를 올리려면 스마트피싱<br />기록 중 물고기를 등록하세요.
+              </p>
+            </div>
+
+            <div className="h-px bg-white/[0.07]" />
+            <button
+              type="button"
+              onClick={() => setNoCatchModal(false)}
+              className="w-full py-4 text-[14px] font-bold text-aqua-400 transition-colors active:opacity-70"
+            >
+              확인
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* 기록 삭제 확인 */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="이 기록을 삭제할까요?"
+        message="삭제한 스마트피싱 기록은 복구할 수 없습니다."
+        confirmLabel="삭제"
+        cancelLabel="취소"
+        danger
+        onConfirm={async () => { if (deleteTarget) await removeTrip(deleteTarget.id); setDeleteTarget(null); }}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* ── 스마트피싱 튜토리얼 ── */}
+      {tutorialOpen && typeof document !== "undefined" && (
+        <DataFishingTutorial
+          step={tutorialStep}
+          onNext={() => {
+            if (tutorialStep < MAP_TUTORIAL_STEPS.length - 1) setTutorialStep((s) => s + 1);
+            else completeTutorial();
+          }}
+          onBack={() => setTutorialStep((s) => Math.max(0, s - 1))}
+          onSkip={completeTutorial}
+        />
+      )}
+
+      {/* 포인트 상세 시트 */}
+      <Sheet open={!!selected} onClose={() => setSelected(null)} title="피싱 포인트">
+        {selected && (
+          <div>
+            {selected.photoUrl && <img src={selected.photoUrl} alt="잡은 물고기" className="aspect-square w-full rounded-xl object-cover" />}
+            <Card className="mt-3 flex items-center gap-2 p-2.5">
+              <Link href={`/profile/${selected.user.id}`} className="flex items-center gap-2">
+                <img src={getAvatarUrl(selected.user.id, selected.user.avatarUrl)} alt="" className="h-8 w-8 rounded-full object-cover" />
+                <span className="text-sm font-semibold text-navy-800">{selected.user.nickname}</span>
+              </Link>
+              <span className="ml-auto text-xs text-navy-300">{timeAgo(selected.createdAt)}</span>
+            </Card>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selected.speciesName && <Badge tone="aqua" className="gap-1"><Fish size={13} />{selected.speciesName}</Badge>}
+              {selected.sizeCm != null && <Badge tone="navy" className="gap-1"><Ruler size={13} />{selected.sizeCm}cm</Badge>}
+              {selected.region && <Badge tone="navy" className="gap-1"><MapPin size={13} />{selected.region}</Badge>}
+            </div>
+            {selected.gearSetup && <p className="mt-2 text-sm text-navy-600">채비: {selected.gearSetup}</p>}
+            {selected.blurRadius > 0 && <p className="mt-2 text-xs text-navy-300">※ 위치가 반경 {selected.blurRadius}m로 흐림 처리되었습니다.</p>}
+            {selected.isMine && selected.tripId && (
+              <div className="mt-4">
+                <button
+                  onClick={() => { setSelected(null); setDetailTrip({ tripId: selected.tripId }); }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-aqua-500/15 py-3 text-sm font-semibold text-aqua-400 transition-colors hover:bg-aqua-500/25 btn-press"
+                >
+                  <ClipboardList size={16} /> 피싱 데이터 보기
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </Sheet>
+    </div>
+  );
+}
+
+function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="px-1">
+      <p className="flex items-center justify-center gap-1 text-[11px] text-navy-400">{icon}{label}</p>
+      <p className="text-base font-bold text-navy-800">{value}</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────
+   스마트피싱 튜토리얼 — DOM 실측 스포트라이트 오버레이
+   getBoundingClientRect() 로 실제 버튼 위치를 측정해
+   box-shadow 방식으로 픽셀 단위 정확하게 하이라이트
+───────────────────────────────────────────────────── */
+
+const MAP_TUTORIAL_STEPS: Array<{
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  hint: string;
+  /** data-tutorial-step 속성값 — DOM 실측 대상 */
+  target: string;
+  /** 스포트라이트 패딩(px) */
+  pad: number;
+  /** 스포트라이트 border-radius(px) */
+  radius: number;
+}> = [
+  {
+    icon: <MapIcon2 size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "지도로 낚시 포인트를 탐색해요",
+    desc: "지도를 손가락으로 드래그해 원하는 지역으로 이동하고, 두 손가락 핀치로 확대·축소할 수 있어요. 포인트 마커를 탭하면 상세 정보를 확인할 수 있어요.",
+    hint: "지도 화면 — 드래그·핀치로 탐색",
+    target: "0",
+    pad: 0,
+    radius: 0,
+  },
+  {
+    icon: <Search size={30} strokeWidth={1.6} className="text-orange-400" />,
+    title: "낚시 포인트를 검색해요",
+    desc: "상단 두 번째 줄 검색창에서 지역명·포인트명을 입력하면 해당 위치로 지도가 이동해요. 검색창 오른쪽 위치 아이콘으로 현재 위치로도 바로 이동할 수 있어요.",
+    hint: "상단 두 번째 줄 ← 검색창",
+    target: "1",
+    pad: 4,
+    radius: 16,
+  },
+  {
+    icon: <LocateFixed size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "AI가 좋은 포인트를 추천해줘요",
+    desc: "상단 첫 번째 줄의 'AI 포인트 추천'을 탭하면 지도 주변의 조황 포인트를 AI가 분석해 알려줘요. 조류·날씨·어종을 종합해 추천해요.",
+    hint: "상단 첫 번째 줄 ← AI 포인트 추천",
+    target: "2",
+    pad: 4,
+    radius: 16,
+  },
+  {
+    icon: <MapPin size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "내 포인트를 빠르게 찾아가요",
+    desc: "상단 두 번째 줄 오른쪽 '내 포인트'를 탭하면 내가 기록한 낚시 포인트를 지역별로 볼 수 있어요. 목록에서 탭하면 해당 지역으로 지도가 바로 이동해요.",
+    hint: "상단 두 번째 줄 → 내 포인트",
+    target: "3",
+    pad: 4,
+    radius: 16,
+  },
+  {
+    icon: <Navigation size={30} strokeWidth={1.6} className="text-orange-400" />,
+    title: "GPS를 켜서 내 위치를 확인해요",
+    desc: "하단의 'GPS ON' 버튼을 탭해 위치 권한을 허용하면 현재 위치가 지도에 표시돼요. 기록 중에는 이동 경로가 선으로 실시간 그려집니다.",
+    hint: "하단 제어바 → GPS ON 버튼",
+    target: "4",
+    pad: 6,
+    radius: 20,
+  },
+  {
+    icon: <Play size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "기록 시작으로 동선을 기록해요",
+    desc: "하단의 '기록 시작'을 탭하면 이동 거리·경과 시간이 자동으로 기록됩니다. 기록된 동선은 지도 위에 선으로 표시되며, 종료 후 내 기록에 저장돼요.",
+    hint: "하단 제어바 → 기록 시작",
+    target: "5",
+    pad: 4,
+    radius: 16,
+  },
+  {
+    icon: <Fish size={30} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "낚시 중 물고기를 바로 기록해요",
+    desc: "기록 중 하단 '피쉬' 버튼을 탭하면 AI 측정 화면으로 이동해 물고기 사진과 크기를 기록할 수 있어요. 측정 완료 후 스마트피싱 화면으로 자동 복귀해요.",
+    hint: "기록 중 → 하단 피쉬 버튼",
+    target: "4",  // 피쉬 버튼은 기록 중에만 표시 — 하단 컨트롤바 전체 하이라이트
+    pad: 6,
+    radius: 20,
+  },
+  {
+    icon: <ClipboardList size={30} strokeWidth={1.6} className="text-orange-400" />,
+    title: "내 기록을 언제든 확인해요",
+    desc: "상단 오른쪽 '내 기록' 버튼으로 이전 스마트피싱 기록을 모두 볼 수 있어요. 기록을 탭하면 이동 경로·어획 정보를 상세히 확인하고 워킹 피드에 공유할 수 있어요.",
+    hint: "상단 첫 번째 줄 → 내 기록",
+    target: "7",
+    pad: 4,
+    radius: 16,
+  },
+];
+
+function DataFishingTutorial({
+  step, onNext, onBack, onSkip,
+}: {
+  step: number; onNext: () => void; onBack: () => void; onSkip: () => void;
+}) {
+  const s = MAP_TUTORIAL_STEPS[step];
+  const isLast = step === MAP_TUTORIAL_STEPS.length - 1;
+  const [spotRect, setSpotRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  // 스텝이 바뀔 때마다 실제 DOM 위치 측정
+  useEffect(() => {
+    function measure() {
+      const el = document.querySelector<HTMLElement>(`[data-tutorial-step="${s.target}"]`);
+      if (!el) { setSpotRect(null); return; }
+      const r = el.getBoundingClientRect();
+      setSpotRect({ left: r.left, top: r.top, width: r.width, height: r.height });
+    }
+    // 즉시 측정 + 레이아웃 안정 후 재측정
+    measure();
+    const t = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      cancelAnimationFrame(t);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [step, s.target]);
+
+  if (typeof document === "undefined") return null;
+
+  const pad = s.pad;
+  const radius = s.radius;
+
+  // step 4(GPS)·5(기록시작)·6(피쉬기록) → 하단 버튼이 대상이므로 안내 카드를 상단으로
+  const cardAtTop = step >= 4 && step <= 6;
+
+  return createPortal(
+    <>
+      {/* 반짝이는 테두리 펄스 + shimmer sweep 애니메이션 */}
+      <style>{`
+        @keyframes tutorialBorderPulse {
+          0%, 100% {
+            border-color: rgba(234,179,8,0.85);
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.82), 0 0 0 0 rgba(234,179,8,0);
+          }
+          50% {
+            border-color: rgba(251,146,60,1);
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.82), 0 0 0 6px rgba(234,179,8,0.38), 0 0 22px 4px rgba(234,179,8,0.45);
+          }
+        }
+        @keyframes tutorialShimmerSweep {
+          0%        { transform: translateX(-130%); }
+          55%, 100% { transform: translateX(230%); }
+        }
+      `}</style>
+
+      <div className="fixed inset-0 z-[9980] pointer-events-none">
+        {/* 전체 어두운 배경 — spotRect 없을 때(step 0, 대상 미발견)만 표시
+            spotRect 있을 때는 box-shadow(9999px)로만 어둡게 → 버튼 안 텍스트 원래 밝기 유지 */}
+        {!spotRect && (
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.82)" }} />
+        )}
+
+        {/* 스포트라이트: box-shadow로 주변을 어둡게, 테두리는 펄스 애니메이션 */}
+        {spotRect && (
+          <>
+            <div
+              style={{
+                position: "fixed",
+                left: spotRect.left - pad,
+                top: spotRect.top - pad,
+                width: spotRect.width + pad * 2,
+                height: spotRect.height + pad * 2,
+                borderRadius: radius,
+                border: "2px solid #eab308",
+                animation: "tutorialBorderPulse 1.8s ease-in-out infinite",
+                transition: "left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease",
+                zIndex: 9981,
+              }}
+            />
+            {/* 반짝이는 shimmer sweep — 빛이 가로로 지나가며 버튼 텍스트 가독성 강조 */}
+            <div
+              style={{
+                position: "fixed",
+                left: spotRect.left - pad,
+                top: spotRect.top - pad,
+                width: spotRect.width + pad * 2,
+                height: spotRect.height + pad * 2,
+                borderRadius: radius,
+                overflow: "hidden",
+                zIndex: 9982,
+                pointerEvents: "none",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: "-8px",
+                  background: "linear-gradient(108deg, transparent 30%, rgba(255,255,255,0.26) 50%, transparent 70%)",
+                  animation: "tutorialShimmerSweep 2.4s ease-in-out infinite",
+                  willChange: "transform",
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {/* 튜토리얼 카드 — step 4·5·6은 상단, 나머지는 하단 (원래 위치) */}
+        <div
+          className="pointer-events-auto absolute left-0 right-0 px-3"
+          style={
+            cardAtTop
+              ? { top: "calc(env(safe-area-inset-top, 0px) + 64px)", zIndex: 9983 }
+              : { bottom: "calc(5.5rem + env(safe-area-inset-bottom, 0px))", zIndex: 9983 }
+          }
+        >
+          <div className="mx-auto max-w-[480px] overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#161c24] shadow-2xl">
+            {/* 진행 바 */}
+            <div className="flex gap-1 px-4 pt-4">
+              {MAP_TUTORIAL_STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= step ? "bg-orange-500" : "bg-white/15"}`}
+                />
+              ))}
+            </div>
+
+            <div className="px-5 pb-5 pt-4">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-white/[0.06] ring-1 ring-white/10">
+                  {s.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-orange-400">
+                    STEP {step + 1} / {MAP_TUTORIAL_STEPS.length}
+                  </p>
+                  <p className="text-[15px] font-extrabold tracking-tight text-white">{s.title}</p>
+                </div>
+              </div>
+
+              <p className="text-[12px] leading-[1.7] text-white/50">{s.desc}</p>
+
+              <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-3 py-1 text-[11px] font-semibold text-orange-400">
+                <ChevronRight size={11} /> {s.hint}
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                {step > 0 ? (
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    className="flex items-center gap-1 rounded-2xl px-4 py-2.5 text-[13px] font-medium text-white/40 transition-colors hover:text-white/70"
+                  >
+                    <ChevronLeft size={15} />
+                    뒤로
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onSkip}
+                    className="rounded-2xl px-4 py-2.5 text-[13px] font-medium text-white/30 transition-colors hover:text-white/55"
+                  >
+                    건너뛰기
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onNext}
+                  className="flex-1 rounded-2xl bg-orange-500 py-2.5 text-[14px] font-bold text-gray-900 shadow-lg shadow-orange-500/20 transition-all active:scale-[0.98] active:bg-orange-600"
+                >
+                  {isLast ? "시작하기" : "다음"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body,
+  );
+}

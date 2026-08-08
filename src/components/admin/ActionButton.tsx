@@ -1,0 +1,57 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { useToast } from "@/components/Toast";
+import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmDialog";
+
+export function ActionButton({
+  payload, label, variant = "default", confirm, successMsg, onSuccess,
+}: {
+  payload: Record<string, any>; label: string;
+  variant?: "default" | "primary" | "danger" | "ghost"; confirm?: string; successMsg?: string;
+  /** 클라이언트 컴포넌트 페이지처럼 router.refresh()만으로 목록이 갱신되지 않는 곳에서 직접 다시 불러오기 위해 사용 */
+  onSuccess?: () => void;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const doConfirm = useConfirm();
+  const [loading, setLoading] = useState(false);
+
+  async function run() {
+    if (confirm && !await doConfirm({ title: confirm, danger: true })) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/action", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "오류");
+      toast(successMsg || "처리되었습니다", "success");
+      router.refresh();
+      onSuccess?.();
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const cls = {
+    default: "bg-navy-50 text-navy-700 hover:bg-navy-100",
+    primary: "bg-orange-500 text-gray-900 shadow-soft hover:bg-orange-600",
+    danger: "bg-red-50 text-red-600 hover:bg-red-100",
+    ghost: "text-navy-400 hover:bg-navy-50",
+  }[variant];
+
+  return (
+    <button onClick={run} disabled={loading}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold btn-press transition-colors outline-none focus-visible:ring-2 focus-visible:ring-aqua-300 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
+        cls
+      )}>
+      {loading && <Loader2 size={12} className="animate-spin" />} {label}
+    </button>
+  );
+}

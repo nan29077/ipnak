@@ -1,0 +1,103 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2, Loader2, Check, Pencil } from "lucide-react";
+import Link from "next/link";
+import { useToast } from "@/components/Toast";
+import { MARKET_STATUS } from "@/lib/taxonomy";
+import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+
+// 판매자 본인용 하단 바: 판매중/예약중/판매완료 전환 + 수정 + 삭제
+export function MarketOwnerActions({ listingId, initialStatus }: { listingId: string; initialStatus: string }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [status, setStatus] = useState(initialStatus);
+  const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  async function changeStatus(next: string) {
+    if (busy || next === status) return;
+    setBusy(true);
+    const prev = status;
+    setStatus(next);
+    const res = await fetch(`/api/market/${listingId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }),
+    });
+    if (res.ok) {
+      toast("판매 상태를 변경했어요", "success");
+      router.refresh();
+    } else {
+      setStatus(prev);
+      toast("상태를 변경하지 못했습니다", "error");
+    }
+    setBusy(false);
+  }
+
+  async function doRemove() {
+    setConfirmOpen(false);
+    setBusy(true);
+    const res = await fetch(`/api/market/${listingId}`, { method: "DELETE" });
+    if (res.ok) {
+      toast("판매글을 삭제했어요", "success");
+      // replace: 삭제된 판매글 상세로 뒤로가기 되지 않도록
+      router.replace("/market/mine");
+      router.refresh();
+    } else {
+      toast("삭제하지 못했습니다", "error");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-navy-100 bg-[#0d1b2a]/95 p-3 backdrop-blur-md md:relative md:border-0 md:bg-[#162538]">
+      <div className="mx-auto max-w-[640px]">
+        <p className="mb-1.5 text-[11px] font-semibold text-navy-400">판매 상태</p>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 gap-1 rounded-xl bg-navy-50 p-1">
+            {MARKET_STATUS.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => changeStatus(s.key)}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-[13px] font-semibold transition-all",
+                  status === s.key ? "bg-orange-500 text-gray-900 shadow-soft" : "text-navy-500 hover:bg-[#162538]"
+                )}
+              >
+                {status === s.key && <Check size={13} />}{s.label}
+              </button>
+            ))}
+          </div>
+          {/* 수정 버튼 — 판매글 수정 페이지로 이동 */}
+          <Link
+            href={`/market/${listingId}/edit`}
+            aria-label="수정"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-navy-100/30 bg-[#162538] text-navy-600 transition-colors hover:bg-navy-50/10"
+          >
+            <Pencil size={18} />
+          </Link>
+          {/* 삭제 버튼 */}
+          <button
+            onClick={() => setConfirmOpen(true)}
+            disabled={busy}
+            aria-label="삭제"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-500/30 bg-[#162538] text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+          >
+            {busy ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+          </button>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="판매글을 삭제할까요?"
+        message="삭제한 판매글은 복구할 수 없습니다."
+        confirmLabel="삭제"
+        cancelLabel="취소"
+        danger
+        onConfirm={doRemove}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </div>
+  );
+}

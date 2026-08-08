@@ -1,0 +1,1326 @@
+"use client";
+/**
+ * AI 카메라 측정 페이지
+ * 상태 머신: IDLE → ANALYZING → CHOICE → SCANNING → (SCAN_FAILED | RESULT) → SAVING → SAVED
+ * - 입낚볼(40mm) 또는 ArUco 마커(20mm)를 기준으로 픽셀→실측 변환
+ * - 측정은 AI 자동 스캔으로만 진행 (수동 점찍기 모드 제거)
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { LoginRequiredModal } from "@/components/LoginRequiredModal";
+import { useUser } from "@/lib/userContext";
+import {
+  Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
+  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, ChevronRight, FolderOpen, X, Smartphone, QrCode,
+} from "lucide-react";
+import { PageHeader, Button, Chip } from "@/components/ui";
+import { useToast } from "@/components/Toast";
+import { MEASURE_ERRORS, FISH_SPECIES } from "@/constants/errorMessages";
+import { MeasurementCalculator, AROverlay } from "@/utils";
+import { dbService } from "@/services/DatabaseService";
+import autoTagService from "@/services/AutoTagService";
+import syncService from "@/services/SyncService";
+// 실시간 AI 스캐너 (앱 내 카메라 스트림 + /api/measure/scan 폴링)
+import { LiveScanCamera, type LiveScanResult } from "@/components/LiveScanCamera";
+import { FishScanGlow } from "@/components/FishScanGlow";
+import { FishShimmer } from "@/components/FishShimmer";
+import { estimateWeightByWidth } from "@/lib/weightEstimation";
+import { BallLinkSection } from "@/components/BallLinkSection";
+import { SpeciesIdentifySection } from "@/components/SpeciesIdentifySection";
+import { useRecording } from "@/components/RecordingProvider";
+import { DiarySheet } from "@/components/DiarySheet";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { entryFeeConfirmText, fetchEntryFeeInfo, type EntryFeeInfo } from "@/lib/tournamentFee";
+
+type Phase =
+  | "IDLE"
+  | "ANALYZING"
+  | "CHOICE"       // 사진 로드 후: 자동 스캔 / 수동 점찍기 선택
+  | "SCANNING"     // AI 자동 스캔 진행 중
+  | "SHIMMER"      // 인식 성공 → 윤슬(빛 포인트) 한 바퀴 후 결과 확정
+  | "SCAN_FAILED"  // 자동 스캔 실패 → 잠시 안내 후 선택 화면 복귀
+  | "ERROR"
+  | "RESULT"
+  | "SAVING"
+  | "SAVED";
+type Point = { x: number; y: number };
+
+const MAX_WORK_PX = 1280;
+const SCAN_TIMEOUT_MS = 12000; // 자동 스캔 하드 타임아웃 — 무한 로딩 방지
+const SCAN_MIN_CONFIDENCE = 0.7; // 이 미만이면 실패 처리
+const SHIMMER_MS = 1800; // 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 도는 시간
+
+export default function MeasurePage() {
+  const toast = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { addCatchToRecording, status: recStatus, lastPoint, sessionId } = useRecording();
+  const currentUser = useUser();
+  const loggedIn = !!currentUser;
+  const [loginModal, setLoginModal] = useState(false);
+
+  // 대회 참가 모드 — URL ?tournamentId=xxx&species=xxx 로 진입
+  const tournamentId = searchParams.get("tournamentId");
+  const tournamentSpecies = searchParams.get("species");
+  // 대회 페이지에서 'AI 카메라 계측' 클릭 시 카메라 자동 시작
+  const autoCamera = searchParams.get("autoCamera") === "1";
+
+  const [phase, setPhase] = useState<Phase>("IDLE");
+  const [liveScanOpen, setLiveScanOpen] = useState(false); // 실시간 AI 스캐너 열림 여부
+  const browserLandscape = false; // 가로 방향에서도 정상 표시
+  const [loadingMsg, setLoadingMsg] = useState("");
+  const [scanFailMsg, setScanFailMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [ball, setBall] = useState<any>(null);
+  const [head, setHead] = useState<Point | null>(null);
+  const [tail, setTail] = useState<Point | null>(null);
+  // 몸통 최대 너비 양 끝점 (AI 자동 스캔에서만 감지 — 수동 측정 시 null)
+  const [widthPts, setWidthPts] = useState<{ top: Point; bottom: Point } | null>(null);
+  const [species, setSpecies] = useState<string>(tournamentSpecies ?? "기타");
+  const [result, setResult] = useState<any>(null);
+  const [hasImage, setHasImage] = useState(false);
+  const [savedImageBase64, setSavedImageBase64] = useState<string | null>(null);
+  // 어종 자동 인식에 넘길 사진 (RESULT 진입 시 작업 캔버스에서 1회 생성)
+  const [speciesImageUrl, setSpeciesImageUrl] = useState<string | null>(null);
+  const [tourSubmitting, setTourSubmitting] = useState(false);
+  const [tourSubmitted, setTourSubmitted] = useState(false);
+  // 참가비 차감 확인 모달 (null 이면 닫힘)
+  const [feeConfirm, setFeeConfirm] = useState<EntryFeeInfo | null>(null);
+  // 첫 방문 튜토리얼
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  // 스마트피싱(기록 중) 화면에서 진입했는지 (?from=fishing) — 완료 후 복귀 안내
+  const [fromFishing, setFromFishing] = useState(false);
+  // 현재 연동된 입낚볼 ID (측정 저장 시 ballId 연결에 사용)
+  const [activeBallId, setActiveBallId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get("from") === "fishing") setFromFishing(true);
+    } catch { /* noop */ }
+  }, []);
+
+  // 연동된 입낚볼 ID 로드 (측정 기록과 볼 연결)
+  useEffect(() => {
+    fetch("/api/balls", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const first = Array.isArray(data?.balls) ? data.balls[0] : null;
+        if (first?.ballId) setActiveBallId(first.ballId);
+      })
+      .catch(() => {});
+  }, []);
+
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null); // 네이티브 카메라 앱
+  const workCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const enginesRef = useRef<{ ball: any; fish: any; calc: any; overlay: any } | null>(null);
+  const scanAbortRef = useRef<AbortController | null>(null); // 자동 스캔 fetch 취소용
+  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 인식 성공 결과 임시 보관 — 윤슬 애니메이션이 끝난 뒤 화면에 반영
+  const pendingScanRef = useRef<{
+    ball: any; head: Point; tail: Point; width: { top: Point; bottom: Point } | null;
+  } | null>(null);
+  // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 안내 팝업
+  const [refMissing, setRefMissing] = useState(false);
+
+  function engines() {
+    if (!enginesRef.current) {
+      enginesRef.current = {
+        ball: null, // 미사용 (서버사이드 AI 스캔으로 대체)
+        fish: null, // 미사용 (서버사이드 AI 스캔으로 대체)
+        calc: new MeasurementCalculator(),
+        overlay: new AROverlay(),
+      };
+    }
+    return enginesRef.current;
+  }
+
+  /* ── 촬영/선택 → 작업 캔버스(최대 1280px) 준비 → 분석 ── */
+  async function handleFile(file: File | undefined | null) {
+    if (!loggedIn) { setLoginModal(true); return; }
+    if (!file) return;
+    setErrorMsg(null);
+    setScanFailMsg(null);
+    setBall(null);
+    setHead(null);
+    setTail(null);
+    setWidthPts(null);
+    setResult(null);
+    setPhase("ANALYZING");
+    setLoadingMsg("사진 준비 중...");
+
+    try {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = () => reject(new Error("이미지를 읽을 수 없어요."));
+        im.src = url;
+      });
+
+      const scale = Math.min(1, MAX_WORK_PX / Math.max(img.naturalWidth, img.naturalHeight));
+      const work = document.createElement("canvas");
+      work.width = Math.round(img.naturalWidth * scale);
+      work.height = Math.round(img.naturalHeight * scale);
+      work.getContext("2d")!.drawImage(img, 0, 0, work.width, work.height);
+      workCanvasRef.current = work;
+      URL.revokeObjectURL(url);
+      setHasImage(true);
+
+      // 사진 로드 완료 → 측정 방식 선택 화면
+      setPhase("CHOICE");
+    } catch (e: any) {
+      setErrorMsg(e?.message || "사진을 불러오지 못했어요.");
+      setPhase(hasImage ? "ERROR" : "IDLE");
+    }
+  }
+
+  /* ── 자동 스캔: AI로 입낚볼·물고기 머리/꼬리 인식 (12초 하드 타임아웃) ── */
+  async function autoScan() {
+    const work = workCanvasRef.current;
+    if (!work) { setPhase("IDLE"); return; }
+
+    // 이전 스캔 정리
+    scanAbortRef.current?.abort();
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+
+    setScanFailMsg(null);
+    setBall(null);
+    setHead(null);
+    setTail(null);
+    setWidthPts(null);
+    setResult(null);
+    setPhase("SCANNING");
+    setLoadingMsg("물고기와 입낚볼을 인식 중이에요...");
+
+    const controller = new AbortController();
+    scanAbortRef.current = controller;
+    // 12초 하드 타임아웃 — fetch도 함께 중단
+    const timeoutId = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
+    scanTimerRef.current = timeoutId;
+
+    try {
+      const dataUrl = work.toDataURL("image/jpeg", 0.92);
+      const res = await fetch("/api/measure/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: dataUrl, width: work.width, height: work.height, testBall: searchParams.get("testBall") === "1" }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        // 이미지 크기 초과 시 전용 안내 메시지 표시
+        const errData = await res.json().catch(() => null);
+        if (errData?.reason === "image-too-large") {
+          scanFailToChoice("사진 용량이 너무 커요. 더 작은 사진을 선택해 주세요.");
+          return;
+        }
+        throw new Error("ai-error");
+      }
+      const data = await res.json();
+
+      // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 → 측정 불가 안내 후 선택 화면 복귀
+      if (data?.ok === false && data.reason === "no-ball") {
+        setPhase("CHOICE");
+        setRefMissing(true);
+        return;
+      }
+
+      // 실패 조건: 입낚볼/물고기 미감지, 자세 flat 아님, 신뢰도 부족, 응답 이상
+      if (
+        !data?.ok ||
+        !data.ball || !data.head || !data.tail ||
+        data.pose !== "flat" ||
+        typeof data.confidence !== "number" ||
+        data.confidence < SCAN_MIN_CONFIDENCE
+      ) {
+        throw new Error("scan-unreliable");
+      }
+
+      // 정규화 좌표(0~1) → 작업 캔버스 픽셀 좌표
+      const diameterPx = 2 * data.ball.r * work.width;
+      if (!(diameterPx > 0)) throw new Error("scan-unreliable");
+
+      const ballObj = {
+        found: true,
+        centerX: data.ball.x * work.width,
+        centerY: data.ball.y * work.height,
+        diameterPx,
+        mmPerPixel: 40 / diameterPx, // 입낚볼 실지름 40mm
+        confidence: data.confidence,
+        method: "ai-scan",
+      };
+      const headP: Point = { x: data.head.x * work.width, y: data.head.y * work.height };
+      const tailP: Point = { x: data.tail.x * work.width, y: data.tail.y * work.height };
+      // 몸통 최대 너비 (선택 — 감지 실패 시 null, 무게는 길이 공식으로 폴백)
+      const widthP =
+        data.width?.top && data.width?.bottom
+          ? {
+              top: { x: data.width.top.x * work.width, y: data.width.top.y * work.height },
+              bottom: { x: data.width.bottom.x * work.width, y: data.width.bottom.y * work.height },
+            }
+          : null;
+
+      // 기준물까지 인식됨 → 윤슬 한 바퀴 후 결과 확정 (길이·너비 계산은 result useEffect가 처리)
+      pendingScanRef.current = { ball: ballObj, head: headP, tail: tailP, width: widthP };
+      setPhase("SHIMMER");
+    } catch {
+      // 어떤 실패든 안내 후 선택 화면으로 복귀
+      scanFailToChoice();
+    } finally {
+      // 하드 타임아웃 타이머만 정리한다. 실패 폴백(scanFailToChoice)이 catch에서
+      // scanTimerRef에 '2초 후 선택 화면 복귀' 타이머를 새로 걸어두므로, 그 타이머까지
+      // null 처리하지 않도록 이 로컬 timeoutId 기준으로만 정리한다.
+      clearTimeout(timeoutId);
+      if (scanTimerRef.current === timeoutId) scanTimerRef.current = null;
+      scanAbortRef.current = null;
+    }
+  }
+
+  /* ── 윤슬 한 바퀴 완료 → 인식 결과를 화면에 반영 ── */
+  function applyPendingScan() {
+    const p = pendingScanRef.current;
+    pendingScanRef.current = null;
+    if (!p) { setPhase("CHOICE"); return; }
+    setBall(p.ball);
+    setHead(p.head);
+    setTail(p.tail);
+    setWidthPts(p.width);
+    setPhase("RESULT");
+  }
+
+  /* ── 자동 스캔 실패 → 안내 후 2초 뒤 선택 화면 복귀 ── */
+  function scanFailToChoice(msg?: string) {
+    setScanFailMsg(msg ?? "자동 측정이 어려운 사진이에요. 물고기를 옆으로 눕히고 입낚볼과 함께 다시 촬영해 주세요.");
+    setPhase("SCAN_FAILED");
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+    scanTimerRef.current = setTimeout(() => {
+      setScanFailMsg(null);
+      setPhase("CHOICE");
+    }, 2000);
+  }
+
+  /* ── 실시간 AI 스캐너 "측정하기" 확정 → 기존 결과 파이프라인 재사용 ──
+     autoScan 성공 경로와 동일하게 ball/head/tail 설정 후 RESULT 진입
+     (길이 계산은 result useEffect가 처리) ── */
+  function handleLiveScanConfirm(res: LiveScanResult) {
+    setErrorMsg(null);
+    setScanFailMsg(null);
+    setResult(null);
+    workCanvasRef.current = res.work;
+    setHasImage(true);
+    setBall(res.ball);
+    setHead(res.head);
+    setTail(res.tail);
+    setWidthPts(res.width ?? null);
+    setLiveScanOpen(false);
+    setPhase("RESULT");
+  }
+
+  /* ── 측정값 계산 ── */
+  useEffect(() => {
+    if (!head || !tail) { setResult(null); return; }
+    if (!ball) {
+      // 볼 없음 — 길이 계산 불가 (자동 스캔은 항상 볼을 요구하므로 방어적 처리)
+      setResult({ lengthCm: null, widthCm: null, weightG: null, grade: { label: "사진 기록", color: "#888", grade: "N/A" }, legal: null });
+      return;
+    }
+    const eng = engines();
+    const lengthCm = eng.calc.calculateLength(head, tail, ball.mmPerPixel);
+    // 너비를 감지했으면 둘레(G = 너비 × π × 계수) 기반 공식, 아니면 기존 a × L^b 폴백
+    const widthCm = widthPts ? eng.calc.calculateWidth(widthPts.top, widthPts.bottom, ball.mmPerPixel) : null;
+    const byWidth = widthCm != null ? estimateWeightByWidth(lengthCm, widthCm, species) : null;
+    const weightG = byWidth ?? eng.calc.estimateWeight(lengthCm, species);
+    const grade = eng.calc.getConfidenceGrade(ball.confidence, ball.method);
+    const legal = eng.calc.checkLegalSize(lengthCm, species);
+    setResult({
+      lengthCm,
+      widthCm: byWidth != null ? widthCm : null, // 무게에 반영되지 않은 비정상 너비는 표시하지 않음
+      weightG,
+      weightMethod: byWidth != null ? "girth" : "length",
+      grade,
+      legal,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ball, head, tail, widthPts, species]);
+
+  /* ── 어종 자동 인식용 사진 준비 (결과 화면 진입 시 1회) ──
+     원본 대신 640px 축소본을 쓴다 (전송량·AI 비용 절감). 실패해도 계측 흐름에는 영향 없음. */
+  useEffect(() => {
+    if (phase !== "RESULT") return;
+    const work = workCanvasRef.current;
+    if (!work) return;
+    try {
+      const s = Math.min(1, 640 / Math.max(work.width, work.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(work.width * s);
+      c.height = Math.round(work.height * s);
+      c.getContext("2d")!.drawImage(work, 0, 0, c.width, c.height);
+      setSpeciesImageUrl(c.toDataURL("image/jpeg", 0.7));
+    } catch {
+      setSpeciesImageUrl(null);
+    }
+  }, [phase]);
+
+  /* ── 오버레이 렌더 ── */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const work = workCanvasRef.current;
+    if (!canvas || !work || !hasImage) return;
+    engines().overlay.draw(canvas, {
+      imageElement: work,
+      ballResult: ball,
+      measureResult: result,
+      headPoint: head,
+      tailPoint: tail,
+      widthPoints: result?.widthCm != null ? widthPts : null,
+      selectedSpecies: species,
+      isMockMode: false,
+    });
+  }, [hasImage, ball, result, head, tail, widthPts, species, phase]);
+
+  /* ── 캔버스 탭: 결과 화면에서 AI가 잡은 머리/꼬리 점 미세조정 ── */
+  function onCanvasTap(e: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (phase !== "RESULT" || !head || !tail) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    const p = { x, y };
+
+    const dHead = Math.hypot(p.x - head.x, p.y - head.y);
+    const dTail = Math.hypot(p.x - tail.x, p.y - tail.y);
+    if (dHead <= dTail) setHead(p);
+    else setTail(p);
+  }
+
+  /* ── 저장 ── */
+  async function handleSave() {
+    if (!result) return;
+    setPhase("SAVING");
+    try {
+      const tags = await autoTagService.collectAll().catch(() => null);
+
+      // 저장용 이미지: 640px 로 축소 (localStorage 용량 보호)
+      const work = workCanvasRef.current!;
+      const s = Math.min(1, 640 / Math.max(work.width, work.height));
+      const thumb = document.createElement("canvas");
+      thumb.width = Math.round(work.width * s);
+      thumb.height = Math.round(work.height * s);
+      thumb.getContext("2d")!.drawImage(canvasRef.current!, 0, 0, thumb.width, thumb.height);
+      const imageBase64 = thumb.toDataURL("image/jpeg", 0.6);
+
+      await dbService.saveMeasurement({
+        lengthCm: result.lengthCm,
+        bodyWidth: result.widthCm ?? null,
+        weightG: result.weightG,
+        speciesKr: species,
+        confidence: ball?.confidence ?? 0,
+        confidenceGrade: result.grade?.grade ?? null,
+        imageBase64,
+        latitude: tags?.location?.latitude ?? null,
+        longitude: tags?.location?.longitude ?? null,
+        locationName: tags?.location?.locationName ?? null,
+        weather: tags?.weather?.weather ?? null,
+        temperature: tags?.weather?.temperature ?? null,
+        tidePhase: tags?.tide?.tidePhase ?? null,
+        ballId: activeBallId ?? null,
+      });
+
+      setSavedImageBase64(imageBase64);
+      toast(MEASURE_ERRORS.SAVE_SUCCESS, "success");
+      syncService.syncPendingMeasurements(); // 백그라운드 (서버 준비 전엔 스킵)
+
+      // 이미지를 서버에 업로드 (base64 → /api/upload → URL)
+      let uploadedPhotoUrl: string | null = null;
+      try {
+        const blob = await fetch(imageBase64).then((r) => r.blob());
+        const form = new FormData();
+        form.append("file", blob, "measure.jpg");
+        const up = await fetch("/api/upload", { method: "POST", body: form });
+        if (up.ok) {
+          const upData = await up.json();
+          uploadedPhotoUrl = upData.url ?? null;
+        }
+      } catch { /* 업로드 실패 시 photoUrl null 로 저장 */ }
+
+      const catchLat = tags?.location?.latitude ?? lastPoint?.lat ?? null;
+      const catchLng = tags?.location?.longitude ?? lastPoint?.lng ?? null;
+
+      // 스마트피싱 여부와 무관하게 항상 서버 DB에 저장
+      fetch("/api/catch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          speciesName: species,
+          sizeCm: result?.lengthCm ?? null,
+          bodyWidth: result?.widthCm ?? null,
+          estimatedWeight: result?.weightG ?? null,
+          photoUrl: uploadedPhotoUrl,
+          lat: catchLat,
+          lng: catchLng,
+          tripId: sessionId ?? null,
+          shareToFeed: false,
+          pointVisibility: "EXACT",
+          ballId: activeBallId ?? null,
+        }),
+      }).catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
+
+      // 스마트피싱 기록 중이면 catches에 추가 (워킹 피드 공유 + 피쉬 숫자 표시용)
+      if (recStatus === "tracking" || recStatus === "paused") {
+        addCatchToRecording({
+          photoUrl: uploadedPhotoUrl ?? imageBase64,
+          speciesName: species,
+          lat: catchLat,
+          lng: catchLng,
+        });
+      }
+
+      setPhase("SAVED");
+    } catch (e: any) {
+      toast(e?.message || "저장에 실패했어요.", "error");
+      setPhase("RESULT");
+    }
+  }
+
+  /* ── 이미지 저장 — iOS·Android 사진첩 / 데스크톱 다운로드 ── */
+  async function handleDownload() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const blob = await engines().overlay.getShareImage(canvas);
+    if (!blob) return;
+    const fileName = `입낚측정_${result?.lengthCm ?? ""}cm_${new Date().toISOString().slice(0, 10)}.png`;
+
+    // iOS·Android: Web Share API(files) 지원 시 공유 시트로 사진첩 저장
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      const file = new File([blob], fileName, { type: "image/png" });
+      const canShare = typeof navigator.canShare === "function"
+        ? navigator.canShare({ files: [file] })
+        : true; // canShare 미지원 브라우저는 share 시도
+      if (canShare) {
+        try {
+          await navigator.share({ files: [file], title: "입낚 측정 결과" });
+          return;
+        } catch (e: any) {
+          if (e?.name === "AbortError") return; // 사용자가 공유 시트 취소
+          // 기타 오류 → 앵커 다운로드로 fallback
+        }
+      }
+    }
+
+    // Fallback: 앵커 다운로드 (데스크톱 / Web Share 미지원 환경)
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  /* ── 대회 제출 (tournamentId 모드) — 참가비가 차감될 때만 확인 모달을 거친다 ── */
+  async function submitToTournament() {
+    if (!tournamentId || !result) return;
+    setTourSubmitting(true);
+    const info = await fetchEntryFeeInfo(tournamentId);
+    setTourSubmitting(false);
+    if (info?.willCharge) { setFeeConfirm(info); return; }
+    await doSubmitToTournament();
+  }
+
+  async function doSubmitToTournament() {
+    if (!tournamentId || !result) return;
+    setTourSubmitting(true);
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/entries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          speciesName: species,
+          sizeCm: result.lengthCm,
+          photoUrl: savedImageBase64,
+          measuredImageUrl: savedImageBase64,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "오류가 발생했습니다");
+      setTourSubmitted(true);
+      toast("대회에 제출했습니다 (심사중)", "success");
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setTourSubmitting(false);
+    }
+  }
+
+  function reset() {
+    // 진행 중인 자동 스캔 중단 (네트워크 요청 + 타이머)
+    scanAbortRef.current?.abort();
+    scanAbortRef.current = null;
+    if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null; }
+    pendingScanRef.current = null;
+    setRefMissing(false);
+    setPhase("IDLE");
+    setHasImage(false);
+    setErrorMsg(null);
+    setScanFailMsg(null);
+    setBall(null);
+    setHead(null);
+    setTail(null);
+    setWidthPts(null);
+    setResult(null);
+    setSpeciesImageUrl(null);
+    workCanvasRef.current = null;
+  }
+
+  // 언마운트 시 진행 중인 스캔 정리
+  useEffect(() => () => {
+    scanAbortRef.current?.abort();
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+  }, []);
+
+  /* ── 자동 스캔 취소 → CHOICE 복귀 ── */
+  function cancelScan() {
+    scanAbortRef.current?.abort();
+    scanAbortRef.current = null;
+    if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null; }
+    setScanFailMsg(null);
+    setPhase("CHOICE");
+  }
+
+  /* ── 재촬영: 실시간 AI 스캐너 재시작 ── */
+  const retake = useCallback(() => {
+    reset();
+    setLiveScanOpen(true);
+  }, []);
+
+  /* ── AI 카메라 계측 열기: 비로그인이면 로그인 안내, 첫 방문이면 튜토리얼 먼저 ── */
+  const TUTORIAL_KEY = "ipnak_ai_tutorial_done";
+  const openCamera = useCallback(() => {
+    // PC(1024px 이상)에서는 카메라 계측 불가 → 안내 팝업 표시
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setShowPcModal(true);
+      return;
+    }
+    if (!loggedIn) { setLoginModal(true); return; }
+    try {
+      if (!localStorage.getItem(TUTORIAL_KEY)) {
+        setTutorialStep(0);
+        setTutorialOpen(true);
+        return;
+      }
+    } catch { /* noop */ }
+    setLiveScanOpen(true); // 앱 내 실시간 AI 스캐너 열기
+  }, [loggedIn]);
+
+  // autoCamera 모드: 페이지 마운트 즉시 카메라 열기 (대회 제출 플로우에서 단계 줄이기)
+  // 또는 일반 진입 시에도 모바일이면 자동 카메라 열기
+  useEffect(() => {
+    const t = setTimeout(() => {
+      // autoCamera 파라미터가 있으면 무조건 열기 (대회 모드)
+      if (autoCamera) { setLiveScanOpen(true); return; }
+      // 모바일 진입 시 자동으로 AI 카메라 열기 (비로그인이면 IDLE에서 클릭 유도)
+      if (!loggedIn) return;
+      const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+      if (!isMobile) return;
+      try {
+        if (!localStorage.getItem(TUTORIAL_KEY)) {
+          setTutorialStep(0);
+          setTutorialOpen(true);
+          return;
+        }
+      } catch { /* noop */ }
+      setLiveScanOpen(true);
+    }, 300);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [diaryOpen, setDiaryOpen] = useState(false);
+  const [showGallerySheet, setShowGallerySheet] = useState(false); // 갤러리 선택 커스텀 바텀시트
+  const [showPcModal, setShowPcModal] = useState(false); // PC 미지원 안내 팝업
+
+  const showCanvas = hasImage && phase !== "IDLE";
+  const busy = phase === "ANALYZING" || phase === "SCANNING" || phase === "SAVING";
+
+  return (
+    <>
+    {/* ── 세로 고정 wrapper: 브라우저 가로 시 -90deg 반대 회전으로 항상 세로 표시 ── */}
+    <div
+      style={browserLandscape ? {
+        position: "fixed",
+        width: "100dvh",
+        height: "100vw",
+        top: "calc(50dvh - 50vw)",
+        left: "calc(50vw - 50dvh)",
+        transform: "rotate(-90deg)",
+        zIndex: 1,
+        overflowY: "auto",
+        overflowX: "hidden",
+        backgroundColor: "#0d1b2a",
+      } : {}}
+    >
+    <div className={showCanvas ? "pb-2" : "pb-10"}>
+      <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="AI 측정 기능" />
+
+      {/* ── PC 미지원 안내 팝업 ── */}
+      {showPcModal && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
+          onClick={() => setShowPcModal(false)}
+        >
+          <div
+            className="w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d1b2a] shadow-2xl shadow-black/70"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 상단 그라디언트 배너 */}
+            <div className="relative flex flex-col items-center bg-gradient-to-b from-[#0f2540] to-[#0d1b2a] px-6 pb-6 pt-8">
+              {/* 아이콘 배지 */}
+              <div className="relative mb-4">
+                <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[20px] border border-white/10 bg-white/5 ring-4 ring-white/5">
+                  <Camera size={30} strokeWidth={1.4} className="text-navy-300" />
+                </div>
+                <span className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 shadow-lg shadow-orange-500/40 ring-2 ring-[#0d1b2a]">
+                  <Smartphone size={14} strokeWidth={2.2} className="text-white" />
+                </span>
+              </div>
+
+              <h3 className="text-[17px] font-extrabold tracking-tight text-white">
+                PC에서는 지원되지 않아요
+              </h3>
+              <p className="mt-2 text-center text-[13px] leading-relaxed text-navy-400">
+                AI 카메라 계측은 카메라가 있는{" "}
+                <span className="font-semibold text-aqua-300">모바일 기기</span>
+                에서만<br />이용할 수 있어요.
+              </p>
+
+              {/* 구분선 + 힌트 */}
+              <div className="mt-4 flex w-full items-center gap-2.5 rounded-xl border border-aqua-500/20 bg-aqua-500/8 px-3.5 py-2.5">
+                <QrCode size={16} strokeWidth={1.7} className="shrink-0 text-aqua-400" />
+                <p className="text-[12px] text-aqua-300/80">
+                  갤러리 사진 업로드는 PC에서도 이용 가능합니다.
+                </p>
+              </div>
+            </div>
+
+            {/* 버튼 영역 */}
+            <div className="flex flex-col gap-2 border-t border-white/5 px-6 pb-6 pt-4">
+              <a
+                href="/landing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-3 text-[14px] font-bold text-gray-900 shadow-md shadow-orange-500/30 transition-all hover:bg-orange-600 active:scale-[0.97]"
+              >
+                <Smartphone size={15} strokeWidth={2} />
+                모바일 앱으로 이용하기
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowPcModal(false)}
+                className="flex w-full items-center justify-center rounded-[14px] border border-white/10 py-3 text-[14px] font-medium text-navy-400 transition-all hover:border-white/20 hover:text-navy-300"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <PageHeader
+        title="AI 측정"
+        back
+        // 측정 진행 중이면 페이지를 벗어나지 않고 초기 상태(사진 선택 전)로 리셋.
+        // 이미 IDLE(사진 선택 전)이면 그때만 이전 페이지로 나간다.
+        onBack={() => {
+          if (phase !== "IDLE") { reset(); return; }
+          if (window.history.length > 1) router.back(); else router.replace("/home");
+        }}
+        sub="입낚볼 기준 물고기 자동 계측"
+        right={
+          <button
+            type="button"
+            onClick={() => setDiaryOpen(true)}
+            className="mr-1 flex items-center gap-1.5 rounded-full bg-navy-50 px-3 py-1.5 text-[12px] font-semibold text-navy-600 transition-colors hover:bg-navy-100"
+          >
+            <BookOpen size={15} strokeWidth={1.9} />
+            계측일지
+          </button>
+        }
+      />
+
+      {/* 갤러리 파일 입력 */}
+      <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0])} />
+      {/* 네이티브 카메라 앱 입력 */}
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0])} />
+
+      <div className={showCanvas ? "space-y-2 px-3 py-2" : "space-y-2 px-4 pt-2 pb-4"}>
+        {/* ── IDLE: 안내 + 촬영 버튼 ── */}
+        {phase === "IDLE" && (
+          <>
+            {/* 스마트피싱(기록 중)에서 진입한 경우 복귀 안내 */}
+            {fromFishing && (
+              <div className="flex items-center gap-2 rounded-xl border border-aqua-500/30 bg-aqua-500/10 px-3 py-2">
+                <MapIcon size={15} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
+                <p className="text-[12px] font-medium text-aqua-300">스마트피싱 기록 중 — 측정 후 뒤로가면 기록 화면으로 돌아가요.</p>
+              </div>
+            )}
+
+            {/* 안내 카드 */}
+            <div className="flex items-center gap-3 rounded-2xl border border-navy-100 bg-surface-200 px-4 py-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15 text-orange-500">
+                <ScanLine size={20} strokeWidth={1.7} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-navy-900">입낚볼 기준 AI 자동 계측</p>
+                <p className="text-[12px] text-navy-400">물고기를 옆으로 눕혀 입낚볼과 함께 촬영하세요</p>
+              </div>
+            </div>
+
+            {/* AI 카메라 계측 + 갤러리 선택 */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={openCamera}
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 py-6 text-orange-500 transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
+              >
+                <Camera size={26} strokeWidth={1.7} />
+                <span className="text-[13px] font-bold">AI 카메라 계측</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { if (!loggedIn) { setLoginModal(true); return; } setShowGallerySheet(true); }}
+                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-6 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
+              >
+                <Images size={26} strokeWidth={1.7} />
+                <span className="text-[13px] font-bold">갤러리 선택</span>
+              </button>
+            </div>
+
+            {/* 입낚볼 연동 */}
+            <BallLinkSection />
+          </>
+        )}
+
+        {/* ── 측정 캔버스 ── */}
+        {showCanvas && (
+          <div className="relative overflow-hidden rounded-card ring-1 ring-navy-100">
+            <canvas
+              ref={canvasRef}
+              onPointerDown={onCanvasTap}
+              className="block touch-none select-none"
+              style={{ width: "100%", height: "auto", maxHeight: phase === "SAVED" ? "26vh" : "38vh" }}
+            />
+            {/* 자동 스캔 중: 물고기 윤곽선 반짝임 애니메이션 (측정 완료 시 자동 종료) */}
+            {phase === "SCANNING" && (
+              <>
+                <div className="pointer-events-none absolute inset-0 bg-black/35" />
+                {/* 캡처 프레임에서 실제 물고기 윤곽을 추출해 그 위에 반짝임 표시
+                    (canvas 는 컨테이너를 그대로 채우므로 fit=fill 로 좌표 정합) */}
+                <FishScanGlow
+                  active
+                  sourceRef={canvasRef}
+                  objectFit="fill"
+                  label={loadingMsg || "스캔 중..."}
+                />
+              </>
+            )}
+            {/* 인식 성공 → 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 돈 뒤 결과 확정 */}
+            {phase === "SHIMMER" && (
+              <FishShimmer
+                active
+                sourceRef={canvasRef}
+                objectFit="fill"
+                durationMs={SHIMMER_MS}
+                onComplete={applyPendingScan}
+              />
+            )}
+            {busy && phase !== "SCANNING" && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 backdrop-blur-[2px]">
+                <Loader2 className="animate-spin text-orange-400" size={30} />
+                <p className="px-6 text-center text-[13px] font-medium text-white">
+                  {phase === "SAVING" ? "위치·날씨 태그 수집 후 저장 중..." : loadingMsg}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 자동 스캔 취소 버튼 ── */}
+        {phase === "SCANNING" && (
+          <button
+            type="button"
+            onClick={cancelScan}
+            className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-navy-200 py-3 text-[13px] font-semibold text-navy-400 transition-colors hover:border-navy-300 hover:text-navy-500 active:scale-[0.98]"
+          >
+            <X size={15} strokeWidth={2} />
+            취소
+          </button>
+        )}
+
+        {/* ── 측정 방식 선택 (자동 스캔 / 수동 점찍기) ── */}
+        {phase === "CHOICE" && (
+          <div className="space-y-2.5">
+            <div className="flex items-start gap-2 rounded-2xl border border-navy-100 bg-surface-200 px-3 py-2.5">
+              <Fish size={15} strokeWidth={1.9} className="mt-0.5 shrink-0 text-aqua-400" />
+              <p className="text-[12px] leading-relaxed text-navy-500">
+                물고기를 바닥에 옆으로 눕혀 입낚볼과 함께 찍으면 자동 측정이 가능해요.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={autoScan}
+              className="flex w-full items-center gap-3 rounded-2xl border-2 border-orange-500/50 bg-orange-500/5 px-4 py-3.5 text-left transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15 text-orange-500">
+                <ScanLine size={20} strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-bold text-navy-900">자동 스캔으로 측정</span>
+                <span className="block text-[11px] text-navy-400">물고기가 옆으로 눕혀진 사진에 추천</span>
+              </span>
+              <ChevronRight size={18} className="ml-auto shrink-0 text-navy-300" />
+            </button>
+
+            <div className="flex justify-center py-2">
+              <button
+                type="button"
+                onClick={reset}
+                aria-label="닫기"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-navy-50/60 text-navy-400 transition-all hover:bg-navy-100/80 hover:text-navy-600 active:scale-[0.93]"
+              >
+                <X size={20} strokeWidth={2.2} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── 자동 스캔 실패 안내 (2초 후 자동으로 수동 전환) ── */}
+        {phase === "SCAN_FAILED" && scanFailMsg && (
+          <div className="flex items-center gap-2 rounded-2xl border border-orange-500/30 bg-orange-500/10 px-3 py-2.5">
+            <AlertTriangle size={16} strokeWidth={1.9} className="shrink-0 text-orange-400" />
+            <p className="text-[13px] font-medium text-orange-300">{scanFailMsg}</p>
+          </div>
+        )}
+
+        {/* ── 에러 ── */}
+        {phase === "ERROR" && errorMsg && (
+          <div className="rounded-card border border-red-500/30 bg-red-500/10 p-4">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle size={18} strokeWidth={1.9} className="mt-0.5 shrink-0 text-red-400" />
+              <p className="whitespace-pre-line text-[13px] leading-relaxed text-red-300">{errorMsg}</p>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" onClick={() => setLiveScanOpen(true)} leftIcon={<Camera size={15} />}>AI 카메라 재촬영</Button>
+              <Button size="sm" variant="outline" onClick={() => galleryInputRef.current?.click()} leftIcon={<Images size={15} />}>
+                갤러리 선택
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── 어종 자동 인식 (AI) ──
+            대회 모드(?species=)는 어종이 정해져 있으므로 노출하지 않는다. */}
+        {phase === "RESULT" && !tournamentSpecies && speciesImageUrl && (
+          <SpeciesIdentifySection
+            imageUrl={speciesImageUrl}
+            currentSpecies={species}
+            onApply={setSpecies}
+          />
+        )}
+
+        {/* ── 어종 선택 + 결과 ── */}
+        {(phase === "RESULT" || phase === "SAVING") && (
+          <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
+            {FISH_SPECIES.map((s: any) => (
+              <Chip key={s.key} size="sm" active={species === s.key} onClick={() => setSpecies(s.key)}>
+                {s.key}
+              </Chip>
+            ))}
+          </div>
+        )}
+
+        {phase === "RESULT" && result && (
+          <>
+            {result.legal?.belowLimit && result.lengthCm != null && (
+              <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/40 bg-red-500/15 px-3.5 py-3">
+                <AlertTriangle size={18} strokeWidth={2} className="shrink-0 text-red-400" />
+                <p className="text-[13px] font-semibold text-red-300">
+                  {species} 금지체장 {result.legal.minSize}cm 미만이에요. 방생해 주세요.
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-card border border-navy-100 bg-surface-200 p-4">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-[12px] font-medium text-navy-400">{species} · 전장</p>
+                  {result.lengthCm != null ? (
+                    <p className="mt-0.5 text-[32px] font-extrabold leading-none tracking-tight text-navy-900">
+                      {result.lengthCm}
+                      <span className="ml-1 text-[16px] font-bold text-navy-400">cm</span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[16px] font-bold text-navy-600">사진으로 기록</p>
+                  )}
+                </div>
+                <div className="flex items-end gap-4">
+                  {result.widthCm != null && (
+                    <div className="text-right">
+                      <p className="text-[12px] text-navy-400">몸통 너비</p>
+                      <p className="text-[18px] font-bold text-aqua-500">{result.widthCm}cm</p>
+                    </div>
+                  )}
+                  {result.weightG != null && (
+                    <div className="text-right">
+                      <p className="text-[12px] text-navy-400">추정 무게</p>
+                      <p className="text-[18px] font-bold text-navy-800">약 {result.weightG}g</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {result.weightG != null && (
+                <p className="mt-2 text-[11px] text-navy-400">
+                  {result.weightMethod === "girth"
+                    ? "무게 산출: 전장 + 몸통 둘레 기반 (정밀)"
+                    : "무게 산출: 전장 기반 추정 — 너비 미감지"}
+                </p>
+              )}
+              <div className="mt-3 flex items-center justify-between border-t border-navy-100 pt-3">
+                <span
+                  className="rounded-full px-2.5 py-1 text-[11px] font-bold"
+                  style={{ color: result.grade.color, backgroundColor: `${result.grade.color}22` }}
+                >
+                  {result.grade.label}
+                </span>
+                {result.lengthCm != null ? (
+                  <p className="text-[11px] text-navy-300">
+                    기준: {ball?.method === "aruco" ? "ArUco 마커 20mm" : "입낚볼 40mm"} · 점 탭으로 미세조정 가능
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-navy-400">입낚볼 연동 시 정확한 길이 측정 가능</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              <Button variant="outline" size="sm" onClick={retake} leftIcon={<RefreshCcw size={15} />}>재촬영</Button>
+              <Button variant="outline" size="sm" onClick={handleDownload} leftIcon={<Download size={15} />}>이미지</Button>
+              <Button size="sm" onClick={handleSave} leftIcon={<Save size={15} />}>저장</Button>
+              <Button variant="outline" size="sm" onClick={reset} leftIcon={<X size={15} />}>닫기</Button>
+            </div>
+          </>
+        )}
+
+        {/* ── 저장 완료 ── */}
+        {phase === "SAVED" && result && (
+          <div className="space-y-2">
+            <div className="rounded-card border border-aqua-500/30 bg-aqua-500/10 p-3 text-center">
+              <p className="text-[14px] font-bold text-aqua-300">
+                {species}{result.lengthCm != null ? ` ${result.lengthCm}cm` : ""} 기록 완료
+              </p>
+              <p className="mt-0.5 text-[12px] text-navy-400">계측일지에서 언제든 다시 볼 수 있어요.</p>
+            </div>
+
+            {/* 대회 참가 모드 */}
+            {tournamentId && (
+              tourSubmitted ? (
+                <div className="flex items-center gap-2 rounded-xl bg-orange-500/10 px-4 py-3">
+                  <Trophy size={16} className="shrink-0 text-orange-400" />
+                  <p className="text-[13px] font-semibold text-orange-400">대회에 제출 완료! 관리자 심사 후 랭킹에 반영됩니다.</p>
+                </div>
+              ) : (
+                <Button
+                  full
+                  size="lg"
+                  onClick={submitToTournament}
+                  disabled={tourSubmitting}
+                  leftIcon={tourSubmitting ? <Loader2 size={17} className="animate-spin" /> : <Trophy size={17} />}
+                >
+                  {tourSubmitting ? "제출 중..." : "대회에 제출하기"}
+                </Button>
+              )
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" onClick={reset} leftIcon={<Camera size={16} />}>새 측정</Button>
+              <button
+                type="button"
+                onClick={() => setDiaryOpen(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[15px] font-semibold text-gray-900 shadow-soft transition-all hover:bg-orange-600 active:scale-[0.97]"
+              >
+                <BookOpen size={16} strokeWidth={1.9} />
+                계측일지 보기
+              </button>
+            </div>
+            <div className={fromFishing ? "flex gap-2" : ""}>
+              <Button variant="outline" onClick={reset} leftIcon={<X size={16} />}>닫기</Button>
+              {fromFishing && (
+                <Link
+                  href="/map"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-aqua-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all hover:bg-aqua-600 active:scale-[0.97]"
+                >
+                  <MapIcon size={16} strokeWidth={1.9} />
+                  스마트피싱으로 돌아가기
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 첫 방문 튜토리얼 오버레이 ── */}
+      {tutorialOpen && (
+        <AiMeasureTutorial
+          step={tutorialStep}
+          onNext={() => {
+            if (tutorialStep < TUTORIAL_STEPS.length - 1) {
+              setTutorialStep((s) => s + 1);
+            } else {
+              // 마지막 단계: "카메라 촬영" 버튼 → 실시간 AI 스캐너 열기
+              try { localStorage.setItem("ipnak_ai_tutorial_done", "1"); } catch { /* noop */ }
+              setTutorialOpen(false);
+              setTimeout(() => setLiveScanOpen(true), 100);
+            }
+          }}
+          onSkip={() => {
+            try { localStorage.setItem("ipnak_ai_tutorial_done", "1"); } catch { /* noop */ }
+            setTutorialOpen(false);
+            setTimeout(() => setLiveScanOpen(true), 100);
+          }}
+        />
+      )}
+
+      {/* LiveScanCamera는 아래 portal로 이동 (세로 고정 wrapper 밖에서 독립 렌더) */}
+
+      {/* ── 갤러리 선택 커스텀 바텀시트 (네이티브 iOS 팝업 대체) ── */}
+      {showGallerySheet && createPortal(
+        <div
+          className="fixed inset-0 z-[9000] flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+          onClick={() => setShowGallerySheet(false)}
+        >
+          <div
+            className="w-full max-w-[480px] overflow-hidden rounded-t-[28px] shadow-2xl ring-1 ring-white/[0.08]"
+            style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#132233 60%,#1a2a3a 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 상단 노랑 라인 */}
+            <div className="h-[2.5px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400/90 to-orange-700/30" />
+            {/* 드래그 핸들 */}
+            <div className="mx-auto mt-3.5 h-1 w-10 rounded-full bg-white/[0.14]" />
+
+            {/* 헤더 */}
+            <div className="px-6 pb-4 pt-5">
+              <p className="text-[18px] font-extrabold tracking-tight text-white">사진 가져오기</p>
+              <p className="mt-1 text-[12px] text-white/40">측정할 물고기 사진을 선택해 주세요</p>
+            </div>
+
+            {/* 옵션 */}
+            <div className="space-y-2 px-4 pb-4">
+              {/* 사진 라이브러리 */}
+              <button
+                type="button"
+                onClick={() => { galleryInputRef.current?.click(); setShowGallerySheet(false); }}
+                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left ring-1 ring-white/[0.09] transition-colors active:bg-white/[0.09]"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/15">
+                  <Images size={20} strokeWidth={1.8} className="text-orange-400" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold text-white">사진 라이브러리</span>
+                  <span className="block text-[11px] text-white/40">갤러리에서 사진 선택</span>
+                </span>
+                <ChevronRight size={16} strokeWidth={2} className="ml-auto shrink-0 text-white/25" />
+              </button>
+
+              {/* 파일에서 선택 */}
+              <button
+                type="button"
+                onClick={() => { galleryInputRef.current?.click(); setShowGallerySheet(false); }}
+                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left ring-1 ring-white/[0.09] transition-colors active:bg-white/[0.09]"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
+                  <FolderOpen size={20} strokeWidth={1.8} className="text-white/60" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold text-white">파일에서 선택</span>
+                  <span className="block text-[11px] text-white/40">Google Drive, iCloud 등</span>
+                </span>
+                <ChevronRight size={16} strokeWidth={2} className="ml-auto shrink-0 text-white/25" />
+              </button>
+            </div>
+
+            {/* 취소 */}
+            <div className="px-4 pb-10 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowGallerySheet(false)}
+                className="w-full rounded-2xl py-3 text-[14px] font-semibold text-white/35 transition-colors active:text-white/65"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── 기준물 미감지 안내 (갤러리 사진) ──
+          '확인' 시 사진을 버리고 선택 화면(IDLE)으로 복귀 */}
+      {refMissing && createPortal(
+        <div className="fixed inset-0 z-[9100] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
+        >
+          <div
+            className="w-full max-w-[340px] overflow-hidden rounded-[24px] shadow-2xl ring-1 ring-white/[0.09]"
+            style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#132233 60%,#1a2a3a 100%)" }}
+          >
+            <div className="h-[2.5px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400/90 to-orange-700/30" />
+            <div className="flex flex-col items-center px-6 pb-5 pt-7">
+              <div className="mb-4 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
+                <AlertTriangle size={30} strokeWidth={1.6} className="text-orange-400" />
+              </div>
+              <p className="text-[17px] font-extrabold tracking-tight text-white">측정할 수 없는 사진이에요</p>
+              <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
+                기준물(입낚볼·입낚키링·인쇄 기준물)이 없는 사진은<br />측정할 수 없습니다.
+              </p>
+            </div>
+            <div className="px-4 pb-6 pt-1">
+              <button
+                type="button"
+                onClick={() => { setRefMissing(false); reset(); }}
+                className="w-full rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── 계측일지 바텀시트 ── */}
+      <DiarySheet open={diaryOpen} onClose={() => setDiaryOpen(false)} />
+
+      {/* ── 대회 참가비 차감 확인 ── */}
+      <ConfirmDialog
+        open={!!feeConfirm}
+        title={feeConfirm ? entryFeeConfirmText(feeConfirm).title : ""}
+        message={feeConfirm ? entryFeeConfirmText(feeConfirm).message : undefined}
+        confirmLabel="참가하기"
+        cancelLabel="취소"
+        onConfirm={() => { setFeeConfirm(null); void doSubmitToTournament(); }}
+        onCancel={() => setFeeConfirm(null)}
+      />
+    </div>
+    </div>{/* /portrait-lock wrapper */}
+
+    {/* ── 실시간 AI 스캐너: 세로 고정 wrapper 밖으로 portal (진짜 풀스크린 보장) ── */}
+    {liveScanOpen && typeof window !== "undefined" && createPortal(
+      <LiveScanCamera
+        onConfirm={handleLiveScanConfirm}
+        onClose={() => setLiveScanOpen(false)}
+        testBall={true}
+      />,
+      document.body
+    )}
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────
+   첫 방문 AI 측정 튜토리얼 오버레이
+───────────────────────────────────────── */
+const TUTORIAL_STEPS = [
+  {
+    icon: <CircleDashed size={36} strokeWidth={1.6} className="text-orange-400" />,
+    title: "입낚볼과 함께 촬영하세요",
+    desc: "40mm 입낚볼을 물고기 옆에 놓고 함께 촬영하면\n길이가 자동으로 계산됩니다.",
+    hint: "입낚볼 ≈ 40mm",
+  },
+  {
+    icon: <Fish size={36} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "물고기를 옆으로 눕혀 주세요",
+    desc: "바닥에 물고기를 옆으로 눕히고\n머리부터 꼬리까지 화면에 모두 들어오게 맞춰주세요.\n인식되면 물고기 윤곽선이 반짝입니다.",
+    hint: "인식되면 윤곽선 반짝임",
+  },
+  {
+    icon: <ScanLine size={36} strokeWidth={1.6} className="text-aqua-400" />,
+    title: "'측정하기'를 누르세요",
+    desc: "'물고기 인식됨' 배지가 뜨면\n측정하기 버튼을 눌러 전장(cm)을 확정합니다.\n결과 화면에서 점을 탭해 미세 조정도 가능해요.",
+    hint: "인식 완료 → 측정하기",
+  },
+  {
+    icon: <Save size={36} strokeWidth={1.6} className="text-orange-400" />,
+    title: "어종 선택 후 저장",
+    desc: "길이가 표시되면 어종을 선택하고\n저장 버튼을 누르면 계측일지에 기록됩니다.\n진행 중인 대회에 바로 제출할 수도 있어요.",
+    hint: "저장 → 계측일지 / 대회 제출",
+  },
+];
+
+import { createPortal } from "react-dom";
+
+function AiMeasureTutorial({
+  step, onNext, onSkip,
+}: {
+  step: number; onNext: () => void; onSkip: () => void;
+}) {
+  const s = TUTORIAL_STEPS[step];
+  const isLast = step === TUTORIAL_STEPS.length - 1;
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[500] flex flex-col items-center justify-end bg-black/85 backdrop-blur-[3px]">
+      {/* 배경 탭으로 닫기 방지 — 버튼으로만 진행 */}
+      <div className="w-full max-w-[480px] overflow-hidden rounded-t-[28px] bg-[#161c24] ring-1 ring-white/[0.08]">
+        {/* 상단 진행 바 */}
+        <div className="flex gap-1 px-5 pt-5">
+          {TUTORIAL_STEPS.map((_, i) => (
+            <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= step ? "bg-orange-500" : "bg-white/15"}`} />
+          ))}
+        </div>
+
+        {/* 아이콘 + 내용 */}
+        <div className="px-6 py-6 text-center">
+          <div className="mb-5 flex justify-center">
+            <div className="flex h-[80px] w-[80px] items-center justify-center rounded-[24px] bg-white/[0.06] ring-1 ring-white/10">
+              {s.icon}
+            </div>
+          </div>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-orange-400">STEP {step + 1} / {TUTORIAL_STEPS.length}</p>
+          <h2 className="mt-2 text-[18px] font-extrabold tracking-tight text-white">{s.title}</h2>
+          <p className="mt-3 whitespace-pre-line text-[13px] leading-relaxed text-white/55">{s.desc}</p>
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-orange-500/15 px-3 py-1 text-[11px] font-semibold text-orange-400">
+            <ChevronRight size={12} /> {s.hint}
+          </div>
+        </div>
+
+        {/* 버튼 */}
+        <div className="flex gap-2 px-5 pb-8">
+          <button
+            type="button"
+            onClick={onSkip}
+            className="rounded-2xl px-4 py-3 text-[13px] font-medium text-white/35 transition-colors hover:text-white/60"
+          >
+            건너뛰기
+          </button>
+          <button
+            type="button"
+            onClick={onNext}
+            className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+          >
+            {isLast ? "카메라 촬영" : "다음"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

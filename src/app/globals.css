@@ -1,0 +1,278 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+:root {
+  /* Safe area */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+
+  /* Navy → dark-neutral INK scale (inverted for dark theme) */
+  --navy-50:#222428;--navy-100:#2b2e33;--navy-200:#3a3e45;--navy-300:#6a6f79;
+  --navy-400:#868c97;--navy-500:#9ca2ad;--navy-600:#babfc7;--navy-700:#d9dce1;
+  --navy-800:#edeff2;--navy-900:#ffffff;--navy-950:#0a0a0a;
+
+  /* Aqua (secondary accent / status) */
+  --aqua-50:#ecfdfa;--aqua-100:#cffbf1;--aqua-200:#9ef5e4;--aqua-300:#5fe8d2;
+  --aqua-400:#2dd4bf;--aqua-500:#16b8a6;--aqua-600:#0d9488;--aqua-700:#0f766e;
+
+  /* Orange brand accent (입낚 design system) */
+  --orange-400:#facc15;--orange-500:#eab308;--orange-600:#ca8a04;
+  --orange-dim:rgba(234,179,8,0.15);
+
+  /* Dark surface elevations */
+  --surface-0:#0d1b2a;--surface-1:#122030;--surface-2:#162538;
+  --surface-3:#1c2c3e;--surface-4:#1e3046;--surface-5:#253848;
+
+  /* Semantic — dark theme */
+  --color-bg:#0d1b2a;
+  --color-surface:#162538;
+  --color-border:rgba(255,255,255,0.08);
+  --color-brand:#eab308;
+  --color-accent:#eab308;
+  --color-text-primary:#ffffff;
+  --color-text-secondary:rgba(255,255,255,0.55);
+  --color-text-tertiary:rgba(255,255,255,0.30);
+
+  /* Shadows — deepened for dark theme */
+  --shadow-soft:0 1px 3px rgba(0,0,0,0.45);
+  --shadow-card:0 1px 2px rgba(0,0,0,0.40),0 4px 14px rgba(0,0,0,0.35);
+  --shadow-cardhover:0 8px 24px rgba(0,0,0,0.55);
+  --shadow-fab:0 8px 22px rgba(234,179,8,0.40);
+  --shadow-sheet:0 -8px 30px rgba(0,0,0,0.55);
+  --shadow-aqua:0 4px 16px rgba(22,184,166,0.30);
+
+  /* Radius */
+  --radius-card:20px;
+  --radius-button:16px;
+  --radius-input:16px;
+  --radius-badge:9999px;
+  --radius-nav:28px;
+}
+
+/* 캔버스 배경은 html에만 둔다. body에 배경을 두면 in-flow 특성상
+   PC 여백의 고정 배경(DesktopPatternBg, z-index:-10)을 덮어버려
+   여백이 계속 검게 보이는 문제가 있었다 → body는 투명. */
+html {
+  background: var(--color-bg);
+  /* iOS Safari: 당겨서새로고침(pull-to-refresh) 허용 */
+  overscroll-behavior-y: auto;
+}
+html, body {
+  color: var(--color-text-primary);
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  background: transparent;
+  /* iOS Safari: 모멘텀 스크롤 + 세로 스크롤 명시 허용 */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+}
+
+
+/* iOS Safari: maximumScale 제거 후 입력 필드 포커스 시 자동 확대 방지
+   font-size 16px 이상이면 iOS가 확대하지 않음 */
+input, textarea, select {
+  font-size: max(16px, 1em) !important;
+}
+
+* { -webkit-font-smoothing: antialiased; }
+
+/* 입낚볼 구매 시트: PC 스크롤바를 브랜드 주황색으로 통일 */
+.ipnak-ball-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--orange-500) #0f1e30;
+}
+.ipnak-ball-scrollbar::-webkit-scrollbar { width: 10px; }
+.ipnak-ball-scrollbar::-webkit-scrollbar-track {
+  background: #0f1e30;
+  border-radius: 9999px;
+}
+.ipnak-ball-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--orange-400), var(--orange-600));
+  border: 2px solid #0f1e30;
+  border-radius: 9999px;
+}
+.ipnak-ball-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--orange-400); }
+
+/* Safe area utilities */
+.pb-safe { padding-bottom: calc(0.5rem + var(--safe-bottom)); }
+.pt-safe { padding-top: var(--safe-top); }
+
+/* 상세 페이지(피드·조행기·마켓) 하단 여백 — 하단 네비게이션 바 높이만큼만 확보.
+   AppShell main의 기본 pb-24(96px)는 네비(60px + .pb-safe)보다 커서 스크롤 끝에 빈 여백이
+   남는다. 이 클래스는 딱 네비 높이만 띄워 여백 없이 콘텐츠가 가려지지도 않게 한다.
+   md 이상에선 하단 네비가 숨겨지므로 0 (AppShell의 md:pb-0과 동일). */
+.pb-bottom-nav { padding-bottom: calc(3.75rem + 0.5rem + var(--safe-bottom)); }
+@media (min-width: 768px) { .pb-bottom-nav { padding-bottom: 0; } }
+
+/* Scrollbar — 전역 주황색 씬 스크롤바 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--orange-500) transparent;
+}
+*::-webkit-scrollbar { width: 4px; height: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--orange-500);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--orange-400); }
+*::-webkit-scrollbar-corner { background: transparent; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.leaflet-container { z-index: 0; }
+
+/* 데이터피싱 하단 컨트롤 바
+   · 모바일: fixed — 하단 nav 위에 띄움 (safe-area 포함)
+   · PC(md): absolute — 지도 컨테이너 하단에 바짝 */
+.map-controls-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 45;
+  padding: 0.75rem;
+  bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  .map-controls-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+}
+
+/* ── Animations ── */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-toast { animation: toastIn 0.2s ease-out; }
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.animate-sheet { animation: sheetUp 0.25s ease-out; }
+
+@keyframes likeBurst {
+  from { opacity: 0; transform: scale(0.3); }
+  15%  { opacity: 0.9; }
+  to   { opacity: 0; transform: scale(1.4); }
+}
+.animate-likeburst { animation: likeBurst 0.7s ease-out forwards; }
+
+@keyframes heartPop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.35); }
+  60%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+.animate-heartpop { animation: heartPop 0.35s ease-out; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadein { animation: fadeIn 0.35s ease-out both; }
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scalein { animation: scaleIn 0.2s ease-out both; }
+
+html { scroll-behavior: smooth; }
+
+@layer base {
+  body { @apply font-sans; color: var(--color-text-primary); background: transparent; }
+  ::selection { background: var(--orange-dim); color: #fff; }
+  .focus-ring { @apply ring-2 ring-offset-1; --tw-ring-color: var(--orange-500); --tw-ring-offset-color: var(--surface-0); }
+}
+
+@layer components {
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+  .card-hover {
+    @apply transition-shadow cursor-pointer;
+  }
+  .card-hover:hover { box-shadow: var(--shadow-cardhover); }
+
+  .field {
+    @apply w-full px-3.5 py-2.5 text-[15px] outline-none transition;
+    background: var(--surface-3);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: var(--radius-input);
+  }
+  .field::placeholder { color: rgba(255,255,255,0.30); }
+  .field:focus {
+    border-color: var(--orange-500);
+    box-shadow: 0 0 0 3px var(--orange-dim);
+  }
+  .field:disabled { opacity: 0.5; }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold;
+  }
+  .btn-press {
+    @apply active:scale-[0.97] transition-transform;
+  }
+}
+
+/* Skeleton shimmer */
+@keyframes skelShimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.10) 37%,
+    rgba(255,255,255,0.04) 63%
+  );
+  background-size: 400% 100%;
+  animation: skelShimmer 1.5s linear infinite;
+  border-radius: 0.5rem;
+}
+
+/* 최고 관리자 본문: 밝은 카드와 다크 테마 텍스트가 충돌하지 않도록
+   관리자 영역의 표면·제목·보조 텍스트 명도를 별도로 보정한다. */
+.admin-content {
+  color: #edeff2;
+}
+.admin-content .card {
+  background: #162538;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.admin-content .bg-white:not(.rounded-full) {
+  background-color: #162538 !important;
+}
+.admin-content .text-black {
+  color: #f5f6f7 !important;
+}
+.admin-content .text-navy-900 { color: #ffffff !important; }
+.admin-content .text-navy-800 { color: #f4f5f6 !important; }
+.admin-content .text-navy-700 { color: #e3e5e8 !important; }
+.admin-content .text-navy-600 { color: #d1d4d9 !important; }
+.admin-content .text-navy-500 { color: #bec3ca !important; }
+.admin-content .text-navy-400 { color: #a9afb8 !important; }
+.admin-content .text-navy-300 { color: #9198a3 !important; }
+.admin-content input,
+.admin-content textarea,
+.admin-content select {
+  color: #f4f5f6;
+}
+.admin-content input::placeholder,
+.admin-content textarea::placeholder {
+  color: #7f8792;
+}

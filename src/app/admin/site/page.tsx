@@ -1,0 +1,187 @@
+import Link from "next/link";
+import { Bot, Megaphone, Monitor, Sliders, PanelBottomDashed } from "lucide-react";
+import { FooterManager } from "@/components/admin/FooterManager";
+import { prisma } from "@/lib/prisma";
+import { getBoolSetting, getSetting } from "@/lib/settings";
+import { AdminTitle, Table } from "@/components/admin/ui";
+import { ActionButton } from "@/components/admin/ActionButton";
+import { CreateForm } from "@/components/admin/CreateForm";
+import { ShopToggle } from "@/components/admin/ShopToggle";
+import { ShopTagToggle } from "@/components/admin/ShopTagToggle";
+import { PcMarginBg } from "@/components/admin/PcMarginBg";
+import { BassOnlyToggle } from "@/components/admin/BassOnlyToggle";
+import { ReservationToggle } from "@/components/admin/ReservationToggle";
+import { WalkingFeedToggle } from "@/components/admin/WalkingFeedToggle";
+import { PointsToggle } from "@/components/admin/PointsToggle";
+import { GroupPointsToggle } from "@/components/admin/GroupPointsToggle";
+import { AiApiConnection } from "@/components/admin/AiApiConnection";
+import { getAiConnectionStatus } from "@/lib/aiCredentials";
+import { BannerEdit } from "@/components/admin/BannerEdit";
+import { BANNER_SECTIONS } from "@/lib/bannerSections";
+import { Badge, EmptyState } from "@/components/ui";
+import { kstFormat, cn } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+const TABS = [
+  { key: "banners", label: "배너 · 공지", icon: Megaphone },
+  { key: "pcbg", label: "PC 여백 관리", icon: Monitor },
+  { key: "appmode", label: "앱 기능 설정", icon: Sliders },
+  { key: "api", label: "AI API 연결", icon: Bot },
+  { key: "footer", label: "푸터 관리", icon: PanelBottomDashed },
+];
+
+export default async function AdminSite({ searchParams }: { searchParams: { tab?: string } }) {
+  const tab =
+    searchParams.tab === "api"
+      ? "api"
+      : searchParams.tab === "pcbg"
+      ? "pcbg"
+      : searchParams.tab === "appmode"
+      ? "appmode"
+      : searchParams.tab === "footer"
+      ? "footer"
+      : "banners";
+  const [banners, shopEnabled, shopTagEnabled, pcMarginBg, bassOnlyMode, reservationEnabled, walkingFeedEnabled, pointsEnabled, groupPointsRequired, aiConnection] = await Promise.all([
+    prisma.banner.findMany({ orderBy: { order: "asc" } }),
+    getBoolSetting("shop_menu_enabled"),
+    getBoolSetting("shop_tag_enabled"),
+    getSetting("pcMarginBgImage"),
+    getBoolSetting("bass_only_mode"),
+    getBoolSetting("reservation_enabled"),
+    getBoolSetting("walking_feed_enabled"),
+    getBoolSetting("points_enabled"),
+    getBoolSetting("group_points_required"),
+    getAiConnectionStatus(),
+  ]);
+
+  return (
+    <div>
+      <AdminTitle title="사이트 관리" desc="배너·공지, 사용자 앱 메뉴 노출 등 사이트 전반 설정" />
+
+      {/* 탭 — 아이콘 + 텍스트 카드형 버튼 */}
+      <div className="mb-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          const on = tab === t.key;
+          return (
+            <Link
+              key={t.key}
+              href={`/admin/site?tab=${t.key}`}
+              className={cn(
+                "flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-[13px] font-semibold transition-all",
+                on
+                  ? "border-orange-500/60 bg-orange-500/10 text-orange-400 shadow-sm"
+                  : "border-navy-100/40 bg-[#162538] text-navy-400 hover:border-navy-100/70 hover:text-navy-600"
+              )}
+            >
+              <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", on ? "bg-orange-500/15 text-orange-400" : "bg-navy-50/50 text-navy-400")}>
+                <Icon size={15} />
+              </span>
+              {t.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {tab === "banners" ? (
+        <>
+          <div className="mb-6">
+            <CreateForm actionType="BANNER_CREATE" title="배너/공지 추가" fields={[
+              { name: "section", label: "섹션", type: "select", options: BANNER_SECTIONS, required: true },
+              { name: "title", label: "제목", required: true },
+              { name: "body", label: "내용" },
+              { name: "imageUrl", label: "배너 이미지", type: "image" },
+              { name: "linkUrl", label: "이동 링크 URL (예: /tournaments/xxx)" },
+            ]} />
+          </div>
+
+          {BANNER_SECTIONS.map((sec) => {
+            const secBanners = banners.filter((b) => (b as any).section === sec.value || (!( b as any).section && sec.value === "main_top"));
+            return (
+              <div key={sec.value} className="mb-8">
+                <h3 className="mb-3 flex items-center gap-2 text-[13px] font-bold text-navy-700">
+                  <span className="h-2 w-2 rounded-full bg-orange-400" />
+                  {sec.label}
+                  <span className="text-navy-300 font-normal">({secBanners.length}개)</span>
+                </h3>
+
+                {/* PC 테이블 */}
+                <div className="hidden md:block">
+                  <Table head={["이미지", "제목", "내용", "상태", "등록일", "관리"]}>
+                    {secBanners.length === 0 && (
+                      <tr><td colSpan={6} className="p-0"><EmptyState title="배너가 없습니다" desc="위 추가 버튼으로 등록해 보세요." /></td></tr>
+                    )}
+                    {secBanners.map((b) => (
+                      <tr key={b.id} className={b.active ? "" : "opacity-50"}>
+                        <td className="px-4 py-3">
+                          {b.imageUrl
+                            ? <img src={b.imageUrl} alt="" className="h-10 w-16 rounded-lg object-cover" />
+                            : <div className="h-10 w-16 rounded-lg bg-navy-50 flex items-center justify-center text-[10px] text-navy-300">없음</div>}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-navy-800">{b.title}</td>
+                        <td className="max-w-[200px] truncate px-4 py-3 text-navy-500">{b.body}</td>
+                        <td className="px-4 py-3">{b.active ? <Badge tone="aqua">노출중</Badge> : <Badge tone="gray">숨김</Badge>}</td>
+                        <td className="px-4 py-3 text-navy-400">{kstFormat(b.createdAt, "MM.dd")}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1.5">
+                            <BannerEdit banner={{ ...b, section: (b as any).section || "main_top" }} />
+                            <ActionButton payload={{ type: "BANNER_TOGGLE", id: b.id }} label={b.active ? "숨김" : "노출"} successMsg="변경되었습니다" />
+                            <ActionButton payload={{ type: "BANNER_DELETE", id: b.id }} label="삭제" variant="danger" confirm="이 배너를 삭제할까요?" successMsg="삭제되었습니다" />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </Table>
+                </div>
+
+                {/* 모바일 카드 */}
+                <div className="space-y-3 md:hidden">
+                  {secBanners.length === 0 && <EmptyState title="배너가 없습니다" desc="위 추가 버튼으로 등록해 보세요." />}
+                  {secBanners.map((b) => (
+                    <div key={b.id} className={`rounded-2xl border border-navy-100 bg-white px-3 py-3 shadow-card ${b.active ? "" : "opacity-50"}`}>
+                      <div className="flex items-start gap-3">
+                        {b.imageUrl && <img src={b.imageUrl} alt="" className="h-12 w-20 shrink-0 rounded-lg object-cover" />}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-semibold text-navy-800">{b.title}</p>
+                            {b.active ? <Badge tone="aqua">노출중</Badge> : <Badge tone="gray">숨김</Badge>}
+                          </div>
+                          {b.body && <p className="mt-0.5 truncate text-[12px] text-navy-500">{b.body}</p>}
+                          <p className="mt-0.5 text-[11px] text-navy-300">{kstFormat(b.createdAt, "MM.dd")}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <BannerEdit banner={{ ...b, section: (b as any).section || "main_top" }} />
+                        <ActionButton payload={{ type: "BANNER_TOGGLE", id: b.id }} label={b.active ? "숨김" : "노출"} successMsg="변경되었습니다" />
+                        <ActionButton payload={{ type: "BANNER_DELETE", id: b.id }} label="삭제" variant="danger" confirm="이 배너를 삭제할까요?" successMsg="삭제되었습니다" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      ) : tab === "pcbg" ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PcMarginBg initial={pcMarginBg} />
+        </div>
+      ) : tab === "api" ? (
+        <div className="max-w-2xl"><AiApiConnection initial={aiConnection} /></div>
+      ) : tab === "footer" ? (
+        <div className="max-w-2xl"><FooterManager /></div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PointsToggle initial={pointsEnabled} />
+          <GroupPointsToggle initial={groupPointsRequired} pointsEnabled={pointsEnabled} />
+          <ShopToggle initial={shopEnabled} />
+          <ShopTagToggle initial={shopTagEnabled} shopMenuEnabled={shopEnabled} />
+          <BassOnlyToggle initial={bassOnlyMode} />
+          <ReservationToggle initial={reservationEnabled} />
+          <WalkingFeedToggle initial={walkingFeedEnabled} />
+        </div>
+      )}
+    </div>
+  );
+}
