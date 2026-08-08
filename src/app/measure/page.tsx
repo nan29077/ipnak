@@ -209,7 +209,7 @@ export default function MeasurePage() {
       const res = await fetch("/api/measure/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: dataUrl, width: work.width, height: work.height }),
+        body: JSON.stringify({ imageBase64: dataUrl, width: work.width, height: work.height, testBall: searchParams.get("testBall") === "1" }),
         signal: controller.signal,
       });
       if (!res.ok) {
