@@ -19,6 +19,9 @@ import { FishShimmer } from "./FishShimmer";
 import type { ContourStatus } from "@/lib/fishContour";
 import { createFrameFilter } from "@/lib/frameFilter";
 import type { FrameFilterMode } from "@/lib/frameFilter";
+import { isYoloModelAvailable } from "@/lib/yolo/modelLoader";
+import { estimateSize, runYoloInference } from "@/lib/yolo/inference";
+import { YOLO_CLASS_COLOR, YOLO_CLASS_LABEL, type YoloResult } from "@/lib/yolo/types";
 
 type Point = { x: number; y: number };
 type Norm = { x: number; y: number };
@@ -255,6 +258,15 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   // 키링이 너무 찌그러진 타원으로 잡힌 상태 (종횡비 미달) — 수직 촬영 안내 표시
   const [keyringTilted, setKeyringTilted] = useState(false);
 
+  /* ── YOLO 온디바이스 감지 (public/models/best.onnx 가 있을 때만 동작) ──
+     모델이 없으면 yoloOn 이 계속 false 라 아래 코드는 전부 건너뛰고
+     기존(서버 AI + 색상 기반) 흐름만 그대로 돈다. */
+  const yoloEnabledRef = useRef(false);          // 폴링 콜백에서 참조할 최신 활성 여부
+  const [yoloOn, setYoloOn] = useState(false);   // UI 배지 표시용
+  const yoloRef = useRef<YoloResult | null>(null); // 최근 감지 결과 (오버레이용)
+  const [yoloTick, setYoloTick] = useState(0);   // 감지 갱신 → 오버레이 재렌더 트리거
+  const yoloBusyRef = useRef(false);             // 프레임 중복 추론 방지
+
   /** FishScanGlow 감지 상태 수신 (state + ref 동시 갱신) */
   const handleScanStatus = useCallback((s: ContourStatus) => {
     scanStatusRef.current = s;
@@ -297,6 +309,38 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     // 초기 상태도 동기화
     if (mq.matches) setIsLandscape(true);
     return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  /* ── YOLO 모델 배포 여부 확인 (요청 1회, 결과 캐싱) ──
+     모델이 배포되어 있을 때만 온디바이스 감지를 켠다.
+     없으면 onnxruntime 을 내려받지도 않고 기존 흐름만 그대로 돈다. */
+  useEffect(() => {
+    let cancelled = false;
+    isYoloModelAvailable()
+      .then((ok) => {
+        if (cancelled || !ok) return;
+        yoloEnabledRef.current = true;
+        setYoloOn(true);
+      })
+      .catch(() => { /* 확인 실패 = 모델 없음으로 간주 (기존 흐름 유지) */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  /* ── 프레임 1장 YOLO 추론 (실패해도 기존 흐름에 영향 없음) ──
+     서버 스캔을 기다리게 하지 않으려고 await 하지 않고 백그라운드로 돌린다. */
+  const runYolo = useCallback(async (frame: HTMLCanvasElement) => {
+    if (!yoloEnabledRef.current || yoloBusyRef.current) return;
+    yoloBusyRef.current = true;
+    try {
+      const result = await runYoloInference(frame);
+      if (!result) return;
+      yoloRef.current = result;
+      setYoloTick((t) => t + 1);
+    } catch {
+      /* 추론 실패는 무시 — 서버 스캔 결과만으로 계속 진행한다 */
+    } finally {
+      yoloBusyRef.current = false;
+    }
   }, []);
 
   /* ── 마운트 시 권한 상태 확인 → 이미 허용된 경우 커스텀 모달 스킵 ── */
@@ -474,6 +518,54 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const ctx = ov.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
+
+    /* ── YOLO 감지 박스 (모델이 배포된 경우에만) ──
+       기존 오버레이보다 먼저 그려 아래 레이어로 깔린다.
+       모델이 없으면 yoloRef 가 항상 null 이라 이 블록은 실행되지 않는다. */
+    const yolo = yoloEnabledRef.current ? yoloRef.current : null;
+    if (yolo) {
+      const yBase = Math.max(W, H);
+      const fontPx = Math.max(13, Math.round(yBase * 0.022));
+      ctx.setLineDash([]);
+      ctx.lineWidth = Math.max(2, yBase * 0.004);
+      ctx.font = `600 ${fontPx}px system-ui, sans-serif`;
+      ctx.textBaseline = "alphabetic";
+
+      for (const det of yolo.detections) {
+        if (!det.className) continue;
+        const color = YOLO_CLASS_COLOR[det.className]; // 물고기=초록 / 기준물=노랑
+        const x = det.boxN.x * W, y = det.boxN.y * H;
+        const w = det.boxN.w * W, h = det.boxN.h * H;
+
+        ctx.strokeStyle = color;
+        ctx.strokeRect(x, y, w, h);
+
+        // 클래스 + 신뢰도 배지 (신뢰도 0.5 미만은 추론 단계에서 이미 걸러진다)
+        const label = `${YOLO_CLASS_LABEL[det.className]} ${Math.round(det.score * 100)}%`;
+        const tw = ctx.measureText(label).width;
+        const bh = fontPx + 8;
+        const by2 = y - bh < 0 ? y : y - bh;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, by2, tw + 14, bh);
+        ctx.fillStyle = "#111827";
+        ctx.fillText(label, x + 7, by2 + bh - 6);
+      }
+
+      // 기준물(40mm) 대비 물고기 크기 자동 환산 — 참고용 미리보기
+      const size = estimateSize(yolo.detections);
+      if (size) {
+        const text = `약 ${size.lengthCm}cm`;
+        ctx.font = `700 ${Math.round(fontPx * 1.25)}px system-ui, sans-serif`;
+        const tw = ctx.measureText(text).width;
+        const pad = Math.round(fontPx * 0.6);
+        const bh = Math.round(fontPx * 2);
+        ctx.fillStyle = "rgba(17,24,39,0.72)";
+        ctx.fillRect(pad, pad, tw + pad * 2, bh);
+        ctx.fillStyle = "#4ade80";
+        ctx.fillText(text, pad * 2, pad + bh - Math.round(fontPx * 0.66));
+      }
+    }
+
     if (!d) return;
 
     const bx = d.ballN.x * W, by = d.ballN.y * H, br = d.ballN.r * W;
@@ -528,7 +620,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     }
   }, []);
 
-  useEffect(() => { drawOverlay(det); }, [det, videoHasData, drawOverlay]);
+  // yoloTick 은 YOLO 감지가 갱신될 때마다 증가 — 모델이 없으면 영원히 0 이라 기존과 동일하다
+  useEffect(() => { drawOverlay(det); }, [det, videoHasData, drawOverlay, yoloTick]);
 
   /* ── 프레임 캡처 → /api/measure/scan 폴링 ──
      stage 가 scan 일 때만 동작한다 (윤슬 진행 중/기준물 안내 중에는 정지) */
@@ -548,6 +641,11 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         frame.height = Math.max(1, Math.round(v.videoHeight * s));
         frame.getContext("2d")!.drawImage(v, 0, 0, frame.width, frame.height);
         const dataUrl = frame.toDataURL("image/jpeg", 0.8);
+
+        // ── YOLO 온디바이스 감지 (모델이 배포된 경우에만) ──
+        // 서버 스캔을 늦추지 않도록 await 하지 않고 백그라운드로 돌린다.
+        // 결과는 오버레이 박스 표시에만 쓰이며, 측정값 계산에는 관여하지 않는다.
+        void runYolo(frame);
 
         // 빈 프레임 차단: FishScanGlow 윤곽 감지 없으면 건너뜀 (API 비용 절감)
         // IDLE_SKIP_LIMIT 틱 초과 시 강제 호출 (물고기를 놓치지 않는 안전망)
@@ -733,7 +831,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       if (firstScanRef.current) { clearTimeout(firstScanRef.current); firstScanRef.current = null; }
       abortRef.current?.abort();
     };
-  }, [camStatus, videoHasData, stage, goStage]);
+  }, [camStatus, videoHasData, stage, goStage, runYolo]);
 
   /* ── "측정하기": 마지막 성공 프레임 확정 → 부모로 ── */
   const confirm = useCallback(() => {
@@ -975,6 +1073,15 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         ref={overlayRef}
         style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
       />
+      {/* ── YOLO 활성 배지 — 모델이 배포된 경우에만 나타난다 (없으면 렌더 자체가 없음) ── */}
+      {yoloOn && (
+        <span
+          className="pointer-events-none absolute right-3 top-3 z-[11] rounded-full bg-black/55 px-2.5 py-1 text-[10.5px] font-bold tracking-wide text-emerald-300 backdrop-blur-sm"
+          style={{ paddingTop: "max(4px, env(safe-area-inset-top, 0px))" }}
+        >
+          AI 인식 ON
+        </span>
+      )}
       {/* ── 실시간 물고기 윤곽 반짝임 (인식 완료 시 자동 종료) ──
           ⚠️ 반드시 video 와 같은 레이어에 둔다. UI 컨테이너는 CSS 회전 모드에서
              rotate(90deg) 되므로, 그 안에 두면 윤곽 좌표가 카메라 화면과 어긋난다. */}

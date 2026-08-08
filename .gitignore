@@ -13,3 +13,12 @@ next-env.d.ts
 .group-data
 # 앱 런타임 데이터 (푸시 토큰 등)
 .app-data
+# YOLO 학습 이미지 (용량이 커서 저장소에 넣지 않음 — 라벨 txt 는 추적한다)
+training-data/raw/*
+training-data/labeled/*
+!training-data/raw/.gitkeep
+!training-data/labeled/.gitkeep
+# 관리자가 업로드한 학습 모델 (수백 MB 가능)
+public/models/*.onnx
+# onnxruntime-web WASM 자체 호스팅 산출물 (npm run yolo:wasm 으로 생성)
+public/ort/

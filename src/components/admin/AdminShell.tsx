@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Users, FileImage, MessageCircle, Flag, Trophy, ClipboardCheck,
   Anchor, CalendarDays, ShoppingBag, Fish, SlidersHorizontal, Settings, Shield,
   LogOut, ExternalLink, Star, LayoutList, BadgeCheck, UsersRound, Menu, X, Coins, Store, DatabaseZap, Package, Bot, Bell,
+  BrainCircuit,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
@@ -73,6 +74,12 @@ const GROUPS: MenuGroup[] = [
     title: "알림 · 메시지",
     items: [
       { href: "/admin/alimtalk", label: "알림톡 · SMS 관리", icon: Bell },
+    ],
+  },
+  {
+    title: "AI",
+    items: [
+      { href: "/admin/ai-training", label: "AI 학습 관리", icon: BrainCircuit },
     ],
   },
   {
