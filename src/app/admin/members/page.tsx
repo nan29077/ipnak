@@ -95,6 +95,20 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                       ) : (
                         <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "ANGLER" }} label={`${anglerLabel}으로`} successMsg="역할이 변경되었습니다" />
                       )}
+                      <ActionButton
+                        payload={{ type: "USER_SUSPEND", id: u.id }}
+                        label={u.isActive ? "활동정지" : "정지해제"}
+                        variant={u.isActive ? "danger" : "default"}
+                        confirm={u.isActive ? `[${u.nickname}] 회원을 활동정지 하시겠습니까?` : `[${u.nickname}] 회원의 정지를 해제하시겠습니까?`}
+                        successMsg={u.isActive ? "활동이 정지되었습니다" : "정지가 해제되었습니다"}
+                      />
+                      <ActionButton
+                        payload={{ type: "USER_DELETE", id: u.id }}
+                        label="삭제"
+                        variant="danger"
+                        confirm={`[${u.nickname}] 회원을 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+                        successMsg="회원이 삭제되었습니다"
+                      />
                     </>
                   )}
                 </div>
@@ -130,11 +144,27 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
             <div className="mt-2 flex flex-wrap gap-1.5">
               <MemberPointTopup userId={u.id} nickname={u.nickname} points={u.points ?? 0} />
               {u.role !== "SUPER_ADMIN" && (
-                u.role !== "PARTNER" ? (
-                  <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "PARTNER" }} label="파트너 지정" successMsg="역할이 변경되었습니다" />
-                ) : (
-                  <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "ANGLER" }} label={`${anglerLabel}으로`} successMsg="역할이 변경되었습니다" />
-                )
+                <>
+                  {u.role !== "PARTNER" ? (
+                    <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "PARTNER" }} label="파트너 지정" successMsg="역할이 변경되었습니다" />
+                  ) : (
+                    <ActionButton payload={{ type: "USER_ROLE", id: u.id, role: "ANGLER" }} label={`${anglerLabel}으로`} successMsg="역할이 변경되었습니다" />
+                  )}
+                  <ActionButton
+                    payload={{ type: "USER_SUSPEND", id: u.id }}
+                    label={u.isActive ? "활동정지" : "정지해제"}
+                    variant={u.isActive ? "danger" : "default"}
+                    confirm={u.isActive ? `[${u.nickname}] 회원을 활동정지 하시겠습니까?` : `[${u.nickname}] 회원의 정지를 해제하시겠습니까?`}
+                    successMsg={u.isActive ? "활동이 정지되었습니다" : "정지가 해제되었습니다"}
+                  />
+                  <ActionButton
+                    payload={{ type: "USER_DELETE", id: u.id }}
+                    label="삭제"
+                    variant="danger"
+                    confirm={`[${u.nickname}] 회원을 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+                    successMsg="회원이 삭제되었습니다"
+                  />
+                </>
               )}
             </div>
           </div>

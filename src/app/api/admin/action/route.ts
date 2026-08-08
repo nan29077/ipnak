@@ -206,6 +206,22 @@ export async function POST(req: Request) {
         if (!["SUPER_ADMIN", "ANGLER", "PARTNER"].includes(b.role)) return NextResponse.json({ error: "유효하지 않은 역할" }, { status: 400 });
         await prisma.user.update({ where: { id: b.id }, data: { role: b.role } });
         await log("USER_ROLE_" + b.role, b.id); break;
+      case "USER_SUSPEND": {
+        if (!b.id || typeof b.id !== "string") return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
+        if (b.id === user.id) return NextResponse.json({ error: "자기 자신의 상태는 변경할 수 없습니다." }, { status: 400 });
+        const target = await prisma.user.findUnique({ where: { id: b.id } });
+        if (!target) return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
+        await prisma.user.update({ where: { id: b.id }, data: { isActive: !target.isActive } });
+        await log(target.isActive ? "USER_SUSPEND" : "USER_UNSUSPEND", b.id); break;
+      }
+      case "USER_DELETE": {
+        if (!b.id || typeof b.id !== "string") return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
+        if (b.id === user.id) return NextResponse.json({ error: "자기 자신은 삭제할 수 없습니다." }, { status: 400 });
+        // 세션만 먼저 삭제 (로그인 차단), 나머지 연관 데이터는 onDelete: Cascade 적용됨
+        await prisma.session.deleteMany({ where: { userId: b.id } });
+        await prisma.user.delete({ where: { id: b.id } });
+        await log("USER_DELETE", b.id); break;
+      }
       case "TOURNAMENT_CREATE": {
         const title = typeof b.title === "string" ? b.title.trim() : "";
         if (!title) return NextResponse.json({ error: "대회명을 입력하세요." }, { status: 400 });
