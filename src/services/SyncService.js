@@ -32,6 +32,7 @@ class SyncService {
             weather: item.weather,
             tidePhase: item.tidePhase ?? item.tide_phase,
             ballId: item.ballId ?? item.ball_id,
+            keyringId: item.keyringId ?? item.keyring_id,
           })
           await dbService.markAsSynced(item.id)
         } catch (e) {

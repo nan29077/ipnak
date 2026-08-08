@@ -227,6 +227,16 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${baseUrl}/login?error=kakao_user_fail`);
   }
 
+  // ── 활동정지 계정 차단 ────────────────────────────────────────────
+  try {
+    const activeRows: any[] = await prisma.$queryRaw`SELECT isActive FROM \`User\` WHERE id = ${userId} LIMIT 1`;
+    if (activeRows[0]?.isActive === 0 || activeRows[0]?.isActive === false) {
+      const res = NextResponse.redirect(`${baseUrl}/login?error=suspended`);
+      res.cookies.delete("kakao_oauth_state");
+      return res;
+    }
+  } catch {}
+
   // ── 세션 생성 (kakaoKey 이미 연동된 기존 계정만 이 경로) + 쿠키 설정 + /home 리디렉션 ─
   if (!sessionCreated) {
     try {

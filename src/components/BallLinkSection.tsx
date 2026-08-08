@@ -1,14 +1,16 @@
 "use client";
 /**
- * 입낚볼 연동 UI
+ * 입낚볼 / 입낚키링 연동 UI
  * - BallLinkSection: 측정 페이지 하단 "입낚볼 연동" 카드 (NFC 태그로 볼 등록)
+ * - KeyringLinkSection: 측정 페이지 하단 "입낚키링 연동" 카드 (NFC 태그로 키링 등록)
  * - MyBallManager: 마이페이지 "내 입낚볼 관리" 섹션 (연결된 볼 목록 / 등록 / 히스토리)
+ * - MyKeyringManager: 마이페이지 "내 입낚키링 관리" 섹션 (연결된 키링 목록 / 등록 / 해제)
  * - Web NFC(NDEFReader)는 Android Chrome 에서만 지원 — 미지원 기기는 안내 문구 노출
  */
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, Camera, Crosshair, Download, Image as ImageIcon, Smartphone, Unlink } from "lucide-react";
+import { Nfc, CircleDashed, History, Plus, Loader2, Check, ChevronRight, CircleHelp, Ruler, Camera, Crosshair, Download, Image as ImageIcon, Smartphone, Unlink, KeyRound } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import NfcService from "@/services/NfcService";
 import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
@@ -47,6 +49,34 @@ async function registerBallApi(ballId: string): Promise<{ ok: boolean; status: n
 }
 
 
+
+/* ── 공용: 입낚키링 API 헬퍼 (볼과 동일 구조, 엔드포인트만 /api/keyrings) ── */
+type Keyring = { id: string; keyringId: string; linkedAt: string };
+
+async function fetchKeyrings(): Promise<Keyring[] | null> {
+  try {
+    const res = await fetch("/api/keyrings", { cache: "no-store" });
+    if (!res.ok) return null; // 401(비로그인) 포함
+    const data = await res.json();
+    return Array.isArray(data?.keyrings) ? data.keyrings : [];
+  } catch {
+    return null;
+  }
+}
+
+async function registerKeyringApi(keyringId: string): Promise<{ ok: boolean; status: number; error?: string }> {
+  try {
+    const res = await fetch("/api/keyrings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyringId }),
+    });
+    const data = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, error: data?.error };
+  } catch {
+    return { ok: false, status: 0 };
+  }
+}
 
 /** NFC 태그 → 등록까지 한 번에 처리하는 공용 훅 */
 function useBallLink() {
@@ -104,8 +134,65 @@ function useBallLink() {
   return { supported, balls, reading, tagAndRegister, refresh };
 }
 
+/** 입낚키링 전용 — NFC 태그 → 등록까지 한 번에 처리하는 공용 훅 (볼 훅과 동일 구조) */
+function useKeyringLink() {
+  const toast = useToast();
+  const [supported, setSupported] = useState<boolean | null>(null); // null = 확인 중
+  const [keyrings, setKeyrings] = useState<Keyring[] | null>(null);
+  const [reading, setReading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setKeyrings(await fetchKeyrings());
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    NfcService.isSupported().then((v) => { if (alive) setSupported(v); });
+    fetchKeyrings().then((list) => { if (alive) setKeyrings(list); });
+    return () => { alive = false; };
+  }, []);
+
+  const tagAndRegister = useCallback(async () => {
+    if (supported === false) {
+      toast(NFC_UNSUPPORTED_MSG, "info");
+      return;
+    }
+    if (reading) return;
+    setReading(true);
+    toast("키링을 평평한 바닥에 놓고 휴대폰을 키링 위에 가까이 대주세요", "info");
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), NFC_READ_TIMEOUT_MS);
+    try {
+      // NFC 태그에서 읽는 문자열은 볼/키링 공통 (NDEF 텍스트 레코드)
+      const keyringId = await NfcService.readBallId(abortController.signal);
+      if (!keyringId) {
+        toast("NFC 태그를 읽지 못했어요. 다시 시도해 주세요.", "error");
+        return;
+      }
+      const { ok, status, error } = await registerKeyringApi(keyringId);
+      if (!ok) {
+        toast(
+          status === 401
+            ? "로그인 후 이용할 수 있어요."
+            : (error || "키링 등록에 실패했어요. 잠시 후 다시 시도해 주세요."),
+          "error"
+        );
+        return;
+      }
+      toast(`입낚키링(${keyringId}) 연동 완료`, "success");
+      await refresh();
+    } finally {
+      clearTimeout(timeoutId);
+      abortController.abort(); // 정상 완료 시에도 NFC 스캔 정리
+      setReading(false);
+    }
+  }, [supported, reading, toast, refresh]);
+
+  return { supported, keyrings, reading, tagAndRegister, refresh };
+}
+
 /* ── 측정 페이지: 입낚볼 연동 카드 ── */
-export function BallLinkSection() {
+export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: { ballEnabled?: boolean; keyringEnabled?: boolean } = {}) {
   const router = useRouter();
   const { supported, balls, reading, tagAndRegister, refresh } = useBallLink();
   const toast = useToast();
@@ -204,7 +291,7 @@ export function BallLinkSection() {
               className="mt-1 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
             >
               <CircleHelp size={15} strokeWidth={2} />
-              입낚볼 연동방법 보기
+              입낚볼/입낚키링 연동 방법
             </button>
           </div>
         ) : (
@@ -224,7 +311,7 @@ export function BallLinkSection() {
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
             >
               <CircleHelp size={15} strokeWidth={2} />
-              입낚볼 연동방법 보기
+              입낚볼/입낚키링 연동 방법
             </button>
           </>
         )
@@ -315,92 +402,15 @@ export function BallLinkSection() {
         </div>
       </Sheet>
 
-      <Sheet open={linkGuideOpen} onClose={() => setLinkGuideOpen(false)} title="입낚볼 연동 방법" size="md">
-        {/* 탭 */}
-        <div className="mb-4 flex rounded-xl bg-navy-50 p-1">
-          <button
-            type="button"
-            onClick={() => setLinkGuideTab("android")}
-            className={
-              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-bold transition-colors " +
-              (linkGuideTab === "android"
-                ? "bg-[#1a2e44] text-orange-300 shadow"
-                : "text-navy-400 hover:text-navy-600")
-            }
-          >
-            <Nfc size={15} strokeWidth={2} />
-            안드로이드
-          </button>
-          <button
-            type="button"
-            onClick={() => setLinkGuideTab("iphone")}
-            className={
-              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-bold transition-colors " +
-              (linkGuideTab === "iphone"
-                ? "bg-[#1a2e44] text-aqua-300 shadow"
-                : "text-navy-400 hover:text-navy-600")
-            }
-          >
-            <Smartphone size={15} strokeWidth={2} />
-            아이폰
-          </button>
-        </div>
-
-        {/* 안드로이드 탭 */}
-        {linkGuideTab === "android" && (
-          <div className="space-y-4 pb-2">
-            <div className="rounded-2xl border border-orange-500/25 bg-orange-500/10 p-3.5">
-              <p className="text-[14px] font-bold text-orange-300">입낚볼 NFC 태그로 계정을 연결해요.</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-navy-400">연동 후에는 내 입낚볼 ID와 관련 측정 기록을 앱에서 확인할 수 있어요.</p>
-            </div>
-            <GuideStep icon={<Nfc size={18} />} title="1. NFC 태그하기를 눌러 주세요">
-              이 페이지의 ‘볼에 NFC 태그하기’ 버튼을 누른 뒤, 휴대전화의 NFC 기능을 켜 주세요.
-            </GuideStep>
-            <GuideStep icon={<Smartphone size={18} />} title="2. 휴대전화 뒷면을 입낚볼에 가까이 대세요">
-              태그가 읽힐 때까지 휴대전화를 잠시 움직이지 말고 가까이 유지해 주세요. 읽기가 끝나면 연결 완료 메시지가 표시돼요.
-            </GuideStep>
-            <GuideStep icon={<Check size={18} />} title="3. 연결 상태를 확인해요">
-              카드에 볼 ID와 ‘연결됨’ 표시가 나타나면 완료예요. NFC는 Android Chrome 등 지원되는 환경에서 이용할 수 있어요.
-            </GuideStep>
-            <div className="rounded-xl bg-navy-50 px-3.5 py-3 text-[12px] leading-relaxed text-navy-400">
-              태그가 인식되지 않으면 휴대전화 케이스를 벗기거나 NFC 위치를 조금씩 바꿔 다시 시도해 주세요.
-            </div>
-            <button
-              type="button"
-              onClick={() => setBallExampleOpen(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-500/35 bg-orange-500/10 py-3 text-[13px] font-bold text-orange-300 active:scale-[0.98]"
-            >
-              <ImageIcon size={16} /> 입낚볼/입낚키링 사용 예시보기
-            </button>
-          </div>
-        )}
-
-        {/* 아이폰 탭 */}
-        {linkGuideTab === "iphone" && (
-          <div className="space-y-4 pb-2">
-            <div className="rounded-2xl border border-aqua-500/25 bg-aqua-500/10 p-3.5">
-              <p className="text-[14px] font-bold text-aqua-300">박스에 인쇄된 코드를 직접 입력해서 연결해요.</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-navy-400">아이폰은 NFC 웹 태그를 지원하지 않아요. 대신 볼 ID 코드를 직접 입력하면 간단히 연동할 수 있어요.</p>
-            </div>
-            <GuideStep icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>} title="1. 입낚볼 박스에서 코드를 확인하세요">
-              박스 측면 또는 볼 본체에 인쇄된 볼 ID를 확인하세요.
-              <div className="mt-2.5 flex items-center justify-center rounded-xl border border-aqua-500/30 bg-[#0d1b2a] py-3">
-                <span className="font-mono text-[18px] font-extrabold tracking-widest text-aqua-300">IPNK-000000</span>
-              </div>
-              <p className="mt-1.5 text-[11px] text-navy-400">코드 형식: IPNK + 숫자 6자리</p>
-            </GuideStep>
-            <GuideStep icon={<Check size={18} />} title="2. 아래 입력창에 코드를 입력하세요">
-              연동 화면의 입력창에 볼 ID 코드를 그대로 입력한 뒤 ‘등록’ 버튼을 눌러 주세요.
-            </GuideStep>
-            <GuideStep icon={<CircleHelp size={18} />} title="3. 연결 상태를 확인하세요">
-              ‘연결됨’ 표시가 나타나면 완료예요. 이후 AI 측정 기록이 해당 볼 ID에 자동으로 연결돼요.
-            </GuideStep>
-            <div className="rounded-xl bg-navy-50 px-3.5 py-3 text-[12px] leading-relaxed text-navy-400">
-              코드는 영문 대소문자를 구분하지 않아요. 예를 들어 <span className="font-mono font-semibold text-aqua-300">ipnk-123456</span>과 <span className="font-mono font-semibold text-aqua-300">IPNK-123456</span>은 동일하게 인식돼요.
-            </div>
-          </div>
-        )}
-      </Sheet>
+      <IpnakLinkGuideSheet
+        open={linkGuideOpen}
+        onClose={() => setLinkGuideOpen(false)}
+        defaultTab={linkGuideTab}
+        defaultProduct="ball"
+        ballEnabled={ballEnabled}
+        keyringEnabled={keyringEnabled}
+        onOpenBallExample={() => setBallExampleOpen(true)}
+      />
 
       <Sheet open={exampleOpen} onClose={() => setExampleOpen(false)} title="인쇄 기준물 촬영 예시" size="lg">
         <div className="space-y-3 pb-2">
@@ -484,6 +494,191 @@ function GuideStep({ icon, title, children }: { icon: React.ReactNode; title: st
         <p className="text-[13px] font-bold text-navy-800">{title}</p>
         <p className="mt-1 text-[12px] leading-relaxed text-navy-400">{children}</p>
       </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   연동 방법 안내 시트
+   1차 탭: 입낚볼 | 입낚키링   (서비스 스위치가 꺼진 상품은 탭에서 제외)
+   2차 탭: 안드로이드 | 아이폰 (기존 내용 그대로 유지)
+───────────────────────────────────────────────────────────── */
+type GuideProduct = "ball" | "keyring";
+
+export function IpnakLinkGuideSheet({
+  open, onClose, defaultTab, defaultProduct = "ball",
+  ballEnabled = true, keyringEnabled = false, onOpenBallExample,
+}: {
+  open: boolean;
+  onClose: () => void;
+  defaultTab: "android" | "iphone";
+  defaultProduct?: GuideProduct;
+  ballEnabled?: boolean;
+  keyringEnabled?: boolean;
+  onOpenBallExample?: () => void;
+}) {
+  const [product, setProduct] = useState<GuideProduct>(defaultProduct);
+  const [tab, setTab] = useState<"android" | "iphone">(defaultTab);
+
+  // 시트를 열 때마다 호출한 쪽이 지정한 기기 탭으로 맞춘다 (NFC 미지원 → 아이폰).
+  useEffect(() => { if (open) setTab(defaultTab); }, [open, defaultTab]);
+
+  // 스위치가 꺼진 상품 탭이 선택돼 있으면 켜져 있는 쪽으로 보정한다.
+  useEffect(() => {
+    if (product === "ball" && !ballEnabled && keyringEnabled) setProduct("keyring");
+    else if (product === "keyring" && !keyringEnabled && ballEnabled) setProduct("ball");
+  }, [product, ballEnabled, keyringEnabled]);
+
+  // 둘 다 꺼져 있으면 연동 방법 자체를 노출하지 않는다.
+  if (!ballEnabled && !keyringEnabled) return null;
+
+  const activeProduct: GuideProduct = ballEnabled && keyringEnabled ? product : (ballEnabled ? "ball" : "keyring");
+  const label = activeProduct === "ball" ? "입낚볼" : "입낚키링";
+
+  return (
+    <Sheet open={open} onClose={onClose} title="입낚볼/입낚키링 연동 방법" size="md">
+      {/* 1차 탭 — 상품 종류 (둘 다 켜져 있을 때만 표시) */}
+      {ballEnabled && keyringEnabled && (
+        <div className="mb-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setProduct("ball")}
+            className={
+              "flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-[13px] font-bold transition-colors " +
+              (activeProduct === "ball"
+                ? "border-orange-500 bg-orange-500 text-gray-900"
+                : "border-navy-100 text-navy-400 hover:text-navy-600")
+            }
+          >
+            <CircleDashed size={15} strokeWidth={2} />
+            입낚볼
+          </button>
+          <button
+            type="button"
+            onClick={() => setProduct("keyring")}
+            className={
+              "flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-[13px] font-bold transition-colors " +
+              (activeProduct === "keyring"
+                ? "border-orange-500 bg-orange-500 text-gray-900"
+                : "border-navy-100 text-navy-400 hover:text-navy-600")
+            }
+          >
+            <KeyRound size={15} strokeWidth={2} />
+            입낚키링
+          </button>
+        </div>
+      )}
+
+      {/* 2차 탭 — 기기 종류 */}
+      <div className="mb-4 flex rounded-xl bg-navy-50 p-1">
+        <button
+          type="button"
+          onClick={() => setTab("android")}
+          className={
+            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-bold transition-colors " +
+            (tab === "android"
+              ? "bg-[#1a2e44] text-orange-300 shadow"
+              : "text-navy-400 hover:text-navy-600")
+          }
+        >
+          <Nfc size={15} strokeWidth={2} />
+          안드로이드
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("iphone")}
+          className={
+            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-bold transition-colors " +
+            (tab === "iphone"
+              ? "bg-[#1a2e44] text-aqua-300 shadow"
+              : "text-navy-400 hover:text-navy-600")
+          }
+        >
+          <Smartphone size={15} strokeWidth={2} />
+          아이폰
+        </button>
+      </div>
+
+      {/* 안드로이드 탭 */}
+      {tab === "android" && (
+        <div className="space-y-4 pb-2">
+          <div className="rounded-2xl border border-orange-500/25 bg-orange-500/10 p-3.5">
+            <p className="text-[14px] font-bold text-orange-300">{label} NFC 태그로 계정을 연결해요.</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">연동 후에는 내 {label} ID와 관련 측정 기록을 앱에서 확인할 수 있어요.</p>
+          </div>
+          <GuideStep icon={<Nfc size={18} />} title="1. NFC 태그하기를 눌러 주세요">
+            {activeProduct === "ball"
+              ? "이 페이지의 ‘볼에 NFC 태그하기’ 버튼을 누른 뒤, 휴대전화의 NFC 기능을 켜 주세요."
+              : "이 페이지의 ‘키링에 NFC 태그하기’ 버튼을 누른 뒤, 휴대전화의 NFC 기능을 켜 주세요."}
+          </GuideStep>
+          <GuideStep icon={<Smartphone size={18} />} title={`2. 휴대전화 뒷면을 ${label}에 가까이 대세요`}>
+            태그가 읽힐 때까지 휴대전화를 잠시 움직이지 말고 가까이 유지해 주세요. 읽기가 끝나면 연결 완료 메시지가 표시돼요.
+          </GuideStep>
+          <GuideStep icon={<Check size={18} />} title="3. 연결 상태를 확인해요">
+            카드에 {activeProduct === "ball" ? "볼" : "키링"} ID와 ‘연결됨’ 표시가 나타나면 완료예요. NFC는 Android Chrome 등 지원되는 환경에서 이용할 수 있어요.
+          </GuideStep>
+          {activeProduct === "keyring" && <KeyringFlatNotice />}
+          <div className="rounded-xl bg-navy-50 px-3.5 py-3 text-[12px] leading-relaxed text-navy-400">
+            태그가 인식되지 않으면 휴대전화 케이스를 벗기거나 NFC 위치를 조금씩 바꿔 다시 시도해 주세요.
+          </div>
+          {onOpenBallExample && (
+            <button
+              type="button"
+              onClick={onOpenBallExample}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-500/35 bg-orange-500/10 py-3 text-[13px] font-bold text-orange-300 active:scale-[0.98]"
+            >
+              <ImageIcon size={16} /> 입낚볼/입낚키링 사용 예시보기
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 아이폰 탭 */}
+      {tab === "iphone" && (
+        <div className="space-y-4 pb-2">
+          <div className="rounded-2xl border border-aqua-500/25 bg-aqua-500/10 p-3.5">
+            <p className="text-[14px] font-bold text-aqua-300">박스에 인쇄된 코드를 직접 입력해서 연결해요.</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-navy-400">아이폰은 NFC 웹 태그를 지원하지 않아요. 대신 {label} ID 코드를 직접 입력하면 간단히 연동할 수 있어요.</p>
+          </div>
+          <GuideStep icon={<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>} title={`1. ${label} 박스에서 코드를 확인하세요`}>
+            {activeProduct === "ball"
+              ? "박스 측면 또는 볼 본체에 인쇄된 볼 ID를 확인하세요."
+              : "박스 측면 또는 키링 본체에 인쇄된 키링 ID를 확인하세요."}
+            <div className="mt-2.5 flex items-center justify-center rounded-xl border border-aqua-500/30 bg-[#0d1b2a] py-3">
+              <span className="font-mono text-[18px] font-extrabold tracking-widest text-aqua-300">
+                {activeProduct === "ball" ? "IPNK-000000" : "IPNK-KR-000000"}
+              </span>
+            </div>
+            <p className="mt-1.5 text-[11px] text-navy-400">
+              코드 형식: {activeProduct === "ball" ? "IPNK + 숫자 6자리" : "IPNK-KR + 숫자 6자리"}
+            </p>
+          </GuideStep>
+          <GuideStep icon={<Check size={18} />} title="2. 아래 입력창에 코드를 입력하세요">
+            연동 화면의 입력창에 {label} ID 코드를 그대로 입력한 뒤 ‘등록’ 버튼을 눌러 주세요.
+          </GuideStep>
+          <GuideStep icon={<CircleHelp size={18} />} title="3. 연결 상태를 확인하세요">
+            ‘연결됨’ 표시가 나타나면 완료예요. 이후 AI 측정 기록이 해당 {activeProduct === "ball" ? "볼" : "키링"} ID에 자동으로 연결돼요.
+          </GuideStep>
+          {activeProduct === "keyring" && <KeyringFlatNotice />}
+          <div className="rounded-xl bg-navy-50 px-3.5 py-3 text-[12px] leading-relaxed text-navy-400">
+            코드는 영문 대소문자를 구분하지 않아요. 예를 들어{" "}
+            <span className="font-mono font-semibold text-aqua-300">{activeProduct === "ball" ? "ipnk-123456" : "ipnk-kr-123456"}</span>과{" "}
+            <span className="font-mono font-semibold text-aqua-300">{activeProduct === "ball" ? "IPNK-123456" : "IPNK-KR-123456"}</span>은 동일하게 인식돼요.
+          </div>
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+/** 키링 전용 주의사항 — 평평한 바닥에 놓고 태그해야 인식이 잘 된다 */
+function KeyringFlatNotice() {
+  return (
+    <div className="flex gap-2.5 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3.5 py-3">
+      <KeyRound size={16} strokeWidth={1.9} className="mt-0.5 shrink-0 text-orange-400" />
+      <p className="text-[12px] leading-relaxed text-orange-200">
+        키링을 평평한 바닥에 내려놓고 스마트폰을 키링 위에 가까이 대주세요.
+      </p>
     </div>
   );
 }
@@ -677,6 +872,388 @@ export function MyBallManager() {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── 마이페이지: 내 입낚키링 관리 (MyBallManager 와 동일 구조) ── */
+export function MyKeyringManager() {
+  const { supported, keyrings, reading, tagAndRegister, refresh } = useKeyringLink();
+  const toast = useToast();
+  const [manualId, setManualId] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  const hasKeyrings = keyrings !== null && keyrings.length > 0;
+
+  async function registerManual() {
+    const trimmed = manualId.trim();
+    if (!trimmed) return;
+    setRegistering(true);
+    try {
+      const { ok, status, error } = await registerKeyringApi(trimmed);
+      if (ok) {
+        toast(`입낚키링(${trimmed}) 연동 완료`, "success");
+        setManualId("");
+        await refresh();
+      } else {
+        toast(status === 401 ? "로그인 후 이용할 수 있어요." : (error || "키링 ID를 확인해 주세요."), "error");
+      }
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  async function unlinkKeyring(k: Keyring) {
+    if (confirmingId !== k.id) {
+      // 1차: 확인 상태로 전환
+      setConfirmingId(k.id);
+      return;
+    }
+    // 2차: 실제 해제
+    setConfirmingId(null);
+    setUnlinkingId(k.id);
+    try {
+      const res = await fetch("/api/keyrings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: k.id }),
+      });
+      if (res.ok) {
+        toast(`입낚키링(${k.keyringId}) 연동 해제`, "success");
+        await refresh();
+      } else {
+        toast("연동 해제에 실패했어요.", "error");
+      }
+    } finally {
+      setUnlinkingId(null);
+    }
+  }
+
+  return (
+    <div className="rounded-card border border-navy-100 bg-surface-200 p-4">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-orange-500">
+          <Nfc size={18} strokeWidth={1.9} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[14px] font-bold text-navy-900">내 입낚키링 관리</p>
+          <p className="text-[11px] text-navy-300">NFC 태그로 내 키링을 등록하고 기록을 모아보세요</p>
+        </div>
+      </div>
+
+      {/* 연결된 키링 목록 */}
+      {keyrings === null ? null : hasKeyrings ? (
+        <ul className="space-y-2">
+          {keyrings.map((k) => (
+            <li key={k.id} className="flex items-center gap-2.5 rounded-2xl border border-navy-100 bg-surface-100 px-3.5 py-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-orange-500">
+                <KeyRound size={16} strokeWidth={1.9} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-bold text-navy-900">{k.keyringId}</p>
+                <p className="text-[11px] text-navy-300">연동일 {String(k.linkedAt).slice(0, 10)}</p>
+              </div>
+              <Link
+                href={`/diary?keyringId=${encodeURIComponent(k.keyringId)}`}
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-navy-50 px-2.5 py-1 text-[11px] font-semibold text-navy-600 transition-colors hover:bg-navy-100"
+              >
+                기록 보기 <ChevronRight size={12} strokeWidth={2.2} />
+              </Link>
+              {confirmingId === k.id ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => unlinkKeyring(k)}
+                    disabled={unlinkingId === k.id}
+                    className="rounded-lg bg-red-500/15 px-2 py-1 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/25 disabled:opacity-40"
+                  >
+                    {unlinkingId === k.id ? <Loader2 size={12} className="animate-spin" /> : "해제"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingId(null)}
+                    className="rounded-lg bg-navy-50 px-2 py-1 text-[11px] font-bold text-navy-500 transition-colors hover:bg-navy-100"
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => unlinkKeyring(k)}
+                  disabled={unlinkingId === k.id}
+                  title="연동 해제"
+                  className="shrink-0 rounded-full p-1.5 text-navy-300 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
+                >
+                  <Unlink size={14} strokeWidth={1.9} />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-navy-200 px-4 py-5 text-center">
+          <p className="text-[13px] font-semibold text-navy-500">연결된 입낚키링이 없어요</p>
+          <p className="mt-0.5 text-[11px] text-navy-300">아래 버튼을 눌러 키링을 등록해 주세요</p>
+        </div>
+      )}
+
+      {/* 키링 등록 — 로드 완료 후 연결된 키링이 없을 때만 표시 */}
+      {keyrings !== null && !hasKeyrings && (
+        supported === false ? (
+          /* iPhone 등 NFC 미지원 — ID 직접 입력 */
+          <div className="mt-3 space-y-2">
+            <p className="text-center text-[12px] text-navy-400">
+              박스에 표시된 아이디를 직접 입력하세요.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={manualId}
+                onChange={(e) => setManualId(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && registerManual()}
+                placeholder="예: IPNK-KR-XXXXXX"
+                style={{ fontSize: "16px" }}
+                className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
+              />
+              <button
+                type="button"
+                onClick={registerManual}
+                disabled={!manualId.trim() || registering}
+                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-gray-900 transition-colors active:bg-orange-600 disabled:opacity-50"
+              >
+                {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Android Chrome 등 NFC 지원 */
+          <button
+            type="button"
+            onClick={tagAndRegister}
+            disabled={supported === null || reading}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-semibold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-50"
+          >
+            {reading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={2.2} />}
+            {reading ? "키링을 태그해 주세요..." : "키링 등록 (NFC 태그)"}
+          </button>
+        )
+      )}
+
+      {/* 키링 히스토리 — 볼 히스토리와 동일 UI */}
+      <div className="mt-3 border-t border-navy-100 pt-3">
+        <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold text-navy-500">
+          <History size={14} strokeWidth={1.9} /> 키링 히스토리
+        </p>
+        {keyrings && keyrings.length > 0 ? (
+          <div className="space-y-1">
+            {keyrings.map((k) => (
+              <Link
+                key={k.id}
+                href={`/diary?keyringId=${encodeURIComponent(k.keyringId)}`}
+                className="flex items-center justify-between rounded-xl px-2 py-1.5 text-[12px] font-semibold text-navy-600 transition-colors hover:bg-navy-50"
+              >
+                <span className="truncate">{k.keyringId} 측정 기록 보기</span>
+                <ChevronRight size={13} strokeWidth={2.2} className="shrink-0 text-navy-300" />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] leading-relaxed text-navy-300">
+            이 키링으로 찍은 측정 사진들이 여기에 모여요. 아직 기록이 없어요.
+          </p>
+        )}
+      </div>
+
+      {/* 키링 사용 안내 */}
+      <div className="mt-3 border-t border-navy-100 pt-3">
+        <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold text-navy-500">
+          <KeyRound size={14} strokeWidth={1.9} /> 키링 사용 안내
+        </p>
+        <p className="text-[11px] leading-relaxed text-navy-300">
+          키링을 평평한 바닥에 내려놓고 스마트폰을 키링 위에 가까이 대주세요. 측정할 때도 키링을 바닥에 눕히고 카메라를 바로 위에서 수직으로 찍어야 정확해요.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── 측정 페이지: 입낚키링 연동 카드 (BallLinkSection 과 동일 구조) ── */
+export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true }: { ballEnabled?: boolean; keyringEnabled?: boolean } = {}) {
+  const { supported, keyrings, reading, tagAndRegister, refresh } = useKeyringLink();
+  const toast = useToast();
+  const currentUser = useUser();
+  const linked = keyrings && keyrings.length > 0 ? keyrings[0] : null;
+  const [linkGuideOpen, setLinkGuideOpen] = useState(false);
+  const [linkGuideTab, setLinkGuideTab] = useState<"android" | "iphone">("android");
+  const [manualId, setManualId] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [keyringPrice, setKeyringPrice] = useState<number | null>(null);
+
+  async function registerManual() {
+    const trimmed = manualId.trim();
+    if (!trimmed) return;
+    setRegistering(true);
+    try {
+      const { ok, status, error } = await registerKeyringApi(trimmed);
+      if (ok) {
+        toast(`입낚키링(${trimmed}) 연동 완료`, "success");
+        setManualId("");
+        await refresh();
+      } else {
+        toast(status === 401 ? "로그인 후 이용할 수 있어요." : (error || "키링 ID를 확인해 주세요."), "error");
+      }
+    } finally {
+      setRegistering(false);
+    }
+  }
+
+  useEffect(() => {
+    fetch("/api/shop/ipnak-ball/products?type=keyring")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const first = data?.products?.[0];
+        if (first?.price) setKeyringPrice(Number(first.price));
+      })
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div className="rounded-card border border-navy-100 bg-surface-200 p-3">
+      <div className="mb-2 flex items-center gap-2.5">
+        <span
+          className={
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full " +
+            (linked ? "bg-orange-500/15 text-orange-500" : "bg-aqua-500/15 text-aqua-400")
+          }
+        >
+          <KeyRound size={18} strokeWidth={1.9} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[14px] font-bold text-navy-900">입낚키링 연동</p>
+          <p className="truncate text-[12px] text-navy-300">
+            키링 ID: {linked ? linked.keyringId : "미연결"}
+          </p>
+        </div>
+        {linked && (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-500">
+            <Check size={11} strokeWidth={2.5} /> 연결됨
+          </span>
+        )}
+      </div>
+
+      {/* 키링이 연동되지 않은 경우에만 표시 (로딩 중 플래시 방지) */}
+      {keyrings !== null && !linked && (
+        supported === false ? (
+          /* iPhone 등 NFC 미지원 — ID 직접 입력 */
+          <div className="space-y-2">
+            <p className="pl-[46px] text-left text-[13px] text-navy-400">
+              박스에 표시된 아이디를 직접 입력하세요.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={manualId}
+                onChange={(e) => setManualId(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && registerManual()}
+                placeholder="예: IPNK-KR-XXXXXX"
+                style={{ fontSize: "16px" }}
+                className="min-w-0 flex-1 rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 placeholder-navy-300 outline-none focus:border-orange-400/50"
+              />
+              <button
+                type="button"
+                onClick={registerManual}
+                disabled={!manualId.trim() || registering}
+                className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-[13px] font-semibold text-gray-900 transition-colors active:bg-orange-600 disabled:opacity-50"
+              >
+                {registering ? <Loader2 size={14} className="animate-spin" /> : "등록"}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setLinkGuideTab("iphone"); setLinkGuideOpen(true); }}
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
+            >
+              <CircleHelp size={15} strokeWidth={2} />
+              입낚볼/입낚키링 연동 방법
+            </button>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={tagAndRegister}
+              disabled={supported === null || reading}
+              className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2 text-[13px] font-semibold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.98] disabled:opacity-60"
+            >
+              {reading ? <Loader2 size={16} className="animate-spin" /> : <Nfc size={16} strokeWidth={1.9} />}
+              {reading ? "키링을 태그해 주세요..." : "키링에 NFC 태그하기"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLinkGuideTab("android"); setLinkGuideOpen(true); }}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-navy-100 bg-[#162538] py-2 text-[12px] font-semibold text-navy-500 transition-colors hover:bg-navy-50 active:scale-[0.98]"
+            >
+              <CircleHelp size={15} strokeWidth={2} />
+              입낚볼/입낚키링 연동 방법
+            </button>
+          </>
+        )
+      )}
+
+      {/* 연결된 키링 목록 */}
+      {keyrings !== null && keyrings.length > 0 && (
+        <div className="mt-3 border-t border-navy-100 pt-3">
+          <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold text-navy-500">
+            <History size={14} strokeWidth={1.9} /> 연결된 키링
+          </p>
+          <div className="space-y-1">
+            {keyrings.map((k) => (
+              <div key={k.id} className="flex items-center justify-between rounded-xl px-2 py-1.5 text-[12px] font-semibold text-navy-600">
+                <span className="truncate">{k.keyringId}</span>
+                <span className="shrink-0 text-[11px] font-normal text-navy-300">{String(k.linkedAt).slice(0, 10)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 border-t border-navy-100 pt-3">
+        <button
+          type="button"
+          onClick={() => setPurchaseOpen(true)}
+          className="mb-2 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-bold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.98]"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+          입낚키링 구매하러 가기
+        </button>
+        <div className="flex gap-2.5 rounded-xl border border-aqua-500/25 bg-aqua-500/10 px-3.5 py-3">
+          <KeyRound size={16} strokeWidth={1.9} className="mt-0.5 shrink-0 text-aqua-400" />
+          <p className="text-[12px] leading-relaxed text-navy-400">
+            입낚키링은 지름 40mm 원형 디스크예요. 측정할 때는 바닥에 평평하게 놓고 카메라를 바로 위에서 수직으로 찍어 주세요.
+          </p>
+        </div>
+      </div>
+
+      <IpnakLinkGuideSheet
+        open={linkGuideOpen}
+        onClose={() => setLinkGuideOpen(false)}
+        defaultTab={linkGuideTab}
+        defaultProduct="keyring"
+        ballEnabled={ballEnabled}
+        keyringEnabled={keyringEnabled}
+      />
+      <IpnakBallPurchase
+        price={0}
+        buyer={{ name: currentUser?.nickname ?? "", email: currentUser?.email ?? "" }}
+        ballEnabled={false}
+        keyringEnabled
+        keyringPrice={keyringPrice ?? 0}
+        hideCard
+        triggerOpen={purchaseOpen}
+        onOpened={() => setPurchaseOpen(false)}
+      />
     </div>
   );
 }

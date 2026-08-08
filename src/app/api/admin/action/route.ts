@@ -206,6 +206,28 @@ export async function POST(req: Request) {
         if (!["SUPER_ADMIN", "ANGLER", "PARTNER"].includes(b.role)) return NextResponse.json({ error: "유효하지 않은 역할" }, { status: 400 });
         await prisma.user.update({ where: { id: b.id }, data: { role: b.role } });
         await log("USER_ROLE_" + b.role, b.id); break;
+      case "USER_SUSPEND": {
+        if (!b.id || typeof b.id !== "string") return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
+        if (b.id === user.id) return NextResponse.json({ error: "자기 자신의 상태는 변경할 수 없습니다." }, { status: 400 });
+        // isActive 컬럼이 없는 환경(마이그레이션 미실행)을 위해 자동 생성
+        try { await prisma.$executeRawUnsafe("ALTER TABLE `User` ADD COLUMN `isActive` TINYINT(1) NOT NULL DEFAULT 1"); } catch {}
+        const rows: any[] = await prisma.$queryRaw`SELECT isActive FROM \`User\` WHERE id = ${b.id} LIMIT 1`;
+        if (!rows || rows.length === 0) return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
+        const currentActive = rows[0].isActive !== 0 && rows[0].isActive !== false;
+        const newActive = !currentActive;
+        await prisma.$executeRaw`UPDATE \`User\` SET isActive = ${newActive ? 1 : 0} WHERE id = ${b.id}`;
+        // 정지 시 기존 세션 즉시 삭제 → 현재 로그인 상태도 즉시 차단
+        if (!newActive) await prisma.session.deleteMany({ where: { userId: b.id } });
+        await log(newActive ? "USER_UNSUSPEND" : "USER_SUSPEND", b.id); break;
+      }
+      case "USER_DELETE": {
+        if (!b.id || typeof b.id !== "string") return NextResponse.json({ error: "id가 필요합니다." }, { status: 400 });
+        if (b.id === user.id) return NextResponse.json({ error: "자기 자신은 삭제할 수 없습니다." }, { status: 400 });
+        // 세션만 먼저 삭제 (로그인 차단), 나머지 연관 데이터는 onDelete: Cascade 적용됨
+        await prisma.session.deleteMany({ where: { userId: b.id } });
+        await prisma.user.delete({ where: { id: b.id } });
+        await log("USER_DELETE", b.id); break;
+      }
       case "TOURNAMENT_CREATE": {
         const title = typeof b.title === "string" ? b.title.trim() : "";
         if (!title) return NextResponse.json({ error: "대회명을 입력하세요." }, { status: 400 });

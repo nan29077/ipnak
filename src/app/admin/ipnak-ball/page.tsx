@@ -6,6 +6,7 @@ import { BallPriceForm, BallStatusActions, BallOptionPriceForm } from "@/compone
 import { IpnakSaleToggle } from "@/components/admin/IpnakBallToggle";
 import { IpnakBallProductForm, IpnakBallProductToggle, IpnakBallProductDelete, IpnakBallProductEditModal } from "@/components/admin/IpnakBallProductForm";
 import { IpnakBallRegistryTab } from "@/components/admin/IpnakBallRegistryTab";
+import { IpnakKeyringRegistryTab } from "@/components/admin/IpnakKeyringRegistryTab";
 import {
   IPNAK_ENABLED_KEY,
   IPNAK_PRODUCT_TYPES,
@@ -14,6 +15,7 @@ import {
   ensureIpnakRawColumns,
   normalizeProductType,
 } from "@/lib/ipnakProduct";
+import { ensureKeyringTables } from "@/lib/ensureKeyringTables";
 import { cn, kstFormat } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,7 @@ const tabs = [
   { key: "products", label: "상품 관리" },
   { key: "price", label: "가격 설정" },
   { key: "registry", label: "볼 ID 관리" },
+  { key: "keyring-registry", label: "키링 ID 관리" },
 ];
 
 /* imageUrl은 단일 URL 또는 JSON 배열 문자열 — 목록에서는 첫 장만 썸네일로 사용 */
@@ -48,7 +51,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
   const where = tab === "requests" ? { status: { in: ["REQUESTED", "PAID"] } } : tab === "payments" ? { paymentStatus: { in: ["READY", "PAID", "CANCELLED", "REFUNDED"] } } : tab === "shipping" ? { status: { in: ["PREPARING", "SHIPPED", "DELIVERED"] } } : {};
   // productType은 Prisma가 모르는 raw 컬럼이라, 해당 타입의 주문 id를 먼저 뽑아 필터로 넘긴다.
   let orders: any[] = [];
-  if (tab !== "price" && tab !== "products" && tab !== "registry") {
+  if (tab !== "price" && tab !== "products" && tab !== "registry" && tab !== "keyring-registry") {
     const idRows = await prisma.$queryRawUnsafe<{ id: string }[]>(`SELECT \`id\` FROM \`BallOrder\` WHERE \`productType\` = ?`, kind);
     const ids = idRows.map(r => r.id);
     orders = ids.length === 0 ? [] : await prisma.ballOrder.findMany({
@@ -64,13 +67,29 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
   const label = IPNAK_TYPE_LABEL[kind];
 
   // 볼 ID 레지스트리 (registry 탭)
-  type RegistryRow = { id: string; ballId: string; memo: string | null; isActive: number; createdAt: string };
+  type RegistryRow = {
+    id: string;
+    ballId: string;
+    memo: string | null;
+    isActive: number;
+    createdAt: string;
+    linkedUserId: string | null;
+    linkedUserNickname: string | null;
+    linkedUserPhone: string | null;
+  };
   let registryItems: RegistryRow[] = [];
   let registryTotal = 0;
   if (tab === "registry") {
     const [rows, countRows] = await Promise.all([
       prisma.$queryRawUnsafe<RegistryRow[]>(
-        `SELECT id, ballId, memo, isActive, createdAt FROM IpnakBallRegistry ORDER BY createdAt DESC LIMIT 50`
+        `SELECT r.id, r.ballId, r.memo, r.isActive, r.createdAt,
+                lb.userId as linkedUserId,
+                u.nickname as linkedUserNickname,
+                u.phone as linkedUserPhone
+         FROM IpnakBallRegistry r
+         LEFT JOIN LinkedBall lb ON lb.ballId = r.ballId
+         LEFT JOIN User u ON u.id = lb.userId
+         ORDER BY r.createdAt DESC LIMIT 50`
       ),
       prisma.$queryRawUnsafe<{ cnt: number | bigint }[]>(
         `SELECT COUNT(*) as cnt FROM IpnakBallRegistry`
@@ -80,12 +99,46 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
     registryTotal = Number(countRows[0]?.cnt ?? 0);
   }
 
+  // 키링 ID 레지스트리 (keyring-registry 탭)
+  type KeyringRow = {
+    id: string;
+    keyringId: string;
+    memo: string | null;
+    isActive: number;
+    createdAt: string;
+    linkedUserId: string | null;
+    linkedUserNickname: string | null;
+    linkedUserPhone: string | null;
+  };
+  let keyringItems: KeyringRow[] = [];
+  let keyringTotal = 0;
+  if (tab === "keyring-registry") {
+    await ensureKeyringTables();
+    const [rows, countRows] = await Promise.all([
+      prisma.$queryRawUnsafe<KeyringRow[]>(
+        `SELECT r.id, r.keyringId, r.memo, r.isActive, r.createdAt,
+                lk.userId as linkedUserId,
+                u.nickname as linkedUserNickname,
+                u.phone as linkedUserPhone
+         FROM IpnakKeyringRegistry r
+         LEFT JOIN LinkedKeyring lk ON lk.keyringId = r.keyringId
+         LEFT JOIN User u ON u.id = lk.userId
+         ORDER BY r.createdAt DESC LIMIT 50`
+      ),
+      prisma.$queryRawUnsafe<{ cnt: number | bigint }[]>(
+        `SELECT COUNT(*) as cnt FROM IpnakKeyringRegistry`
+      ),
+    ]);
+    keyringItems = rows;
+    keyringTotal = Number(countRows[0]?.cnt ?? 0);
+  }
+
   return (
     <div>
-      <AdminTitle title="입낚볼 관리" desc="입낚볼·입낚키링의 상품 등록부터 결제 승인, 주문 처리, 배송 완료까지 통합 관리합니다." />
+      <AdminTitle title="입낚볼/입낚키링 관리" desc="입낚볼·입낚키링의 상품 등록부터 결제 승인, 주문 처리, 배송 완료까지 통합 관리합니다." />
 
-      {/* 상품 종류 탭 — registry 탭에서는 숨김 */}
-      {tab !== "registry" && (
+      {/* 상품 종류 탭 — registry/keyring-registry 탭에서는 숨김 */}
+      {tab !== "registry" && tab !== "keyring-registry" && (
         <div className="mb-4 flex gap-2">
           {IPNAK_PRODUCT_TYPES.map(t => (
             <Link
@@ -245,13 +298,46 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
 
       {/* 볼 ID 레지스트리 탭 */}
       {tab === "registry" && (
-        <IpnakBallRegistryTab
-          initialItems={registryItems.map(r => ({ ...r, isActive: Boolean(r.isActive) }))}
-          initialTotal={Number(registryTotal)}
-        />
+        <div className="space-y-5">
+          {/* 서비스 스위치 — 끄면 앱 전반(마이페이지 연동·측정 모드·구매 버튼)에서 입낚볼이 숨겨진다 */}
+          <IpnakSaleToggle
+            settingKey={IPNAK_ENABLED_KEY.ball}
+            label="입낚볼"
+            initial={settings[IPNAK_ENABLED_KEY.ball] === "true"}
+            title="입낚볼 서비스"
+            desc="끄면 마이페이지 입낚볼 연동, 측정 페이지 입낚볼 모드·NFC 섹션, 입낚볼 구매 버튼이 모두 숨겨집니다."
+            onText="서비스 사용중"
+            offText="서비스 중지"
+            toastName="입낚볼 서비스"
+          />
+          <IpnakBallRegistryTab
+            initialItems={registryItems.map(r => ({ ...r, isActive: Boolean(r.isActive) }))}
+            initialTotal={Number(registryTotal)}
+          />
+        </div>
       )}
 
-      {tab !== "price" && tab !== "products" && tab !== "registry" && (
+      {/* 키링 ID 레지스트리 탭 */}
+      {tab === "keyring-registry" && (
+        <div className="space-y-5">
+          <IpnakSaleToggle
+            settingKey={IPNAK_ENABLED_KEY.keyring}
+            label="입낚키링"
+            initial={settings[IPNAK_ENABLED_KEY.keyring] === "true"}
+            title="입낚키링 서비스"
+            desc="끄면 마이페이지 입낚키링 연동, 측정 페이지 입낚키링 모드·NFC 섹션, 입낚키링 구매 버튼이 모두 숨겨집니다."
+            onText="서비스 사용중"
+            offText="서비스 중지"
+            toastName="입낚키링 서비스"
+          />
+          <IpnakKeyringRegistryTab
+            initialItems={keyringItems.map(r => ({ ...r, isActive: Boolean(r.isActive) }))}
+            initialTotal={Number(keyringTotal)}
+          />
+        </div>
+      )}
+
+      {tab !== "price" && tab !== "products" && tab !== "registry" && tab !== "keyring-registry" && (
         <>
           <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
             <Summary label="조회 주문" value={`${orders.length}건`} />

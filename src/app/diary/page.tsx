@@ -50,6 +50,7 @@ export default function DiaryPage() {
   const toast = useToast();
   const searchParams = useSearchParams();
   const ballIdFilter = searchParams.get("ballId") ?? "";
+  const keyringIdFilter = searchParams.get("keyringId") ?? "";
   const [stats, setStats] = useState<any>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [total, setTotal] = useState(0);
@@ -67,8 +68,8 @@ export default function DiaryPage() {
     setPendingSync(st.pendingCount);
   }, []);
 
-  const loadPage = useCallback(async (p: number, sp: string, replace: boolean, bid: string = "") => {
-    const r = await dbService.getMeasurements({ page: p, limit: PAGE_SIZE, species: sp, ballId: bid });
+  const loadPage = useCallback(async (p: number, sp: string, replace: boolean, bid: string = "", kid: string = "") => {
+    const r = await dbService.getMeasurements({ page: p, limit: PAGE_SIZE, species: sp, ballId: bid, keyringId: kid });
     setTotal(r.total);
     setItems((prev) => (replace ? r.items : [...prev, ...r.items]));
     setLoading(false);
@@ -78,9 +79,9 @@ export default function DiaryPage() {
   useEffect(() => {
     setLoading(true);
     setPage(1);
-    loadPage(1, species, true, ballIdFilter);
+    loadPage(1, species, true, ballIdFilter, keyringIdFilter);
     loadStats();
-  }, [species, ballIdFilter, loadPage, loadStats]);
+  }, [species, ballIdFilter, keyringIdFilter, loadPage, loadStats]);
 
   // 무한 스크롤
   useEffect(() => {
@@ -90,12 +91,12 @@ export default function DiaryPage() {
       if (entries[0].isIntersecting && items.length < total) {
         const next = page + 1;
         setPage(next);
-        loadPage(next, species, false, ballIdFilter);
+        loadPage(next, species, false, ballIdFilter, keyringIdFilter);
       }
     }, { rootMargin: "200px" });
     ob.observe(el);
     return () => ob.disconnect();
-  }, [items.length, total, page, species, loadPage]);
+  }, [items.length, total, page, species, ballIdFilter, keyringIdFilter, loadPage]);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -104,7 +105,7 @@ export default function DiaryPage() {
     setDetail(null);
     setLoading(true);
     setPage(1);
-    await loadPage(1, species, true, ballIdFilter);
+    await loadPage(1, species, true, ballIdFilter, keyringIdFilter);
     await loadStats();
     toast("기록을 삭제했어요", "info");
   }

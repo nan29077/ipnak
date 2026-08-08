@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { ensureKeyringTables } from "@/lib/ensureKeyringTables";
 import { awardPostReward } from "@/lib/points";
 import { getBoolSetting } from "@/lib/settings";
 import { resolveWeightG, speciesKeyFromName } from "@/lib/weightEstimation";
@@ -92,6 +93,18 @@ export async function POST(req: Request) {
 
     return { point, cr, postId };
   });
+
+  // 키링 모드 측정 — keyringId 는 Prisma 가 모르는 raw 컬럼이라 트랜잭션 뒤 raw UPDATE 로 기록.
+  // 실패해도 기록 저장 자체는 성공 처리한다.
+  if (b.keyringId) {
+    try {
+      await ensureKeyringTables();
+      await prisma.$executeRawUnsafe(
+        `UPDATE \`CatchRecord\` SET \`keyringId\` = ? WHERE \`id\` = ?`,
+        String(b.keyringId), cr.id
+      );
+    } catch { /* noop */ }
+  }
 
   // tripId가 있으면 출조 기록의 catchCount 자동 증가 (기록 종료 후 물고기 저장 케이스 대응)
   if (b.tripId) {

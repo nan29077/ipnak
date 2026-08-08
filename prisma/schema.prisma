@@ -36,6 +36,7 @@ model User {
   termsConsent    Boolean  @default(false) // 이용약관 동의
   privacyConsent  Boolean  @default(false) // 개인정보처리방침 동의
   locationConsent Boolean  @default(false) // 위치정보 이용약관 동의
+  isActive     Boolean  @default(true)   // false면 로그인·활동 차단 (관리자 정지)
   createdAt    DateTime @default(now())
 
   posts             Post[]
@@ -64,6 +65,7 @@ model User {
   groupMembers      GroupMember[]
   groupPoints       GroupPoint[]         @relation("GroupPointAuthor")
   linkedBalls       LinkedBall[]
+  linkedKeyrings    LinkedKeyring[]
   pointTx           PointTransaction[]   @relation("PointTxUser")
   walkingUnlocks    WalkingFeedUnlock[]
   ballOrders        BallOrder[]
@@ -131,6 +133,31 @@ model IpnakBallRegistry {
   updatedAt DateTime @updatedAt
 
   @@index([ballId])
+  @@index([isActive])
+}
+
+// ===== 입낚키링 NFC 연동 =====
+model LinkedKeyring {
+  id        String   @id @default(cuid())
+  userId    String
+  keyringId String   // NFC tag serial ID (예: IPNK-KR-000001)
+  linkedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keyringId])
+}
+
+// ===== 입낚키링 ID 사전 등록 레지스트리 =====
+// 관리자가 유효한 키링 ID를 미리 등록해두고, 사용자 등록 시 검증에 사용
+model IpnakKeyringRegistry {
+  id        String   @id @default(cuid())
+  keyringId String   @unique           // NFC 칩에 기록된 키링 ID (예: IPNK-KR-000001)
+  memo      String?  @db.Text          // 내부 메모 (배치번호·제품종류 등)
+  isActive  Boolean  @default(true)    // false면 사용자 등록 불가
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([keyringId])
   @@index([isActive])
 }
 

@@ -12,7 +12,7 @@ import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { useUser } from "@/lib/userContext";
 import {
   Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
-  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, ChevronRight, FolderOpen, X, Smartphone, QrCode,
+  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, ChevronRight, FolderOpen, X, Smartphone, QrCode, KeyRound,
 } from "lucide-react";
 import { PageHeader, Button, Chip } from "@/components/ui";
 import { useToast } from "@/components/Toast";
@@ -26,7 +26,7 @@ import { LiveScanCamera, type LiveScanResult } from "@/components/LiveScanCamera
 import { FishScanGlow } from "@/components/FishScanGlow";
 import { FishShimmer } from "@/components/FishShimmer";
 import { estimateWeightByWidth } from "@/lib/weightEstimation";
-import { BallLinkSection } from "@/components/BallLinkSection";
+import { BallLinkSection, KeyringLinkSection } from "@/components/BallLinkSection";
 import { SpeciesIdentifySection } from "@/components/SpeciesIdentifySection";
 import { useRecording } from "@/components/RecordingProvider";
 import { DiarySheet } from "@/components/DiarySheet";
@@ -94,6 +94,36 @@ export default function MeasurePage() {
   const [fromFishing, setFromFishing] = useState(false);
   // 현재 연동된 입낚볼 ID (측정 저장 시 ballId 연결에 사용)
   const [activeBallId, setActiveBallId] = useState<string | null>(null);
+  // 현재 연동된 입낚키링 ID (키링 모드 측정 저장 시 keyringId 연결에 사용)
+  const [activeKeyringId, setActiveKeyringId] = useState<string | null>(null);
+
+  // 입낚볼 / 입낚키링 서비스 스위치 (관리자 설정) — 측정 모드·연동 섹션 노출 기준
+  const [ballEnabled, setBallEnabled] = useState(true);
+  const [keyringEnabled, setKeyringEnabled] = useState(false);
+  // 기준물 측정 모드 — 볼(구, 어느 각도든 40mm) / 키링(평면 디스크, 수직 촬영 필요)
+  const [refType, setRefType] = useState<"ball" | "keyring">("ball");
+  const anyRefEnabled = ballEnabled || keyringEnabled;
+  // 스위치 로딩 완료 여부 — 로딩 전에는 카메라 자동 열기를 보류한다.
+  const [flagsLoaded, setFlagsLoaded] = useState(false);
+
+  useEffect(() => {
+    // 워치독: 스위치 조회가 지연돼도 2초 뒤에는 기존 동작(카메라 자동 열기)을 그대로 진행한다.
+    const fallback = setTimeout(() => setFlagsLoaded(true), 2000);
+    fetch("/api/ipnak/service-flags", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        const ball = d.ballEnabled !== false;
+        const keyring = d.keyringEnabled === true;
+        setBallEnabled(ball);
+        setKeyringEnabled(keyring);
+        // 꺼진 상품이 선택돼 있으면 켜져 있는 쪽으로 보정
+        setRefType((prev) => (prev === "ball" && !ball && keyring ? "keyring" : prev === "keyring" && !keyring ? "ball" : prev));
+      })
+      .catch(() => {})
+      .finally(() => { clearTimeout(fallback); setFlagsLoaded(true); });
+    return () => clearTimeout(fallback);
+  }, []);
 
   useEffect(() => {
     try {
@@ -109,6 +139,17 @@ export default function MeasurePage() {
       .then((data) => {
         const first = Array.isArray(data?.balls) ? data.balls[0] : null;
         if (first?.ballId) setActiveBallId(first.ballId);
+      })
+      .catch(() => {});
+  }, []);
+
+  // 연동된 입낚키링 ID 로드 (키링 모드 측정 기록과 키링 연결)
+  useEffect(() => {
+    fetch("/api/keyrings", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const first = Array.isArray(data?.keyrings) ? data.keyrings[0] : null;
+        if (first?.keyringId) setActiveKeyringId(first.keyringId);
       })
       .catch(() => {});
   }, []);
@@ -196,7 +237,7 @@ export default function MeasurePage() {
     setWidthPts(null);
     setResult(null);
     setPhase("SCANNING");
-    setLoadingMsg("물고기와 입낚볼을 인식 중이에요...");
+    setLoadingMsg(`물고기와 ${refType === "keyring" ? "입낚키링" : "입낚볼"}을 인식 중이에요...`);
 
     const controller = new AbortController();
     scanAbortRef.current = controller;
@@ -205,11 +246,11 @@ export default function MeasurePage() {
     scanTimerRef.current = timeoutId;
 
     try {
-      const dataUrl = work.toDataURL("image/jpeg", 0.82);
+      const dataUrl = work.toDataURL("image/jpeg", 0.92);
       const res = await fetch("/api/measure/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: dataUrl, width: work.width, height: work.height, testBall: searchParams.get("testBall") === "1" }),
+        body: JSON.stringify({ imageBase64: dataUrl, width: work.width, height: work.height, testBall: searchParams.get("testBall") === "1", refType }),
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -222,6 +263,12 @@ export default function MeasurePage() {
         throw new Error("ai-error");
       }
       const data = await res.json();
+
+      // 키링이 너무 찌그러진 타원(종횡비 미달) → 수직 촬영 안내 후 선택 화면 복귀
+      if (data?.ok === false && data.reason === "keyring-tilted") {
+        scanFailToChoice("키링을 바닥에 수평으로 놓고 카메라를 더 수직으로 세워서 다시 찍어주세요.");
+        return;
+      }
 
       // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 → 측정 불가 안내 후 선택 화면 복귀
       if (data?.ok === false && data.reason === "no-ball") {
@@ -250,7 +297,7 @@ export default function MeasurePage() {
         centerX: data.ball.x * work.width,
         centerY: data.ball.y * work.height,
         diameterPx,
-        mmPerPixel: 40 / diameterPx, // 입낚볼 실지름 40mm
+        mmPerPixel: 40 / diameterPx, // 입낚볼·입낚키링 실지름 40mm
         confidence: data.confidence,
         method: "ai-scan",
       };
@@ -430,6 +477,7 @@ export default function MeasurePage() {
         temperature: tags?.weather?.temperature ?? null,
         tidePhase: tags?.tide?.tidePhase ?? null,
         ballId: activeBallId ?? null,
+        keyringId: refType === "keyring" ? activeKeyringId ?? null : null,
       });
 
       setSavedImageBase64(imageBase64);
@@ -468,6 +516,7 @@ export default function MeasurePage() {
           shareToFeed: false,
           pointVisibility: "EXACT",
           ballId: activeBallId ?? null,
+          keyringId: refType === "keyring" ? activeKeyringId ?? null : null,
         }),
       }).catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
 
@@ -600,6 +649,8 @@ export default function MeasurePage() {
   /* ── AI 카메라 계측 열기: 비로그인이면 로그인 안내, 첫 방문이면 튜토리얼 먼저 ── */
   const TUTORIAL_KEY = "ipnak_ai_tutorial_done";
   const openCamera = useCallback(() => {
+    // 볼·키링 서비스가 모두 꺼져 있으면 기준물이 없어 측정할 수 없다.
+    if (!anyRefEnabled) return;
     // PC(1024px 이상)에서는 카메라 계측 불가 → 안내 팝업 표시
     if (typeof window !== "undefined" && window.innerWidth >= 1024) {
       setShowPcModal(true);
@@ -614,11 +665,13 @@ export default function MeasurePage() {
       }
     } catch { /* noop */ }
     setLiveScanOpen(true); // 앱 내 실시간 AI 스캐너 열기
-  }, [loggedIn]);
+  }, [loggedIn, anyRefEnabled]);
 
   // autoCamera 모드: 페이지 마운트 즉시 카메라 열기 (대회 제출 플로우에서 단계 줄이기)
   // 또는 일반 진입 시에도 모바일이면 자동 카메라 열기
+  // (볼·키링 스위치를 확인한 뒤 실행 — 둘 다 꺼져 있으면 열지 않는다)
   useEffect(() => {
+    if (!flagsLoaded || !anyRefEnabled) return;
     const t = setTimeout(() => {
       // autoCamera 파라미터가 있으면 무조건 열기 (대회 모드)
       if (autoCamera) { setLiveScanOpen(true); return; }
@@ -637,7 +690,7 @@ export default function MeasurePage() {
     }, 300);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [flagsLoaded, anyRefEnabled]);
 
   const [diaryOpen, setDiaryOpen] = useState(false);
   const [showGallerySheet, setShowGallerySheet] = useState(false); // 갤러리 선택 커스텀 바텀시트
@@ -775,33 +828,94 @@ export default function MeasurePage() {
                 <ScanLine size={20} strokeWidth={1.7} />
               </span>
               <div className="min-w-0">
-                <p className="text-[13px] font-bold text-navy-900">입낚볼 기준 AI 자동 계측</p>
-                <p className="text-[12px] text-navy-400">물고기를 옆으로 눕혀 입낚볼과 함께 촬영하세요</p>
+                <p className="text-[13px] font-bold text-navy-900">
+                  {refType === "keyring" ? "입낚키링" : "입낚볼"} 기준 AI 자동 계측
+                </p>
+                <p className="text-[12px] text-navy-400">
+                  {refType === "keyring"
+                    ? "물고기를 옆으로 눕혀 입낚키링과 함께 촬영하세요"
+                    : "물고기를 옆으로 눕혀 입낚볼과 함께 촬영하세요"}
+                </p>
               </div>
             </div>
 
-            {/* AI 카메라 계측 + 갤러리 선택 */}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={openCamera}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 py-6 text-orange-500 transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
-              >
-                <Camera size={26} strokeWidth={1.7} />
-                <span className="text-[13px] font-bold">AI 카메라 계측</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { if (!loggedIn) { setLoginModal(true); return; } setShowGallerySheet(true); }}
-                className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-6 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
-              >
-                <Images size={26} strokeWidth={1.7} />
-                <span className="text-[13px] font-bold">갤러리 선택</span>
-              </button>
-            </div>
+            {/* ── 측정 모드 선택 (기준물 종류) — 스위치가 켜진 상품만 노출 ── */}
+            {anyRefEnabled && (
+              <div className="rounded-2xl border border-navy-100 bg-surface-200 p-2.5">
+                <p className="mb-2 px-1 text-[11px] font-bold text-navy-400">측정 기준물 선택</p>
+                <div className="flex gap-2">
+                  {ballEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => setRefType("ball")}
+                      className={
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-[13px] font-bold transition-colors " +
+                        (refType === "ball"
+                          ? "border-orange-500 bg-orange-500 text-gray-900"
+                          : "border-navy-100 text-navy-400 hover:text-navy-600")
+                      }
+                    >
+                      <CircleDashed size={15} strokeWidth={2} />
+                      입낚볼
+                    </button>
+                  )}
+                  {keyringEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => setRefType("keyring")}
+                      className={
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-[13px] font-bold transition-colors " +
+                        (refType === "keyring"
+                          ? "border-orange-500 bg-orange-500 text-gray-900"
+                          : "border-navy-100 text-navy-400 hover:text-navy-600")
+                      }
+                    >
+                      <KeyRound size={15} strokeWidth={2} />
+                      입낚키링
+                    </button>
+                  )}
+                </div>
+                {refType === "keyring" && (
+                  <div className="mt-2 flex gap-2 rounded-xl bg-aqua-500/10 px-3 py-2.5">
+                    <KeyRound size={15} strokeWidth={1.9} className="mt-0.5 shrink-0 text-aqua-400" />
+                    <p className="text-[12px] leading-relaxed text-aqua-200">
+                      키링을 평평한 바닥에 내려놓고 카메라를 바로 위에서 수직으로 찍어주세요
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* 입낚볼 연동 */}
-            <BallLinkSection />
+            {/* AI 카메라 계측 + 갤러리 선택 — 기준물 서비스가 모두 꺼져 있으면 측정 불가 */}
+            {anyRefEnabled ? (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={openCamera}
+                  className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 py-6 text-orange-500 transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
+                >
+                  <Camera size={26} strokeWidth={1.7} />
+                  <span className="text-[13px] font-bold">AI 카메라 계측</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (!loggedIn) { setLoginModal(true); return; } setShowGallerySheet(true); }}
+                  className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-navy-200 py-6 text-navy-400 transition-colors hover:border-aqua-400 hover:text-aqua-400 active:scale-[0.98]"
+                >
+                  <Images size={26} strokeWidth={1.7} />
+                  <span className="text-[13px] font-bold">갤러리 선택</span>
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-navy-100 bg-surface-200 px-4 py-8 text-center">
+                <p className="text-[13px] font-semibold text-navy-500">AI 측정 서비스 준비 중이에요</p>
+                <p className="mt-1 text-[12px] text-navy-400">입낚볼·입낚키링 서비스가 모두 중지되어 있어 측정할 수 없습니다.</p>
+              </div>
+            )}
+
+            {/* 입낚볼 / 입낚키링 연동 — 서비스 스위치가 켜진 것만 노출 */}
+            {ballEnabled && <BallLinkSection ballEnabled={ballEnabled} keyringEnabled={keyringEnabled} />}
+            {keyringEnabled && <KeyringLinkSection ballEnabled={ballEnabled} keyringEnabled={keyringEnabled} />}
           </>
         )}
 
@@ -867,7 +981,9 @@ export default function MeasurePage() {
             <div className="flex items-start gap-2 rounded-2xl border border-navy-100 bg-surface-200 px-3 py-2.5">
               <Fish size={15} strokeWidth={1.9} className="mt-0.5 shrink-0 text-aqua-400" />
               <p className="text-[12px] leading-relaxed text-navy-500">
-                물고기를 바닥에 옆으로 눕혀 입낚볼과 함께 찍으면 자동 측정이 가능해요.
+                {refType === "keyring"
+                  ? "물고기를 바닥에 옆으로 눕히고, 입낚키링도 바닥에 평평하게 놓아 위에서 수직으로 찍으면 자동 측정이 가능해요."
+                  : "물고기를 바닥에 옆으로 눕혀 입낚볼과 함께 찍으면 자동 측정이 가능해요."}
               </p>
             </div>
 
@@ -999,7 +1115,7 @@ export default function MeasurePage() {
                 </span>
                 {result.lengthCm != null ? (
                   <p className="text-[11px] text-navy-300">
-                    기준: {ball?.method === "aruco" ? "ArUco 마커 20mm" : "입낚볼 40mm"} · 점 탭으로 미세조정 가능
+                    기준: {ball?.method === "aruco" ? "ArUco 마커 20mm" : refType === "keyring" ? "입낚키링 40mm" : "입낚볼 40mm"} · 점 탭으로 미세조정 가능
                   </p>
                 ) : (
                   <p className="text-[11px] text-navy-400">입낚볼 연동 시 정확한 길이 측정 가능</p>
@@ -1227,7 +1343,8 @@ export default function MeasurePage() {
       <LiveScanCamera
         onConfirm={handleLiveScanConfirm}
         onClose={() => setLiveScanOpen(false)}
-        testBall={searchParams.get("testBall") === "1"}
+        testBall={true}
+        refType={refType}
       />,
       document.body
     )}

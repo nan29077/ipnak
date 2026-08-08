@@ -61,6 +61,13 @@ export async function POST(req: Request) {
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return NextResponse.json({ error: "이메일 또는 비밀번호가 올바르지 않습니다." }, { status: 401 });
   }
+  try {
+    const activeRows: any[] = await prisma.$queryRaw`SELECT isActive FROM \`User\` WHERE id = ${user.id} LIMIT 1`;
+    if (activeRows[0]?.isActive === 0 || activeRows[0]?.isActive === false) {
+      return NextResponse.json({ error: "활동이 정지된 계정입니다. 관리자에게 문의하세요." }, { status: 403 });
+    }
+  } catch {}
+
   await createSession(user.id);
   return NextResponse.json({ ok: true, role: user.role });
 }

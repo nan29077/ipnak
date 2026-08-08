@@ -48,9 +48,9 @@ const GROUPS: MenuGroup[] = [
     ],
   },
   {
-    title: "입낚볼",
+    title: "입낚볼/입낚키링",
     items: [
-      { href: "/admin/ipnak-ball", label: "입낚볼 관리", icon: Package },
+      { href: "/admin/ipnak-ball", label: "입낚볼/입낚키링 관리", icon: Package },
     ],
   },
   {

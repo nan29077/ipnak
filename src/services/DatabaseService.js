@@ -53,6 +53,7 @@ class DatabaseService {
       temperature: data.temperature ?? null,
       tidePhase: data.tidePhase ?? null,
       ballId: data.ballId ?? null,
+      keyringId: data.keyringId ?? null, // 키링 모드 측정 시 연동된 입낚키링 ID
       synced: 0,
     }
     list.unshift(item)
@@ -72,11 +73,12 @@ class DatabaseService {
   }
 
   /** 기록 목록 (페이지네이션 + 필터) */
-  async getMeasurements({ page = 1, limit = 20, species = '', dateFrom = '', dateTo = '', ballId = '' } = {}) {
+  async getMeasurements({ page = 1, limit = 20, species = '', dateFrom = '', dateTo = '', ballId = '', keyringId = '' } = {}) {
     await this.initDB()
     let list = this._lsGet(STORE_KEY, [])
     if (species) list = list.filter((m) => m.speciesKr === species)
     if (ballId) list = list.filter((m) => m.ballId === ballId)
+    if (keyringId) list = list.filter((m) => m.keyringId === keyringId)
     if (dateFrom) list = list.filter((m) => m.measuredAt >= dateFrom)
     if (dateTo) list = list.filter((m) => m.measuredAt <= dateTo)
     const start = (page - 1) * limit

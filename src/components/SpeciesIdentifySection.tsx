@@ -253,7 +253,9 @@ export function SpeciesIdentifySection({ imageUrl, currentSpecies, onApply }: Pr
 
           {!unknownSpecies && (
             <p className="text-[11px] text-navy-400">
-              AI 추정값이에요. 다르면 탭해서 수정하거나 아래에서 직접 선택하세요.
+              {confidence === "low"
+                ? "⚠️ AI 확신도가 낮아요. 어종이 맞는지 꼭 확인하고, 다르면 탭해서 수정하거나 아래에서 직접 선택해 주세요."
+                : "AI 추정값이에요. 다르면 탭해서 수정하거나 아래에서 직접 선택하세요."}
             </p>
           )}
         </div>

@@ -5,7 +5,7 @@ import { Search, Plus, Trash2, ToggleLeft, ToggleRight, Tag, RefreshCw } from "l
 
 type RegistryItem = {
   id: string;
-  ballId: string;
+  keyringId: string;
   memo: string | null;
   isActive: boolean;
   createdAt: string;
@@ -14,7 +14,6 @@ type RegistryItem = {
   linkedUserPhone?: string | null;
 };
 
-// 전화번호 마스킹: 010-1234-5678 → 010-****-5678
 function maskPhone(phone: string | null | undefined): string {
   if (!phone) return "";
   const digits = phone.replace(/\D/g, "");
@@ -28,16 +27,15 @@ type Props = {
   initialTotal: number;
 };
 
-export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
+export function IpnakKeyringRegistryTab({ initialItems, initialTotal }: Props) {
   const [items, setItems] = useState<RegistryItem[]>(initialItems);
   const [total, setTotal] = useState(initialTotal);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // 추가 폼 상태
   const [showAdd, setShowAdd] = useState(false);
-  const [newBallId, setNewBallId] = useState("");
+  const [newKeyringId, setNewKeyringId] = useState("");
   const [newMemo, setNewMemo] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState("");
@@ -45,7 +43,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
   const fetchList = useCallback(async (q: string, p: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/ipnak-ball/registry?q=${encodeURIComponent(q)}&page=${p}`);
+      const res = await fetch(`/api/admin/ipnak-keyring/registry?q=${encodeURIComponent(q)}&page=${p}`);
       const data = await res.json();
       setItems(data.items ?? []);
       setTotal(data.total ?? 0);
@@ -62,23 +60,21 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
 
   const handleRefresh = () => fetchList(query, page);
 
-  // 등록
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = newBallId.trim().toUpperCase();
-    if (!id) { setAddError("볼 ID를 입력하세요."); return; }
-
+    const id = newKeyringId.trim().toUpperCase();
+    if (!id) { setAddError("키링 ID를 입력하세요."); return; }
     setAddLoading(true);
     setAddError("");
     try {
-      const res = await fetch("/api/admin/ipnak-ball/registry", {
+      const res = await fetch("/api/admin/ipnak-keyring/registry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ballId: id, memo: newMemo.trim() || null }),
+        body: JSON.stringify({ keyringId: id, memo: newMemo.trim() || null }),
       });
       const data = await res.json();
       if (!res.ok) { setAddError(data.error ?? "등록 실패"); return; }
-      setNewBallId("");
+      setNewKeyringId("");
       setNewMemo("");
       setShowAdd(false);
       fetchList(query, page);
@@ -89,29 +85,26 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
     }
   };
 
-  // 활성/비활성 토글
   const handleToggle = async (item: RegistryItem) => {
     const next = !item.isActive;
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, isActive: next } : i));
-    const res = await fetch("/api/admin/ipnak-ball/registry", {
+    const res = await fetch("/api/admin/ipnak-keyring/registry", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: item.id, isActive: next }),
     });
     if (!res.ok) {
-      // 롤백
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, isActive: item.isActive } : i));
       alert("수정 실패");
     }
   };
 
-  // 삭제
   const handleDelete = async (item: RegistryItem) => {
     const linkedInfo = item.linkedUserNickname
       ? `\n현재 [${item.linkedUserNickname}] 회원과 연동 중입니다. 삭제 시 연동이 함께 해제됩니다.`
       : "";
-    if (!confirm(`볼 ID '${item.ballId}'를 삭제하시겠습니까?${linkedInfo}`)) return;
-    const res = await fetch("/api/admin/ipnak-ball/registry", {
+    if (!confirm(`키링 ID '${item.keyringId}'를 삭제하시겠습니까?${linkedInfo}`)) return;
+    const res = await fetch("/api/admin/ipnak-keyring/registry", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: item.id }),
@@ -136,14 +129,11 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="볼 ID 또는 메모 검색"
+              placeholder="키링 ID 또는 메모 검색"
               className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] py-2 pl-9 pr-3 text-sm text-navy-800 outline-none focus:border-orange-400/70"
             />
           </div>
-          <button
-            type="submit"
-            className="rounded-lg border border-navy-100 px-3 py-2 text-sm text-navy-500 hover:bg-navy-50"
-          >
+          <button type="submit" className="rounded-lg border border-navy-100 px-3 py-2 text-sm text-navy-500 hover:bg-navy-50">
             검색
           </button>
         </form>
@@ -159,25 +149,22 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
           className="flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-orange-600"
         >
           <Plus className="h-4 w-4" />
-          볼 ID 등록
+          키링 ID 등록
         </button>
       </div>
 
       {/* 등록 폼 */}
       {showAdd && (
-        <form
-          onSubmit={handleAdd}
-          className="mb-4 rounded-xl border border-orange-400/30 bg-orange-500/5 p-4"
-        >
-          <p className="mb-3 text-sm font-semibold text-orange-400">새 볼 ID 등록</p>
+        <form onSubmit={handleAdd} className="mb-4 rounded-xl border border-orange-400/30 bg-orange-500/5 p-4">
+          <p className="mb-3 text-sm font-semibold text-orange-400">새 키링 ID 등록</p>
           <div className="flex flex-wrap gap-3">
             <div className="flex-1 min-w-[160px]">
-              <label className="mb-1 block text-xs text-navy-500">볼 ID (NFC 칩에 기록한 값)</label>
+              <label className="mb-1 block text-xs text-navy-500">키링 ID (NFC 칩에 기록한 값)</label>
               <input
                 type="text"
-                value={newBallId}
-                onChange={e => setNewBallId(e.target.value.toUpperCase())}
-                placeholder="예: IPNK-000001"
+                value={newKeyringId}
+                onChange={e => setNewKeyringId(e.target.value.toUpperCase())}
+                placeholder="예: IPNK-KR-000001"
                 className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] px-3 py-2 text-sm text-navy-800 outline-none focus:border-orange-400/70"
               />
             </div>
@@ -187,7 +174,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
                 type="text"
                 value={newMemo}
                 onChange={e => setNewMemo(e.target.value)}
-                placeholder="예: 1차 생산 / 입낚볼 기본형"
+                placeholder="예: 1차 생산 / 입낚키링 기본형"
                 className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] px-3 py-2 text-sm text-navy-800 outline-none focus:border-orange-400/70"
               />
             </div>
@@ -225,7 +212,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-navy-100 bg-navy-50 text-left text-xs font-semibold text-navy-500">
-              <th className="px-4 py-3">볼 ID</th>
+              <th className="px-4 py-3">키링 ID</th>
               <th className="px-4 py-3">메모</th>
               <th className="px-4 py-3">연동 회원</th>
               <th className="px-4 py-3">상태</th>
@@ -237,7 +224,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
             {items.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-12 text-center text-navy-400">
-                  등록된 볼 ID가 없습니다.
+                  등록된 키링 ID가 없습니다.
                 </td>
               </tr>
             )}
@@ -246,7 +233,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Tag className="h-3.5 w-3.5 text-orange-400 shrink-0" />
-                    <span className="font-mono font-semibold text-navy-800">{item.ballId}</span>
+                    <span className="font-mono font-semibold text-navy-800">{item.keyringId}</span>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-navy-500">{item.memo ?? <span className="text-navy-300">-</span>}</td>
@@ -313,11 +300,11 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
 
       {/* 안내 박스 */}
       <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700 leading-relaxed">
-        <p className="mb-1 font-semibold">볼 ID 등록 가이드</p>
-        <p>1. NFC Tools Pro 앱에서 NFC 칩에 텍스트(예: IPNK-000001)를 쓰기합니다.</p>
-        <p>2. 이 화면에서 동일한 ID를 등록하면 사용자가 NFC 태그 또는 수동 입력으로 볼을 연동할 수 있습니다.</p>
-        <p>3. 비활성 처리 시 해당 ID로 새 연동이 불가능해집니다. 분실·불량 볼 관리에 활용하세요.</p>
-        <p>4. 삭제 시 해당 볼과 연동된 회원의 연동 정보(LinkedBall)도 함께 삭제됩니다.</p>
+        <p className="mb-1 font-semibold">키링 ID 등록 가이드</p>
+        <p>1. NFC Tools Pro 앱에서 NFC 칩에 텍스트(예: IPNK-KR-000001)를 쓰기합니다.</p>
+        <p>2. 이 화면에서 동일한 ID를 등록하면 사용자가 NFC 태그 또는 수동 입력으로 키링을 연동할 수 있습니다.</p>
+        <p>3. 비활성 처리 시 해당 ID로 새 연동이 불가능해집니다. 분실·불량 키링 관리에 활용하세요.</p>
+        <p>4. 삭제 시 해당 키링과 연동된 회원의 연동 정보(LinkedKeyring)도 함께 삭제됩니다.</p>
       </div>
     </div>
   );

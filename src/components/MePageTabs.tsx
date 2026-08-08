@@ -11,7 +11,7 @@ import {
   UserX, Loader2,
 } from "lucide-react";
 import { DiarySheet } from "@/components/DiarySheet";
-import { MyBallManager } from "@/components/BallLinkSection";
+import { MyBallManager, MyKeyringManager } from "@/components/BallLinkSection";
 import TripMemoInline from "@/components/TripMemoInline";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
 import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
@@ -722,7 +722,9 @@ export function MePageTabs({
                       keyringEnabled={keyringEnabled}
                       keyringPrice={keyringPriceRaw}
                     />
-                    <MyBallManager />
+                    {/* 서비스 스위치가 켜진 상품의 연동 섹션만 노출한다 */}
+                    {ballEnabled && <MyBallManager />}
+                    {keyringEnabled && <MyKeyringManager />}
                   </>
                 ) : (
                   <div className="rounded-2xl border border-navy-100/20 bg-[#162538] px-4 py-8 text-center">
