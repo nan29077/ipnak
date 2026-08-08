@@ -11,6 +11,7 @@ import {
   KOREA_REGIONS, findSido, findSigungu, genSpots,
   SPOT_TYPE_LABEL, SPOT_WATER, type NamedSpot, type Sigungu,
 } from "@/lib/regions";
+import { parseInterests } from "@/lib/interestsUtils";
 
 // ===== 네이버 블로그 검색 (조황 웹 결과) =====
 export type WebFishReport = {
@@ -353,6 +354,7 @@ async function makeOpenAiBasis(
   marine: MarineSnapshot | null,
   when: { month: number | null; day: number | null },
   userProfile?: { preferredSpecies: string[]; preferredRegions: string[]; waterType: string | null } | null,
+  userInterests?: { methods: string[]; species: string[] } | null,
 ) {
   if (!openaiKey) return "";
   try {
@@ -384,6 +386,7 @@ async function makeOpenAiBasis(
       marine: marinePromptData,
       recentBlogReports: reports.slice(0, 3).map((r) => ({ title: r.title, description: r.description, date: r.date })),
       userProfile: userProfile ?? null,
+      userInterests: (userInterests?.methods?.length || userInterests?.species?.length) ? userInterests : null,
     });
     const res = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -406,6 +409,7 @@ async function makeOpenAiBasis(
           "8) targetSpecies 가 null 이면 특정 어종을 단정하지 말고, 그 계절에 노려볼 만한 방향으로 서술한다.",
           "9) 존댓말. 낚시인이 읽는 전문적인 조사(釣師) 어조. 마크다운·불릿·이모지·머리말 금지. 평문 문단 하나로만 쓴다.",
           "10) userProfile 이 null 이 아닌 경우, 해당 사용자의 과거 출조 이력(선호 어종·자주 간 지역·수역 타입)을 자연스럽게 언급해 맞춤형 느낌을 주되, 문장이 길어지지 않도록 한 문장 이내로만 반영한다.",
+          "11) userInterests 가 null 이 아니고 methods 나 species 에 값이 있는 경우, 해당 사용자가 가입 시 선택한 선호 낚시 방식(methods)이나 관심 어종(species)을 추천 사유에 자연스럽게 한 문장 이내로 녹여 넣어 맞춤 추천 느낌을 더한다. userProfile 에서 이미 언급한 내용과 중복하지 않는다.",
           `JSON: ${context}`,
         ].join("\n"),
       }),
@@ -694,18 +698,24 @@ export async function POST(req: Request) {
 
   // 웹 조황 검색 + AI 키 조회 + 해양/기상 수집을 모두 병렬 실행한다.
   // marine 은 어떤 항목이 실패해도 null 필드만 남기고 스냅샷 자체는 반드시 돌아온다.
-  const [webResults, { openai }, marine] = await Promise.all([
+  const [webResults, { openai }, marine, interestsRow] = await Promise.all([
     fetchNaverBlogReports(sidoName, sgName, species, month, day),
     getAiCredentials(),
     originCoords
       ? getMarineSnapshot(originCoords.lat, originCoords.lng, originWater).catch(() => null)
       : Promise.resolve(null),
+    currentUser
+      ? prisma.user.findUnique({ where: { id: currentUser.id }, select: { interests: true } }).catch(() => null)
+      : Promise.resolve(null),
   ]);
+
+  const _parsedInterests = parseInterests((interestsRow as any)?.interests ?? null);
+  const userInterests = (_parsedInterests.methods.length || _parsedInterests.species.length) ? _parsedInterests : null;
 
   // 추천할 포인트가 없으면 AI 를 부르지 않는다 — 호출 비용만 나가고,
   // 근거 없는 문장이 위에서 만든 "못 찾았어요 + 다음 행동" 안내를 덮어쓴다.
   const aiBasis = points.length > 0
-    ? await makeOpenAiBasis(openai, points, webResults, species, marine, { month, day }, userFishingProfile)
+    ? await makeOpenAiBasis(openai, points, webResults, species, marine, { month, day }, userFishingProfile, userInterests)
     : "";
 
   /**

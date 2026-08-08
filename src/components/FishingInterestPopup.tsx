@@ -149,7 +149,7 @@ export function FishingInterestPopup({
             {nickname ? `${nickname}님, ` : ""}관심 낚시 분야를 알려주세요
           </h2>
           <p className="mt-0.5 text-[12px] text-white/50">
-            AI가 관심 어종·방식에 맞는 피드를 추천해 드려요
+            선택한 내용은 AI가 회원님을 위해 포인트 추천 등에 활용됩니다
           </p>
         </div>
 
