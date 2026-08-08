@@ -36,6 +36,7 @@ model User {
   termsConsent    Boolean  @default(false) // 이용약관 동의
   privacyConsent  Boolean  @default(false) // 개인정보처리방침 동의
   locationConsent Boolean  @default(false) // 위치정보 이용약관 동의
+  isActive     Boolean  @default(true)   // false면 로그인·활동 차단 (관리자 정지)
   createdAt    DateTime @default(now())
 
   posts             Post[]
