@@ -33,7 +33,15 @@ export default async function AdminPosts({ searchParams }: { searchParams: { q?:
               <td className="px-4 py-3">
                 {p.images[0]?.url
                   ? <img src={p.images[0].url} alt="" className="h-10 w-10 rounded-lg object-cover" />
-                  : <div className="h-10 w-10 rounded-lg bg-navy-100" />}
+                  : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-100">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-navy-300">
+                        <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                        <circle cx="9" cy="9" r="2"/>
+                        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+                      </svg>
+                    </div>
+                  )}
               </td>
               <td className="px-4 py-3 font-semibold text-navy-800">{p.author.nickname}</td>
               <td className="px-4 py-3 text-navy-500">{TYPE[p.postType]}</td>
@@ -61,9 +69,17 @@ export default async function AdminPosts({ searchParams }: { searchParams: { q?:
         {posts.map((p) => (
           <div key={p.id} className={`rounded-2xl border border-navy-100 bg-white px-3 py-3 shadow-card ${p.hidden ? "opacity-50" : ""}`}>
             <div className="flex items-start gap-2.5">
-              {p.images[0]?.url && (
-                <img src={p.images[0].url} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
-              )}
+              {p.images[0]?.url
+                ? <img src={p.images[0].url} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+                : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-navy-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-navy-300">
+                      <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                      <circle cx="9" cy="9" r="2"/>
+                      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+                    </svg>
+                  </div>
+                )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-[13px] font-semibold text-navy-800">{p.author.nickname}</span>
