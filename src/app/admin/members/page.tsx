@@ -45,6 +45,23 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
       take: PAGE_SIZE,
     }),
   ]);
+
+  // isActive 컬럼은 Prisma generate 전까지 raw SQL로 별도 조회
+  const activeMap = new Map<string, boolean>();
+  try {
+    if (users.length > 0) {
+      const ids = users.map((u) => u.id);
+      const rows: any[] = await prisma.$queryRawUnsafe(
+        `SELECT id, isActive FROM \`User\` WHERE id IN (${ids.map(() => "?").join(",")})`,
+        ...ids,
+      );
+      for (const r of rows) {
+        activeMap.set(r.id, r.isActive !== 0 && r.isActive !== false);
+      }
+    }
+  } catch {}
+  // activeMap에 없는 경우(컬럼 없는 환경) → true(활성) 기본값
+  const isSuspended = (id: string) => activeMap.get(id) === false;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -77,6 +94,7 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                 <div className="flex items-center gap-2">
                   <img src={getAvatarUrl(u.id, u.avatarUrl)} alt="" className="h-7 w-7 rounded-full object-cover" />
                   <span className="font-semibold text-navy-800">{u.nickname}</span>
+                  {isSuspended(u.id) && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">정지</span>}
                 </div>
               </td>
               <td className="px-4 py-3 text-navy-500">{u.email}</td>
@@ -97,10 +115,10 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                       )}
                       <ActionButton
                         payload={{ type: "USER_SUSPEND", id: u.id }}
-                        label={(u as any).isActive !== false ? "활동정지" : "정지해제"}
-                        variant={(u as any).isActive !== false ? "danger" : "default"}
-                        confirm={(u as any).isActive !== false ? `[${u.nickname}] 회원을 활동정지 하시겠습니까?` : `[${u.nickname}] 회원의 정지를 해제하시겠습니까?`}
-                        successMsg={(u as any).isActive !== false ? "활동이 정지되었습니다" : "정지가 해제되었습니다"}
+                        label={isSuspended(u.id) ? "정지해제" : "활동정지"}
+                        variant={isSuspended(u.id) ? "default" : "danger"}
+                        confirm={isSuspended(u.id) ? `[${u.nickname}] 회원의 정지를 해제하시겠습니까?` : `[${u.nickname}] 회원을 활동정지 하시겠습니까?`}
+                        successMsg={isSuspended(u.id) ? "정지가 해제되었습니다" : "활동이 정지되었습니다"}
                       />
                       <ActionButton
                         payload={{ type: "USER_DELETE", id: u.id }}
@@ -124,13 +142,14 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
           <EmptyState title="회원이 없습니다" desc={q || role ? "검색 결과가 없습니다." : undefined} />
         )}
         {users.map((u) => (
-          <div key={u.id} className="rounded-2xl border border-navy-100 bg-white px-3 py-3 shadow-card">
+          <div key={u.id} className={`rounded-2xl border bg-white px-3 py-3 shadow-card ${isSuspended(u.id) ? "border-red-200 opacity-70" : "border-navy-100"}`}>
             <div className="flex items-center gap-2.5">
               <img src={getAvatarUrl(u.id, u.avatarUrl)} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-semibold text-navy-800">{u.nickname}</span>
                   <StatusBadge status={u.role} />
+                  {isSuspended(u.id) && <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">정지</span>}
                 </div>
                 <p className="truncate text-[12px] text-navy-400">{u.email}</p>
               </div>
@@ -152,10 +171,10 @@ export default async function AdminMembers({ searchParams }: { searchParams: { q
                   )}
                   <ActionButton
                     payload={{ type: "USER_SUSPEND", id: u.id }}
-                    label={(u as any).isActive !== false ? "활동정지" : "정지해제"}
-                    variant={(u as any).isActive !== false ? "danger" : "default"}
-                    confirm={(u as any).isActive !== false ? `[${u.nickname}] 회원을 활동정지 하시겠습니까?` : `[${u.nickname}] 회원의 정지를 해제하시겠습니까?`}
-                    successMsg={(u as any).isActive !== false ? "활동이 정지되었습니다" : "정지가 해제되었습니다"}
+                    label={isSuspended(u.id) ? "정지해제" : "활동정지"}
+                    variant={isSuspended(u.id) ? "default" : "danger"}
+                    confirm={isSuspended(u.id) ? `[${u.nickname}] 회원의 정지를 해제하시겠습니까?` : `[${u.nickname}] 회원을 활동정지 하시겠습니까?`}
+                    successMsg={isSuspended(u.id) ? "정지가 해제되었습니다" : "활동이 정지되었습니다"}
                   />
                   <ActionButton
                     payload={{ type: "USER_DELETE", id: u.id }}
