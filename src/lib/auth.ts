@@ -60,6 +60,8 @@ export async function getCurrentUser() {
     include: { user: true },
   });
   if (!session || session.expiresAt < new Date()) return null;
+  // 활동정지 계정은 기존 세션도 즉시 무효 처리
+  if ((session.user as any).isActive === false) return null;
   const { passwordHash, ...safe } = session.user;
   return safe;
 }
