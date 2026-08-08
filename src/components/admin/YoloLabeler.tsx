@@ -23,12 +23,14 @@ type Props = {
   imageName: string;
   /** 저장 완료 시 알림 (목록 갱신용) */
   onSaved?: (boxCount: number) => void;
+  /** 저장 안 된 변경 여부 알림 (부모가 이미지 전환 시 유실 경고에 사용) */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 /** 드래그 최소 크기(px) — 이보다 작으면 클릭으로 간주해 박스를 만들지 않는다 */
 const MIN_DRAG_PX = 6;
 
-export function YoloLabeler({ imageName, onSaved }: Props) {
+export function YoloLabeler({ imageName, onSaved, onDirtyChange }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -141,6 +143,9 @@ export function YoloLabeler({ imageName, onSaved }: Props) {
 
   useEffect(() => { draw(); }, [draw]);
 
+  // 저장 안 된 변경 여부를 부모에 알린다 (리마운트 시 false 로 자동 초기화)
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+
   // 창 크기 변경 시 캔버스 재계산
   useEffect(() => {
     const onResize = () => draw();
@@ -178,16 +183,12 @@ export function YoloLabeler({ imageName, onSaved }: Props) {
 
   function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
     if (loading) return;
-    const { x, y, w, h } = toLocal(e);
-    const hit = hitTest(x, y, w, h);
-    if (hit !== null) {
-      // 기존 박스 선택 (드래그 시작하지 않음)
-      setSelected(hit);
-      return;
-    }
+    const { x, y } = toLocal(e);
+    // 항상 드래그를 시작한다 — 기존 박스 "안"에서도 새 박스를 그릴 수 있어야 한다
+    // (물고기 박스 위에 겹친 입낚볼/키링이 핵심 시나리오).
+    // 실제 클릭(6px 미만 이동)이었는지는 onPointerUp 에서 판정해 선택으로 처리한다.
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { x0: x, y0: y, x1: x, y1: y };
-    setSelected(null);
     setDragging(true);
   }
 
@@ -199,6 +200,14 @@ export function YoloLabeler({ imageName, onSaved }: Props) {
     draw();
   }
 
+  /** 드래그 취소 (터치 제스처 중단·전화 수신 등) — 박스를 만들지 않고 버린다 */
+  function onPointerCancel(e: React.PointerEvent<HTMLCanvasElement>) {
+    dragRef.current = null;
+    setDragging(false);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    draw();
+  }
+
   function onPointerUp(e: React.PointerEvent<HTMLCanvasElement>) {
     const d = dragRef.current;
     dragRef.current = null;
@@ -206,12 +215,14 @@ export function YoloLabeler({ imageName, onSaved }: Props) {
     if (!d) return;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
 
-    const { w: cssW, h: cssH } = toLocal(e);
+    const { x, y, w: cssW, h: cssH } = toLocal(e);
     const bw = Math.abs(d.x1 - d.x0);
     const bh = Math.abs(d.y1 - d.y0);
     if (bw < MIN_DRAG_PX || bh < MIN_DRAG_PX) {
+      // 클릭에 가까운 동작 — 박스를 만들지 않고, 그 지점의 기존 박스를 선택한다
+      setSelected(hitTest(x, y, cssW, cssH));
       draw();
-      return; // 클릭에 가까운 동작 — 박스를 만들지 않는다
+      return;
     }
 
     const cx = (Math.min(d.x0, d.x1) + bw / 2) / cssW;
@@ -250,6 +261,8 @@ export function YoloLabeler({ imageName, onSaved }: Props) {
       setDirty(false);
       setMsg(boxes.length === 0 ? "물체 없음(negative)으로 저장했습니다." : `박스 ${data.saved}개를 저장했습니다.`);
       onSaved?.(data.saved ?? boxes.length);
+    } catch {
+      setMsg("저장 중 네트워크 오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setSaving(false);
     }
@@ -293,7 +306,7 @@ export function YoloLabeler({ imageName, onSaved }: Props) {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
+            onPointerCancel={onPointerCancel}
             className={cn("block w-full touch-none select-none", dragging ? "cursor-crosshair" : "cursor-crosshair")}
           />
         )}

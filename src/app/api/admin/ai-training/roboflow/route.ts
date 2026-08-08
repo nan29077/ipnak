@@ -108,7 +108,10 @@ export async function POST(req: Request) {
 
   if (names.length === 0) return NextResponse.json({ error: "업로드할 이미지가 없습니다." }, { status: 400 });
 
-  const targets = names.slice(0, MAX_UPLOAD_PER_CALL);
+  // offset: "이어서 업로드"용 시작 위치 — 없으면 처음부터.
+  // 업로드해도 로컬 파일 상태가 바뀌지 않아 목록 순서가 유지되므로 오프셋 이어가기가 성립한다.
+  const offset = Math.min(names.length, Math.max(0, Math.floor(Number(body.offset) || 0)));
+  const targets = names.slice(offset, offset + MAX_UPLOAD_PER_CALL);
   let uploaded = 0;
   let failed = 0;
   const errors: string[] = [];
@@ -142,7 +145,9 @@ export async function POST(req: Request) {
     ok: true,
     uploaded,
     failed,
-    remaining: Math.max(0, names.length - targets.length),
+    remaining: Math.max(0, names.length - offset - targets.length),
+    /** 다음 "이어서 업로드" 호출에 넘길 시작 위치 */
+    nextOffset: offset + targets.length,
     errors,
   });
 }

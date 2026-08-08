@@ -6,7 +6,7 @@
  *  - 직접 라벨링 : 입낚 관리자 캔버스에서 박스를 그린다 (YoloLabeler)
  *  - Roboflow 연동 : 선별 이미지를 Roboflow 프로젝트로 보내 전문 툴에서 작업한다
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Loader2, RefreshCw, Download, Trash2, ExternalLink, Save, Upload, CheckCircle2,
 } from "lucide-react";
@@ -71,13 +71,20 @@ function NativeLabeling() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [msg, setMsg] = useState("");
+  // 라벨러에 저장 안 된 박스가 있는지 (이미지 전환 시 유실 경고용)
+  const dirtyRef = useRef(false);
+  // 페이지를 빠르게 넘길 때 늦게 도착한 이전 응답이 최신 목록을 덮어쓰지 않도록 한다
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(async (f: Filter, p: number) => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/ai-training/images?filter=${f}&page=${p}`, { cache: "no-store" });
+      if (seq !== loadSeqRef.current) return; // 더 최신 요청이 이미 나갔다
       if (!res.ok) return;
       const data = await res.json();
+      if (seq !== loadSeqRef.current) return;
       const list: RawImage[] = Array.isArray(data.items) ? data.items : [];
       setItems(list);
       setTotalPages(data.totalPages ?? 1);
@@ -85,7 +92,7 @@ function NativeLabeling() {
       // 선택된 이미지가 목록에서 사라졌으면 첫 장으로 옮긴다
       setCurrent((cur) => (cur && list.some((i) => i.name === cur) ? cur : list[0]?.name ?? null));
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, []);
 
@@ -101,11 +108,24 @@ function NativeLabeling() {
     });
   }
 
+  /** 저장 안 된 박스가 있으면 이동 전에 확인받는다 (작업 유실 방지) */
+  function confirmLeaveDirty(): boolean {
+    if (!dirtyRef.current) return true;
+    return window.confirm("저장하지 않은 라벨이 있습니다. 다른 이미지로 이동하면 사라집니다. 계속할까요?");
+  }
+
+  /** 썸네일 클릭 → 라벨링 대상 변경 */
+  function selectImage(name: string) {
+    if (name === current) return;
+    if (!confirmLeaveDirty()) return;
+    setCurrent(name);
+  }
+
   /** 다음 미라벨 이미지로 이동 (연속 작업용) */
   function goNext() {
     const idx = items.findIndex((i) => i.name === current);
     const next = items.slice(idx + 1).find((i) => (filter === "unlabeled" ? !i.labeled : true)) ?? items[idx + 1];
-    if (next) setCurrent(next.name);
+    if (next && confirmLeaveDirty()) setCurrent(next.name);
   }
 
   async function removeImage(name: string) {
@@ -187,7 +207,7 @@ function NativeLabeling() {
                 <button
                   key={item.name}
                   type="button"
-                  onClick={() => setCurrent(item.name)}
+                  onClick={() => selectImage(item.name)}
                   className={cn(
                     "relative aspect-square overflow-hidden rounded-lg border-2 transition-all",
                     current === item.name ? "border-orange-500" : "border-transparent hover:border-white/20",
@@ -237,6 +257,7 @@ function NativeLabeling() {
             key={current}
             imageName={current}
             onSaved={(boxCount) => handleSaved(current, boxCount)}
+            onDirtyChange={(d) => { dirtyRef.current = d; }}
           />
         </div>
       )}
@@ -256,6 +277,8 @@ function RoboflowPanel() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState("");
+  // "이어서 업로드" 시작 위치 — 전송 옵션이 바뀌면 처음부터 다시 센다
+  const [nextOffset, setNextOffset] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -302,15 +325,18 @@ function RoboflowPanel() {
       const res = await fetch("/api/admin/ai-training/roboflow", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ onlyUnlabeled }),
+        body: JSON.stringify({ onlyUnlabeled, offset: nextOffset }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg(d?.error ?? "업로드에 실패했습니다.");
         return;
       }
+      // 남은 장수가 있으면 다음 호출은 이어서, 다 보냈으면 처음부터
+      setNextOffset(d.remaining > 0 ? d.nextOffset ?? 0 : 0);
       const rest = d.remaining > 0 ? ` (남은 ${d.remaining}장은 다시 눌러 이어서 업로드)` : "";
-      setMsg(`업로드 ${d.uploaded}장 · 실패 ${d.failed}장${rest}`);
+      const errs = d.failed > 0 && Array.isArray(d.errors) && d.errors.length > 0 ? ` · ${d.errors.join(" / ")}` : "";
+      setMsg(`업로드 ${d.uploaded}장 · 실패 ${d.failed}장${rest}${errs}`);
     } finally {
       setUploading(false);
     }
@@ -373,7 +399,7 @@ function RoboflowPanel() {
           <input
             type="checkbox"
             checked={onlyUnlabeled}
-            onChange={(e) => setOnlyUnlabeled(e.target.checked)}
+            onChange={(e) => { setOnlyUnlabeled(e.target.checked); setNextOffset(0); }}
             className="h-3.5 w-3.5 accent-orange-500"
           />
           아직 라벨이 없는 이미지만 전송

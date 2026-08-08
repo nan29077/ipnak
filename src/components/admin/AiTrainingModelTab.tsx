@@ -36,14 +36,22 @@ export function AiTrainingModelTab() {
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
+  // 조회 실패는 "모델 없음"과 다르다 — 실패 시 오류 안내를 보여 오판(재업로드 등)을 막는다
+  const [loadFailed, setLoadFailed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/ai-training/model", { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setLoadFailed(true);
+        return;
+      }
       setInfo(await res.json());
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -76,6 +84,8 @@ export function AiTrainingModelTab() {
       setNote("");
       if (fileRef.current) fileRef.current.value = "";
       await load();
+    } catch {
+      setError("업로드 중 네트워크 오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setUploading(false);
     }
@@ -83,7 +93,14 @@ export function AiTrainingModelTab() {
 
   async function removeModel() {
     if (!window.confirm("모델을 삭제하면 AI 카메라가 기존(색상·서버 AI) 방식으로만 동작합니다. 계속할까요?")) return;
-    await fetch("/api/admin/ai-training/model", { method: "DELETE" }).catch(() => {});
+    setMsg("");
+    setError("");
+    const res = await fetch("/api/admin/ai-training/model", { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) {
+      setError("모델 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      await load();
+      return;
+    }
     resetYoloModel();
     setMsg("모델을 삭제했습니다. 기존 감지 방식으로 동작합니다.");
     await load();
@@ -106,6 +123,16 @@ export function AiTrainingModelTab() {
         {loading ? (
           <div className="flex items-center gap-2 py-4 text-[13px] text-navy-400">
             <Loader2 size={15} className="animate-spin" /> 확인 중…
+          </div>
+        ) : loadFailed ? (
+          <div className="flex items-start gap-2 rounded-xl bg-red-500/10 px-3 py-3">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-300" />
+            <div>
+              <p className="text-[13px] font-semibold text-red-300">모델 정보를 불러오지 못했습니다.</p>
+              <p className="mt-0.5 text-[12px] text-navy-400">
+                일시적인 오류이거나 로그인이 만료됐을 수 있습니다. 새로고침을 눌러 다시 확인해 주세요.
+              </p>
+            </div>
           </div>
         ) : active ? (
           <div className="space-y-2.5">

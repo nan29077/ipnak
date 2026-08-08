@@ -5,7 +5,7 @@
  * 유저가 올린 공개 피드 사진 중 학습에 쓸 사진을 골라 training-data/raw 로 복사한다.
  * 선별 상태는 서버(Setting)에 저장되므로 새로고침해도 유지된다.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, FolderInput, Loader2, RefreshCw, Info, Eraser } from "lucide-react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -31,27 +31,35 @@ export function AiTrainingFeedTab() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  // 목록 로드 실패 여부 — 작업 결과 메시지(msg)와 분리해, 성공하면 자동으로 사라진다
+  const [loadError, setLoadError] = useState(false);
+  // 페이지를 빠르게 넘길 때 늦게 도착한 이전 응답이 최신 목록을 덮어쓰지 않도록 한다
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(async (p: number, selectedOnly: boolean) => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     try {
       const res = await fetch(
         `/api/admin/ai-training/feed-images?page=${p}${selectedOnly ? "&selected=1" : ""}`,
         { cache: "no-store" },
       );
+      if (seq !== loadSeqRef.current) return; // 더 최신 요청이 이미 나갔다
       if (!res.ok) {
-        setMsg("피드 사진을 불러오지 못했습니다.");
+        setLoadError(true);
         return;
       }
       const data = await res.json();
+      if (seq !== loadSeqRef.current) return;
       setItems(Array.isArray(data.items) ? data.items : []);
       setTotalPages(data.totalPages ?? 1);
       setTotal(data.total ?? 0);
       setSelectedCount(data.selectedCount ?? 0);
+      setLoadError(false);
     } catch {
-      setMsg("피드 사진을 불러오지 못했습니다.");
+      if (seq === loadSeqRef.current) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, []);
 
@@ -71,11 +79,13 @@ export function AiTrainingFeedTab() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && typeof data.selectedCount === "number") setSelectedCount(data.selectedCount);
       if (!res.ok) {
-        // 실패 시 원복
+        // 실패 시 원복 (선별 개수도 함께 되돌린다)
         setItems((prev) => prev.map((i) => (i.url === item.url ? { ...i, isTrainingCandidate: !next } : i)));
+        setSelectedCount((c) => Math.max(0, c + (next ? -1 : 1)));
       }
     } catch {
       setItems((prev) => prev.map((i) => (i.url === item.url ? { ...i, isTrainingCandidate: !next } : i)));
+      setSelectedCount((c) => Math.max(0, c + (next ? -1 : 1)));
     }
   }
 
@@ -172,6 +182,7 @@ export function AiTrainingFeedTab() {
         </div>
 
         {msg && <p className="mt-3 text-[12.5px] text-orange-400">{msg}</p>}
+        {loadError && <p className="mt-3 text-[12.5px] text-red-300">피드 사진을 불러오지 못했습니다. 새로고침을 눌러 다시 시도해 주세요.</p>}
       </div>
 
       <div className="card p-4">
