@@ -35,7 +35,7 @@ export default async function PurchasesPage() {
   });
 
   return (
-    <div className="bg-surface pb-24">
+    <div className="bg-surface">
       <PageHeader title="구매내역" back sub={`총 ${chats.length}개`} />
 
       {chats.length === 0 ? (

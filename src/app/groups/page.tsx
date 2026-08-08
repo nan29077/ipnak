@@ -61,7 +61,7 @@ export default function GroupsPage() {
   }
 
   return (
-    <div className="bg-[#0d1b2a] pb-24">
+    <div className="bg-[#0d1b2a]">
       <div className="sticky top-0 z-20 border-b border-navy-100/20 bg-[#0d1b2a]/95 backdrop-blur-md">
         <div className="flex items-center gap-2 px-3.5 py-3">
           <h1 className="text-lg font-extrabold text-navy-900">낚시단</h1>

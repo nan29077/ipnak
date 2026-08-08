@@ -35,7 +35,7 @@ export default async function FavoritesPage() {
   });
 
   return (
-    <div className="bg-surface pb-24">
+    <div className="bg-surface">
       <PageHeader title="관심목록" back sub={`총 ${favorites.length}개`} />
 
       {favorites.length === 0 ? (

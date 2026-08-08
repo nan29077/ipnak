@@ -14,7 +14,7 @@ export default async function SettingsPage() {
   if (!user) redirect("/login");
 
   return (
-    <div className="bg-[#0d1b2a] pb-24">
+    <div className="bg-[#0d1b2a]">
       <PageHeader title="설정" />
 
       <div className="mx-auto max-w-[640px] space-y-5 px-4 py-4">

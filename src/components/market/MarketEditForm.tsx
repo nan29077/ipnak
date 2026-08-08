@@ -69,7 +69,7 @@ export function MarketEditForm({ listingId, initial }: Props) {
   }
 
   return (
-    <div className="bg-surface pb-24">
+    <div className="bg-surface">
       <PageHeader title="판매글 수정" back />
       <div className="space-y-5 px-4 pt-4">
         <div>

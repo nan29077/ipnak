@@ -29,7 +29,7 @@ export default async function MyMarketPage() {
   });
 
   return (
-    <div className="bg-surface pb-24">
+    <div className="bg-surface">
       <PageHeader title="내 판매글" back sub={`총 ${listings.length}개`} right={
         <Link href="/market/new" aria-label="판매글 등록" className="rounded-full p-2 text-navy-700 transition-colors hover:bg-navy-50">
           <Plus size={22} />

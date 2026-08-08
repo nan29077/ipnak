@@ -126,7 +126,7 @@ export default function IpnakBallShopPage() {
   const totalPrice = selectedProduct ? selectedProduct.price * quantity : 0;
 
   return (
-    <div className="bg-[#0d1b2a] pb-24">
+    <div className="bg-[#0d1b2a]">
       {/* 헤더 */}
       <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/10 bg-[#0d1b2a]/95 px-4 py-3 backdrop-blur">
         <button

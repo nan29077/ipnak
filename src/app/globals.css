@@ -56,8 +56,11 @@
    여백이 계속 검게 보이는 문제가 있었다 → body는 투명. */
 html {
   background: var(--color-bg);
-  /* iOS Safari: 당겨서새로고침(pull-to-refresh) 허용 */
-  overscroll-behavior-y: auto;
+  /* 스크롤 끝에서 문서 전체가 고무줄처럼 튕기면(iOS WKWebView·모바일 사파리 bounce)
+     position:fixed 인 하단 네비게이션까지 같이 밀려 올라가 화면 아래에 빈 공간이 생긴다.
+     none 으로 바운스를 막아 네비가 항상 뷰포트 맨 아래에 붙어 있게 한다.
+     ※ 대가로 브라우저 기본 당겨서새로고침(pull-to-refresh)은 동작하지 않는다. */
+  overscroll-behavior-y: none;
 }
 html, body {
   color: var(--color-text-primary);
@@ -65,9 +68,9 @@ html, body {
 }
 body {
   background: transparent;
-  /* iOS Safari: 모멘텀 스크롤 + 세로 스크롤 명시 허용 */
+  /* iOS Safari: 모멘텀 스크롤 유지 (바운스는 위 html 규칙에서 차단) */
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: auto;
+  overscroll-behavior-y: none;
 }
 
 
@@ -100,9 +103,9 @@ input, textarea, select {
 .pb-safe { padding-bottom: calc(0.5rem + var(--safe-bottom)); }
 .pt-safe { padding-top: var(--safe-top); }
 
-/* 상세 페이지(피드·조행기·마켓) 하단 여백 — 하단 네비게이션 바 높이만큼만 확보.
-   AppShell main의 기본 pb-24(96px)는 네비(60px + .pb-safe)보다 커서 스크롤 끝에 빈 여백이
-   남는다. 이 클래스는 딱 네비 높이만 띄워 여백 없이 콘텐츠가 가려지지도 않게 한다.
+/* 본문 하단 여백 — 하단 네비게이션 바 높이(60px + .pb-safe)와 정확히 같은 값.
+   더 크면 스크롤 끝에 빈 여백이 남고, 더 작으면(예: 고정값 pb-24=96px) safe-area가 있는
+   기기에서 마지막 콘텐츠가 네비에 가려진다. AppShell main 이 기본으로 사용한다.
    md 이상에선 하단 네비가 숨겨지므로 0 (AppShell의 md:pb-0과 동일). */
 .pb-bottom-nav { padding-bottom: calc(3.75rem + 0.5rem + var(--safe-bottom)); }
 @media (min-width: 768px) { .pb-bottom-nav { padding-bottom: 0; } }

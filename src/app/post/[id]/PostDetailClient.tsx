@@ -23,7 +23,7 @@ export function PostDetailClient({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 상세 페이지에서 AppShell main의 min-h-screen / flex stretch를 해제해 하단 빈 공간 제거.
-  // 하단 패딩(pb-24 = 96px)도 함께 걷어내고, 대신 아래 래퍼의 .pb-bottom-nav 로
+  // 하단 패딩(main의 .pb-bottom-nav)도 함께 걷어내고, 대신 아래 래퍼의 .pb-bottom-nav 로
   // 하단 네비게이션 바 높이만큼만 확보한다 — 반응형 분기는 CSS 미디어 쿼리가 처리.
   useLayoutEffect(() => {
     const main = document.querySelector("main");
