@@ -3,6 +3,8 @@ import { randomBytes } from "crypto";
 
 // 카카오 OAuth 시작 — 사용자를 카카오 인증 페이지로 리디렉션한다.
 // state 값은 CSRF 방지용으로 httpOnly 쿠키에 저장 후 callback에서 검증한다.
+// force-dynamic: 매 요청마다 새 state를 생성하고 env 변수를 런타임에서 읽도록 강제한다.
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const state = randomBytes(16).toString("hex");
