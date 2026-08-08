@@ -86,6 +86,8 @@ const SHIMMER_MS = 1800;       // 윤슬(빛 포인트)이 물고기 외곽을 �
 // (AI 응답 한 번의 실수로 카메라가 닫히지 않도록 2회 연속을 요구)
 const REF_MISS_LIMIT = 2;
 const FISH_MISS_LIMIT = 2; // 물고기 연속 미감지 횟수 (REF_MISS_LIMIT 와 동일, 빠른 반응)
+// 물고기·기준물 모두 미감지 연속 횟수 — 둘 다 없는 상황 전용 팝업 트리거
+const BOTH_MISS_LIMIT = 2;
 // "판정 불가" 응답(타임아웃·AI 오류·레이트리밋·파싱 실패·no-ai-key 등)이 연속으로
 // 이 횟수만큼 쌓이면 물고기 미감지와 동일하게 안내 팝업을 띄운다.
 // (판정 불가만 계속 오면 fishMiss/refMiss 카운터가 영원히 안 올라 팝업이 절대 안 뜨는 것 방지)
@@ -102,7 +104,7 @@ type Cam = "loading" | "ready" | "error";
  * - no-fish-warning : 물고기 미감지 → "물고기를 찾을 수 없습니다" 메시지 표시 (1.5초)
  * - fish-missing    : no-fish-warning 후 → "종료하시겠습니까?" 모달 표시
  */
-type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing" | "no-fish-warning" | "fish-missing";
+type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing" | "no-fish-warning" | "fish-missing" | "no-both-warning" | "both-missing";
 
 type Detection = {
   ballN: NormBall;
@@ -229,8 +231,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
   const scanStatusRef = useRef<ContourStatus>("idle"); // 폴링 콜백에서 최신 상태 참조
   const [stage, setStage] = useState<Stage>("scan");
   const stageRef = useRef<Stage>("scan");
-  const refMissRef = useRef(0);  // 기준물 연속 미감지 횟수
-  const fishMissRef = useRef(0); // 물고기 연속 미감지 횟수
+  const refMissRef = useRef(0);   // 기준물 연속 미감지 횟수 (물고기 O · 볼 X)
+  const fishMissRef = useRef(0);  // 물고기 연속 미감지 횟수 (볼 O · 물고기 X)
+  const bothMissRef = useRef(0);  // 둘 다 연속 미감지 횟수 (볼 X · 물고기 X)
   const totalFailRef = useRef(0); // "판정 불가" 응답(타임아웃·AI 오류 등) 연속 횟수
 
   /** FishScanGlow 감지 상태 수신 (state + ref 동시 갱신) */
@@ -594,6 +597,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
           };
           successRef.current = { work: frame, det: detection };
           refMissRef.current = 0;
+          fishMissRef.current = 0;
+          bothMissRef.current = 0;
           totalFailRef.current = 0;
           setDet(detection);
           // 물고기 + 기준물 모두 인식 → 윤슬 한 바퀴 후 자동 측정
@@ -606,7 +611,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
             totalFailRef.current = 0; // 확정 판정 수신 → 판정 불가 연속 카운터 리셋
             // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 —
             // API 가 fishFound:false 이고 ballFound:false ("아무것도 없음") 인 경우:
-            //   → 클라이언트 윤곽 감지(scanStatus "locked") 를 무시하고 물고기 미감지로 처리.
+            //   → 클라이언트 윤곽 감지(scanStatus "locked") 를 무시하고 둘 다 없음으로 처리.
             //     (윤곽 감지는 사람 다리/의류 등을 물고기로 오인식할 수 있음)
             // API 가 fishFound:true 이거나 윤곽 감지가 locked 인 경우만 "물고기는 있음"으로 판단.
             const bothAbsent = data?.ballFound === false && data?.fishFound === false;
@@ -614,19 +619,29 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
               data?.fishFound === true ||
               (!bothAbsent && scanStatusRef.current === "locked");
             if (fishVisible) {
-              fishMissRef.current = 0; // 물고기는 있으므로 물고기 카운터 리셋
+              // 물고기 O · 볼 X → 기준물 미감지 카운터
+              fishMissRef.current = 0;
+              bothMissRef.current = 0;
               refMissRef.current += 1;
               if (refMissRef.current >= REF_MISS_LIMIT) goStage("no-ref-warning");
-            } else {
-              // 물고기도 기준물도 없음(또는 물고기 자체가 없음) → 물고기 미감지 카운터 증가
+            } else if (bothAbsent) {
+              // 물고기 X · 볼 X → 둘 다 미감지 카운터 (별도 팝업)
               refMissRef.current = 0;
+              fishMissRef.current = 0;
+              bothMissRef.current += 1;
+              if (bothMissRef.current >= BOTH_MISS_LIMIT) goStage("no-both-warning");
+            } else {
+              // 물고기 X (볼도 없으나 bothAbsent 아닌 경우) → 물고기 미감지
+              refMissRef.current = 0;
+              bothMissRef.current = 0;
               fishMissRef.current += 1;
               if (fishMissRef.current >= FISH_MISS_LIMIT) goStage("no-fish-warning");
             }
           } else if (data?.ok === false && data?.reason === "no-fish") {
-            // 물고기 자체가 없음
+            // 볼 O · 물고기 X → 물고기 미감지 카운터
             totalFailRef.current = 0; // 확정 판정 수신 → 판정 불가 연속 카운터 리셋
             refMissRef.current = 0;
+            bothMissRef.current = 0;
             fishMissRef.current += 1;
             if (fishMissRef.current >= FISH_MISS_LIMIT) goStage("no-fish-warning");
           } else if (data && (data.ok === true || data.ballFound === true)) {
@@ -715,6 +730,13 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
     return () => clearTimeout(t);
   }, [stage, goStage]);
 
+  /* ── no-both-warning → 1.5초 후 자동으로 both-missing 모달로 전환 ── */
+  useEffect(() => {
+    if (stage !== "no-both-warning") return;
+    const t = setTimeout(() => goStage("both-missing"), 1500);
+    return () => clearTimeout(t);
+  }, [stage, goStage]);
+
   /* ── 기준물 미감지 안내 '예' → 카메라 닫고 선택 화면 복귀 ── */
   const closeAfterRefMissing = useCallback(() => {
     cleanupStream();
@@ -724,6 +746,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
   /* ── 기준물 미감지 안내 '아니오' → 팝업만 닫고 카메라 유지 (미감지 카운터 리셋) ── */
   const keepScanningAfterRefMissing = useCallback(() => {
     refMissRef.current = 0;
+    fishMissRef.current = 0;
+    bothMissRef.current = 0;
     totalFailRef.current = 0;
     goStage("scan");
   }, [goStage]);
@@ -736,7 +760,24 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
 
   /* ── 물고기 미감지 안내 '아니오' → 팝업만 닫고 카메라 유지 ── */
   const keepScanningAfterFishMissing = useCallback(() => {
+    refMissRef.current = 0;
     fishMissRef.current = 0;
+    bothMissRef.current = 0;
+    totalFailRef.current = 0;
+    goStage("scan");
+  }, [goStage]);
+
+  /* ── 둘 다 미감지 안내 '예' → 카메라 닫고 선택 화면 복귀 ── */
+  const closeAfterBothMissing = useCallback(() => {
+    cleanupStream();
+    onClose();
+  }, [cleanupStream, onClose]);
+
+  /* ── 둘 다 미감지 안내 '아니오' → 팝업만 닫고 카메라 유지 ── */
+  const keepScanningAfterBothMissing = useCallback(() => {
+    refMissRef.current = 0;
+    fishMissRef.current = 0;
+    bothMissRef.current = 0;
     totalFailRef.current = 0;
     goStage("scan");
   }, [goStage]);
@@ -1132,7 +1173,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
               AI 카메라를<br />종료하시겠습니까?
             </p>
             <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
-              물고기가 인식되지 않았어요
+              입낚볼은 인식됐어요.<br />물고기를 함께 화면에 놓아주세요
             </p>
           </div>
           <div className="flex gap-2 px-4 pb-6 pt-1">
@@ -1176,7 +1217,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
               AI 카메라를<br />종료하시겠습니까?
             </p>
             <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
-              입낚볼 / 입낚키링 / 입낚인쇄물이<br />인식되지 않았어요
+              물고기는 인식됐어요.<br />입낚볼 / 입낚키링 / 입낚인쇄물을<br />함께 놓아주세요
             </p>
           </div>
           <div className="flex gap-2 px-4 pb-6 pt-1">
@@ -1190,6 +1231,68 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) 
             <button
               type="button"
               onClick={closeAfterRefMissing}
+              className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
+            >
+              예
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── 둘 다 미감지 1단계: "물고기와 입낚볼 모두 보이지 않습니다" 메시지 (1.5초) ── */}
+    {stage === "no-both-warning" && (
+      <div
+        className="fixed inset-0 z-[460] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)" }}
+      >
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-orange-500/20 ring-1 ring-orange-500/35">
+            <AlertTriangle size={32} strokeWidth={1.6} className="text-orange-400" />
+          </div>
+          <div>
+            <p className="text-[18px] font-extrabold leading-snug tracking-tight text-white">
+              물고기와 입낚볼 모두<br />보이지 않습니다
+            </p>
+            <p className="mt-2 text-[13px] text-white/50">잠시 후 종료 여부를 확인합니다...</p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── 둘 다 미감지 2단계: 종료 여부 확인 모달 ── */}
+    {stage === "both-missing" && (
+      <div
+        className="fixed inset-0 z-[460] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.84)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }}
+      >
+        <div
+          className="w-full max-w-[340px] overflow-hidden rounded-[24px] shadow-2xl ring-1 ring-white/[0.1]"
+          style={{ background: "linear-gradient(170deg,#0b1e2e 0%,#162434 60%,#1a2a3a 100%)" }}
+        >
+          <div className="h-[3px] w-full bg-gradient-to-r from-orange-700/30 via-orange-400/90 to-orange-700/30" />
+          <div className="flex flex-col items-center px-6 pb-5 pt-7">
+            <div className="mb-4 flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
+              <AlertTriangle size={30} strokeWidth={1.6} className="text-orange-400" />
+            </div>
+            <p className="text-center text-[16px] font-extrabold leading-relaxed tracking-tight text-white">
+              AI 카메라를<br />종료하시겠습니까?
+            </p>
+            <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
+              물고기와 입낚볼을 함께<br />화면에 놓고 비춰주세요
+            </p>
+          </div>
+          <div className="flex gap-2 px-4 pb-6 pt-1">
+            <button
+              type="button"
+              onClick={keepScanningAfterBothMissing}
+              className="flex-1 rounded-2xl bg-white/10 py-3.5 text-[15px] font-bold text-white/80 transition-all active:scale-[0.98] active:bg-white/20"
+            >
+              아니오
+            </button>
+            <button
+              type="button"
+              onClick={closeAfterBothMissing}
               className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-[15px] font-bold text-gray-900 shadow-lg shadow-orange-500/25 transition-all active:scale-[0.98] active:bg-orange-600"
             >
               예
