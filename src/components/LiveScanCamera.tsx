@@ -44,6 +44,8 @@ export type LiveScanResult = {
 type Props = {
   onConfirm: (result: LiveScanResult) => void; // "측정하기" — 결과 화면으로
   onClose: () => void;                          // X — 닫기
+  /** 테스트 모드: 주황볼도 기준물로 허용. 프로덕션에서는 전달하지 않으면 false. */
+  testBall?: boolean;
 };
 
 /* ── 파티클 스파클 데이터 — x/y/size/duration/delay 완전히 독립적인 소수 기반 분산 ── */
@@ -113,22 +115,25 @@ type Detection = {
 };
 
 /**
- * 입낚볼 노란 구체(sphere)만의 반지름을 정밀 측정한다.
+ * 입낚볼 구체만의 반지름을 정밀 측정한다.
  * AI가 반환한 볼 중심(cx, cy)에서 16방향으로 방사형 스캔해
  * 노란색(HSV H:20~70°, S>30%, V>20%) 픽셀이 이어지는 최대 반경을 구한다.
- * 검정 연결고리 등 비노란 영역은 자연스럽게 제외된다.
+ * testBall=true 이면 주황색(H:10~70°)까지 범위를 확장한다.
+ * 검정 연결고리 등 비대상 영역은 자연스럽게 제외된다.
  *
- * @param canvas  캡처된 프레임 캔버스
- * @param cx      AI 감지 볼 중심 X (픽셀)
- * @param cy      AI 감지 볼 중심 Y (픽셀)
- * @param aiR     AI 감지 반경 (픽셀) — 실패 시 이 값을 그대로 반환
- * @returns       정제된 반경 (픽셀)
+ * @param canvas    캡처된 프레임 캔버스
+ * @param cx        AI 감지 볼 중심 X (픽셀)
+ * @param cy        AI 감지 볼 중심 Y (픽셀)
+ * @param aiR       AI 감지 반경 (픽셀) — 실패 시 이 값을 그대로 반환
+ * @param testBall  true 이면 주황볼(H:10°~)도 허용 (테스트 모드)
+ * @returns         정제된 반경 (픽셀)
  */
 function refineYellowBallRadius(
   canvas: HTMLCanvasElement,
   cx: number,
   cy: number,
-  aiR: number
+  aiR: number,
+  testBall = false,
 ): number {
   try {
     const ctx = canvas.getContext("2d");
@@ -163,8 +168,9 @@ function refineYellowBallRadius(
       else if (max === g) hue = 60 * ((b - r) / delta + 2);
       else                hue = 60 * ((r - g) / delta + 4);
       if (hue < 0) hue += 360;
-      // 노란색 범위 H: 20~70°
-      return hue >= 20 && hue <= 70;
+      // 노란색 범위 H: 20~70° / 테스트 모드(주황볼 포함) H: 10~70°
+      const hueMin = testBall ? 10 : 20;
+      return hue >= hueMin && hue <= 70;
     }
 
     // 16방향 방사형 스캔 → 각 방향의 마지막 노란 픽셀 반경 수집
@@ -201,7 +207,7 @@ function refineYellowBallRadius(
   }
 }
 
-export function LiveScanCamera({ onConfirm, onClose }: Props) {
+export function LiveScanCamera({ onConfirm, onClose, testBall = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -529,7 +535,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
           const res = await fetch("/api/measure/scan", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageBase64: dataUrl, width: frame.width, height: frame.height }),
+            body: JSON.stringify({ imageBase64: dataUrl, width: frame.width, height: frame.height, testBall }),
             signal: controller.signal,
           });
           if (res.ok) data = await res.json();
@@ -554,7 +560,7 @@ export function LiveScanCamera({ onConfirm, onClose }: Props) {
           // 실패 시(조명·과노출 등) AI 반경을 그대로 사용해 기존 동작 유지.
           const aiRadiusPx = data.ball.r * w;
           const refinedRadiusPx = refineYellowBallRadius(
-            frame, data.ball.x * w, data.ball.y * h, aiRadiusPx
+            frame, data.ball.x * w, data.ball.y * h, aiRadiusPx, testBall
           );
           const diameterPx = 2 * refinedRadiusPx;
           const widthN =

@@ -1227,6 +1227,7 @@ export default function MeasurePage() {
       <LiveScanCamera
         onConfirm={handleLiveScanConfirm}
         onClose={() => setLiveScanOpen(false)}
+        testBall={searchParams.get("testBall") === "1"}
       />,
       document.body
     )}

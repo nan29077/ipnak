@@ -23,6 +23,15 @@ const SYSTEM_PROMPT =
   "Locate the yellow reference circle, the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
   "Respond with ONLY a single JSON object and no other text.";
 
+/** 테스트 모드 전용 시스템 프롬프트 — 주황볼도 기준물로 허용 */
+const SYSTEM_PROMPT_TEST =
+  "You are a precise fish-measurement vision assistant for a Korean fishing app called 입낚. " +
+  "In each photo the user places an '입낚볼' — a reference ball that is exactly 40mm in diameter — next to a fish. " +
+  "The 입낚볼 may be DEEP YELLOW (golden yellow, similar to #eab308) OR ORANGE in test mode. " +
+  "It may appear as a 3D physical ball or as a flat printed paper circle with the '입낚' logo. " +
+  "Locate the reference circle (yellow OR orange), the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
+  "Respond with ONLY a single JSON object and no other text.";
+
 const USER_PROMPT = `Analyze the image and return JSON with this exact shape:
 {
   "ballFound": boolean,        // true only if the deep yellow 40mm 입낚 reference circle (physical ball or printed logo) is clearly and fully visible
@@ -43,6 +52,32 @@ Rules:
 - If the body outline is blurred, cropped, or hidden (e.g. by a hand), set widthFound=false and omit bodyTop/bodyBottom.
 - The reference marker is a DEEP YELLOW circle (golden yellow, NOT orange). It may be a 3D ball or a flat printed paper circle with the fishing-hook-shaped arrow 입낚 logo.
 - If the yellow reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
+- If no whole fish is visible, set fishFound=false and confidence<=0.3.
+- If the fish is held up, standing, or not lying flat on its side, set pose="held" and confidence<=0.5.
+- Only set pose="flat" and a high confidence when you are sure the fish lies flat on its side and both endpoints are clear.
+Return ONLY the JSON object.`;
+
+/** 테스트 모드 전용 유저 프롬프트 — 주황볼도 기준물로 허용 */
+const USER_PROMPT_TEST = `Analyze the image and return JSON with this exact shape:
+{
+  "ballFound": boolean,        // true only if the 40mm 입낚 reference circle (deep yellow OR orange, physical ball or printed logo) is clearly and fully visible
+  "ball": { "x": number, "y": number, "r": number },  // ball center (normalized) and radius (normalized to image WIDTH)
+  "fishFound": boolean,        // true only if a whole fish is visible
+  "head": { "x": number, "y": number },  // tip of the fish mouth/head, normalized
+  "tail": { "x": number, "y": number },  // tip of the tail fin, normalized
+  "widthFound": boolean,       // true only if the fish body outline is clear enough to measure its maximum width
+  "bodyTop": { "x": number, "y": number },     // on the widest cross-section of the BODY, the point on one side of the outline, normalized
+  "bodyBottom": { "x": number, "y": number },  // the opposite point of that same cross-section, normalized
+  "pose": "flat" | "held" | "unknown",   // "flat" = fish lying on its side flat on the ground; "held" = held up / standing / angled; "unknown" if unclear
+  "confidence": number         // 0.0~1.0 overall confidence that ball + head + tail are correctly located AND the fish lies flat
+}
+Rules:
+- All coordinates MUST be within 0..1. x is relative to image width, y to image height.
+- bodyTop/bodyBottom mark the thickest part of the fish body (usually just behind the head, near the front of the dorsal fin). The segment between them MUST be perpendicular to the head→tail axis and MUST touch the body outline on both sides.
+- Measure the BODY only for bodyTop/bodyBottom: exclude the dorsal fin, anal fin, pectoral fins and tail fin.
+- If the body outline is blurred, cropped, or hidden (e.g. by a hand), set widthFound=false and omit bodyTop/bodyBottom.
+- [TEST MODE] The reference marker may be DEEP YELLOW (golden yellow, #eab308) OR ORANGE. Accept both colors as valid 입낚볼.
+- If the reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - If the fish is held up, standing, or not lying flat on its side, set pose="held" and confidence<=0.5.
 - Only set pose="flat" and a high confidence when you are sure the fish lies flat on its side and both endpoints are clear.
@@ -83,6 +118,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "bad-request" }, { status: 400 });
   }
 
+  // 테스트 모드 플래그 — 주황볼도 기준물로 허용 (프로덕션에서는 항상 false)
+  const testBall: boolean = body?.testBall === true;
+
   const imageBase64: string = typeof body?.imageBase64 === "string" ? body.imageBase64 : "";
   if (!imageBase64 || !imageBase64.startsWith("data:image")) {
     return NextResponse.json({ ok: false, reason: "no-image" }, { status: 400 });
@@ -108,11 +146,11 @@ export async function POST(req: Request) {
         max_tokens: 400, // 너비(bodyTop/bodyBottom) 필드 추가분 여유
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: testBall ? SYSTEM_PROMPT_TEST : SYSTEM_PROMPT },
           {
             role: "user",
             content: [
-              { type: "text", text: USER_PROMPT },
+              { type: "text", text: testBall ? USER_PROMPT_TEST : USER_PROMPT },
               { type: "image_url", image_url: { url: imageBase64, detail: "auto" } },
             ],
           },
