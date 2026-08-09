@@ -456,6 +456,7 @@ export function FishingSpotTab() {
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setPickerOpen(false)} />
           <div className="relative flex max-h-[88vh] w-full max-w-[440px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#162538] sm:rounded-3xl">
+            <div className="mx-auto mt-2.5 mb-0.5 h-1 w-10 rounded-full bg-navy-200/50" aria-hidden />
             <div className="flex items-center justify-between border-b border-navy-100/15 px-4 py-3.5">
               <p className="text-[15px] font-bold text-navy-800">새 어장포인트 위치</p>
               <button
@@ -532,6 +533,7 @@ export function FishingSpotTab() {
         >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={() => setTripPickerOpen(false)} />
           <div className="relative flex max-h-[80vh] w-full max-w-[440px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#162538] sm:rounded-3xl">
+            <div className="mx-auto mt-2.5 mb-0.5 h-1 w-10 rounded-full bg-navy-200/50" aria-hidden />
             <div className="flex items-center justify-between border-b border-navy-100/15 px-4 py-3.5">
               <p className="text-[15px] font-bold text-navy-800">내 기록에서 불러오기</p>
               <button
