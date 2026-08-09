@@ -595,15 +595,24 @@ export function FishingSpotTab() {
         onSaved={handleSaved}
       />
 
-      {/* ── 어장포인트 추가 플로팅 버튼 (글쓰기 FAB와 동일 위치) ── */}
-      <button
-        type="button"
-        onClick={openPicker}
-        aria-label="어장포인트 추가"
-        className="pointer-events-auto fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#122030] text-orange-500 shadow-xl shadow-black/40 ring-1 ring-orange-500/40 transition-all hover:bg-[#232323] hover:ring-orange-500/70 active:scale-95 md:bottom-6"
-      >
-        <Plus size={24} strokeWidth={2} />
-      </button>
+      {/* ── 어장포인트 추가 플로팅 버튼 ──
+          FeedWriteFab 과 동일한 컨테이너 구조 사용 → PC/모바일 모두 앱 프레임 내 우하단에 표시 */}
+      {typeof document !== "undefined" && createPortal(
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 top-0 z-40 mx-auto flex w-full max-w-[760px] justify-center">
+          <div className="relative w-full max-w-[640px]">
+            <button
+              type="button"
+              onClick={openPicker}
+              aria-label="어장포인트 추가"
+              className="pointer-events-auto absolute right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] flex h-14 w-14 items-center justify-center rounded-full bg-[#122030] text-orange-500 shadow-xl shadow-black/40 ring-1 ring-orange-500/40 transition-all hover:bg-[#232323] hover:ring-orange-500/70 active:scale-95 md:bottom-6"
+            >
+              <Plus size={24} strokeWidth={2} />
+            </button>
+          </div>
+          <div className="hidden w-[104px] shrink-0 md:block" aria-hidden />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
