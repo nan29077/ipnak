@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Sheet, LoadingState } from "@/components/ui";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
+import { TripShareActions, CAPTURE_IGNORE_ATTR } from "@/components/TripShareActions";
 
 type CatchItem = {
   id?: string;
@@ -257,6 +258,8 @@ export function TripDetailSheet({
   // default로 돌아올 때 최상단 스크롤 복구에 쓰는 sentinel ref
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const prevViewModeRef = useRef<ViewMode>("default");
+  // PNG 로 저장할 기록 본문 영역 (스크롤로 가려진 부분까지 전체 캡처)
+  const captureRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -407,6 +410,20 @@ export function TripDetailSheet({
       ? selectedCatch?.speciesName || "피쉬 기록"
       : "동선 지도";
 
+  // ── 공유 / 이미지 저장에 쓰는 값 ──
+  // 저장 파일명: ipnak-record-{날짜}
+  const recordDate = tripDate || new Date().toISOString().slice(0, 10);
+  const shareTitle = data
+    ? `${data.region ? `${data.region} ` : ""}스마트피싱 기록 (${recordDate})`
+    : "스마트피싱 기록";
+  const shareDescription = data
+    ? `이동 ${formatDist(data.distanceM)} · ${formatDuration(data.durationSec)} · 피쉬 ${catchDisplayCount}건`
+    : "";
+  // 워킹피드에 게시된 기록이면 그 글로, 아니면 홈으로 연결한다.
+  const sharePath =
+    walkingFeedPublished && data?.walkingFeedPostId ? `/post/${data.walkingFeedPostId}` : "/";
+  const shareThumbnail = data?.catches.find((c) => c.photoUrl)?.photoUrl ?? null;
+
   return (
     <Sheet
       open={open}
@@ -441,7 +458,7 @@ export function TripDetailSheet({
               기록 정보를 불러올 수 없습니다.
             </p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3" ref={captureRef}>
 
               {/* ── 출조 시간 ── */}
               <div className="rounded-2xl border border-navy-100 bg-[#0d1b2a] p-4">
@@ -674,6 +691,11 @@ export function TripDetailSheet({
                 )}
               </div>
 
+              {/* ── 워킹피드 게시 + 공유/이미지 저장 ──
+                  버튼들은 캡처 이미지에 담기지 않도록 CAPTURE_IGNORE_ATTR 를 붙인다.
+                  (기존 "워킹피드에 올리기" 버튼 자체는 그대로 두고 바깥만 감쌌다) */}
+              <div {...{ [CAPTURE_IGNORE_ATTR]: "" }} className="space-y-2">
+
               {/* ── 워킹피드 게시 버튼 (routePoints < 2이면 숨김) ── */}
               {data.routePoints.length >= 2 && (
                 walkingFeedPublished ? (
@@ -716,6 +738,17 @@ export function TripDetailSheet({
                   </button>
                 )
               )}
+
+              {/* ── 소셜 공유(카카오톡·기타 앱) + 기록 이미지(PNG) 저장 ── */}
+              <TripShareActions
+                captureRef={captureRef}
+                title={shareTitle}
+                description={shareDescription}
+                thumbnailUrl={shareThumbnail}
+                sharePath={sharePath}
+                fileName={`ipnak-record-${recordDate}`}
+              />
+              </div>
 
             </div>
           )}

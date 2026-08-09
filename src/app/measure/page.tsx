@@ -127,12 +127,19 @@ export default function MeasurePage() {
         const keyring = d.keyringEnabled === true;
         setBallEnabled(ball);
         setKeyringEnabled(keyring);
-        // 꺼진 상품이 선택돼 있으면 켜져 있는 쪽으로 보정
-        setRefType((prev) => (prev === "ball" && !ball && keyring ? "keyring" : prev === "keyring" && !keyring ? "ball" : prev));
+        // 꺼진 상품이 선택돼 있으면 켜져 있는 쪽으로 보정.
+        // 단, NFC 태그로 진입한 경우(ballId/keyringId 지정)에는 보정하지 않는다.
+        // 보정해 버리면 태그한 기준물과 다른 종류로 바뀌어, 저장 시 태그한 ID 가 빠지고
+        // 엉뚱한 연동 ID(내 첫 번째 볼/키링)가 기록에 붙는다.
+        setRefType((prev) => {
+          if (tagBallId || tagKeyringId) return prev;
+          return prev === "ball" && !ball && keyring ? "keyring" : prev === "keyring" && !keyring ? "ball" : prev;
+        });
       })
       .catch(() => {})
       .finally(() => { clearTimeout(fallback); setFlagsLoaded(true); });
     return () => clearTimeout(fallback);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
