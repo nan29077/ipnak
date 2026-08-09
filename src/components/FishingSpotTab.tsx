@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { createPortal } from "react-dom";
 import {
-  Crosshair, Fish, Loader2, MapPin, Pencil, Plus, Route, Ruler, Trash2, X,
+  Crosshair, Fish, Loader2, MapPin, Pencil, Plus, Route, Ruler, Trash2, X, ZoomIn,
 } from "lucide-react";
 import { Sheet } from "@/components/ui";
 import { useToast } from "@/components/Toast";
@@ -74,6 +74,7 @@ export function FishingSpotTab() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
 
   // 위치 선택 모달
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -261,6 +262,15 @@ export function FishingSpotTab() {
           <MapPin size={14} className="text-aqua-400" strokeWidth={1.8} />
           <p className="text-[13px] font-bold text-navy-700">내 어장포인트</p>
           <span className="ml-1 text-[11px] text-navy-400">{spots.length}곳</span>
+          <button
+            type="button"
+            onClick={() => setMapFullscreen(true)}
+            style={{ backgroundColor: "#eab308", color: "#0d1b2a" }}
+            className="ml-auto flex items-center gap-1 rounded-xl px-2.5 py-1 text-[11px] font-semibold transition-opacity hover:opacity-80"
+          >
+            <ZoomIn size={12} strokeWidth={2} />
+            크게보기
+          </button>
         </div>
         <div className="h-56 w-full">
           {loading ? (
@@ -594,6 +604,40 @@ export function FishingSpotTab() {
         spotId={pending?.spotId}
         onSaved={handleSaved}
       />
+
+      {/* ── 지도 크게보기 풀스크린 모달 ── */}
+      {mapFullscreen && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col bg-[#0d1b2a]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="어장포인트 지도 전체보기"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-navy-100/20 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <MapPin size={15} className="text-aqua-400" strokeWidth={1.8} />
+              <p className="text-[14px] font-bold text-navy-800">내 어장포인트</p>
+              <span className="text-[12px] text-navy-400">{spots.length}곳</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMapFullscreen(false)}
+              aria-label="닫기"
+              className="rounded-full p-2 text-navy-400 transition-colors hover:bg-white/5"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <SpotMap
+              spots={markers}
+              selectedId={selectedId}
+              onSelect={(id) => { setSelectedId(id); setMapFullscreen(false); setDetailOpen(true); }}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* ── 어장포인트 추가 플로팅 버튼 ──
           FeedWriteFab 과 동일한 컨테이너 구조 사용 → PC/모바일 모두 앱 프레임 내 우하단에 표시 */}
