@@ -107,18 +107,30 @@ function saveBlobViaAnchor(blob: Blob, fileName: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** 터치 기반 모바일 기기인지 — 데스크톱에서는 항상 파일 다운로드를 쓴다 */
+function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) return true;
+  // iPadOS 13+ 는 데스크톱 Safari 로 위장한다 → 터치 포인트로 구분
+  return (
+    /Macintosh/i.test(navigator.userAgent || "") &&
+    typeof navigator.maxTouchPoints === "number" &&
+    navigator.maxTouchPoints > 1
+  );
+}
+
 /**
- * Blob 을 이미지로 저장한다.
+ * Blob 을 이미지 파일로 저장한다.
  *
- * 모바일(iOS/Android)에서는 a[download] 가 Safari 다운로드 바로만 떨어져서
- * 카메라롤에 바로 담기지 않는다. 파일 공유를 지원하면 공유 시트를 띄워
- * "사진에 저장" 을 고를 수 있게 하고, 미지원 환경(PC 등)에서는 기존
- * a[download] 방식으로 폴백한다.
+ * - PC : a[download] 로 실제 PNG 파일을 그대로 내려받는다.
+ * - 모바일 : a[download] 가 사진첩에 담기지 않아서, 파일 공유를 지원하면
+ *   공유 시트를 띄워 "이미지 저장"을 고를 수 있게 한다. (미지원이면 a[download] 폴백)
  */
 export async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
   const file = new File([blob], fileName, { type: blob.type || "image/png" });
 
   if (
+    isMobileDevice() &&
     typeof navigator !== "undefined" &&
     typeof navigator.canShare === "function" &&
     typeof navigator.share === "function" &&
