@@ -18,6 +18,8 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
   const [loginModal, setLoginModal] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  // 특정 탭(내 어장포인트 등)이 활성화되면 해당 탭의 FAB가 대신 표시되므로 숨긴다
+  const [hiddenByTab, setHiddenByTab] = useState(false);
   // 글쓰기 페이지로 이동 중 — 시트를 즉시 닫으면 새 페이지가 그려지기 전
   // 이전 피드가 잠깐 보여서(플리커) 앱 배경색 불투명 커버를 덮어둔다.
   const [navigating, setNavigating] = useState(false);
@@ -25,6 +27,14 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
   const loggedIn = !!currentUserId;
 
   useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    const check = () => setHiddenByTab(document.body.hasAttribute("data-hide-fab"));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.body, { attributes: true, attributeFilter: ["data-hide-fab"] });
+    return () => obs.disconnect();
+  }, []);
 
   // 이동이 끝나면(경로 변경) 시트와 커버를 정리한다
   useEffect(() => { setNavigating(false); setOpen(false); }, [pathname]);
@@ -65,7 +75,7 @@ export function FeedWriteFab({ currentUserId }: { currentUserId?: string }) {
       {/* FAB 버튼 — 하단 메뉴 위에 떠 있는 글쓰기 원형 버튼 */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 top-0 z-40 mx-auto flex w-full max-w-[760px] justify-center">
         <div className="relative w-full max-w-[640px]">
-          {!inputFocused && (
+          {!inputFocused && !hiddenByTab && (
             <button
               onClick={() => (loggedIn ? setOpen(true) : setLoginModal(true))}
               aria-label="글쓰기"

@@ -64,6 +64,12 @@ export function FishingSpotTab() {
   const toast = useToast();
   const [spots, setSpots] = useState<FishingSpot[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 이 탭이 활성화되면 글쓰기 FAB를 숨기고 어장 추가 FAB로 대체한다
+  useEffect(() => {
+    document.body.setAttribute("data-hide-fab", "1");
+    return () => { document.body.removeAttribute("data-hide-fab"); };
+  }, []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -255,15 +261,6 @@ export function FishingSpotTab() {
           <MapPin size={14} className="text-aqua-400" strokeWidth={1.8} />
           <p className="text-[13px] font-bold text-navy-700">내 어장포인트</p>
           <span className="ml-1 text-[11px] text-navy-400">{spots.length}곳</span>
-          {/* + 버튼: 헤더 우측 인라인 배치 (글쓰기 FAB 겹침 방지) */}
-          <button
-            type="button"
-            onClick={openPicker}
-            aria-label="어장포인트 추가"
-            className="ml-auto flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-gray-900 shadow-sm transition-colors hover:bg-orange-600"
-          >
-            <Plus size={15} strokeWidth={2.4} />
-          </button>
         </div>
         <div className="h-56 w-full">
           {loading ? (
@@ -595,6 +592,16 @@ export function FishingSpotTab() {
         spotId={pending?.spotId}
         onSaved={handleSaved}
       />
+
+      {/* ── 어장포인트 추가 플로팅 버튼 (글쓰기 FAB와 동일 위치) ── */}
+      <button
+        type="button"
+        onClick={openPicker}
+        aria-label="어장포인트 추가"
+        className="pointer-events-auto fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#122030] text-orange-500 shadow-xl shadow-black/40 ring-1 ring-orange-500/40 transition-all hover:bg-[#232323] hover:ring-orange-500/70 active:scale-95 md:bottom-6"
+      >
+        <Plus size={24} strokeWidth={2} />
+      </button>
     </div>
   );
 }

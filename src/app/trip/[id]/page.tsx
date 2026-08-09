@@ -9,8 +9,8 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
+import { MiniRouteMap } from "@/components/MiniRouteMap";
 import { PublicTripView } from "./PublicTripView";
-import { TripDetailClient } from "./TripDetailClient";
 
 export const dynamic = "force-dynamic";
 
@@ -237,21 +237,6 @@ export default async function TripDetailPage({ params }: { params: { id: string 
     });
   }
 
-  // ── 공유 / 이미지저장에 쓰이는 값 ──
-  const catchCount = catches.length > 0 ? catches.length : trip.catchCount;
-  const topCatch = catches.length > 0
-    ? catches.reduce((best, c) => ((c.sizeCm ?? -1) > (best.sizeCm ?? -1) ? c : best))
-    : null;
-  const shareTitle =
-    topCatch?.speciesName && topCatch.sizeCm != null
-      ? `입낚볼로 잡은 ${Math.round(topCatch.sizeCm)}cm ${topCatch.speciesName}! 🎣`
-      : `${trip.region ? `${trip.region} ` : ""}스마트피싱 기록 🎣`;
-  const shareDescription = `이동 ${formatDist(trip.distanceM)} · ${formatDuration(trip.durationSec)} · 피쉬 ${catchCount}건`;
-  const thumbnailUrl = catches.find((c) => c.photoUrl)?.photoUrl ?? null;
-  const catchPoints = catches
-    .filter((c) => c.lat != null && c.lng != null)
-    .map((c) => ({ lat: c.lat!, lng: c.lng! }));
-
   return (
     <div className="pb-10">
       <PageHeader
@@ -349,16 +334,18 @@ export default async function TripDetailPage({ params }: { params: { id: string 
           )}
         </div>
 
-        {/* ── 동선 지도 + 크게보기 + 공유·저장 버튼 (클라이언트 컴포넌트) ── */}
-        <TripDetailClient
-          tripId={params.id}
-          routePoints={routePoints}
-          catchPoints={catchPoints}
-          shareTitle={shareTitle}
-          shareDescription={shareDescription}
-          thumbnailUrl={thumbnailUrl}
-          fileName={`입낚-기록-${tripDate}`}
-        />
+        {/* ── 동선 지도 ── */}
+        {routePoints.length > 0 && (
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-navy-400">동선 지도</p>
+            <div className="h-52 w-full overflow-hidden rounded-2xl border border-navy-100">
+              <MiniRouteMap
+                points={routePoints}
+                catchPoints={catches.filter((c) => c.lat != null && c.lng != null).map((c) => ({ lat: c.lat!, lng: c.lng! }))}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ── 피쉬 기록 ── */}
         <div>
