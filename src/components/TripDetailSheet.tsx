@@ -426,6 +426,23 @@ export function TripDetailSheet({
   const sharePath =
     feedPublished && data?.walkingFeedPostId ? `/post/${data.walkingFeedPostId}` : "/";
   const shareThumbnail = data?.catches.find((c) => c.photoUrl)?.photoUrl ?? null;
+  // 공개 열람 페이지(/trip/{id})로 링크할 수 있는 기록인지 — 로컬 전용 임시 id 는 제외한다.
+  // (TripCards·그룹·지도 화면은 tripId 없이 initial 만 넘기므로 data.id 도 함께 본다)
+  const rawTripId = tripId ?? data?.id ?? null;
+  const shareTripId = rawTripId && !rawTripId.startsWith("local-") ? rawTripId : null;
+  // 카카오 피드 카드: 대표 피쉬(가장 큰 개체) 기준으로 눈에 띄는 제목을 만든다.
+  const topCatch: CatchItem | null = data?.catches.length
+    ? data.catches.reduce((best, c) => ((c.sizeCm ?? -1) > (best.sizeCm ?? -1) ? c : best))
+    : null;
+  const kakaoTitle =
+    topCatch?.speciesName && topCatch.sizeCm != null
+      ? `입낚볼로 잡은 ${Math.round(topCatch.sizeCm)}cm ${topCatch.speciesName}! 🎣`
+      : topCatch?.speciesName
+      ? `입낚에서 만난 ${topCatch.speciesName} 🎣`
+      : `${data?.region ? `${data.region} ` : ""}스마트피싱 기록 🎣`;
+  const kakaoDescription = shareDescription
+    ? `입낚 스마트피싱 — AI로 어종·크기 자동 측정, 낚시 기록을 스마트하게\n${shareDescription}`
+    : "입낚 스마트피싱 — AI로 어종·크기 자동 측정, 낚시 기록을 스마트하게";
 
   return (
     <Sheet
@@ -749,6 +766,9 @@ export function TripDetailSheet({
                 description={shareDescription}
                 thumbnailUrl={shareThumbnail}
                 sharePath={sharePath}
+                tripId={shareTripId}
+                kakaoTitle={kakaoTitle}
+                kakaoDescription={kakaoDescription}
                 fileName={`ipnak-record-${recordDate}`}
               />
               </div>

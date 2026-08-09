@@ -1,4 +1,6 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Link from "next/link";
 import {
   Clock, Navigation, Fish, MapPin, Thermometer, Wind,
@@ -8,8 +10,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
+import { PublicTripView } from "./PublicTripView";
 
 export const dynamic = "force-dynamic";
+
+/** 공유 카드 기본 이미지 — 피쉬 사진이 없을 때 쓴다 */
+const FALLBACK_OG_IMAGE = "/og-ipnak-share-v6.png";
 
 // WMO 날씨코드 → 한국어 설명
 function weatherInfo(code: number | null): { label: string; Icon: React.ComponentType<any> } {
@@ -43,19 +49,145 @@ function formatDist(m: number) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${Math.round(m)}m`;
 }
 
+/** 기록 제목 — 옛 데이터의 "데이터피싱" 표기는 "스마트피싱"으로 바꿔 보여준다 */
+function tripDisplayTitle(t: { title: string | null; region: string | null }) {
+  return (t.title || (t.region ? `${t.region} 출조` : "스마트피싱 기록")).replace(
+    /데이터피싱/g,
+    "스마트피싱"
+  );
+}
+
+/** 카카오톡 등 외부 크롤러가 읽을 절대 URL 기준 origin (루트 레이아웃과 같은 규칙) */
+function siteOrigin(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) return configured;
+  const requestHeaders = headers();
+  const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host");
+  const proto =
+    requestHeaders.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+  return host ? `${proto}://${host}` : "https://ipnak.com";
+}
+
+function toAbsolute(url: string, origin: string): string {
+  try {
+    return new URL(url, origin).toString();
+  } catch {
+    return new URL(FALLBACK_OG_IMAGE, origin).toString();
+  }
+}
+
+/** 공유 링크 미리보기(OG) 메타태그 — 로그인 여부와 무관하게 붙는다 */
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const trip = await prisma.fishingTrip.findUnique({
+    where: { id: params.id },
+    select: {
+      title: true,
+      region: true,
+      distanceM: true,
+      durationSec: true,
+      catchCount: true,
+      fishingPoints: {
+        orderBy: { createdAt: "asc" },
+        select: { photoUrl: true, speciesName: true, sizeCm: true },
+      },
+    },
+  });
+
+  if (!trip) return { title: "기록을 찾을 수 없습니다" };
+
+  const origin = siteOrigin();
+  const top = trip.fishingPoints.length
+    ? trip.fishingPoints.reduce((best, c) => ((c.sizeCm ?? -1) > (best.sizeCm ?? -1) ? c : best))
+    : null;
+  // 브라우저 탭 제목은 기록 제목 그대로, 공유 카드(OG)는 대표 피쉬로 눈에 띄게.
+  const title = tripDisplayTitle(trip);
+  const shareTitle =
+    top?.speciesName && top.sizeCm != null
+      ? `입낚볼로 잡은 ${Math.round(top.sizeCm)}cm ${top.speciesName}! 🎣`
+      : `${title} 🎣`;
+  const catchCount = Math.max(trip.catchCount, trip.fishingPoints.length);
+  const description = `입낚 스마트피싱 — AI로 어종·크기 자동 측정, 낚시 기록을 스마트하게 · 이동 ${formatDist(
+    trip.distanceM
+  )} · ${formatDuration(trip.durationSec)} · 피쉬 ${catchCount}건`;
+  const photo = trip.fishingPoints.find((c) => c.photoUrl)?.photoUrl;
+  const imageUrl = photo ? toAbsolute(photo, origin) : toAbsolute(FALLBACK_OG_IMAGE, origin);
+  const pageUrl = `${origin.replace(/\/$/, "")}/trip/${params.id}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: pageUrl },
+    openGraph: {
+      title: shareTitle,
+      description,
+      url: pageUrl,
+      type: "article",
+      siteName: "입낚",
+      locale: "ko_KR",
+      images: [{ url: imageUrl, alt: shareTitle }],
+    },
+    twitter: { card: "summary_large_image", title: shareTitle, description, images: [imageUrl] },
+  };
+}
+
 export default async function TripDetailPage({ params }: { params: { id: string } }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
 
-  const trip = await prisma.fishingTrip.findFirst({
-    where: { id: params.id, userId: user.id },
+  const trip = await prisma.fishingTrip.findUnique({
+    where: { id: params.id },
     include: {
       routePoints: { orderBy: { order: "asc" } },
       fishingPoints: { orderBy: { createdAt: "asc" } },
     },
   });
 
-  if (!trip) redirect("/trip");
+  // 로그인한 본인 기록이면 기존 상세 화면, 그 외에는 공개 열람 뷰를 보여준다.
+  if (!trip) {
+    if (user) redirect("/trip");
+    notFound();
+  }
+
+  if (!user || user.id !== trip.userId) {
+    const endedAtPublic =
+      trip.endedAt ?? new Date(trip.startedAt.getTime() + trip.durationSec * 1000);
+    // 추정 무게는 계측 기록(CatchRecord)에 있으므로 따로 모아 붙인다.
+    const weightRows = trip.fishingPoints.length
+      ? await prisma.catchRecord.findMany({
+          where: { fishingPointId: { in: trip.fishingPoints.map((f) => f.id) } },
+          select: { fishingPointId: true, estimatedWeight: true },
+        })
+      : [];
+    const weightByPointId = new Map(
+      weightRows
+        .filter((w) => w.fishingPointId != null)
+        .map((w) => [w.fishingPointId as string, w.estimatedWeight])
+    );
+    return (
+      <PublicTripView
+        trip={{
+          title: tripDisplayTitle(trip),
+          region: trip.region,
+          startedAt: trip.startedAt,
+          endedAt: endedAtPublic,
+          distanceM: trip.distanceM,
+          durationSec: trip.durationSec,
+          catchCount: trip.catchCount,
+          routePoints: trip.routePoints.map((p) => ({ lat: p.lat, lng: p.lng })),
+          catches: trip.fishingPoints.map((c) => ({
+            id: c.id,
+            speciesName: c.speciesName,
+            sizeCm: c.sizeCm,
+            photoUrl: c.photoUrl,
+            region: c.region,
+            createdAt: c.createdAt,
+            weightG: weightByPointId.get(c.id) ?? null,
+            lat: c.lat,
+            lng: c.lng,
+          })),
+        }}
+      />
+    );
+  }
 
   const endedAt = trip.endedAt ?? new Date(trip.startedAt.getTime() + trip.durationSec * 1000);
   const tripDate = trip.startedAt.toISOString().slice(0, 10);

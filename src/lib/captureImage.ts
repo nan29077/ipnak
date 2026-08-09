@@ -94,7 +94,7 @@ export async function captureElementToPngBlob(
 }
 
 /** a[download] 로 실제 파일을 내려받는다 (PC 등 공유 API 미지원 환경용) */
-function saveBlobViaAnchor(blob: Blob, fileName: string): void {
+export function downloadBlobViaAnchor(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -108,7 +108,7 @@ function saveBlobViaAnchor(blob: Blob, fileName: string): void {
 }
 
 /** 터치 기반 모바일 기기인지 — 데스크톱에서는 항상 파일 다운로드를 쓴다 */
-function isMobileDevice(): boolean {
+export function isMobileDevice(): boolean {
   if (typeof navigator === "undefined") return false;
   if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) return true;
   // iPadOS 13+ 는 데스크톱 Safari 로 위장한다 → 터치 포인트로 구분
@@ -119,34 +119,47 @@ function isMobileDevice(): boolean {
   );
 }
 
+/** Blob 을 PNG File 로 감싼다 (공유 시트에 넘길 때 파일명·MIME 이 필요하다) */
+export function blobToPngFile(blob: Blob, fileName: string): File {
+  return new File([blob], fileName, { type: blob.type || "image/png" });
+}
+
 /**
- * Blob 을 이미지 파일로 저장한다.
- *
- * - PC : a[download] 로 실제 PNG 파일을 그대로 내려받는다.
- * - 모바일 : a[download] 가 사진첩에 담기지 않아서, 파일 공유를 지원하면
- *   공유 시트를 띄워 "이미지 저장"을 고를 수 있게 한다. (미지원이면 a[download] 폴백)
+ * 이 기기에서 "사진에 저장"(파일 공유 시트)을 쓸 수 있는지.
+ * 데스크톱은 공유 시트 대신 항상 a[download] 를 쓴다.
  */
-export async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
-  const file = new File([blob], fileName, { type: blob.type || "image/png" });
-
-  if (
-    isMobileDevice() &&
-    typeof navigator !== "undefined" &&
-    typeof navigator.canShare === "function" &&
-    typeof navigator.share === "function" &&
-    navigator.canShare({ files: [file] })
-  ) {
-    try {
-      await navigator.share({ files: [file], title: "입낚 피싱 기록" });
-      return;
-    } catch (e) {
-      // 사용자가 공유 시트를 닫은 경우 — 실패가 아니므로 폴백도 하지 않는다.
-      if (e instanceof DOMException && e.name === "AbortError") return;
-      // 그 외 오류는 아래 a[download] 로 폴백한다.
-    }
+export function canShareImageFile(file: File): boolean {
+  if (typeof navigator === "undefined") return false;
+  if (!isMobileDevice()) return false;
+  if (typeof navigator.canShare !== "function" || typeof navigator.share !== "function") return false;
+  try {
+    return navigator.canShare({ files: [file] });
+  } catch {
+    return false;
   }
+}
 
-  saveBlobViaAnchor(blob, fileName);
+export type ShareImageResult = "shared" | "cancelled" | "unsupported";
+
+/**
+ * 이미지 파일을 OS 공유 시트로 넘긴다 (iOS "사진에 추가" → 카메라롤 저장).
+ *
+ * ⚠ 반드시 사용자 탭 핸들러에서 "await 없이" 곧바로 호출해야 한다.
+ *   html2canvas 같은 비동기 작업을 먼저 기다리면 iOS 의 제스처 컨텍스트가 만료돼
+ *   navigator.share() 가 NotAllowedError 로 거부된다.
+ *   (그래서 캡처 → 미리보기 모달 → 모달 버튼 탭(새 제스처) → 이 함수 순서로 쓴다)
+ */
+export async function shareImageFile(file: File, title: string): Promise<ShareImageResult> {
+  if (!canShareImageFile(file)) return "unsupported";
+  try {
+    // 이 await 앞에는 비동기 작업이 없어야 한다 — share() 호출 자체는 동기적으로 일어난다.
+    await navigator.share({ files: [file], title });
+    return "shared";
+  } catch (e) {
+    // 사용자가 공유 시트를 닫은 경우 — 실패가 아니다.
+    if (e instanceof DOMException && e.name === "AbortError") return "cancelled";
+    return "unsupported";
+  }
 }
 
 /** 파일명에 쓸 수 없는 문자를 정리한다 */
