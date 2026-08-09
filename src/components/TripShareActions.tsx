@@ -39,8 +39,12 @@ type Props = {
   captureRef: React.RefObject<HTMLDivElement>;
   /** 공유 제목 */
   title: string;
-  /** 공유 설명 (거리·시간·피쉬 수 등) */
-  description: string;
+  /**
+   * @deprecated 공유 본문에는 통계 텍스트를 싣지 않는다.
+   * (카카오톡으로 공유하면 노란 말풍선 텍스트로 따로 전송돼 카드 1장 원칙이 깨진다)
+   * 호출부 호환을 위해 prop 자체는 남겨두지만 값은 사용하지 않는다.
+   */
+  description?: string | null;
   /** 카카오 피드 썸네일 — 상대경로면 현재 origin 기준 절대 URL 로 바꾼다 */
   thumbnailUrl?: string | null;
   /** 공유 링크 경로 (예: /post/xxx). tripId 가 있으면 그쪽이 우선한다 */
@@ -142,7 +146,8 @@ export function TripShareActions({
     try {
       const res = await shareContent({
         title,
-        text: description,
+        // text 는 카카오톡 공유 시 별도 텍스트 말풍선으로 전송되므로 생략한다.
+        // URL 프리뷰 카드가 대신 컨텍스트를 보여준다.
         url: shareLink(),
         dialogTitle: "기록 공유",
       });

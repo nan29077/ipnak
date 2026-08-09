@@ -254,9 +254,18 @@ export function FishingSpotTab() {
         <div className="flex items-center gap-2 border-b border-navy-100/15 px-4 py-2.5">
           <MapPin size={14} className="text-aqua-400" strokeWidth={1.8} />
           <p className="text-[13px] font-bold text-navy-700">내 어장포인트</p>
-          <span className="ml-auto text-[11px] text-navy-400">{spots.length}곳</span>
+          <span className="ml-1 text-[11px] text-navy-400">{spots.length}곳</span>
+          {/* + 버튼: 헤더 우측 인라인 배치 (글쓰기 FAB 겹침 방지) */}
+          <button
+            type="button"
+            onClick={openPicker}
+            aria-label="어장포인트 추가"
+            className="ml-auto flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-gray-900 shadow-sm transition-colors hover:bg-orange-600"
+          >
+            <Plus size={15} strokeWidth={2.4} />
+          </button>
         </div>
-        <div className="relative h-56 w-full">
+        <div className="h-56 w-full">
           {loading ? (
             <div className="flex h-full w-full items-center justify-center bg-[#0d1b2a]">
               <Loader2 size={16} className="animate-spin text-aqua-500" />
@@ -268,15 +277,6 @@ export function FishingSpotTab() {
               onSelect={(id) => { setSelectedId(id); setDetailOpen(true); }}
             />
           )}
-          {/* + 새 스팟 */}
-          <button
-            type="button"
-            onClick={openPicker}
-            aria-label="어장포인트 추가"
-            className="absolute bottom-3 right-3 z-[500] flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-gray-900 shadow-lg transition-colors hover:bg-orange-600"
-          >
-            <Plus size={20} strokeWidth={2.4} />
-          </button>
         </div>
       </div>
 
