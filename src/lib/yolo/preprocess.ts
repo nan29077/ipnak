@@ -75,7 +75,7 @@ export function preprocessFrame(src: CanvasImageSource, inputSize = 640): Prepro
 
   const s = getScratch(inputSize);
   if (!s) return null;
-  const { canvas, ctx } = s;
+  const { ctx } = s;
 
   const info = letterboxInfo(sw, sh, inputSize);
   const drawW = sw * info.scale;
