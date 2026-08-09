@@ -122,7 +122,7 @@ export function TripShareActions({
         ignoreSelector: CAPTURE_IGNORE_SELECTOR,
         backgroundColor: "#162538",
       });
-      downloadBlob(blob, `${safeFileName(fileName)}.png`);
+      await downloadBlob(blob, `${safeFileName(fileName)}.png`);
       toast("이미지를 저장했어요", "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "이미지 저장에 실패했어요.", "error");

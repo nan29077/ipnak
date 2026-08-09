@@ -420,8 +420,11 @@ export function TripDetailSheet({
     ? `이동 ${formatDist(data.distanceM)} · ${formatDuration(data.durationSec)} · 피쉬 ${catchDisplayCount}건`
     : "";
   // 워킹피드에 게시된 기록이면 그 글로, 아니면 홈으로 연결한다.
+  // 게시 여부는 "이번 세션에서 게시함(state)" 또는 "서버가 내려준 값(data)" 중 하나라도 참이면 인정한다.
+  // (TripCards·그룹 화면은 tripId 없이 initial 만 넘겨서 state 가 갱신되지 않는 경로가 있다)
+  const feedPublished = walkingFeedPublished || data?.walkingFeedPublished === true;
   const sharePath =
-    walkingFeedPublished && data?.walkingFeedPostId ? `/post/${data.walkingFeedPostId}` : "/";
+    feedPublished && data?.walkingFeedPostId ? `/post/${data.walkingFeedPostId}` : "/";
   const shareThumbnail = data?.catches.find((c) => c.photoUrl)?.photoUrl ?? null;
 
   return (

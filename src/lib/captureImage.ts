@@ -93,8 +93,8 @@ export async function captureElementToPngBlob(
   }
 }
 
-/** Blob 을 실제 파일로 저장한다 (링크 열기가 아니라 다운로드) */
-export function downloadBlob(blob: Blob, fileName: string): void {
+/** a[download] 로 실제 파일을 내려받는다 (PC 등 공유 API 미지원 환경용) */
+function saveBlobViaAnchor(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -105,6 +105,36 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Blob 을 이미지로 저장한다.
+ *
+ * 모바일(iOS/Android)에서는 a[download] 가 Safari 다운로드 바로만 떨어져서
+ * 카메라롤에 바로 담기지 않는다. 파일 공유를 지원하면 공유 시트를 띄워
+ * "사진에 저장" 을 고를 수 있게 하고, 미지원 환경(PC 등)에서는 기존
+ * a[download] 방식으로 폴백한다.
+ */
+export async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
+  const file = new File([blob], fileName, { type: blob.type || "image/png" });
+
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.canShare === "function" &&
+    typeof navigator.share === "function" &&
+    navigator.canShare({ files: [file] })
+  ) {
+    try {
+      await navigator.share({ files: [file], title: "입낚 피싱 기록" });
+      return;
+    } catch (e) {
+      // 사용자가 공유 시트를 닫은 경우 — 실패가 아니므로 폴백도 하지 않는다.
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      // 그 외 오류는 아래 a[download] 로 폴백한다.
+    }
+  }
+
+  saveBlobViaAnchor(blob, fileName);
 }
 
 /** 파일명에 쓸 수 없는 문자를 정리한다 */
