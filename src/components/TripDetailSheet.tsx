@@ -7,6 +7,7 @@ import {
 import { Sheet, LoadingState } from "@/components/ui";
 import { MiniRouteMap } from "@/components/MiniRouteMap";
 import { TripShareActions, CAPTURE_IGNORE_ATTR } from "@/components/TripShareActions";
+import { FishingSpotSaveModal, type FishingSpotDraft } from "@/components/FishingSpotSaveModal";
 
 type CatchItem = {
   id?: string;
@@ -255,6 +256,8 @@ export function TripDetailSheet({
   const [publishingFeed, setPublishingFeed] = useState(false);
   const [deletingFeed, setDeletingFeed] = useState(false);
   const [deleteFeedConfirm, setDeleteFeedConfirm] = useState(false);
+  // 어장포인트로 저장 모달 (기존 기능과 독립)
+  const [spotModalOpen, setSpotModalOpen] = useState(false);
   // default로 돌아올 때 최상단 스크롤 복구에 쓰는 sentinel ref
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const prevViewModeRef = useRef<ViewMode>("default");
@@ -328,6 +331,7 @@ export function TripDetailSheet({
       setPublishingFeed(false);
       setDeletingFeed(false);
       setDeleteFeedConfirm(false);
+      setSpotModalOpen(false);
     }
   }, [open]);
 
@@ -440,9 +444,32 @@ export function TripDetailSheet({
       : topCatch?.speciesName
       ? `입낚에서 만난 ${topCatch.speciesName} 🎣`
       : `${data?.region ? `${data.region} ` : ""}스마트피싱 기록 🎣`;
-  const kakaoDescription = shareDescription
-    ? `입낚 스마트피싱 — AI로 어종·크기 자동 측정, 낚시 기록을 스마트하게\n${shareDescription}`
-    : "입낚 스마트피싱 — AI로 어종·크기 자동 측정, 낚시 기록을 스마트하게";
+  // 카카오 카드 설명은 TripShareActions 가 앱 소개 고정 문구로 처리한다(통계 텍스트 미전송).
+
+  // ── 어장포인트 저장용 자동 입력값 ──
+  // 위치: 동선 중간 지점(없으면 첫 지점) → 없으면 좌표가 있는 첫 피쉬 기록
+  // 어종: 이 출조의 피쉬 기록 어종 목록 / 메모: 출조일
+  const spotBase =
+    data && data.routePoints.length > 0
+      ? data.routePoints[Math.floor(data.routePoints.length / 2)] ?? data.routePoints[0]
+      : data?.catches.find((c) => c.lat != null && c.lng != null) ?? null;
+  const spotLat = spotBase ? (spotBase as { lat?: number | null }).lat ?? null : null;
+  const spotLng = spotBase ? (spotBase as { lng?: number | null }).lng ?? null : null;
+  const spotSpecies = data
+    ? Array.from(
+        new Set(data.catches.map((c) => c.speciesName).filter((v): v is string => !!v))
+      ).join(", ")
+    : "";
+  const spotDraft: FishingSpotDraft | null =
+    spotLat != null && spotLng != null
+      ? {
+          name: data?.region ? `${data.region} 포인트` : "",
+          lat: spotLat,
+          lng: spotLng,
+          species: spotSpecies || null,
+          memo: tripDate ? `출조일 ${tripDate}` : null,
+        }
+      : null;
 
   return (
     <Sheet
@@ -760,6 +787,18 @@ export function TripDetailSheet({
                 )
               )}
 
+              {/* ── 어장포인트로 저장 (신규) — 위치 정보가 있는 기록에서만 노출 ── */}
+              {spotDraft && (
+                <button
+                  type="button"
+                  onClick={() => setSpotModalOpen(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-aqua-400/40 bg-aqua-400/10 py-3 text-[14px] font-semibold text-aqua-300 transition-colors hover:bg-aqua-400/20"
+                >
+                  <MapPin size={16} strokeWidth={1.9} />
+                  어장포인트로 저장
+                </button>
+              )}
+
               {/* ── 소셜 공유(카카오톡·기타 앱) + 기록 이미지(PNG) 저장 ── */}
               <TripShareActions
                 captureRef={captureRef}
@@ -769,7 +808,6 @@ export function TripDetailSheet({
                 sharePath={sharePath}
                 tripId={shareTripId}
                 kakaoTitle={kakaoTitle}
-                kakaoDescription={kakaoDescription}
                 fileName={`ipnak-record-${recordDate}`}
               />
               </div>
@@ -778,6 +816,15 @@ export function TripDetailSheet({
           )}
         </>
       )}
+
+      {/* ── 어장포인트 저장 모달 (기존 기능과 독립) ── */}
+      <FishingSpotSaveModal
+        open={spotModalOpen}
+        onClose={() => setSpotModalOpen(false)}
+        initial={spotDraft}
+        sourceType="trip"
+        sourceTripId={shareTripId}
+      />
     </Sheet>
   );
 }

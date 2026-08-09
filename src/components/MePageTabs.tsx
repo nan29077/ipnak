@@ -17,6 +17,7 @@ import { MiniRouteMap } from "@/components/MiniRouteMap";
 import { IpnakBallPurchase } from "@/components/IpnakBallPurchase";
 import { ProfileView } from "@/components/ProfileView";
 import { PointActivityBars } from "@/components/PointActivityBars";
+import { FishingSpotTab } from "@/components/FishingSpotTab";
 import { Badge, Button } from "@/components/ui";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { won, kstFormat } from "@/lib/utils";
@@ -275,6 +276,8 @@ export function MePageTabs({
   const rawTab = searchParams.get("tab");
   const activeTab = (rawTab === "market" || rawTab === "settings") ? rawTab : "fishing";
   const [settingsSubTab, setSettingsSubTab] = useState<"ball" | "config">("ball");
+  // 낚시활동 탭 내부 서브탭 — 기존 "낚시활동" / 신규 "내 어장포인트"
+  const [fishingSubTab, setFishingSubTab] = useState<"activity" | "spots">("activity");
   const [showBallNotifPanel, setShowBallNotifPanel] = useState(false);
   const [diaryOpen, setDiaryOpen] = useState(false);
   const [publishedTrips, setPublishedTrips] = useState<Record<string, boolean>>(() => {
@@ -364,6 +367,38 @@ export function MePageTabs({
         ══════════════════════════════════════════ */}
         {activeTab === "fishing" && (
           <>
+            {/* 서브탭 바: 낚시활동 / 내 어장포인트 */}
+            <div className="flex gap-1 rounded-xl bg-[#162538] p-1">
+              <button
+                onClick={() => setFishingSubTab("activity")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors ${
+                  fishingSubTab === "activity"
+                    ? "bg-orange-500 text-gray-900"
+                    : "text-navy-400 hover:text-navy-600"
+                }`}
+              >
+                <Fish size={13} strokeWidth={2} />
+                낚시활동
+              </button>
+              <button
+                onClick={() => setFishingSubTab("spots")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors ${
+                  fishingSubTab === "spots"
+                    ? "bg-orange-500 text-gray-900"
+                    : "text-navy-400 hover:text-navy-600"
+                }`}
+              >
+                <MapPin size={13} strokeWidth={2} />
+                내 어장포인트
+              </button>
+            </div>
+
+            {/* 서브탭: 내 어장포인트 (신규) */}
+            {fishingSubTab === "spots" && <FishingSpotTab />}
+
+            {/* 서브탭: 낚시활동 (기존) */}
+            {fishingSubTab === "activity" && (
+            <>
             {bio && <p className="px-1 text-sm leading-relaxed text-navy-500">{bio}</p>}
 
             {/* 낚시 활동 */}
@@ -523,6 +558,8 @@ export function MePageTabs({
               <ProfileView posts={posts} points={points} entries={entries} />
             </div>
 
+            </>
+            )}
           </>
         )}
 

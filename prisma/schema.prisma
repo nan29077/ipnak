@@ -75,6 +75,33 @@ model User {
   groupComments     GroupComment[]
   groupPostLikes    GroupPostLike[]
   virtualMember     VirtualMember?
+  fishingSpots      FishingSpot[]
+}
+
+// ===== 내 어장포인트 =====
+// 사용자가 직접 등록하거나 스마트피싱 기록·AI 측정에서 저장하는 개인 낚시 포인트.
+// FishingPoint(피쉬 기록의 GPS 지점)와는 별개로, 재방문용 "내 어장" 메모 목적이다.
+// sourceType: "ai"(AI 측정) | "trip"(스마트피싱 기록) | "manual"(직접 입력)
+model FishingSpot {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  lat           Float
+  lng           Float
+  depth         Float? // 수심(m)
+  species       String? // 주요 어종 (쉼표 구분)
+  season        String? // 최적 계절/시간
+  memo          String?  @db.Text // 자유 메모
+  photoUrl      String?  @db.Text // 사진 URL
+  sourceType    String? // "ai" | "trip" | "manual"
+  sourceTripId  String? // 스마트피싱 기록 ID
+  sourceCatchId String? // AI 측정 피쉬 기록 ID
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 // ===== 포인트 제도 =====

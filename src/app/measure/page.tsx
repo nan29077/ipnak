@@ -12,8 +12,9 @@ import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { useUser } from "@/lib/userContext";
 import {
   Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
-  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, ChevronRight, FolderOpen, X, Smartphone, QrCode, KeyRound,
+  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, ChevronRight, FolderOpen, X, Smartphone, QrCode, KeyRound, MapPin,
 } from "lucide-react";
+import { FishingSpotSaveModal, type FishingSpotDraft } from "@/components/FishingSpotSaveModal";
 import { PageHeader, Button, Chip } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { MEASURE_ERRORS, FISH_SPECIES } from "@/constants/errorMessages";
@@ -89,6 +90,10 @@ export default function MeasurePage() {
   const [result, setResult] = useState<any>(null);
   const [hasImage, setHasImage] = useState(false);
   const [savedImageBase64, setSavedImageBase64] = useState<string | null>(null);
+  // 어장포인트로 저장 — 측정 위치·어종·사진을 자동 입력한다 (기존 저장 흐름과 독립)
+  const [spotDraft, setSpotDraft] = useState<FishingSpotDraft | null>(null);
+  const [spotCatchId, setSpotCatchId] = useState<string | null>(null);
+  const [spotModalOpen, setSpotModalOpen] = useState(false);
   // 어종 자동 인식에 넘길 사진 (RESULT 진입 시 작업 캔버스에서 1회 생성)
   const [speciesImageUrl, setSpeciesImageUrl] = useState<string | null>(null);
   const [tourSubmitting, setTourSubmitting] = useState(false);
@@ -538,7 +543,25 @@ export default function MeasurePage() {
           ballId: refType === "ball" ? (activeBallId ?? null) : null,
           keyringId: refType === "keyring" ? activeKeyringId ?? null : null,
         }),
-      }).catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
+      })
+        // 어장포인트 저장 버튼에 쓸 catch id 확보 (실패해도 무시)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d?.catchId) setSpotCatchId(d.catchId as string); })
+        .catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
+
+      // 어장포인트 자동 입력값 — 위치가 있을 때만 버튼을 띄운다
+      setSpotCatchId(null);
+      setSpotDraft(
+        catchLat != null && catchLng != null
+          ? {
+              name: tags?.location?.locationName ?? "",
+              lat: catchLat,
+              lng: catchLng,
+              species: species || null,
+              photoUrl: uploadedPhotoUrl,
+            }
+          : null
+      );
 
       // 스마트피싱 기록 중이면 catches에 추가 (워킹 피드 공유 + 피쉬 숫자 표시용)
       if (recStatus === "tracking" || recStatus === "paused") {
@@ -642,6 +665,9 @@ export default function MeasurePage() {
     setWidthPts(null);
     setResult(null);
     setSpeciesImageUrl(null);
+    setSpotDraft(null);
+    setSpotCatchId(null);
+    setSpotModalOpen(false);
     workCanvasRef.current = null;
   }
 
@@ -1222,6 +1248,18 @@ export default function MeasurePage() {
               )
             )}
 
+            {/* 어장포인트로 저장 (신규) — 측정 위치가 있을 때만 노출 */}
+            {spotDraft && (
+              <button
+                type="button"
+                onClick={() => setSpotModalOpen(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-aqua-400/40 bg-aqua-400/10 py-2.5 text-[15px] font-semibold text-aqua-300 transition-colors hover:bg-aqua-400/20"
+              >
+                <MapPin size={16} strokeWidth={1.9} />
+                어장포인트로 저장
+              </button>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={reset} leftIcon={<Camera size={16} />}>새 측정</Button>
               <button
@@ -1248,6 +1286,15 @@ export default function MeasurePage() {
           </div>
         )}
       </div>
+
+      {/* ── 어장포인트 저장 모달 (기존 저장 흐름과 독립) ── */}
+      <FishingSpotSaveModal
+        open={spotModalOpen}
+        onClose={() => setSpotModalOpen(false)}
+        initial={spotDraft}
+        sourceType="ai"
+        sourceCatchId={spotCatchId}
+      />
 
       {/* ── 아이폰 태그 사용법 1회성 안내 (태그로 진입한 아이폰 사용자 한정) ── */}
       <IphoneTagGuideModal open={iosTagGuide} onClose={closeIosTagGuide} />

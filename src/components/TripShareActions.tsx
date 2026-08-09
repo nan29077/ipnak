@@ -2,7 +2,8 @@
 /**
  * 스마트피싱 기록 — 공유 / 이미지 저장 액션
  *
- * - 카카오톡 공유 : Kakao JavaScript SDK, 피드(링크) 형식
+ * - 카카오톡 공유 : Kakao JavaScript SDK, 피드(링크) 형식 — 카드 1장만 전송한다
+ *                  (설명은 앱 소개 고정 문구. 거리·시간·피쉬 수 등 통계 텍스트는 보내지 않는다)
  * - 기타 앱 공유   : Web Share API (인스타·문자·메일 등) → 미지원이면 링크 복사
  * - 이미지 저장   : html2canvas 로 기록 화면 전체(스크롤 포함)를 PNG 로 만든 뒤
  *                  미리보기 모달을 띄우고, 모달의 "사진에 저장" 탭에서 공유 시트를 연다.
@@ -51,7 +52,10 @@ type Props = {
   tripId?: string | null;
   /** 카카오 피드 전용 제목 — 없으면 title 을 그대로 쓴다 */
   kakaoTitle?: string | null;
-  /** 카카오 피드 전용 설명 — 없으면 description 을 그대로 쓴다 */
+  /**
+   * @deprecated 카카오 카드 설명은 KAKAO_CARD_DESCRIPTION 고정 문구만 쓴다.
+   * (호출부 호환을 위해 prop 자체는 남겨두지만 값은 사용하지 않는다)
+   */
   kakaoDescription?: string | null;
   /** 저장 파일명 (확장자 제외) */
   fileName: string;
@@ -59,6 +63,14 @@ type Props = {
 
 /** 기본 썸네일 — 개별 사진이 없을 때 쓰는 공유 이미지 */
 const FALLBACK_IMAGE = "/og-ipnak-share-v6.png";
+
+/**
+ * 카카오 카드 고정 설명 문구.
+ * 카카오톡 공유는 "카드 1장"만 보낸다 — description prop 으로 통계 텍스트
+ * ("이동 224m · 2분 · 피쉬 0건")가 넘어와도 카드에 싣지 않는다.
+ */
+const KAKAO_CARD_DESCRIPTION =
+  "입낚 스마트피싱 — AI로 어종·크기 자동 측정, 낚시 기록을 스마트하게";
 
 /** 캡처가 끝난 뒤 미리보기 모달에 넘기는 결과물 */
 type PreviewImage = { file: File; url: string };
@@ -71,7 +83,6 @@ export function TripShareActions({
   sharePath,
   tripId,
   kakaoTitle,
-  kakaoDescription,
   fileName,
 }: Props) {
   const toast = useToast();
@@ -111,7 +122,8 @@ export function TripShareActions({
     try {
       await shareKakaoFeed({
         title: kakaoTitle || title,
-        description: kakaoDescription || description,
+        // 카드 설명은 앱 소개 고정 문구만 — 통계 텍스트는 절대 싣지 않는다
+        description: KAKAO_CARD_DESCRIPTION,
         imageUrl: absolute(thumbnailUrl || FALLBACK_IMAGE),
         link: shareLink(),
         buttonTitle: "기록 보기",
@@ -121,7 +133,7 @@ export function TripShareActions({
     } finally {
       setKakaoBusy(false);
     }
-  }, [busy, title, description, kakaoTitle, kakaoDescription, thumbnailUrl, absolute, shareLink, toast]);
+  }, [busy, title, kakaoTitle, thumbnailUrl, absolute, shareLink, toast]);
 
   /* ── 기타 앱 공유 (Web Share API) ── */
   const handleShare = useCallback(async () => {
