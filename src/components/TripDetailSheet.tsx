@@ -605,6 +605,7 @@ export function TripDetailSheet({
                       onClick={() => setViewMode("map-fullscreen")}
                       className="flex items-center gap-1 rounded-xl px-2.5 py-1 text-[11px] font-semibold transition-colors"
                       style={{ backgroundColor: "#eab308", color: "#0d1b2a" }}
+                      {...{ [CAPTURE_IGNORE_ATTR]: "" }}
                     >
                       <ZoomIn size={12} />
                       크게보기
