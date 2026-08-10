@@ -346,11 +346,18 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   /* ── 마운트 시 권한 상태 확인 → 이미 허용된 경우 커스텀 모달 스킵 ── */
   useEffect(() => {
     if (!hasCameraConsent()) return; // 동의 기록 없음 → 안내 모달 표시
+    // localStorage에 동의 기록이 있으면 바로 스킵한다.
+    // Safari는 navigator.permissions.query가 "granted" 대신 "prompt"를 반환해
+    // 매번 모달이 재노출되는 문제가 있으므로 Permissions API 조회를 거치지 않는다.
+    // 실제 카메라 접근이 거부된 경우엔 getUserMedia 오류 처리 쪽에서 안내한다.
     if (typeof navigator === "undefined") { setConsented(true); return; }
     if (navigator.permissions) {
       navigator.permissions
         .query({ name: "camera" as PermissionName })
-        .then((r) => { if (r.state === "granted") setConsented(true); })
+        .then((r) => {
+          // "denied"인 경우에만 모달을 다시 표시, 나머지("granted"/"prompt")는 스킵
+          if (r.state !== "denied") setConsented(true);
+        })
         .catch(() => setConsented(true));
     } else {
       setConsented(true);
