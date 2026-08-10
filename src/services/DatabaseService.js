@@ -50,8 +50,10 @@ class DatabaseService {
       longitude: data.longitude ?? null,
       locationName: data.locationName ?? null,
       weather: data.weather ?? null,
-      temperature: data.temperature ?? null,
-      tidePhase: data.tidePhase ?? null,
+      temperature: data.temperature ?? null, // 기온(°C)
+      tidePhase: data.tidePhase ?? null,     // 조석 상태 (밀물/썰물 등)
+      tideName: data.tideName ?? null,       // 물때 이름 (예: "7물")
+      waterTemp: data.waterTemp ?? null,     // 수온(°C)
       ballId: data.ballId ?? null,
       keyringId: data.keyringId ?? null, // 키링 모드 측정 시 연동된 입낚키링 ID
       synced: 0,

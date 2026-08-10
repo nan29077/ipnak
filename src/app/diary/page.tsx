@@ -32,6 +32,10 @@ type Item = {
   weather: string | null;
   temperature: number | null;
   tidePhase: string | null;
+  /** 물때 이름 (예: "7물") — 구 기록에는 없을 수 있음 */
+  tideName?: string | null;
+  /** 수온(°C) — 구 기록에는 없을 수 있음 */
+  waterTemp?: number | null;
   synced: number;
 };
 
@@ -268,7 +272,12 @@ export default function DiaryPage() {
               <InfoRow icon={<Hash size={14} strokeWidth={1.8} />} label="추정 무게" value={detail.weightG ? `약 ${detail.weightG}g` : "-"} />
               <InfoRow icon={<CloudSun size={14} strokeWidth={1.8} />} label="날씨" value={detail.weather || "-"} />
               <InfoRow icon={<Thermometer size={14} strokeWidth={1.8} />} label="기온" value={detail.temperature != null ? `${detail.temperature}°C` : "-"} />
-              <InfoRow icon={<Waves size={14} strokeWidth={1.8} />} label="물때" value={detail.tidePhase || "-"} />
+              <InfoRow icon={<Thermometer size={14} strokeWidth={1.8} />} label="수온" value={detail.waterTemp != null ? `${detail.waterTemp}°C` : "-"} />
+              <InfoRow
+                icon={<Waves size={14} strokeWidth={1.8} />}
+                label="물때"
+                value={[detail.tideName, detail.tidePhase].filter(Boolean).join(" · ") || "-"}
+              />
               {/* 날짜+시간이 길어 반 칸에서는 잘린다 — 두 칸을 통으로 사용 */}
               <InfoRow icon={<Moon size={14} strokeWidth={1.8} />} label="측정 일시" value={fmtDate(detail.measuredAt)} className="col-span-2" />
             </div>

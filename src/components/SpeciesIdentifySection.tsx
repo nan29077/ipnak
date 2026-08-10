@@ -107,6 +107,17 @@ export function SpeciesIdentifySection({ imageUrl, currentSpecies, onApply }: Pr
   // 언마운트 시 진행 중인 요청 정리
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  // 사용자가 아래 어종 칩(탭)에서 직접 선택하면 표시 어종도 그에 맞춘다.
+  // AI가 '불명'을 반환했거나 다른 어종을 추정했어도, 사용자의 직접 선택이 우선이다.
+  // ("기타"는 기본값이라 사용자 선택으로 간주하지 않는다)
+  useEffect(() => {
+    if (status !== "done" || editing) return;
+    if (currentSpecies && currentSpecies !== "기타" && currentSpecies !== species) {
+      setSpecies(currentSpecies);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSpecies, status]);
+
   useEffect(() => {
     if (editing) inputRef.current?.focus();
   }, [editing]);

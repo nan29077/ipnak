@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Camera, Loader2, RefreshCw, ScanLine, Check, RotateCw, AlertTriangle, Zap, ArrowRight } from "lucide-react";
 import { estimateWeight, estimateWeightByWidth, formatWeight } from "@/lib/weightEstimation";
+import { FISH_SPECIES } from "@/constants/errorMessages";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 import { FishScanGlow } from "./FishScanGlow";
 import { FishShimmer } from "./FishShimmer";
@@ -36,7 +37,7 @@ export type LiveScanResult = {
     centerX: number;
     centerY: number;
     diameterPx: number;
-    /** 화면 표시(원 그리기) 전용 지름 — AI 원본 ball.r 기준 (보정/정밀측정 미적용) */
+    /** 화면 표시(원 그리기) 전용 지름 — 정밀 측정 반지름 기준 (diameterPx 와 동일, 스케일 기준과 일치) */
     drawDiameterPx: number;
     mmPerPixel: number;
     confidence: number;
@@ -47,6 +48,8 @@ export type LiveScanResult = {
   /** 몸통 최대 너비 양 끝점 — 감지 실패 시 null */
   width: { top: Point; bottom: Point } | null;
   confidence: number;
+  /** 결과 패널에서 사용자가 선택한 어종 (미선택 시 "기타") */
+  species: string;
 };
 
 type Props = {
@@ -126,7 +129,8 @@ type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing" | "no-fish-wa
 
 type Detection = {
   ballN: NormBall;
-  /** AI 원본 정규화 반지름 (이미지 폭 기준) — 오버레이 원 표시 전용. 측정에는 ballN.r(정밀 보정값) 사용 */
+  /** AI 원본 정규화 반지름 (이미지 폭 기준) — 디버깅/비교용 보존.
+      원 표시·측정 모두 ballN.r(노란 경계 실측값, 실패 시 AI 값과 동일)을 사용한다 */
   ballAiR: number;
   headN: Norm;
   tailN: Norm;
@@ -232,11 +236,20 @@ function refineYellowBallRadius(
 /**
  * 감지 결과(정규화 좌표)를 캔버스 픽셀 좌표로 변환해 그린다.
  * 라이브 오버레이(drawOverlay)와 결과 패널 오버레이가 공유한다.
- * 볼 원은 AI 원본 반지름(ballAiR)을 사용해 실제 볼 외곽선에 맞춘다
- * (정밀 보정값 ballN.r 은 mmPerPixel 계산 전용).
+ * 볼 원은 정밀 측정 반지름(ballN.r — 노란색 경계 방사형 스캔으로 실측한
+ * 가장 바깥 테두리)을 사용해 실제 볼 외곽을 정확히 감싼다.
+ * 이 값은 mmPerPixel 계산에 쓰는 반지름과 동일하므로, 화면의 원이 곧
+ * 40mm 스케일 기준임이 시각적으로 일치한다 (실측 실패 시 AI 원본과 같음).
+ * ballLabel 을 주면 원 위에 기준물 지름 라벨(예: "40mm")을 표시한다.
  */
-function drawDetection(ctx: CanvasRenderingContext2D, d: Detection, W: number, H: number) {
-  const bx = d.ballN.x * W, by = d.ballN.y * H, br = d.ballAiR * W;
+function drawDetection(
+  ctx: CanvasRenderingContext2D,
+  d: Detection,
+  W: number,
+  H: number,
+  opts?: { ballLabel?: string },
+) {
+  const bx = d.ballN.x * W, by = d.ballN.y * H, br = d.ballN.r * W;
   const hx = d.headN.x * W, hy = d.headN.y * H;
   const tx = d.tailN.x * W, ty = d.tailN.y * H;
   const base = Math.max(W, H);
@@ -257,6 +270,26 @@ function drawDetection(ctx: CanvasRenderingContext2D, d: Detection, W: number, H
   ctx.beginPath();
   ctx.arc(bx, by, br, 0, Math.PI * 2);
   ctx.stroke();
+
+  // 기준물 지름 라벨 ("40mm") — 원 상단 바깥에 배지 형태로 표시
+  if (opts?.ballLabel) {
+    const fontPx = Math.max(13, Math.round(base * 0.022));
+    ctx.font = `700 ${fontPx}px system-ui, sans-serif`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    const tw = ctx.measureText(opts.ballLabel).width;
+    const padX = Math.round(fontPx * 0.5);
+    const bh = Math.round(fontPx * 1.5);
+    // 원 위쪽에 공간이 없으면 원 아래쪽에 표시
+    const above = by - br - bh * 0.9 >= 0;
+    const cy = above ? by - br - bh * 0.9 : by + br + bh * 0.9;
+    ctx.fillStyle = "rgba(17,24,39,0.78)";
+    ctx.fillRect(bx - tw / 2 - padX, cy - bh / 2, tw + padX * 2, bh);
+    ctx.fillStyle = "#facc15";
+    ctx.fillText(opts.ballLabel, bx, cy + fontPx * 0.05);
+    ctx.textAlign = "start";
+    ctx.textBaseline = "alphabetic";
+  }
 
   // 머리(초록) / 꼬리(청록) 점
   const dot = (x: number, y: number, color: string) => {
@@ -347,6 +380,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   // 이미지 영역 안에서 프레임 비율을 유지한 표시 박스 크기 (px)
   const [fitBox, setFitBox] = useState<{ w: number; h: number } | null>(null);
   const dragKeyRef = useRef<"head" | "tail" | "widthTop" | "widthBottom" | null>(null);
+  // 결과 패널에서 사용자가 선택한 어종 — confirm 시 부모(측정 페이지)로 전달
+  const [fishSpecies, setFishSpecies] = useState<string>("기타");
   // 플래시(토치) — 기기가 지원할 때만 사이드바에 버튼 노출
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
@@ -921,9 +956,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     cleanupStream();
 
     const srcW = s.work.width, srcH = s.work.height;
-    // CSS rotate(90deg) 트릭으로 가로처럼 보였지만 캡처 프레임은 세로인 경우
-    // → 결과 화면에서도 가로로 보이도록 실제 픽셀을 90°CW 회전한다.
-    const needsRotate = isLandscapeRef.current && !browserIsLandscapeRef.current && srcW < srcH;
+    // 캡처 프레임이 세로(portrait)인 경우 → 부모(측정 페이지)에서도 항상 가로로
+    // 보이도록 실제 픽셀을 90°CW 회전한다 (finalizeOrientation 과 동일 기준).
+    const needsRotate = srcW < srcH;
 
     // diameterPx는 항상 원본 portrait width 기준 (ballN.r는 portrait width로 정규화됨)
     const diameterPx = 2 * s.det.ballN.r * srcW;
@@ -971,8 +1006,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         centerX: ballCX,
         centerY: ballCY,
         diameterPx,
-        // 표시용 지름은 AI 원본 반지름 기준 (반지름은 회전 불변이라 portrait width 정규화 그대로 사용)
-        drawDiameterPx: 2 * s.det.ballAiR * srcW,
+        // 표시용 지름도 정밀 측정 반지름 기준 — 결과 패널의 원과 측정 페이지의 원이 동일하게
+        // 실제 볼 외곽을 감싸고, mmPerPixel 스케일 기준과도 일치한다
+        drawDiameterPx: diameterPx,
         mmPerPixel: 40 / diameterPx,
         confidence: s.det.confidence,
         method: "ai-scan",
@@ -981,9 +1017,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       tail: tailPt,
       width: widthResult,
       confidence: s.det.confidence,
+      species: fishSpecies,
     };
     onConfirm(result);
-  }, [cleanupStream, onConfirm, onClose]);
+  }, [cleanupStream, onConfirm, onClose, fishSpecies]);
 
   /* ── 결과 패널 진입 직전: 프레임 방향 확정 ──
      CSS rotate(90deg) 트릭으로 촬영한 경우 캡처 프레임은 portrait(srcW < srcH)다.
@@ -1001,7 +1038,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const s = successRef.current;
     if (!s) return;
     const srcW = s.work.width, srcH = s.work.height;
-    const needsRotate = isLandscapeRef.current && !browserIsLandscapeRef.current && srcW < srcH;
+    // 어떤 방향으로 촬영했든 최종 프레임은 항상 landscape(가로) —
+    // 캡처 프레임이 portrait 이면 UI 모드와 무관하게 90°CW 회전해 확정한다.
+    // (세로 모드 촬영도 결과·계측일지에서는 가로로 눕혀 보여준다)
+    const needsRotate = srcW < srcH;
     if (!needsRotate) return;
 
     // 90°CW 회전: portrait(srcW×srcH) → landscape(srcH×srcW)
@@ -1087,7 +1127,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
-    drawDetection(ctx, det, W, H);
+    // 기준물(입낚볼/입낚키링) 실지름 라벨 — 결과 패널에서만 표시
+    drawDetection(ctx, det, W, H, { ballLabel: "40mm" });
   }, [stage, det, fitBox]);
 
   /* ── 끝점 이동 후 길이/폭 재계산 (스캔 성공 경로와 동일 공식) ── */
@@ -1242,8 +1283,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   /* ── 결과 패널 표시값 (추정 무게 · 신뢰도 등급) — 표시 전용 계산 ── */
   const resultWeightG =
     det?.lengthCm != null
-      ? ((det.widthCm != null ? estimateWeightByWidth(det.lengthCm, det.widthCm) : null) ??
-        estimateWeight(det.lengthCm))
+      ? ((det.widthCm != null ? estimateWeightByWidth(det.lengthCm, det.widthCm, fishSpecies) : null) ??
+        estimateWeight(det.lengthCm, fishSpecies))
       : null;
   const resultConfidence = det
     ? det.confidence >= CONFIDENCE_INSTANT
@@ -1625,18 +1666,51 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         (100dvh = 모바일 주소창 제외 실제 가시 영역, 미지원 브라우저는 inset-0 이 대신 채움). */}
     {stage === "result" && det && (
       <div
-        className="fixed inset-0 z-[401] flex flex-col overflow-hidden bg-[#0a1622]"
+        className={
+          "fixed inset-0 z-[401] flex overflow-hidden bg-black " +
+          (browserIsLandscape ? "flex-row" : "flex-col")
+        }
         style={{ width: "100vw", height: "100dvh" }}
       >
-        {/* 상단 바 — 타이틀 · 단계 · 플래시 · 닫기 */}
-        <div
-          className="flex shrink-0 items-center justify-between gap-2 px-4 py-2.5"
-          style={{
-            paddingTop: "max(10px, env(safe-area-inset-top, 0px))",
-            paddingLeft: "max(16px, env(safe-area-inset-left, 0px))",
-            paddingRight: "max(16px, env(safe-area-inset-right, 0px))",
-          }}
-        >
+        {/* ── 이미지 영역 — 데이터 패널을 제외한 화면 전체를 배경처럼 채운다.
+            상단 바·인식 pill·하단 배지는 이미지 위 오버레이로 얹는다. ── */}
+        <div className="relative min-h-0 min-w-0 flex-1">
+          <div
+            ref={resultAreaRef}
+            className="absolute inset-0 flex items-center justify-center overflow-hidden"
+          >
+            {fitBox && (
+              <div className="relative" style={{ width: fitBox.w, height: fitBox.h }}>
+                <canvas
+                  ref={frozenRef}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+                />
+                <canvas
+                  ref={resultOverlayRef}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+                />
+                {/* 끝점 드래그 수정 레이어 — 표시 박스와 정확히 일치 (화면 정규화 좌표 = 프레임 정규화 좌표) */}
+                <div
+                  className="absolute inset-0"
+                  style={{ touchAction: "none" }}
+                  onPointerDown={onEditPointerDown}
+                  onPointerMove={onEditPointerMove}
+                  onPointerUp={onEditPointerUp}
+                  onPointerCancel={onEditPointerUp}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* 상단 바 — 타이틀 · 단계 · 플래시 · 닫기 (이미지 위 그라데이션 오버레이) */}
+          <div
+            className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 bg-gradient-to-b from-black/75 via-black/35 to-transparent px-4 pb-7 pt-2.5"
+            style={{
+              paddingTop: "max(10px, env(safe-area-inset-top, 0px))",
+              paddingLeft: "max(16px, env(safe-area-inset-left, 0px))",
+              paddingRight: "max(16px, env(safe-area-inset-right, 0px))",
+            }}
+          >
           <div className="flex min-w-0 items-center gap-2">
             <ScanLine size={17} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
             <span className="truncate text-[14px] font-bold text-white">AI 실시간 스캐너</span>
@@ -1669,83 +1743,108 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           </div>
         </div>
 
-        {/* 이미지 + 데이터 — 세로 화면: 상하 배치 / 가로 화면: 좌우 배치 */}
-        <div className={"flex min-h-0 flex-1 " + (browserIsLandscape ? "flex-row" : "flex-col")}>
-          {/* 이미지 영역 — 캡처 프레임 전체가 보이도록 contain 박스에 표시 */}
+        {/* 상단 중앙 인식 pill — 물고기 인식됨 · 약 길이 · 폭 */}
           <div
-            ref={resultAreaRef}
-            className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden"
+            className="pointer-events-none absolute left-1/2 z-10 -translate-x-1/2"
+            style={{ top: "calc(max(10px, env(safe-area-inset-top, 0px)) + 48px)" }}
           >
-            {fitBox && (
-              <div className="relative" style={{ width: fitBox.w, height: fitBox.h }}>
-                <canvas
-                  ref={frozenRef}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-                />
-                <canvas
-                  ref={resultOverlayRef}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-                />
-                {/* 끝점 드래그 수정 레이어 — 표시 박스와 정확히 일치 (화면 정규화 좌표 = 프레임 정규화 좌표) */}
-                <div
-                  className="absolute inset-0"
-                  style={{ touchAction: "none" }}
-                  onPointerDown={onEditPointerDown}
-                  onPointerMove={onEditPointerMove}
-                  onPointerUp={onEditPointerUp}
-                  onPointerCancel={onEditPointerUp}
-                />
-              </div>
-            )}
+            <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-black/55 px-3 py-1.5 text-[12px] font-bold text-white ring-1 ring-white/15 backdrop-blur-sm">
+              <Check size={14} strokeWidth={2.6} className="text-green-400" />
+              물고기 인식됨
+              {det.lengthCm != null && <span className="ml-0.5">· 약 {det.lengthCm.toFixed(1)}cm</span>}
+              {det.widthCm != null && <span className="ml-0.5">· 폭 {det.widthCm.toFixed(1)}cm</span>}
+            </span>
           </div>
 
-          {/* 데이터 영역 — 이미지 밖에 분리 배치 (상태 배지 + 데이터 카드 + "다음") */}
-          <div
-            className="flex shrink-0 flex-col items-center justify-center gap-2 px-4 pb-4 pt-1"
-            style={{
-              paddingBottom: "max(16px, env(safe-area-inset-bottom, 0px))",
-              ...(browserIsLandscape
-                ? { paddingRight: "max(16px, env(safe-area-inset-right, 0px))" }
-                : undefined),
-            }}
-          >
+          {/* 하단 상태 배지 — 이미지 영역 하단 중앙 */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center px-4">
             {resultBadge}
-            <div className="w-[228px] overflow-hidden rounded-2xl bg-[#0d1b2a]/85 shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
-              <div className="space-y-2 px-4 pb-3 pt-3.5">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[12px] font-medium text-navy-400">전장</span>
-                  <span className="text-[16px] font-extrabold tracking-tight text-green-400">
-                    {det.lengthCm != null ? `${det.lengthCm.toFixed(1)} cm` : "—"}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[12px] font-medium text-navy-400">몸통 너비</span>
-                  <span className="text-[16px] font-extrabold tracking-tight text-aqua-400">
-                    {det.widthCm != null ? `${det.widthCm.toFixed(1)} cm` : "—"}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[12px] font-medium text-navy-400">추정 무게</span>
-                  <span className="text-[16px] font-extrabold tracking-tight text-white">
-                    {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[12px] font-medium text-navy-400">신뢰도</span>
-                  <span className={"text-[14px] font-bold " + (resultConfidence?.cls ?? "text-white")}>
-                    {resultConfidence?.label ?? "—"}
-                  </span>
-                </div>
-              </div>
+          </div>
+        </div>
+
+        {/* ── 데이터 영역 — 이미지 밖 분리 배치 (세로: 하단 / 가로: 우측) ──
+            어종 탭 + 데이터 카드(어종·전장·너비·무게·신뢰도) + "다음" */}
+        <div
+          className={
+            "flex shrink-0 flex-col gap-2 bg-[#0a1622] " +
+            (browserIsLandscape ? "w-[264px] overflow-y-auto px-3 pt-3" : "px-4 pt-2.5")
+          }
+          style={{
+            paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))",
+            ...(browserIsLandscape
+              ? { paddingRight: "max(12px, env(safe-area-inset-right, 0px))" }
+              : undefined),
+          }}
+        >
+          {/* 어종 선택 탭 — 탭하면 아래 카드의 어종 값이 바뀌고 confirm 시 부모로 전달 */}
+          <div
+            className={
+              browserIsLandscape
+                ? "flex flex-wrap gap-1.5"
+                : "no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4"
+            }
+          >
+            {FISH_SPECIES.map((s: { key: string }) => (
               <button
+                key={s.key}
                 type="button"
-                onClick={confirm}
-                className="flex w-full items-center justify-center gap-1.5 bg-aqua-500 py-3 text-[14px] font-bold text-white transition-all active:bg-aqua-600"
+                onClick={() => setFishSpecies(s.key)}
+                className={
+                  "shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-bold transition-all active:scale-[0.96] " +
+                  (fishSpecies === s.key
+                    ? "bg-orange-500 text-gray-900 shadow-lg shadow-orange-500/25"
+                    : "bg-white/10 text-white/70")
+                }
               >
-                다음
-                <ArrowRight size={16} strokeWidth={2.4} />
+                {s.key}
               </button>
+            ))}
+          </div>
+
+          <div
+            className={
+              "w-full overflow-hidden rounded-2xl bg-[#0d1b2a]/90 shadow-2xl ring-1 ring-white/10 " +
+              (browserIsLandscape ? "" : "mx-auto max-w-[420px]")
+            }
+          >
+            <div className="space-y-1.5 px-4 pb-2.5 pt-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[12px] font-medium text-navy-400">어종</span>
+                <span className="text-[15px] font-extrabold tracking-tight text-white">{fishSpecies}</span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[12px] font-medium text-navy-400">전장</span>
+                <span className="text-[16px] font-extrabold tracking-tight text-green-400">
+                  {det.lengthCm != null ? `${det.lengthCm.toFixed(1)} cm` : "—"}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[12px] font-medium text-navy-400">몸통 너비</span>
+                <span className="text-[16px] font-extrabold tracking-tight text-aqua-400">
+                  {det.widthCm != null ? `${det.widthCm.toFixed(1)} cm` : "—"}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[12px] font-medium text-navy-400">추정 무게</span>
+                <span className="text-[16px] font-extrabold tracking-tight text-white">
+                  {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[12px] font-medium text-navy-400">신뢰도</span>
+                <span className={"text-[14px] font-bold " + (resultConfidence?.cls ?? "text-white")}>
+                  {resultConfidence?.label ?? "—"}
+                </span>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={confirm}
+              className="flex w-full items-center justify-center gap-1.5 bg-aqua-500 py-3 text-[14px] font-bold text-white transition-all active:bg-aqua-600"
+            >
+              다음
+              <ArrowRight size={16} strokeWidth={2.4} />
+            </button>
           </div>
         </div>
       </div>

@@ -11,7 +11,10 @@ function getMoonPhase(): string {
   return ["삭", "초승달", "상현달", "차오르는 달", "보름달", "기우는 달", "하현달", "그믐달"][idx];
 }
 
-const NULL_RESULT = { tidePhase: null, nextTideTime: null, nextTideKind: null, mulddae: null, moonPhase: null };
+const NULL_RESULT = {
+  tidePhase: null, nextTideTime: null, nextTideKind: null, mulddae: null, moonPhase: null,
+  waterTemp: null, airTemp: null,
+};
 
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
@@ -35,6 +38,9 @@ export async function GET(req: NextRequest) {
       nextTideKind: snapshot.tide?.next?.kind ?? null,
       mulddae: snapshot.tide?.mulddae ?? null,
       moonPhase,
+      // 계측일지 환경 기록용 — 수온(해양 관측/Open-Meteo) · 기온(기상청)
+      waterTemp: snapshot.waterTemp?.tempC ?? null,
+      airTemp: snapshot.air?.tempC ?? null,
     });
   } catch {
     return NextResponse.json({ ...NULL_RESULT, moonPhase });

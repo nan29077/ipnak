@@ -405,6 +405,8 @@ export default function MeasurePage() {
     setHead(res.head);
     setTail(res.tail);
     setWidthPts(res.width ?? null);
+    // 스캐너 결과 패널에서 선택한 어종 승계 (대회 모드는 어종 고정이라 무시)
+    if (res.species && !tournamentSpecies) setSpecies(res.species);
     setLiveScanOpen(false);
     setPhase("RESULT");
   }
@@ -531,8 +533,11 @@ export default function MeasurePage() {
         longitude: tags?.location?.longitude ?? null,
         locationName: tags?.location?.locationName ?? null,
         weather: tags?.weather?.weather ?? null,
-        temperature: tags?.weather?.temperature ?? null,
+        // 기온: 기상청 초단기실황(클라이언트 키) → 없으면 해양 스냅샷 기온으로 폴백
+        temperature: tags?.weather?.temperature ?? tags?.tide?.airTemp ?? null,
         tidePhase: tags?.tide?.tidePhase ?? null,
+        tideName: tags?.tide?.mulddae ?? null,   // 물때 이름 (예: "7물")
+        waterTemp: tags?.tide?.waterTemp ?? null, // 수온(°C) — 해양 관측/Open-Meteo
         ballId: refType === "ball" ? (activeBallId ?? null) : null,
         keyringId: refType === "keyring" ? activeKeyringId ?? null : null,
       });
