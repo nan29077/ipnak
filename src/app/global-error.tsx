@@ -2,6 +2,17 @@
 
 import { useEffect } from "react";
 
+const RELOAD_KEY = "ipnak_global_chunk_reload";
+
+function isChunkLoadError(error: Error) {
+  return (
+    error.name === "ChunkLoadError" ||
+    /Loading chunk|Loading CSS chunk|Failed to fetch dynamically imported module|error loading dynamically imported module/i.test(
+      error.message ?? ""
+    )
+  );
+}
+
 export default function GlobalError({
   error,
   reset,
@@ -9,9 +20,27 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const chunkError = isChunkLoadError(error);
+
+  // ChunkLoadError + 아직 미시도 → UI 없이 즉시 새로고침
+  const willAutoReload =
+    chunkError &&
+    typeof window !== "undefined" &&
+    !sessionStorage.getItem(RELOAD_KEY);
+
   useEffect(() => {
     console.error(error);
-  }, [error]);
+    if (chunkError && typeof window !== "undefined") {
+      if (!sessionStorage.getItem(RELOAD_KEY)) {
+        sessionStorage.setItem(RELOAD_KEY, "1");
+        window.location.reload();
+      }
+    } else if (typeof window !== "undefined") {
+      sessionStorage.removeItem(RELOAD_KEY);
+    }
+  }, [error, chunkError]);
+
+  if (willAutoReload) return null;
 
   return (
     <html lang="ko">
