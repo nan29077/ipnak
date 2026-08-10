@@ -75,6 +75,8 @@ Rules:
 - If the yellow reference disc is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - pose: "flat" if fish is lying on its side on a flat surface; "held" if fish is being held up or is not flat; "unknown" if unclear.
+- Unlike a spherical ball, the FLAT keyring disc IS distorted by perspective: an accurate measurement is ONLY possible when the disc lies flat on the ground and is photographed from (nearly) straight above so it appears as a perfect circle.
+- If the keyring is being held in the air, hanging, or tilted (it appears as a clearly flattened ellipse), the measurement is unreliable: set confidence<=0.4.
 - Only set a high confidence when both the reference disc and the full fish (head to tail) are clearly visible.
 - ball.r MUST be measured from the CENTER of the ball/circle to its OUTERMOST VISIBLE EDGE (the physical outer boundary of the yellow circle). Do NOT measure to any inner logo, marking, or shadow — always measure to the outermost pixel boundary of the yellow color.
 - head MUST be placed at the very TIP of the fish's mouth (the frontmost point of the snout or jaw), not at the eye or body. tail MUST be placed at the very END of the tail fin's longest ray, not at the base of the tail.
@@ -118,6 +120,9 @@ Rules:
 - If the yellow reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - pose: "flat" if fish is lying on its side on a flat surface; "held" if fish is being held up or is not flat; "unknown" if unclear.
+- The 입낚볼 is a 3D SPHERICAL ball: unlike a flat disc, it appears as a PERFECT CIRCLE from EVERY viewing angle. Its circular outline has NO perspective distortion, so a tilted camera or a held fish never deforms the ball's shape.
+- Because the ball is a sphere, pose="held" does NOT reduce confidence by itself: if the fish is held vertically or at any angle but the ball is clearly visible as a sharp circle AND the entire fish (head to tail) is visible, confidence 0.7~0.9 is allowed.
+- The ball may hang from a fishing line, or sit beside, above or below the fish — its position never matters. Whenever its circular outline is clearly visible, proceed with the measurement using its exact 40mm diameter.
 - If pose="held" but the ball and fish are in proper perspective (same plane, proportional size) AND the entire fish (head to tail) is clearly visible, confidence may be 0.7~0.9.
 - If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
 - Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
@@ -151,6 +156,9 @@ Rules:
 - If the reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - pose: "flat" if fish is lying on its side on a flat surface; "held" if fish is being held up or is not flat; "unknown" if unclear.
+- The 입낚볼 is a 3D SPHERICAL ball: unlike a flat disc, it appears as a PERFECT CIRCLE from EVERY viewing angle. Its circular outline has NO perspective distortion, so a tilted camera or a held fish never deforms the ball's shape.
+- Because the ball is a sphere, pose="held" does NOT reduce confidence by itself: if the fish is held vertically or at any angle but the ball is clearly visible as a sharp circle AND the entire fish (head to tail) is visible, confidence 0.7~0.9 is allowed.
+- The ball may hang from a fishing line, or sit beside, above or below the fish — its position never matters. Whenever its circular outline is clearly visible, proceed with the measurement using its exact 40mm diameter.
 - If pose="held" but the ball and fish are in proper perspective (same plane, proportional size) AND the entire fish (head to tail) is clearly visible, confidence may be 0.7~0.9.
 - If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
 - Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
