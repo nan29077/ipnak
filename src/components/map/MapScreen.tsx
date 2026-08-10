@@ -1098,7 +1098,16 @@ export function MapScreen({ userId }: { userId?: string }) {
       <Sheet open={!!selected} onClose={() => setSelected(null)} title="피싱 포인트">
         {selected && (
           <div>
-            {selected.photoUrl && <img src={selected.photoUrl} alt="잡은 물고기" className="aspect-square w-full rounded-xl object-cover" />}
+            {/* 계측 사진은 가로형이고 측정선·수치 카드가 이미지 안에 함께 그려져 있다.
+                정사각 크롭(aspect-square + object-cover)으로 자르면 우측 상단 수치 카드와
+                머리·꼬리 측정선이 잘리므로, 비율을 유지한 채 전체가 보이도록 contain 으로 표시한다. */}
+            {selected.photoUrl && (
+              <img
+                src={selected.photoUrl}
+                alt="잡은 물고기"
+                className="max-h-[46vh] w-full rounded-xl bg-black/20 object-contain"
+              />
+            )}
             <Card className="mt-3 flex items-center gap-2 p-2.5">
               <Link href={`/profile/${selected.user.id}`} className="flex items-center gap-2">
                 <img src={getAvatarUrl(selected.user.id, selected.user.avatarUrl)} alt="" className="h-8 w-8 rounded-full object-cover" />

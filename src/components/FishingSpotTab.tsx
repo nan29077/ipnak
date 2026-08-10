@@ -379,12 +379,13 @@ export function FishingSpotTab() {
       >
         {selected && (
           <div className="space-y-3">
+            {/* 계측 사진(측정선·수치 카드 포함)이 잘리지 않도록 비율 유지 contain 표시 */}
             {selected.photoUrl && (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={selected.photoUrl}
                 alt={selected.name}
-                className="w-full rounded-2xl object-cover"
+                className="w-full rounded-2xl bg-black/20 object-contain"
                 style={{ maxHeight: "40vh" }}
               />
             )}
