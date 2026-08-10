@@ -54,7 +54,6 @@ class FishDetector {
         await tf.ready()
         this.model = await tf.loadGraphModel(MODEL_URL)
         await this._warmup(tf)
-        console.log('FishDetector: 모델 로드 완료')
       } catch (e) {
         console.warn('FishDetector: 모델 없음 → 수동(목) 모드로 동작합니다.', e && e.message)
         this.isMockMode = true

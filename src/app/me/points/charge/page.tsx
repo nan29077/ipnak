@@ -12,8 +12,10 @@ export default async function ChargePage() {
   if (!user) redirect("/login");
   const enabled = await pointsEnabled();
 
-  // 포인트 제도 비활성화 시: 서비스 준비 중 페이지 (SUPER_ADMIN은 미리보기 허용)
-  if (!enabled && user.role !== "SUPER_ADMIN") {
+  // 충전 API(/api/points/charge)는 PG 미연동 상태라 SUPER_ADMIN 만 허용한다.
+  // 페이지가 이보다 느슨하면 일반 회원이 충전 화면까지 들어가서 403 을 만난다 —
+  // 권한 기준을 API 와 맞춰, 충전할 수 없는 사용자는 애초에 안내 화면만 보여준다.
+  if (user.role !== "SUPER_ADMIN") {
     return (
       <div className="pb-10">
         <PageHeader title="포인트 충전" back />

@@ -6,7 +6,12 @@ node_modules
 prisma/dev.db
 prisma/dev.db-journal
 *.log
+*.tmp
 *.tsbuildinfo
+# 작업 중 생긴 명령 출력 덤프 (커밋 대상 아님)
+git_result*.txt
+push_result*.txt
+prisma_gen_result*.txt
 .DS_Store
 Thumbs.db
 next-env.d.ts

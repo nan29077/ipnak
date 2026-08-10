@@ -929,6 +929,7 @@ export function MyBallManager() {
                   onClick={() => unlinkBall(b)}
                   disabled={unlinkingId === b.id}
                   title="연동 해제"
+                  aria-label="입낚볼 연동 해제"
                   className="shrink-0 rounded-full p-1.5 text-navy-300 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
                 >
                   <Unlink size={14} strokeWidth={1.9} />
@@ -1122,6 +1123,7 @@ export function MyKeyringManager() {
                   onClick={() => unlinkKeyring(k)}
                   disabled={unlinkingId === k.id}
                   title="연동 해제"
+                  aria-label="입낚키링 연동 해제"
                   className="shrink-0 rounded-full p-1.5 text-navy-300 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
                 >
                   <Unlink size={14} strokeWidth={1.9} />

@@ -74,7 +74,6 @@ export function ProductCreateForm({ shopTagEnabled }: { shopTagEnabled: boolean 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "업로드 실패");
       // API returns { url: "/uploads/..." }
-      console.log("[upload] response:", data);
       const resultUrl = data.url ?? data.imageUrl;
       if (!resultUrl) throw new Error("서버에서 URL을 반환하지 않았습니다");
       return resultUrl as string;

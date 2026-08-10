@@ -734,7 +734,7 @@ function FeedCardImpl({ post, currentUserId, linkToDetail = false }: { post: Fee
           >
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[15px] font-bold text-navy-900">게시글 수정</p>
-              <button onClick={() => setPostEditOpen(false)} className="rounded-full p-1.5 text-navy-400 hover:bg-navy-50/20">
+              <button onClick={() => setPostEditOpen(false)} aria-label="게시글 수정 닫기" className="rounded-full p-1.5 text-navy-400 hover:bg-navy-50/20">
                 <X size={18} />
               </button>
             </div>

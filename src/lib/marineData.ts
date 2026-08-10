@@ -287,6 +287,16 @@ function maskUrl(url: string) {
 const DEBUG_PREFIX = "[ipnak][marine]";
 
 /**
+ * 해양 API 진단 로그.
+ * 요청 1건마다 10줄 넘게 찍혀 운영 로그를 뒤덮으므로 기본은 꺼두고,
+ * 문제를 추적할 때만 MARINE_DEBUG=1 로 켠다. (오류는 console.error 로 항상 남는다)
+ */
+const MARINE_DEBUG = process.env.MARINE_DEBUG === "1";
+function dlog(...args: unknown[]) {
+  if (MARINE_DEBUG) console.log(...args);
+}
+
+/**
  * KHOA XML 응답 → data.go.kr 표준 JSON 구조로 변환.
  * data.go.kr 의 KHOA API 는 _type=json 을 명시해도 XML 로 응답하는 경우가 있어,
  * XML 폴백 파싱을 통해 <item> 블록에서 필드를 추출한다.
@@ -298,7 +308,7 @@ function xmlToKhoaJson(xml: string): any | null {
     const code = codeMatch?.[1]?.trim();
     if (code && code !== "00" && code !== "0000") {
       const msgMatch = xml.match(/<resultMsg[^>]*>([^<]*)<\/resultMsg>/i);
-      console.log(`${DEBUG_PREFIX} XML resultCode=${code} msg=${msgMatch?.[1]?.trim() ?? "?"}`);
+      dlog(`${DEBUG_PREFIX} XML resultCode=${code} msg=${msgMatch?.[1]?.trim() ?? "?"}`);
       return null;
     }
     // <item> 블록 추출
@@ -330,10 +340,10 @@ function xmlToKhoaJson(xml: string): any | null {
 async function getJson(url: string, label = "api"): Promise<any | null> {
   const started = Date.now();
   try {
-    console.log(`${DEBUG_PREFIX} ${label} → GET ${maskUrl(url)}`);
+    dlog(`${DEBUG_PREFIX} ${label} → GET ${maskUrl(url)}`);
     const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT), cache: "no-store" });
     const text = await res.text().catch(() => "");
-    console.log(
+    dlog(
       `${DEBUG_PREFIX} ${label} ← HTTP ${res.status} (${Date.now() - started}ms, ${text.length}b) ${text.slice(0, 300)}`,
     );
     if (!res.ok) return null;
@@ -343,7 +353,7 @@ async function getJson(url: string, label = "api"): Promise<any | null> {
       try {
         return JSON.parse(trimmed);
       } catch (e: any) {
-        console.log(`${DEBUG_PREFIX} ${label} ! JSON 파싱 실패: ${e?.message || "parse error"}`);
+        dlog(`${DEBUG_PREFIX} ${label} ! JSON 파싱 실패: ${e?.message || "parse error"}`);
         return null;
       }
     }
@@ -352,16 +362,16 @@ async function getJson(url: string, label = "api"): Promise<any | null> {
       const parsed = xmlToKhoaJson(trimmed);
       if (parsed) {
         const rows = khoaRows(parsed);
-        console.log(`${DEBUG_PREFIX} ${label} ✓ XML→JSON 변환 성공 rows=${rows.length}`);
+        dlog(`${DEBUG_PREFIX} ${label} ✓ XML→JSON 변환 성공 rows=${rows.length}`);
         return parsed;
       }
-      console.log(`${DEBUG_PREFIX} ${label} ! XML 응답이지만 item 데이터 없음`);
+      dlog(`${DEBUG_PREFIX} ${label} ! XML 응답이지만 item 데이터 없음`);
       return null;
     }
-    console.log(`${DEBUG_PREFIX} ${label} ! 알 수 없는 응답 형식`);
+    dlog(`${DEBUG_PREFIX} ${label} ! 알 수 없는 응답 형식`);
     return null;
   } catch (e: any) {
-    console.log(`${DEBUG_PREFIX} ${label} ! 호출 실패 (${Date.now() - started}ms): ${e?.name || "error"} ${e?.message || ""}`);
+    dlog(`${DEBUG_PREFIX} ${label} ! 호출 실패 (${Date.now() - started}ms): ${e?.name || "error"} ${e?.message || ""}`);
     return null;
   }
 }
@@ -381,12 +391,12 @@ async function getJsonWithFallback(
     if (!json) continue;
     const rows = khoaRows(json);
     if (rows.length > 0) {
-      console.log(`${DEBUG_PREFIX} ${label}#${i + 1} ✓ rows=${rows.length} keys=${Object.keys(rows[0] ?? {}).join(",")}`);
+      dlog(`${DEBUG_PREFIX} ${label}#${i + 1} ✓ rows=${rows.length} keys=${Object.keys(rows[0] ?? {}).join(",")}`);
       return json;
     }
-    console.log(`${DEBUG_PREFIX} ${label}#${i + 1} ✗ 응답은 왔지만 사용할 행이 없어 다음 경로를 시도합니다.`);
+    dlog(`${DEBUG_PREFIX} ${label}#${i + 1} ✗ 응답은 왔지만 사용할 행이 없어 다음 경로를 시도합니다.`);
   }
-  console.log(`${DEBUG_PREFIX} ${label} ✗ 모든 엔드포인트 실패`);
+  dlog(`${DEBUG_PREFIX} ${label} ✗ 모든 엔드포인트 실패`);
   return null;
 }
 
@@ -716,7 +726,7 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
         if (result) {
           const rows = khoaRows(result);
           if (rows.length > 0) {
-            console.log(
+            dlog(
               `${DEBUG_PREFIX} dtRecent ✓ 성공 파라미터: ${paramKey}=${obsCode}, rows=${rows.length}, keys=${Object.keys(rows[rows.length - 1] ?? {}).join(",")}`,
             );
             return result;
@@ -724,7 +734,7 @@ async function fetchDtRecent(key: string, lat: number, lng: number): Promise<DtR
         }
       }
     }
-    console.log(
+    dlog(
       `${DEBUG_PREFIX} dtRecent ✗ 모든 파라미터 조합 실패 (${obsCodeVariants.length * paramKeyVariants.length}가지 시도)`,
     );
     return null;
@@ -1128,11 +1138,11 @@ export async function getMarineSnapshot(
     tideApiKey = c.tideApiKey;
     weatherApiKey = c.weatherApiKey;
   } catch (e: any) {
-    console.log(`${DEBUG_PREFIX} 자격증명 조회 실패: ${e?.message || "error"}`);
+    dlog(`${DEBUG_PREFIX} 자격증명 조회 실패: ${e?.message || "error"}`);
     notes.push("공공 API 키를 불러오지 못했습니다.");
   }
   // 키 값 자체는 절대 찍지 않고, 해결 여부/출처만 남긴다.
-  console.log(
+  dlog(
     `${DEBUG_PREFIX} keys tide=${tideApiKey ? `ok(len ${tideApiKey.length}${tideApiKey === process.env.TIDE_API_KEY ? ", env" : ", db"})` : "none"}` +
       ` weather=${weatherApiKey ? `ok(len ${weatherApiKey.length}${weatherApiKey === process.env.WEATHER_API_KEY ? ", env" : ", db"})` : "none"}` +
       ` at ${lat.toFixed(4)},${lng.toFixed(4)}`,
@@ -1174,7 +1184,7 @@ export async function getMarineSnapshot(
   // 파고: Open-Meteo Marine (항상 시도)
   const wave = openMeteoMarine.wave;
 
-  console.log(
+  dlog(
     `${DEBUG_PREFIX} snapshot inland=${inland} 조석=${tide ? `${tide.events.length}건(${tideApi ? "KHOA" : "알고리즘"})` : "없음"}` +
       ` 수온=${waterTemp ? `${waterTemp.tempC}℃(${waterTemp.stationName})` : "없음"}` +
       ` 파고=${wave ? `${wave.heightM}m` : "없음"} 바람=${wind ? (wind.source ?? "ok") : "없음"}` +

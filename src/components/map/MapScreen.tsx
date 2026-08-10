@@ -162,7 +162,9 @@ export function MapScreen({ userId }: { userId?: string }) {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [myPointsDropOpen]);
 
-  // 검색어 → Nominatim 지오코딩 (한국 지역 검색)
+  // 검색어 → 지오코딩 (한국 지역 검색)
+  // Nominatim 을 브라우저에서 직접 부르면 이용약관이 요구하는 User-Agent 를 붙일 수 없어
+  // 차단 대상이 된다 → 서버 프록시(/api/geocode)를 경유한다.
   // AbortController로 이전 요청 취소 — 늦게 도착한 응답이 최신 검색 결과를 덮어쓰는 race 방지
   useEffect(() => {
     if (searchQuery.trim().length < 2) { setGeoResults([]); return; }
@@ -170,13 +172,13 @@ export function MapScreen({ userId }: { userId?: string }) {
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=4&countrycodes=kr&accept-language=ko`,
+          `/api/geocode?q=${encodeURIComponent(searchQuery)}&limit=4&countrycodes=kr`,
           { signal: controller.signal }
         );
         const data = await res.json();
         if (controller.signal.aborted) return;
         setGeoResults(
-          (data as any[]).slice(0, 4).map((d) => ({
+          (Array.isArray(data) ? data : []).slice(0, 4).map((d: any) => ({
             name: d.display_name.split(",")[0].trim(),
             lat: parseFloat(d.lat),
             lng: parseFloat(d.lon),
@@ -557,7 +559,7 @@ export function MapScreen({ userId }: { userId?: string }) {
             className="min-w-0 flex-1 bg-transparent text-base text-navy-700 placeholder:text-navy-300 outline-none md:text-[13px]"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="shrink-0 text-navy-400 hover:text-navy-700">
+            <button onClick={() => setSearchQuery("")} aria-label="검색어 지우기" className="shrink-0 text-navy-400 hover:text-navy-700">
               <X size={13} />
             </button>
           )}

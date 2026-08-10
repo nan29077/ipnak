@@ -1078,7 +1078,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       if (firstScanRef.current) { clearTimeout(firstScanRef.current); firstScanRef.current = null; }
       abortRef.current?.abort();
     };
-  }, [camStatus, videoHasData, stage, goStage, runYolo]);
+    // refType·testBall 은 스캔 요청 본문과 반경 보정에 그대로 쓰인다.
+    // 의존성에서 빠져 있으면 stale closure 로 이전 모드 값이 계속 전송된다 (예: 키링 모드인데 볼 기준으로 판정).
+  }, [camStatus, videoHasData, stage, goStage, runYolo, refType, testBall]);
 
   /* ── "측정하기": 마지막 성공 프레임 확정 → 부모로 ──
      정상 흐름에서는 결과 패널 진입 시 finalizeOrientation() 이 이미 프레임을
