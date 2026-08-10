@@ -25,10 +25,7 @@ export function isChunkLoadError(error: Error): boolean {
     error.name === "ChunkLoadError" ||
     /Loading chunk|Loading CSS chunk|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Unable to preload/i.test(
       error.message ?? ""
-    ) ||
-    // iOS/Safari: 동적 import 실패 시 ChunkLoadError 대신 TypeError: Load failed 를 던진다
-    (error.name === "TypeError" &&
-      /^load failed$/i.test((error.message ?? "").trim()))
+    )
   );
 }
 

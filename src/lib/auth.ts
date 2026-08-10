@@ -53,26 +53,20 @@ export async function destroySession() {
 }
 
 export async function getCurrentUser() {
+  const token = cookies().get(COOKIE)?.value;
+  if (!token) return null;
+  const session = await prisma.session.findUnique({
+    where: { token },
+    include: { user: true },
+  });
+  if (!session || session.expiresAt < new Date()) return null;
+  // 활동정지 계정은 기존 세션도 즉시 무효 처리 (raw SQL — 컬럼 없는 환경은 통과)
   try {
-    const token = cookies().get(COOKIE)?.value;
-    if (!token) return null;
-    const session = await prisma.session.findUnique({
-      where: { token },
-      include: { user: true },
-    });
-    if (!session || session.expiresAt < new Date()) return null;
-    // 활동정지 계정은 기존 세션도 즉시 무효 처리 (raw SQL — 컬럼 없는 환경은 통과)
-    try {
-      const activeRows: any[] = await prisma.$queryRaw`SELECT isActive FROM \`User\` WHERE id = ${session.userId} LIMIT 1`;
-      if (activeRows[0]?.isActive === 0 || activeRows[0]?.isActive === false) return null;
-    } catch {}
-    const { passwordHash, ...safe } = session.user;
-    return safe;
-  } catch {
-    // DB 연결 오류 등 예기치 못한 예외 — null 반환(비로그인 처리)으로 레이아웃 SSR 크래시를 방지한다.
-    // 이 예외가 RootLayout까지 전파되면 global-error.tsx가 트리거되어 에러 화면이 영구 표시된다.
-    return null;
-  }
+    const activeRows: any[] = await prisma.$queryRaw`SELECT isActive FROM \`User\` WHERE id = ${session.userId} LIMIT 1`;
+    if (activeRows[0]?.isActive === 0 || activeRows[0]?.isActive === false) return null;
+  } catch {}
+  const { passwordHash, ...safe } = session.user;
+  return safe;
 }
 
 export async function requireUser() {
