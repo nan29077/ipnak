@@ -38,7 +38,9 @@ class AROverlay {
   _drawBall(ctx, ball, canvas) {
     const cx = ball.centerX
     const cy = ball.centerY
-    const r = ball.diameterPx / 2
+    // 표시 전용 지름(drawDiameterPx: AI 원본 ball.r 기준, 보정 계수 미적용)이 있으면 우선 사용
+    // — 측정용 diameterPx(보정 포함)와 분리해 원이 실제 볼 외곽선에 맞도록 한다
+    const r = (ball.drawDiameterPx ?? ball.diameterPx) / 2
 
     ctx.beginPath()
     ctx.arc(cx, cy, r, 0, Math.PI * 2)

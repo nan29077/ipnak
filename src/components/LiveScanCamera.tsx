@@ -36,6 +36,8 @@ export type LiveScanResult = {
     centerX: number;
     centerY: number;
     diameterPx: number;
+    /** 화면 표시(원 그리기) 전용 지름 — AI 원본 ball.r 기준 (보정/정밀측정 미적용) */
+    drawDiameterPx: number;
     mmPerPixel: number;
     confidence: number;
     method: "ai-scan";
@@ -124,6 +126,8 @@ type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing" | "no-fish-wa
 
 type Detection = {
   ballN: NormBall;
+  /** AI 원본 정규화 반지름 (이미지 폭 기준) — 오버레이 원 표시 전용. 측정에는 ballN.r(정밀 보정값) 사용 */
+  ballAiR: number;
   headN: Norm;
   tailN: Norm;
   widthN: { top: Norm; bottom: Norm } | null; // 몸통 최대 너비 (선택)
@@ -225,6 +229,79 @@ function refineYellowBallRadius(
   }
 }
 
+/**
+ * 감지 결과(정규화 좌표)를 캔버스 픽셀 좌표로 변환해 그린다.
+ * 라이브 오버레이(drawOverlay)와 결과 패널 오버레이가 공유한다.
+ * 볼 원은 AI 원본 반지름(ballAiR)을 사용해 실제 볼 외곽선에 맞춘다
+ * (정밀 보정값 ballN.r 은 mmPerPixel 계산 전용).
+ */
+function drawDetection(ctx: CanvasRenderingContext2D, d: Detection, W: number, H: number) {
+  const bx = d.ballN.x * W, by = d.ballN.y * H, br = d.ballAiR * W;
+  const hx = d.headN.x * W, hy = d.headN.y * H;
+  const tx = d.tailN.x * W, ty = d.tailN.y * H;
+  const base = Math.max(W, H);
+
+  // 머리-꼬리 연결선
+  ctx.setLineDash([]);
+  ctx.strokeStyle = "rgba(34,197,94,0.9)";
+  ctx.lineWidth = Math.max(3, base * 0.006);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(tx, ty);
+  ctx.stroke();
+
+  // 입낚볼 원 (진한 노랑)
+  ctx.strokeStyle = "#eab308";
+  ctx.lineWidth = Math.max(3, br * 0.08);
+  ctx.beginPath();
+  ctx.arc(bx, by, br, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 머리(초록) / 꼬리(청록) 점
+  const dot = (x: number, y: number, color: string) => {
+    const r = Math.max(6, base * 0.016);
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(x, y, r + Math.max(2, r * 0.35), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  dot(hx, hy, "#22c55e");
+  dot(tx, ty, "#22d3ee");
+
+  // 몸통 최대 너비 선 (전장에 수직, 하늘색 점선)
+  if (d.widthN) {
+    const wtx = d.widthN.top.x * W, wty = d.widthN.top.y * H;
+    const wbx = d.widthN.bottom.x * W, wby = d.widthN.bottom.y * H;
+    ctx.setLineDash([Math.max(6, base * 0.012), Math.max(4, base * 0.008)]);
+    ctx.strokeStyle = "rgba(125,211,252,0.95)";
+    ctx.lineWidth = Math.max(2.5, base * 0.005);
+    ctx.beginPath();
+    ctx.moveTo(wtx, wty);
+    ctx.lineTo(wbx, wby);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 폭 양 끝점 (하늘색 점 — 결과 패널에서 드래그 수정 대상)
+    const wr = Math.max(5, base * 0.012);
+    const wdot = (x: number, y: number) => {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, wr + Math.max(2, wr * 0.35), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#7dd3fc";
+      ctx.beginPath();
+      ctx.arc(x, y, wr, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    wdot(wtx, wty);
+    wdot(wbx, wby);
+  }
+}
+
 export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType = "ball" }: Props) {
   const refLabel = refType === "keyring" ? "입낚키링" : "입낚볼";
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -261,8 +338,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const [keyringTilted, setKeyringTilted] = useState(false);
 
   /* ── 결과 패널 (stage === "result") 전용 상태 ──
-     캡처 프레임 고정 표시 캔버스 + 머리/꼬리/폭 끝점 드래그 수정 */
+     캡처 프레임 고정 표시 캔버스 + 머리/꼬리/폭 끝점 드래그 수정.
+     결과 패널은 회전된 UI 컨테이너 밖 fixed 오버레이(화면 좌표계)에 표시되며,
+     이미지 영역은 프레임 비율을 유지한 contain 박스(fitBox)로 배치된다. */
   const frozenRef = useRef<HTMLCanvasElement>(null);
+  const resultOverlayRef = useRef<HTMLCanvasElement>(null); // 결과 패널 전용 측정 오버레이
+  const resultAreaRef = useRef<HTMLDivElement>(null);       // 이미지 영역 (contain 계산 기준)
+  // 이미지 영역 안에서 프레임 비율을 유지한 표시 박스 크기 (px)
+  const [fitBox, setFitBox] = useState<{ w: number; h: number } | null>(null);
   const dragKeyRef = useRef<"head" | "tail" | "widthTop" | "widthBottom" | null>(null);
   // 플래시(토치) — 기기가 지원할 때만 사이드바에 버튼 노출
   const [torchSupported, setTorchSupported] = useState(false);
@@ -272,7 +355,6 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
      모델이 없으면 yoloOn 이 계속 false 라 아래 코드는 전부 건너뛰고
      기존(서버 AI + 색상 기반) 흐름만 그대로 돈다. */
   const yoloEnabledRef = useRef(false);          // 폴링 콜백에서 참조할 최신 활성 여부
-  const [yoloOn, setYoloOn] = useState(false);   // UI 배지 표시용
   const yoloRef = useRef<YoloResult | null>(null); // 최근 감지 결과 (오버레이용)
   const [yoloTick, setYoloTick] = useState(0);   // 감지 갱신 → 오버레이 재렌더 트리거
   const yoloBusyRef = useRef(false);             // 프레임 중복 추론 방지
@@ -338,7 +420,6 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       .then((ok) => {
         if (cancelled || !ok) return;
         yoloEnabledRef.current = true;
-        setYoloOn(true);
       })
       .catch(() => { /* 확인 실패 = 모델 없음으로 간주 (기존 흐름 유지) */ });
     return () => { cancelled = true; };
@@ -613,71 +694,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     }
 
     if (!d) return;
-
-    const bx = d.ballN.x * W, by = d.ballN.y * H, br = d.ballN.r * W;
-    const hx = d.headN.x * W, hy = d.headN.y * H;
-    const tx = d.tailN.x * W, ty = d.tailN.y * H;
-    const base = Math.max(W, H);
-
-    // 머리-꼬리 연결선
-    ctx.setLineDash([]);
-    ctx.strokeStyle = "rgba(34,197,94,0.9)";
-    ctx.lineWidth = Math.max(3, base * 0.006);
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(hx, hy);
-    ctx.lineTo(tx, ty);
-    ctx.stroke();
-
-    // 입낚볼 원 (진한 노랑)
-    ctx.strokeStyle = "#eab308";
-    ctx.lineWidth = Math.max(3, br * 0.08);
-    ctx.beginPath();
-    ctx.arc(bx, by, br, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // 머리(초록) / 꼬리(청록) 점
-    const dot = (x: number, y: number, color: string) => {
-      const r = Math.max(6, base * 0.016);
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(x, y, r + Math.max(2, r * 0.35), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-    };
-    dot(hx, hy, "#22c55e");
-    dot(tx, ty, "#22d3ee");
-
-    // 몸통 최대 너비 선 (전장에 수직, 하늘색 점선)
-    if (d.widthN) {
-      const wtx = d.widthN.top.x * W, wty = d.widthN.top.y * H;
-      const wbx = d.widthN.bottom.x * W, wby = d.widthN.bottom.y * H;
-      ctx.setLineDash([Math.max(6, base * 0.012), Math.max(4, base * 0.008)]);
-      ctx.strokeStyle = "rgba(125,211,252,0.95)";
-      ctx.lineWidth = Math.max(2.5, base * 0.005);
-      ctx.beginPath();
-      ctx.moveTo(wtx, wty);
-      ctx.lineTo(wbx, wby);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // 폭 양 끝점 (하늘색 점 — 결과 패널에서 드래그 수정 대상)
-      const wr = Math.max(5, base * 0.012);
-      const wdot = (x: number, y: number) => {
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(x, y, wr + Math.max(2, wr * 0.35), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#7dd3fc";
-        ctx.beginPath();
-        ctx.arc(x, y, wr, 0, Math.PI * 2);
-        ctx.fill();
-      };
-      wdot(wtx, wty);
-      wdot(wbx, wby);
-    }
+    drawDetection(ctx, d, W, H);
   }, []);
 
   // yoloTick 은 YOLO 감지가 갱신될 때마다 증가 — 모델이 없으면 영원히 0 이라 기존과 동일하다
@@ -779,6 +796,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           }
           const detection: Detection = {
             ballN: { x: data.ball.x, y: data.ball.y, r: refinedRadiusPx / w },
+            ballAiR: data.ball.r,
             headN: { x: data.head.x, y: data.head.y },
             tailN: { x: data.tail.x, y: data.tail.y },
             widthN,
@@ -950,6 +968,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         centerX: ballCX,
         centerY: ballCY,
         diameterPx,
+        // 표시용 지름은 AI 원본 반지름 기준 (반지름은 회전 불변이라 portrait width 정규화 그대로 사용)
+        drawDiameterPx: 2 * s.det.ballAiR * srcW,
         mmPerPixel: 40 / diameterPx,
         confidence: s.det.confidence,
         method: "ai-scan",
@@ -968,7 +988,29 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     else goStage("scan");
   }, [goStage]);
 
-  /* ── 결과 패널 진입 시 캡처 프레임을 고정 표시 캔버스에 그린다 ── */
+  /* ── 결과 패널 이미지 영역: 프레임 비율을 유지한 contain 박스 크기 계산 ──
+     박스 크기 = 프레임 표시 크기이므로, 드래그 수정 레이어의 화면 정규화 좌표가
+     그대로 프레임 정규화 좌표와 일치한다 (기존 드래그 로직 무변경) */
+  useEffect(() => {
+    if (stage !== "result") { setFitBox(null); return; }
+    const area = resultAreaRef.current;
+    const s = successRef.current;
+    if (!area || !s) return;
+    const compute = () => {
+      const aw = area.clientWidth, ah = area.clientHeight;
+      const fw = s.work.width, fh = s.work.height;
+      if (!aw || !ah || !fw || !fh) return;
+      const k = Math.min(aw / fw, ah / fh);
+      setFitBox({ w: fw * k, h: fh * k });
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(area);
+    return () => ro.disconnect();
+  }, [stage]);
+
+  /* ── 결과 패널 진입 시 캡처 프레임을 고정 표시 캔버스에 그린다 ──
+     (fitBox 확정 후 캔버스가 마운트되므로 fitBox 를 deps 에 포함) */
   useEffect(() => {
     if (stage !== "result") return;
     const s = successRef.current;
@@ -977,7 +1019,22 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     cv.width = s.work.width;
     cv.height = s.work.height;
     cv.getContext("2d")?.drawImage(s.work, 0, 0);
-  }, [stage]);
+  }, [stage, fitBox]);
+
+  /* ── 결과 패널 측정 오버레이 (프레임 좌표계, drawDetection 공유) ── */
+  useEffect(() => {
+    if (stage !== "result" || !det) return;
+    const s = successRef.current;
+    const cv = resultOverlayRef.current;
+    if (!s || !cv) return;
+    const W = s.work.width, H = s.work.height;
+    if (cv.width !== W) cv.width = W;
+    if (cv.height !== H) cv.height = H;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, W, H);
+    drawDetection(ctx, det, W, H);
+  }, [stage, det, fitBox]);
 
   /* ── 끝점 이동 후 길이/폭 재계산 (스캔 성공 경로와 동일 공식) ── */
   const recomputeMeasures = useCallback((d: Detection, w: number, h: number): Detection => {
@@ -1000,7 +1057,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   }, []);
 
   /* ── 결과 패널: 머리/꼬리/폭 끝점 드래그 수정 ──
-     프레임/오버레이 모두 화면에 100% 스트레치되므로 화면 정규화 좌표 = 프레임 정규화 좌표 */
+     드래그 레이어가 프레임 비율 유지 표시 박스(fitBox)와 정확히 일치하므로
+     레이어 정규화 좌표 = 프레임 정규화 좌표 */
   const onEditPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const s = successRef.current;
     if (!s) return;
@@ -1277,26 +1335,12 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         autoPlay
         style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0 }}
       />
-      {/* ── 결과 패널: 확정된 캡처 프레임 고정 표시 (오버레이 아래, 라이브 영상 위) ── */}
-      {stage === "result" && (
-        <canvas
-          ref={frozenRef}
-          style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 5 }}
-        />
-      )}
+      {/* ⚠️ objectFit cover 필수 — video 와 동일한 크롭을 적용해야 감지 좌표(머리/꼬리 끝점·볼 원)가
+          화면에 보이는 영상과 정확히 일치한다 (기본값 fill 은 화면 비율 ≠ 영상 비율일 때 좌표가 어긋남) */}
       <canvas
         ref={overlayRef}
-        style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
+        style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
       />
-      {/* ── YOLO 활성 배지 — 모델이 배포된 경우에만 나타난다 (없으면 렌더 자체가 없음) ── */}
-      {yoloOn && stage !== "result" && (
-        <span
-          className="pointer-events-none absolute right-3 top-3 z-[11] rounded-full bg-black/55 px-2.5 py-1 text-[10.5px] font-bold tracking-wide text-emerald-300 backdrop-blur-sm"
-          style={{ paddingTop: "max(4px, env(safe-area-inset-top, 0px))" }}
-        >
-          AI 인식 ON
-        </span>
-      )}
       {/* ── 실시간 물고기 윤곽 반짝임 (인식 완료 시 자동 종료) ──
           ⚠️ 반드시 video 와 같은 레이어에 둔다. UI 컨테이너는 CSS 회전 모드에서
              rotate(90deg) 되므로, 그 안에 두면 윤곽 좌표가 카메라 화면과 어긋난다. */}
@@ -1344,56 +1388,48 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       className={!needsCssRotation ? "fixed inset-0 z-[400] overflow-hidden" : undefined}
       style={needsCssRotation ? { ...outerStyle, backgroundColor: "transparent" } : undefined}
     >
-      {/* ── 상단 바 ── */}
-      <div
-        className={
-          "absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent py-3 " +
-          (!effectiveLandscape ? "pt-safe px-4" : "pr-4")
-        }
-        style={{
-          ...(effectiveLandscape
-            ? {
-                // 결과 패널에서는 우측 컨트롤 패널(88px)이 없으므로 safe-area 만큼만 띄운다
-                right: stage === "result"
-                  ? "max(16px, env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px))"
-                  : "calc(88px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
-                // CSS 회전 모드: LOCAL left = 노치 방향 → safe-area-inset-top
-                // 네이티브 가로 모드: 왼쪽 = 노치 방향 → safe-area-inset-left
-                // 둘 다 max()로 대응
-                paddingLeft: "max(20px, env(safe-area-inset-top), env(safe-area-inset-left))",
-              }
-            : undefined),
-          // 결과 패널: 좌측 사이드바(56px)와 겹치지 않게 타이틀을 오른쪽으로 민다
-          ...(stage === "result"
-            ? { paddingLeft: "calc(64px + max(env(safe-area-inset-top, 0px), env(safe-area-inset-left, 0px)))" }
-            : undefined),
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <ScanLine size={17} strokeWidth={1.9} className="text-aqua-400" />
-          <span className="text-[14px] font-bold text-white">AI 실시간 스캐너</span>
-          <span className="animate-pulse rounded-full bg-aqua-500/20 px-2 py-0.5 text-[10px] font-bold text-aqua-400 ring-1 ring-aqua-500/30">
-            입낚 AI 측정 중
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* 단계 표시 — 스캔 중 / 결과 확인 */}
-          <span className="whitespace-nowrap text-[10.5px] font-semibold tracking-tight text-white/60">
-            {stage === "result" ? "2단계 · 측정 결과 확인" : "1단계 · 물고기와 입낚볼 인식 및 계측"}
-          </span>
-          {/* 세로/가로 전환 버튼 — 기기가 자동회전 중이거나 결과 패널에서는 숨김 */}
-          {stage !== "result" && !browserIsLandscape && (
-            <button
-              type="button"
-              onClick={() => setIsLandscape((v) => { isLandscapeRef.current = !v; return !v; })}
-              className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/20"
-            >
-              <RotateCw size={12} strokeWidth={2} />
-              {effectiveLandscape ? "세로로" : "가로로"}
-            </button>
-          )}
-          {/* 닫기 — 결과 패널에서는 좌측 사이드바의 X 로 대체 */}
-          {stage !== "result" && (
+      {/* ── 상단 바 — 결과 패널(stage === "result")은 회전 컨테이너 밖 자체 상단 바를 쓴다 ── */}
+      {stage !== "result" && (
+        <div
+          className={
+            "absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent py-3 " +
+            (!effectiveLandscape ? "pt-safe px-4" : "pr-4")
+          }
+          style={
+            effectiveLandscape
+              ? {
+                  right: "calc(88px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
+                  // CSS 회전 모드: LOCAL left = 노치 방향 → safe-area-inset-top
+                  // 네이티브 가로 모드: 왼쪽 = 노치 방향 → safe-area-inset-left
+                  // 둘 다 max()로 대응
+                  paddingLeft: "max(20px, env(safe-area-inset-top), env(safe-area-inset-left))",
+                }
+              : undefined
+          }
+        >
+          <div className="flex items-center gap-2">
+            <ScanLine size={17} strokeWidth={1.9} className="text-aqua-400" />
+            <span className="text-[14px] font-bold text-white">AI 실시간 스캐너</span>
+            <span className="animate-pulse rounded-full bg-aqua-500/20 px-2 py-0.5 text-[10px] font-bold text-aqua-400 ring-1 ring-aqua-500/30">
+              입낚 AI 측정 중
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* 단계 표시 */}
+            <span className="whitespace-nowrap text-[10.5px] font-semibold tracking-tight text-white/60">
+              1단계 · 물고기와 입낚볼 인식 및 계측
+            </span>
+            {/* 세로/가로 전환 버튼 — 기기가 자동회전 중에는 숨김 */}
+            {!browserIsLandscape && (
+              <button
+                type="button"
+                onClick={() => setIsLandscape((v) => { isLandscapeRef.current = !v; return !v; })}
+                className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/20"
+              >
+                <RotateCw size={12} strokeWidth={2} />
+                {effectiveLandscape ? "세로로" : "가로로"}
+              </button>
+            )}
             <button
               onClick={onClose}
               aria-label="닫기"
@@ -1401,9 +1437,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
             >
               <X size={19} />
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── 화면 중앙 안내 문구 — scan 탐색 중 + 카메라 준비 완료 시만 표시 ── */}
       {stage === "scan" && camStatus === "ready" && videoHasData && !canConfirm && !keyringTilted && (
@@ -1524,69 +1560,96 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         </div>
       )}
 
-      {/* ── 결과 패널 (stage === "result") — 스캐너 화면 내에서 표시, 페이지 이동 없음 ── */}
-      {stage === "result" && det && (
-        <>
-          {/* 끝점 드래그 수정 레이어 — 사이드바/패널 버튼 아래에 깔린다 */}
-          <div
-            className="absolute inset-0 z-20"
-            style={{ touchAction: "none" }}
-            onPointerDown={onEditPointerDown}
-            onPointerMove={onEditPointerMove}
-            onPointerUp={onEditPointerUp}
-            onPointerCancel={onEditPointerUp}
-          />
+    </div>
 
-          {/* 좌측 사이드바 (다크 네이비) — 닫기 / 플래시 */}
-          <div
-            className="absolute inset-y-0 left-0 z-40 flex flex-col items-center gap-2.5 bg-[#0d1b2a]/90 py-3 backdrop-blur-sm"
-            style={{
-              width: "calc(56px + max(env(safe-area-inset-top, 0px), env(safe-area-inset-left, 0px)))",
-              paddingLeft: "max(0px, env(safe-area-inset-top, 0px), env(safe-area-inset-left, 0px))",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => { cleanupStream(); onClose(); }}
-              aria-label="닫기"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
-            >
-              <X size={19} />
-            </button>
+    {/* ── 결과 패널 (stage === "result") — 회전된 컨테이너 밖 fixed 오버레이 ──
+        항상 화면(스크린) 좌표계 기준으로 표시된다 (CSS rotate 미적용 → 텍스트/UI가 눕지 않음).
+        이미지 영역(프레임 비율 유지 contain)과 데이터 카드 영역을 분리해
+        물고기 이미지가 카드에 가려지지 않고 온전히 보인다. */}
+    {stage === "result" && det && (
+      <div className="fixed inset-0 z-[401] flex flex-col bg-[#0a1622]">
+        {/* 상단 바 — 타이틀 · 단계 · 플래시 · 닫기 */}
+        <div
+          className="flex shrink-0 items-center justify-between gap-2 px-4 py-2.5"
+          style={{
+            paddingTop: "max(10px, env(safe-area-inset-top, 0px))",
+            paddingLeft: "max(16px, env(safe-area-inset-left, 0px))",
+            paddingRight: "max(16px, env(safe-area-inset-right, 0px))",
+          }}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <ScanLine size={17} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
+            <span className="truncate text-[14px] font-bold text-white">AI 실시간 스캐너</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="whitespace-nowrap text-[10.5px] font-semibold tracking-tight text-white/60">
+              2단계 · 측정 결과 확인
+            </span>
             {torchSupported && (
               <button
                 type="button"
                 onClick={toggleTorch}
                 aria-label="플래시"
                 className={
-                  "flex h-10 w-10 items-center justify-center rounded-full transition-colors " +
+                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors " +
                   (torchOn ? "bg-yellow-400/25 text-yellow-400" : "bg-white/10 text-white/75 hover:bg-white/20")
                 }
               >
-                <Zap size={18} strokeWidth={2} />
+                <Zap size={17} strokeWidth={2} />
               </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { cleanupStream(); onClose(); }}
+              aria-label="닫기"
+              className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+            >
+              <X size={19} />
+            </button>
+          </div>
+        </div>
+
+        {/* 이미지 + 데이터 — 세로 화면: 상하 배치 / 가로 화면: 좌우 배치 */}
+        <div className={"flex min-h-0 flex-1 " + (browserIsLandscape ? "flex-row" : "flex-col")}>
+          {/* 이미지 영역 — 캡처 프레임 전체가 보이도록 contain 박스에 표시 */}
+          <div
+            ref={resultAreaRef}
+            className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden"
+          >
+            {fitBox && (
+              <div className="relative" style={{ width: fitBox.w, height: fitBox.h }}>
+                <canvas
+                  ref={frozenRef}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+                />
+                <canvas
+                  ref={resultOverlayRef}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+                />
+                {/* 끝점 드래그 수정 레이어 — 표시 박스와 정확히 일치 (화면 정규화 좌표 = 프레임 정규화 좌표) */}
+                <div
+                  className="absolute inset-0"
+                  style={{ touchAction: "none" }}
+                  onPointerDown={onEditPointerDown}
+                  onPointerMove={onEditPointerMove}
+                  onPointerUp={onEditPointerUp}
+                  onPointerCancel={onEditPointerUp}
+                />
+              </div>
             )}
           </div>
 
-          {/* 하단 중앙 상태 배지 — 가로 모드에서만 중앙 (세로는 데이터 패널 위에 표시) */}
-          {effectiveLandscape && (
-            <div
-              className="pointer-events-none absolute inset-x-0 z-30 flex justify-center"
-              style={{ bottom: "calc(14px + env(safe-area-inset-bottom, 0px))" }}
-            >
-              {resultBadge}
-            </div>
-          )}
-
-          {/* 우측 하단 데이터 패널 (반투명) + "다음" */}
+          {/* 데이터 영역 — 이미지 밖에 분리 배치 (상태 배지 + 데이터 카드 + "다음") */}
           <div
-            className="absolute z-40 flex flex-col items-center gap-2"
+            className="flex shrink-0 flex-col items-center justify-center gap-2 px-4 pb-4 pt-1"
             style={{
-              right: "calc(12px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
-              bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+              paddingBottom: "max(16px, env(safe-area-inset-bottom, 0px))",
+              ...(browserIsLandscape
+                ? { paddingRight: "max(16px, env(safe-area-inset-right, 0px))" }
+                : undefined),
             }}
           >
-            {!effectiveLandscape && resultBadge}
+            {resultBadge}
             <div className="w-[228px] overflow-hidden rounded-2xl bg-[#0d1b2a]/85 shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
               <div className="space-y-2 px-4 pb-3 pt-3.5">
                 <div className="flex items-baseline justify-between">
@@ -1624,10 +1687,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               </button>
             </div>
           </div>
-        </>
-      )}
-
-    </div>
+        </div>
+      </div>
+    )}
 
     {/* ── 기준물 미감지 1단계: "찾을 수 없습니다" 메시지 오버레이 (1.5초) ──
         회전된 카메라 컨테이너 밖에 fixed 로 배치 → 항상 세로(portrait) 방향 표시 */}

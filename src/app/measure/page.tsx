@@ -327,7 +327,7 @@ export default function MeasurePage() {
       }
 
       // 정규화 좌표(0~1) → 작업 캔버스 픽셀 좌표
-      const BALL_RADIUS_CORRECTION = 1.1; // AI tends to underestimate ball radius
+      const BALL_RADIUS_CORRECTION = 1.1; // AI tends to underestimate ball radius (mmPerPixel 보정 전용)
       const diameterPx = 2 * data.ball.r * work.width * BALL_RADIUS_CORRECTION;
       if (!(diameterPx > 0)) throw new Error("scan-unreliable");
 
@@ -336,6 +336,8 @@ export default function MeasurePage() {
         centerX: data.ball.x * work.width,
         centerY: data.ball.y * work.height,
         diameterPx,
+        // 화면 표시(원 그리기) 전용 지름 — 보정 계수 없이 AI 원본 ball.r 그대로 (실제 볼 외곽선에 맞춤)
+        drawDiameterPx: 2 * data.ball.r * work.width,
         mmPerPixel: 40 / diameterPx, // 입낚볼·입낚키링 실지름 40mm
         confidence: data.confidence,
         method: "ai-scan",
