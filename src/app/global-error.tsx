@@ -12,11 +12,12 @@ import {
 /**
  * 루트 레이아웃까지 뚫고 나온 에러의 최종 방어선.
  *
- * ChunkLoadError 복구는 sessionStorage 가 아니라 URL 파라미터(_cr)로 횟수를 센다.
- * NFC 태그는 탭마다 새로 열려 sessionStorage 가 항상 비어 있고,
- * location.reload() 는 캐시를 재사용해 같은 청크 404 가 재발했기 때문.
- * → 캐시버스터를 붙인 location.replace() 로 최대 2회 자동 재시도,
- *   그동안은 화면에 아무것도 그리지 않는다 (에러 화면 깜빡임 없음).
+ * - iOS Safari 는 ChunkLoadError 이름·메시지가 달라 isChunkLoadError() 감지에서 빠질 수 있다.
+ * - global-error 는 SSR 단계에서도 에러 UI 를 렌더해 브라우저에 보낼 수 있다.
+ * 이 두 이유로 에러 종류와 무관하게 재시도 여유가 있는 동안에는
+ *   ① 화면을 비워두고(에러 UI 미노출)
+ *   ② 캐시버스터를 붙인 location.replace() 로 하드 리로드한다.
+ * MAX_CHUNK_RELOADS 회 소진 후에만 에러 UI 를 표시한다.
  */
 export default function GlobalError({
   error,
@@ -28,9 +29,10 @@ export default function GlobalError({
   const chunkError = isChunkLoadError(error);
   const reloadCount = getChunkReloadCount();
 
-  // ChunkLoadError + 재시도 여유 있음 → UI 없이 즉시 캐시버스터 리로드
+  // 에러 종류 무관: 재시도 여유가 있으면 항상 빈 화면 + 캐시버스터 리로드
+  // (iOS Safari 는 ChunkLoadError 감지가 불완전하므로 isChunkLoadError 에 의존하지 않는다)
   const willAutoReload =
-    chunkError && typeof window !== "undefined" && reloadCount < MAX_CHUNK_RELOADS;
+    typeof window !== "undefined" && reloadCount < MAX_CHUNK_RELOADS;
 
   useEffect(() => {
     console.error(error);
@@ -40,7 +42,14 @@ export default function GlobalError({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
 
-  if (willAutoReload) return null;
+  // 자동 리로드 예정 → 빈 화면만 반환 (에러 UI 노출 없음)
+  if (willAutoReload) {
+    return (
+      <html lang="ko">
+        <body style={{ margin: 0, background: "#f4f6f9" }} />
+      </html>
+    );
+  }
 
   return (
     <html lang="ko">
@@ -68,28 +77,51 @@ export default function GlobalError({
               ? "네트워크가 불안정해 앱 파일을 받지 못했어요. 다시 시도해 주세요."
               : "예기치 못한 오류가 생겼어요. 페이지를 새로고침해 주세요."}
           </p>
-          <button
-            onClick={() => {
-              // 청크 유실은 클라이언트 라우팅(reset)으로 복구되지 않는다 → 하드 리로드
-              if (chunkError) chunkHardReload(1);
-              else reset();
-            }}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              borderRadius: 12,
-              border: "none",
-              background: "#1f3a63",
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: 600,
-              padding: "12px 20px",
-              cursor: "pointer",
-            }}
-          >
-            다시 시도
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+            <button
+              onClick={() => {
+                // 청크 유실은 클라이언트 라우팅(reset)으로 복구되지 않는다 → 하드 리로드
+                if (chunkError) chunkHardReload(1);
+                else reset();
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 12,
+                border: "none",
+                background: "#1f3a63",
+                color: "#fff",
+                fontSize: 15,
+                fontWeight: 600,
+                padding: "12px 20px",
+                cursor: "pointer",
+              }}
+            >
+              다시 시도
+            </button>
+            {/* 탈출구: 어떤 오류든 홈으로 이동할 수 있도록 항상 노출 */}
+            <button
+              onClick={() => {
+                if (typeof window !== "undefined") window.location.href = "/";
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 12,
+                border: "1px solid #c8d3e0",
+                background: "transparent",
+                color: "#5b6b85",
+                fontSize: 15,
+                fontWeight: 600,
+                padding: "12px 20px",
+                cursor: "pointer",
+              }}
+            >
+              홈으로
+            </button>
+          </div>
         </div>
       </body>
     </html>

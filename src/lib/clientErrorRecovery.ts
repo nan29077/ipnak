@@ -19,11 +19,11 @@ const CACHE_BUSTER_PARAM = "_cb";
 /** 자동 재시도 최대 횟수 (초과 시에만 에러 UI 노출) */
 export const MAX_CHUNK_RELOADS = 2;
 
-/** 청크/모듈 로드 실패 여부 판별 */
+/** 청크/모듈 로드 실패 여부 판별 (iOS Safari 포함) */
 export function isChunkLoadError(error: Error): boolean {
   return (
     error.name === "ChunkLoadError" ||
-    /Loading chunk|Loading CSS chunk|Failed to fetch dynamically imported module|error loading dynamically imported module/i.test(
+    /Loading chunk|Loading CSS chunk|Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Unable to preload/i.test(
       error.message ?? ""
     )
   );

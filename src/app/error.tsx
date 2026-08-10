@@ -32,10 +32,10 @@ export default function Error({
   const chunkError = isChunkLoadError(error);
   const reloadCount = getChunkReloadCount();
 
-  // ChunkLoadError + 재시도 여유 있음 → 화면 렌더 없이 즉시 캐시버스터 리로드
-  // (useEffect보다 먼저 판별해 에러 화면이 순간이라도 보이지 않도록 한다)
+  // iOS Safari 는 ChunkLoadError 감지가 불완전하므로, 재시도 여유가 있으면
+  // 에러 종류 무관하게 캐시버스터 리로드를 시도한다.
   const willAutoReload =
-    chunkError && typeof window !== "undefined" && reloadCount < MAX_CHUNK_RELOADS;
+    typeof window !== "undefined" && reloadCount < MAX_CHUNK_RELOADS;
 
   useEffect(() => {
     // 모니터링 연동을 위해 콘솔 + 서버 로그(pm2 logs 의 [client-error])에 기록
