@@ -98,7 +98,9 @@ export async function POST(req: Request) {
         updatedAt: spot.updatedAt.toISOString(),
       },
     });
-  } catch {
-    return NextResponse.json({ error: "어장포인트 저장에 실패했습니다." }, { status: 500 });
+  } catch (e) {
+    console.error("[fishing-spots POST] DB 저장 실패:", e);
+    // FishingSpot 테이블이 없는 경우 prisma db push 가 필요합니다.
+    return NextResponse.json({ error: "어장포인트 저장에 실패했습니다. 서버 로그를 확인해 주세요." }, { status: 500 });
   }
 }

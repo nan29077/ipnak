@@ -6,7 +6,7 @@
  * 수집은 서버에서 백그라운드로 돌고, 이 화면은 진행 상황을 1.5초마다 폴링한다.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Loader2, RefreshCw, AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { Download, Loader2, RefreshCw, AlertTriangle, CheckCircle2, Info, Upload, FileArchive } from "lucide-react";
 import { Button, Input, Select } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -283,11 +283,134 @@ export function AiTrainingCollectTab() {
         )}
       </div>
 
+      {/* ── Roboflow ZIP 업로드 ── */}
+      <RoboflowZipUpload onUploaded={load} />
+
       <p className="flex items-start gap-2 px-1 text-[11.5px] leading-relaxed text-navy-400">
         <Info size={14} className="mt-0.5 shrink-0" />
         수집된 이미지는 <code className="text-navy-500">training-data/raw/</code> 에 저장됩니다.
         저작권 표기가 필요한 라이선스(CC-BY 계열)가 포함되므로, 학습 외 용도로 재배포하지 마세요.
       </p>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Roboflow YOLOv8 ZIP 업로드 섹션
+   ────────────────────────────────────────────────────────────── */
+function RoboflowZipUpload({ onUploaded }: { onUploaded: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<{
+    ok: boolean;
+    savedImages?: number;
+    savedLabels?: number;
+    skipped?: number;
+    errors?: string[];
+    error?: string;
+  } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    setResult(null);
+  }
+
+  async function handleUpload() {
+    if (!file) return;
+    setUploading(true);
+    setResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/admin/ai-training/upload-zip", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResult({ ok: false, error: data?.error ?? "업로드에 실패했습니다." });
+      } else {
+        setResult({ ok: true, ...data });
+        setFile(null);
+        if (inputRef.current) inputRef.current.value = "";
+        onUploaded();
+      }
+    } catch {
+      setResult({ ok: false, error: "업로드 중 오류가 발생했습니다." });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="card p-5">
+      <h2 className="mb-1 text-[15px] font-bold text-navy-800">Roboflow ZIP 업로드</h2>
+      <p className="mb-4 text-[12.5px] text-navy-400">
+        Roboflow에서 Export한 YOLOv8 포맷 zip 파일을 업로드합니다.
+        이미지는 <code className="text-navy-500">raw/</code>에, 라벨은 <code className="text-navy-500">labels/</code>에 저장됩니다.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {/* 파일 선택 버튼 */}
+        <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-navy-100 px-4 py-2.5 text-[13px] font-semibold text-navy-400 transition-colors hover:bg-white/[0.04]">
+          <FileArchive size={15} />
+          {file ? file.name : "zip 파일 선택"}
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".zip"
+            className="hidden"
+            onChange={handleFileChange}
+            disabled={uploading}
+          />
+        </label>
+
+        {file && (
+          <span className="text-[12px] text-navy-400">
+            {(file.size / 1024 / 1024).toFixed(1)} MB
+          </span>
+        )}
+
+        <Button
+          onClick={handleUpload}
+          disabled={!file || uploading}
+          leftIcon={uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+        >
+          {uploading ? "업로드 중…" : "업로드"}
+        </Button>
+      </div>
+
+      {/* 결과 */}
+      {result && (
+        <div className={cn(
+          "mt-4 rounded-xl px-4 py-3 text-[13px]",
+          result.ok ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300",
+        )}>
+          {result.ok ? (
+            <div className="flex items-start gap-2">
+              <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">업로드 완료</p>
+                <p className="mt-0.5 text-[12px] opacity-80">
+                  이미지 {result.savedImages}장 저장 · 라벨 {result.savedLabels}개 저장 · 중복 {result.skipped}건 건너뜀
+                </p>
+                {result.errors && result.errors.length > 0 && (
+                  <ul className="mt-1 text-[11.5px] opacity-70">
+                    {result.errors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <p>{result.error}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
