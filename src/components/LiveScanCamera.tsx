@@ -12,7 +12,8 @@
  * ⚠️ 오버레이 정렬을 위해 video / overlay 모두 object-cover 사용 (동일 크롭 → 좌표 일치)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, Camera, Loader2, RefreshCw, ScanLine, Check, RotateCw, AlertTriangle } from "lucide-react";
+import { X, Camera, Loader2, RefreshCw, ScanLine, Check, RotateCw, AlertTriangle, Zap, ArrowRight } from "lucide-react";
+import { estimateWeight, estimateWeightByWidth, formatWeight } from "@/lib/weightEstimation";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 import { FishScanGlow } from "./FishScanGlow";
 import { FishShimmer } from "./FishShimmer";
@@ -117,8 +118,9 @@ type Cam = "loading" | "ready" | "error";
  * - ref-missing     : no-ref-warning 후 → "종료하시겠습니까?" 모달 표시
  * - no-fish-warning : 물고기 미감지 → "물고기를 찾을 수 없습니다" 메시지 표시 (1.5초)
  * - fish-missing    : no-fish-warning 후 → "종료하시겠습니까?" 모달 표시
+ * - result          : 측정 확정 후 스캐너 화면 내 결과 패널 (캡처 프레임 고정 + 끝점 수정 + "다음" → onConfirm)
  */
-type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing" | "no-fish-warning" | "fish-missing" | "no-both-warning" | "both-missing";
+type Stage = "scan" | "shimmer" | "no-ref-warning" | "ref-missing" | "no-fish-warning" | "fish-missing" | "no-both-warning" | "both-missing" | "result";
 
 type Detection = {
   ballN: NormBall;
@@ -257,6 +259,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const consecutiveSuccessRef = useRef(0); // 스캔 연속 성공 횟수 (낮은 신뢰도 확인용)
   // 키링이 너무 찌그러진 타원으로 잡힌 상태 (종횡비 미달) — 수직 촬영 안내 표시
   const [keyringTilted, setKeyringTilted] = useState(false);
+
+  /* ── 결과 패널 (stage === "result") 전용 상태 ──
+     캡처 프레임 고정 표시 캔버스 + 머리/꼬리/폭 끝점 드래그 수정 */
+  const frozenRef = useRef<HTMLCanvasElement>(null);
+  const dragKeyRef = useRef<"head" | "tail" | "widthTop" | "widthBottom" | null>(null);
+  // 플래시(토치) — 기기가 지원할 때만 사이드바에 버튼 노출
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   /* ── YOLO 온디바이스 감지 (public/models/best.onnx 가 있을 때만 동작) ──
      모델이 없으면 yoloOn 이 계속 false 라 아래 코드는 전부 건너뛰고
@@ -520,6 +530,27 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     };
   }, []);
 
+  /* ── 플래시(토치) 지원 여부 확인 — 지원 기기에서만 사이드바 버튼 노출 ── */
+  useEffect(() => {
+    if (camStatus !== "ready") { setTorchSupported(false); setTorchOn(false); return; }
+    const track = streamRef.current?.getVideoTracks()[0];
+    const caps = track?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+    setTorchSupported(!!caps?.torch);
+  }, [camStatus, retry]);
+
+  /* ── 플래시(토치) 켜기/끄기 — 스트림 트랙 제약만 갱신 (스캔 로직 무관) ── */
+  const toggleTorch = useCallback(() => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    setTorchOn((prev) => {
+      const next = !prev;
+      track
+        .applyConstraints({ advanced: [{ torch: next } as unknown as MediaTrackConstraintSet] })
+        .catch(() => { /* 미지원/거부 시 무시 */ });
+      return next;
+    });
+  }, []);
+
   /* ── 오버레이 렌더 (감지 좌표 → 프리뷰 좌표) ── */
   const drawOverlay = useCallback((d: Detection | null) => {
     const ov = overlayRef.current;
@@ -632,6 +663,20 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       ctx.lineTo(wbx, wby);
       ctx.stroke();
       ctx.setLineDash([]);
+      // 폭 양 끝점 (하늘색 점 — 결과 패널에서 드래그 수정 대상)
+      const wr = Math.max(5, base * 0.012);
+      const wdot = (x: number, y: number) => {
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(x, y, wr + Math.max(2, wr * 0.35), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#7dd3fc";
+        ctx.beginPath();
+        ctx.arc(x, y, wr, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      wdot(wtx, wty);
+      wdot(wbx, wby);
     }
   }, []);
 
@@ -917,8 +962,97 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     onConfirm(result);
   }, [cleanupStream, onConfirm, onClose]);
 
-  /* ── 윤슬 한 바퀴 완료 → 자동으로 측정 확정 ── */
-  const handleShimmerComplete = useCallback(() => { confirm(); }, [confirm]);
+  /* ── 윤슬 한 바퀴 완료 → 스캐너 화면 내 결과 패널 표시 ("다음"에서 confirm) ── */
+  const handleShimmerComplete = useCallback(() => {
+    if (successRef.current) goStage("result");
+    else goStage("scan");
+  }, [goStage]);
+
+  /* ── 결과 패널 진입 시 캡처 프레임을 고정 표시 캔버스에 그린다 ── */
+  useEffect(() => {
+    if (stage !== "result") return;
+    const s = successRef.current;
+    const cv = frozenRef.current;
+    if (!s || !cv) return;
+    cv.width = s.work.width;
+    cv.height = s.work.height;
+    cv.getContext("2d")?.drawImage(s.work, 0, 0);
+  }, [stage]);
+
+  /* ── 끝점 이동 후 길이/폭 재계산 (스캔 성공 경로와 동일 공식) ── */
+  const recomputeMeasures = useCallback((d: Detection, w: number, h: number): Detection => {
+    const diameterPx = 2 * d.ballN.r * w;
+    let lengthCm: number | null = null;
+    let widthCm: number | null = null;
+    if (diameterPx > 0) {
+      const mmPerPixel = 40 / diameterPx;
+      const px = Math.hypot((d.tailN.x - d.headN.x) * w, (d.tailN.y - d.headN.y) * h);
+      lengthCm = Math.round((px * mmPerPixel) / 10 * 10) / 10;
+      if (d.widthN) {
+        const wpx = Math.hypot(
+          (d.widthN.bottom.x - d.widthN.top.x) * w,
+          (d.widthN.bottom.y - d.widthN.top.y) * h,
+        );
+        widthCm = wpx > 0 ? Math.round((wpx * mmPerPixel) / 10 * 10) / 10 : null;
+      }
+    }
+    return { ...d, lengthCm, widthCm };
+  }, []);
+
+  /* ── 결과 패널: 머리/꼬리/폭 끝점 드래그 수정 ──
+     프레임/오버레이 모두 화면에 100% 스트레치되므로 화면 정규화 좌표 = 프레임 정규화 좌표 */
+  const onEditPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const s = successRef.current;
+    if (!s) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const nx = (e.clientX - rect.left) / rect.width;
+    const ny = (e.clientY - rect.top) / rect.height;
+    const d = s.det;
+    const cands: Array<["head" | "tail" | "widthTop" | "widthBottom", Norm]> = [
+      ["head", d.headN],
+      ["tail", d.tailN],
+    ];
+    if (d.widthN) {
+      cands.push(["widthTop", d.widthN.top], ["widthBottom", d.widthN.bottom]);
+    }
+    let best: typeof dragKeyRef.current = null;
+    let bestDist = Infinity;
+    for (const [k, p] of cands) {
+      const dist = Math.hypot((p.x - nx) * rect.width, (p.y - ny) * rect.height);
+      if (dist < bestDist) { bestDist = dist; best = k; }
+    }
+    if (best == null || bestDist > 44) return; // 끝점 근처(44px)에서만 드래그 시작
+    dragKeyRef.current = best;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onEditPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const key = dragKeyRef.current;
+    const s = successRef.current;
+    if (!key || !s) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const ny = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    const d = s.det;
+    const next: Detection = {
+      ...d,
+      headN: key === "head" ? { x: nx, y: ny } : d.headN,
+      tailN: key === "tail" ? { x: nx, y: ny } : d.tailN,
+      widthN: d.widthN
+        ? {
+            top: key === "widthTop" ? { x: nx, y: ny } : d.widthN.top,
+            bottom: key === "widthBottom" ? { x: nx, y: ny } : d.widthN.bottom,
+          }
+        : null,
+    };
+    const rec = recomputeMeasures(next, s.work.width, s.work.height);
+    s.det = rec; // confirm()이 수정된 좌표를 사용하도록 동기화
+    setDet(rec);
+  }, [recomputeMeasures]);
+
+  const onEditPointerUp = useCallback(() => { dragKeyRef.current = null; }, []);
 
   /* ── no-ref-warning → 1.5초 후 자동으로 ref-missing 모달로 전환 ── */
   useEffect(() => {
@@ -993,6 +1127,28 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
 
   const canConfirm = !!det;
 
+  /* ── 결과 패널 표시값 (추정 무게 · 신뢰도 등급) — 표시 전용 계산 ── */
+  const resultWeightG =
+    det?.lengthCm != null
+      ? ((det.widthCm != null ? estimateWeightByWidth(det.lengthCm, det.widthCm) : null) ??
+        estimateWeight(det.lengthCm))
+      : null;
+  const resultConfidence = det
+    ? det.confidence >= CONFIDENCE_INSTANT
+      ? { label: "높음", cls: "text-green-400" }
+      : det.confidence >= 0.75
+      ? { label: "보통", cls: "text-yellow-400" }
+      : { label: "낮음", cls: "text-orange-400" }
+    : null;
+
+  /* ── 결과 패널 하단 상태 배지 ── */
+  const resultBadge = (
+    <span className="pointer-events-none flex items-center gap-1.5 rounded-full bg-aqua-500/20 px-3 py-1.5 text-[12px] font-bold text-aqua-300 ring-1 ring-aqua-500/30 backdrop-blur-sm">
+      <Check size={13} strokeWidth={2.6} />
+      측정 완료 · 점을 드래그해 수정할 수 있어요
+    </span>
+  );
+
   /* ── 윤곽 감지 상태별 안내 문구 ── */
   const scanGuide: { main: string; sub: string; locked: boolean } =
     scanStatus === "locked"
@@ -1021,7 +1177,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       </p>
     </div>
   ) : stage === "shimmer" ? (
-    <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-yellow-300">
+    <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-aqua-300">
       <ScanLine size={15} strokeWidth={2.2} />
       인식 완료 — 측정 중이에요...
     </p>
@@ -1051,18 +1207,18 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     </div>
   );
 
-  /* ── 측정하기 버튼 (세로 모드 — 원형, 노란색 반투명) ── */
+  /* ── 측정하기 버튼 (세로 모드 — 원형, 아쿠아 반투명) → 스캐너 내 결과 패널 열기 ── */
   const measureButton = (
     <div className="flex justify-center">
       <button
         type="button"
-        onClick={confirm}
+        onClick={() => goStage("result")}
         disabled={!canConfirm}
         className={
           "flex h-[72px] w-[72px] flex-col items-center justify-center gap-1 rounded-full text-[11px] font-bold transition-all active:scale-[0.94] " +
           (canConfirm
-            ? "bg-yellow-400/80 text-gray-900 shadow-lg shadow-yellow-400/40"
-            : "bg-yellow-400/15 text-yellow-100/35")
+            ? "bg-aqua-500/85 text-white shadow-lg shadow-aqua-500/40"
+            : "bg-aqua-500/15 text-aqua-100/35")
         }
       >
         <ScanLine size={22} strokeWidth={2} />
@@ -1121,12 +1277,19 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         autoPlay
         style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0 }}
       />
+      {/* ── 결과 패널: 확정된 캡처 프레임 고정 표시 (오버레이 아래, 라이브 영상 위) ── */}
+      {stage === "result" && (
+        <canvas
+          ref={frozenRef}
+          style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 5 }}
+        />
+      )}
       <canvas
         ref={overlayRef}
         style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, pointerEvents: "none", zIndex: 10 }}
       />
       {/* ── YOLO 활성 배지 — 모델이 배포된 경우에만 나타난다 (없으면 렌더 자체가 없음) ── */}
-      {yoloOn && (
+      {yoloOn && stage !== "result" && (
         <span
           className="pointer-events-none absolute right-3 top-3 z-[11] rounded-full bg-black/55 px-2.5 py-1 text-[10.5px] font-bold tracking-wide text-emerald-300 backdrop-blur-sm"
           style={{ paddingTop: "max(4px, env(safe-area-inset-top, 0px))" }}
@@ -1187,24 +1350,39 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           "absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent py-3 " +
           (!effectiveLandscape ? "pt-safe px-4" : "pr-4")
         }
-        style={effectiveLandscape ? {
-          right: "calc(88px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
-          // CSS 회전 모드: LOCAL left = 노치 방향 → safe-area-inset-top
-          // 네이티브 가로 모드: 왼쪽 = 노치 방향 → safe-area-inset-left
-          // 둘 다 max()로 대응
-          paddingLeft: "max(20px, env(safe-area-inset-top), env(safe-area-inset-left))",
-        } : undefined}
+        style={{
+          ...(effectiveLandscape
+            ? {
+                // 결과 패널에서는 우측 컨트롤 패널(88px)이 없으므로 safe-area 만큼만 띄운다
+                right: stage === "result"
+                  ? "max(16px, env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px))"
+                  : "calc(88px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
+                // CSS 회전 모드: LOCAL left = 노치 방향 → safe-area-inset-top
+                // 네이티브 가로 모드: 왼쪽 = 노치 방향 → safe-area-inset-left
+                // 둘 다 max()로 대응
+                paddingLeft: "max(20px, env(safe-area-inset-top), env(safe-area-inset-left))",
+              }
+            : undefined),
+          // 결과 패널: 좌측 사이드바(56px)와 겹치지 않게 타이틀을 오른쪽으로 민다
+          ...(stage === "result"
+            ? { paddingLeft: "calc(64px + max(env(safe-area-inset-top, 0px), env(safe-area-inset-left, 0px)))" }
+            : undefined),
+        }}
       >
         <div className="flex items-center gap-2">
-          <ScanLine size={17} strokeWidth={1.9} className="text-orange-400" />
+          <ScanLine size={17} strokeWidth={1.9} className="text-aqua-400" />
           <span className="text-[14px] font-bold text-white">AI 실시간 스캐너</span>
-          <span className="animate-pulse rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold text-orange-400 ring-1 ring-orange-500/30">
+          <span className="animate-pulse rounded-full bg-aqua-500/20 px-2 py-0.5 text-[10px] font-bold text-aqua-400 ring-1 ring-aqua-500/30">
             입낚 AI 측정 중
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {/* 세로/가로 전환 버튼 — 기기가 자동회전 중이면 숨김 (기기 방향이 자동으로 제어) */}
-          {!browserIsLandscape && (
+          {/* 단계 표시 — 스캔 중 / 결과 확인 */}
+          <span className="whitespace-nowrap text-[10.5px] font-semibold tracking-tight text-white/60">
+            {stage === "result" ? "2단계 · 측정 결과 확인" : "1단계 · 물고기와 입낚볼 인식 및 계측"}
+          </span>
+          {/* 세로/가로 전환 버튼 — 기기가 자동회전 중이거나 결과 패널에서는 숨김 */}
+          {stage !== "result" && !browserIsLandscape && (
             <button
               type="button"
               onClick={() => setIsLandscape((v) => { isLandscapeRef.current = !v; return !v; })}
@@ -1214,13 +1392,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               {effectiveLandscape ? "세로로" : "가로로"}
             </button>
           )}
-          <button
-            onClick={onClose}
-            aria-label="닫기"
-            className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
-          >
-            <X size={19} />
-          </button>
+          {/* 닫기 — 결과 패널에서는 좌측 사이드바의 X 로 대체 */}
+          {stage !== "result" && (
+            <button
+              onClick={onClose}
+              aria-label="닫기"
+              className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+            >
+              <X size={19} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -1247,8 +1428,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         </div>
       )}
 
-      {/* 감지 시 상단 배지 */}
-      {canConfirm && (
+      {/* 감지 시 상단 배지 — 결과 패널에서는 데이터 패널이 대신한다 */}
+      {canConfirm && stage !== "result" && (
         <div className="pointer-events-none absolute left-1/2 top-14 z-20 -translate-x-1/2">
           <span className="flex items-center gap-1.5 rounded-full bg-green-500/90 px-3 py-1.5 text-[12px] font-bold text-white shadow-lg">
             <Check size={14} strokeWidth={2.6} />
@@ -1287,7 +1468,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       )}
 
       {/* ── 하단 컨트롤 (세로 모드) ── */}
-      {camStatus !== "error" && !effectiveLandscape && (
+      {camStatus !== "error" && !effectiveLandscape && stage !== "result" && (
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
           {/* scan 탐색 중에는 중앙 깜빡이는 흰 글씨가 안내 대신하므로 카드 숨김
               (키링 각도 경고는 예외 — 재촬영 방법을 바로 알려야 한다) */}
@@ -1297,7 +1478,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       )}
 
       {/* ── 안내 오버레이 — 가로 모드 시 카메라 왼쪽 영역 중앙 ── */}
-      {camStatus !== "error" && effectiveLandscape && (stage !== "scan" || canConfirm || keyringTilted) && (
+      {camStatus !== "error" && effectiveLandscape && stage !== "result" && (stage !== "scan" || canConfirm || keyringTilted) && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-30 flex flex-col items-center justify-center"
           style={{
@@ -1313,7 +1494,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       {/* ── 우측 컨트롤 패널 (가로 모드) ── */}
       {/* CSS 회전 모드: LOCAL right = 가로화면 오른쪽 = 홈인디케이터(safe-area-inset-bottom) */}
       {/* 네이티브 가로 모드: 오른쪽 = 홈인디케이터(safe-area-inset-right) */}
-      {camStatus !== "error" && effectiveLandscape && (
+      {camStatus !== "error" && effectiveLandscape && stage !== "result" && (
         <div
           className="absolute inset-y-0 right-0 z-30 flex flex-col items-center"
           style={{
@@ -1324,16 +1505,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         >
           <div className="h-14 shrink-0" />
           <div className="flex-1" />
-          {/* 측정하기 (원형, 노란색 반투명) */}
+          {/* 측정하기 (원형, 아쿠아 반투명) → 스캐너 내 결과 패널 열기 */}
           <button
             type="button"
-            onClick={confirm}
+            onClick={() => goStage("result")}
             disabled={!canConfirm}
             className={
               "flex h-[60px] w-[60px] flex-col items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-all active:scale-[0.94] " +
               (canConfirm
-                ? "bg-yellow-400/80 text-gray-900 shadow-lg shadow-yellow-400/40"
-                : "bg-yellow-400/15 text-yellow-100/35")
+                ? "bg-aqua-500/85 text-white shadow-lg shadow-aqua-500/40"
+                : "bg-aqua-500/15 text-aqua-100/35")
             }
           >
             <ScanLine size={19} strokeWidth={2} />
@@ -1341,6 +1522,109 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           </button>
           <div className="flex-[2]" />
         </div>
+      )}
+
+      {/* ── 결과 패널 (stage === "result") — 스캐너 화면 내에서 표시, 페이지 이동 없음 ── */}
+      {stage === "result" && det && (
+        <>
+          {/* 끝점 드래그 수정 레이어 — 사이드바/패널 버튼 아래에 깔린다 */}
+          <div
+            className="absolute inset-0 z-20"
+            style={{ touchAction: "none" }}
+            onPointerDown={onEditPointerDown}
+            onPointerMove={onEditPointerMove}
+            onPointerUp={onEditPointerUp}
+            onPointerCancel={onEditPointerUp}
+          />
+
+          {/* 좌측 사이드바 (다크 네이비) — 닫기 / 플래시 */}
+          <div
+            className="absolute inset-y-0 left-0 z-40 flex flex-col items-center gap-2.5 bg-[#0d1b2a]/90 py-3 backdrop-blur-sm"
+            style={{
+              width: "calc(56px + max(env(safe-area-inset-top, 0px), env(safe-area-inset-left, 0px)))",
+              paddingLeft: "max(0px, env(safe-area-inset-top, 0px), env(safe-area-inset-left, 0px))",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => { cleanupStream(); onClose(); }}
+              aria-label="닫기"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+            >
+              <X size={19} />
+            </button>
+            {torchSupported && (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                aria-label="플래시"
+                className={
+                  "flex h-10 w-10 items-center justify-center rounded-full transition-colors " +
+                  (torchOn ? "bg-yellow-400/25 text-yellow-400" : "bg-white/10 text-white/75 hover:bg-white/20")
+                }
+              >
+                <Zap size={18} strokeWidth={2} />
+              </button>
+            )}
+          </div>
+
+          {/* 하단 중앙 상태 배지 — 가로 모드에서만 중앙 (세로는 데이터 패널 위에 표시) */}
+          {effectiveLandscape && (
+            <div
+              className="pointer-events-none absolute inset-x-0 z-30 flex justify-center"
+              style={{ bottom: "calc(14px + env(safe-area-inset-bottom, 0px))" }}
+            >
+              {resultBadge}
+            </div>
+          )}
+
+          {/* 우측 하단 데이터 패널 (반투명) + "다음" */}
+          <div
+            className="absolute z-40 flex flex-col items-center gap-2"
+            style={{
+              right: "calc(12px + max(env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px)))",
+              bottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+            }}
+          >
+            {!effectiveLandscape && resultBadge}
+            <div className="w-[228px] overflow-hidden rounded-2xl bg-[#0d1b2a]/85 shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
+              <div className="space-y-2 px-4 pb-3 pt-3.5">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[12px] font-medium text-navy-400">전장</span>
+                  <span className="text-[16px] font-extrabold tracking-tight text-green-400">
+                    {det.lengthCm != null ? `${det.lengthCm.toFixed(1)} cm` : "—"}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[12px] font-medium text-navy-400">몸통 너비</span>
+                  <span className="text-[16px] font-extrabold tracking-tight text-aqua-400">
+                    {det.widthCm != null ? `${det.widthCm.toFixed(1)} cm` : "—"}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[12px] font-medium text-navy-400">추정 무게</span>
+                  <span className="text-[16px] font-extrabold tracking-tight text-white">
+                    {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[12px] font-medium text-navy-400">신뢰도</span>
+                  <span className={"text-[14px] font-bold " + (resultConfidence?.cls ?? "text-white")}>
+                    {resultConfidence?.label ?? "—"}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={confirm}
+                className="flex w-full items-center justify-center gap-1.5 bg-aqua-500 py-3 text-[14px] font-bold text-white transition-all active:bg-aqua-600"
+              >
+                다음
+                <ArrowRight size={16} strokeWidth={2.4} />
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
     </div>
