@@ -849,7 +849,7 @@ export function MapScreen({ userId }: { userId?: string }) {
         open={recordsOpen}
         onClose={() => setRecordsOpen(false)}
         title="내 스마트피싱 기록"
-        titleSub="(내 기록에 자동 저장됩니다)"
+        titleSub="· 내 기록에 자동 저장됩니다"
         size="md"
       >
         {savedTrips.length === 0 ? (

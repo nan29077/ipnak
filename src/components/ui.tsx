@@ -65,7 +65,7 @@ export function Chip({ children, active, onClick, as, size = "md", className }: 
 
 export function Sheet({ open, onClose, title, titleSub, children, stickyContent, footer, size = "lg" }: {
   open: boolean; onClose: () => void; title?: string; children: React.ReactNode;
-  /** 제목 바로 아래 한 줄로 붙는 보조 안내 문구 (아쿠아 강조, 좁은 화면에서는 말줄임) */
+  /** 제목 옆에 인라인으로 붙는 보조 안내 문구 (아쿠아 강조, 좁은 화면에서는 말줄임) */
   titleSub?: React.ReactNode;
   /** 제목 아래, 스크롤 영역 위에 고정되는 콘텐츠 (통계 카드 등) */
   stickyContent?: React.ReactNode;
@@ -173,11 +173,12 @@ export function Sheet({ open, onClose, title, titleSub, children, stickyContent,
         >
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20" aria-hidden />
           <div className="mb-3 flex items-center justify-between gap-2">
-            {/* min-w-0 — 보조 문구가 좁은 화면에서 줄바꿈 대신 말줄임되도록 flex 축소를 허용한다 */}
-            <div className="min-w-0">
-              <h2 className="text-[16px] font-bold text-navy-900">{title}</h2>
+            {/* 제목 + 보조 문구를 한 줄에 인라인 배치.
+                제목은 shrink-0 으로 온전히 보이고, 좁은 화면에서는 보조 문구만 말줄임된다. */}
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              <h2 className="shrink-0 text-[16px] font-bold text-navy-900">{title}</h2>
               {titleSub && (
-                <p className="mt-0.5 truncate text-[11px] font-medium text-aqua-300">{titleSub}</p>
+                <span className="truncate text-[11px] font-medium text-aqua-300">{titleSub}</span>
               )}
             </div>
             <button onClick={onClose} aria-label="닫기" className="shrink-0 rounded-full p-1 text-navy-300 transition-colors hover:bg-navy-50"><X size={20} /></button>
