@@ -76,6 +76,8 @@ Rules:
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
 - pose: "flat" if fish is lying on its side on a flat surface; "held" if fish is being held up or is not flat; "unknown" if unclear.
 - Only set a high confidence when both the reference disc and the full fish (head to tail) are clearly visible.
+- ball.r MUST be measured from the CENTER of the ball/circle to its OUTERMOST VISIBLE EDGE (the physical outer boundary of the yellow circle). Do NOT measure to any inner logo, marking, or shadow — always measure to the outermost pixel boundary of the yellow color.
+- head MUST be placed at the very TIP of the fish's mouth (the frontmost point of the snout or jaw), not at the eye or body. tail MUST be placed at the very END of the tail fin's longest ray, not at the base of the tail.
 Return ONLY the JSON object.`;
 
 /** 테스트 모드 전용 시스템 프롬프트 — 주황볼도 기준물로 허용 */
@@ -119,6 +121,8 @@ Rules:
 - If pose="held" but the ball and fish are in proper perspective (same plane, proportional size) AND the entire fish (head to tail) is clearly visible, confidence may be 0.7~0.9.
 - If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
 - Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
+- ball.r MUST be measured from the CENTER of the ball/circle to its OUTERMOST VISIBLE EDGE (the physical outer boundary of the yellow circle). Do NOT measure to any inner logo, marking, or shadow — always measure to the outermost pixel boundary of the yellow color.
+- head MUST be placed at the very TIP of the fish's mouth (the frontmost point of the snout or jaw), not at the eye or body. tail MUST be placed at the very END of the tail fin's longest ray, not at the base of the tail.
 Return ONLY the JSON object.`;
 
 /** 테스트 모드 전용 유저 프롬프트 — 주황볼도 기준물로 허용 */
@@ -150,6 +154,8 @@ Rules:
 - If pose="held" but the ball and fish are in proper perspective (same plane, proportional size) AND the entire fish (head to tail) is clearly visible, confidence may be 0.7~0.9.
 - If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
 - Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
+- ball.r MUST be measured from the CENTER of the ball/circle to its OUTERMOST VISIBLE EDGE (the physical outer boundary of the yellow circle). Do NOT measure to any inner logo, marking, or shadow — always measure to the outermost pixel boundary of the yellow color.
+- head MUST be placed at the very TIP of the fish's mouth (the frontmost point of the snout or jaw), not at the eye or body. tail MUST be placed at the very END of the tail fin's longest ray, not at the base of the tail.
 Return ONLY the JSON object.`;
 
 function num(v: unknown): number | null {

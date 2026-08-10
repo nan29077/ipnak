@@ -221,21 +221,34 @@ export default function MeasurePage() {
     setLoadingMsg("사진 준비 중...");
 
     try {
-      const url = URL.createObjectURL(file);
-      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const im = new Image();
-        im.onload = () => resolve(im);
-        im.onerror = () => reject(new Error("이미지를 읽을 수 없어요."));
-        im.src = url;
-      });
-
-      const scale = Math.min(1, MAX_WORK_PX / Math.max(img.naturalWidth, img.naturalHeight));
-      const work = document.createElement("canvas");
-      work.width = Math.round(img.naturalWidth * scale);
-      work.height = Math.round(img.naturalHeight * scale);
-      work.getContext("2d")!.drawImage(img, 0, 0, work.width, work.height);
+      let work: HTMLCanvasElement;
+      try {
+        // createImageBitmap with imageOrientation applies EXIF rotation automatically
+        // Supported: Chrome 81+, Safari 15+, Firefox 93+
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as any);
+        const scale = Math.min(1, MAX_WORK_PX / Math.max(bitmap.width, bitmap.height));
+        work = document.createElement("canvas");
+        work.width = Math.round(bitmap.width * scale);
+        work.height = Math.round(bitmap.height * scale);
+        work.getContext("2d")!.drawImage(bitmap, 0, 0, work.width, work.height);
+        bitmap.close();
+      } catch {
+        // Fallback for older browsers (no EXIF correction)
+        const url = URL.createObjectURL(file);
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const im = new Image();
+          im.onload = () => resolve(im);
+          im.onerror = () => reject(new Error("이미지를 읽을 수 없어요."));
+          im.src = url;
+        });
+        const scale = Math.min(1, MAX_WORK_PX / Math.max(img.naturalWidth, img.naturalHeight));
+        work = document.createElement("canvas");
+        work.width = Math.round(img.naturalWidth * scale);
+        work.height = Math.round(img.naturalHeight * scale);
+        work.getContext("2d")!.drawImage(img, 0, 0, work.width, work.height);
+        URL.revokeObjectURL(url);
+      }
       workCanvasRef.current = work;
-      URL.revokeObjectURL(url);
       setHasImage(true);
 
       // 사진 로드 완료 → 측정 방식 선택 화면
@@ -314,7 +327,8 @@ export default function MeasurePage() {
       }
 
       // 정규화 좌표(0~1) → 작업 캔버스 픽셀 좌표
-      const diameterPx = 2 * data.ball.r * work.width;
+      const BALL_RADIUS_CORRECTION = 1.1; // AI tends to underestimate ball radius
+      const diameterPx = 2 * data.ball.r * work.width * BALL_RADIUS_CORRECTION;
       if (!(diameterPx > 0)) throw new Error("scan-unreliable");
 
       const ballObj = {
@@ -467,6 +481,22 @@ export default function MeasurePage() {
 
     const dHead = Math.hypot(p.x - head.x, p.y - head.y);
     const dTail = Math.hypot(p.x - tail.x, p.y - tail.y);
+
+    // widthPts가 있으면 폭 끝점 거리도 비교 — 더 가까운 점을 이동
+    if (widthPts) {
+      const dWTop = Math.hypot(p.x - widthPts.top.x, p.y - widthPts.top.y);
+      const dWBot = Math.hypot(p.x - widthPts.bottom.x, p.y - widthPts.bottom.y);
+      const minWidth = Math.min(dWTop, dWBot);
+      const minHeadTail = Math.min(dHead, dTail);
+
+      if (minWidth < minHeadTail) {
+        // 폭 끝점이 더 가까움
+        if (dWTop <= dWBot) setWidthPts({ ...widthPts, top: p });
+        else setWidthPts({ ...widthPts, bottom: p });
+        return;
+      }
+    }
+
     if (dHead <= dTail) setHead(p);
     else setTail(p);
   }
@@ -1012,7 +1042,7 @@ export default function MeasurePage() {
               ref={canvasRef}
               onPointerDown={onCanvasTap}
               className="block touch-none select-none"
-              style={{ width: "100%", height: "auto", maxHeight: phase === "SAVED" ? "26vh" : "38vh" }}
+              style={{ width: "100%", height: "auto", maxHeight: phase === "SAVED" ? "26vh" : "55vh" }}
             />
             {/* 자동 스캔 중: 물고기 윤곽선 반짝임 애니메이션 (측정 완료 시 자동 종료) */}
             {phase === "SCANNING" && (

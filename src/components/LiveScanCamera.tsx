@@ -285,6 +285,11 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const [browserIsLandscape, setBrowserIsLandscape] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(orientation: landscape)").matches
   );
+  // confirm 시점에 최신 방향 값을 읽기 위한 ref (state 동기화)
+  const isLandscapeRef = useRef(true);
+  const browserIsLandscapeRef = useRef(
+    typeof window !== "undefined" && window.matchMedia("(orientation: landscape)").matches
+  );
 
   /* ── 스트림/폴링 정리 (재사용) ── */
   const cleanupStream = useCallback(() => {
@@ -302,12 +307,15 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const mq = window.matchMedia("(orientation: landscape)");
     const handler = (e: MediaQueryListEvent) => {
       setBrowserIsLandscape(e.matches);
+      browserIsLandscapeRef.current = e.matches;
       // 기기 방향에 따라 UI 방향도 자동 맞춤
       setIsLandscape(e.matches);
+      isLandscapeRef.current = e.matches;
     };
     mq.addEventListener("change", handler);
     // 초기 상태도 동기화
-    if (mq.matches) setIsLandscape(true);
+    browserIsLandscapeRef.current = mq.matches;
+    if (mq.matches) { setIsLandscape(true); isLandscapeRef.current = true; }
     return () => mq.removeEventListener("change", handler);
   }, []);
 
@@ -845,28 +853,65 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const s = successRef.current;
     if (!s) return;
     cleanupStream();
-    const w = s.work.width, h = s.work.height;
-    const diameterPx = 2 * s.det.ballN.r * w;
+
+    const srcW = s.work.width, srcH = s.work.height;
+    // CSS rotate(90deg) 트릭으로 가로처럼 보였지만 캡처 프레임은 세로인 경우
+    // → 결과 화면에서도 가로로 보이도록 실제 픽셀을 90°CW 회전한다.
+    const needsRotate = isLandscapeRef.current && !browserIsLandscapeRef.current && srcW < srcH;
+
+    // diameterPx는 항상 원본 portrait width 기준 (ballN.r는 portrait width로 정규화됨)
+    const diameterPx = 2 * s.det.ballN.r * srcW;
     if (!(diameterPx > 0)) { onClose(); return; }
+
+    let workCanvas = s.work;
+    let ballCX = s.det.ballN.x * srcW;
+    let ballCY = s.det.ballN.y * srcH;
+    let headPt = { x: s.det.headN.x * srcW, y: s.det.headN.y * srcH };
+    let tailPt = { x: s.det.tailN.x * srcW, y: s.det.tailN.y * srcH };
+    let widthResult: { top: { x: number; y: number }; bottom: { x: number; y: number } } | null = s.det.widthN
+      ? {
+          top: { x: s.det.widthN.top.x * srcW, y: s.det.widthN.top.y * srcH },
+          bottom: { x: s.det.widthN.bottom.x * srcW, y: s.det.widthN.bottom.y * srcH },
+        }
+      : null;
+
+    if (needsRotate) {
+      // 90°CW 회전: portrait(srcW×srcH) → landscape(srcH×srcW)
+      const dst = document.createElement("canvas");
+      dst.width = srcH;
+      dst.height = srcW;
+      const ctx = dst.getContext("2d")!;
+      ctx.translate(dst.width, 0);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(s.work, 0, 0, srcW, srcH);
+      workCanvas = dst;
+
+      // 좌표 변환: (px, py) portrait → (srcH - py, px) landscape
+      const tf = (p: { x: number; y: number }) => ({ x: srcH - p.y, y: p.x });
+      const origBallCX = ballCX;
+      ballCX = srcH - ballCY;
+      ballCY = origBallCX;
+      headPt = tf(headPt);
+      tailPt = tf(tailPt);
+      widthResult = widthResult
+        ? { top: tf(widthResult.top), bottom: tf(widthResult.bottom) }
+        : null;
+    }
+
     const result: LiveScanResult = {
-      work: s.work,
+      work: workCanvas,
       ball: {
         found: true,
-        centerX: s.det.ballN.x * w,
-        centerY: s.det.ballN.y * h,
+        centerX: ballCX,
+        centerY: ballCY,
         diameterPx,
         mmPerPixel: 40 / diameterPx,
         confidence: s.det.confidence,
         method: "ai-scan",
       },
-      head: { x: s.det.headN.x * w, y: s.det.headN.y * h },
-      tail: { x: s.det.tailN.x * w, y: s.det.tailN.y * h },
-      width: s.det.widthN
-        ? {
-            top: { x: s.det.widthN.top.x * w, y: s.det.widthN.top.y * h },
-            bottom: { x: s.det.widthN.bottom.x * w, y: s.det.widthN.bottom.y * h },
-          }
-        : null,
+      head: headPt,
+      tail: tailPt,
+      width: widthResult,
       confidence: s.det.confidence,
     };
     onConfirm(result);
@@ -1162,7 +1207,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           {!browserIsLandscape && (
             <button
               type="button"
-              onClick={() => setIsLandscape((v) => !v)}
+              onClick={() => setIsLandscape((v) => { isLandscapeRef.current = !v; return !v; })}
               className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/20"
             >
               <RotateCw size={12} strokeWidth={2} />
