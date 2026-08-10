@@ -25,6 +25,15 @@ function maskPhone(phone: string | null | undefined): string {
   return phone;
 }
 
+function fmtDate(val: string | null | undefined): string {
+  if (!val) return "-";
+  try {
+    return new Date(val).toISOString().slice(0, 10).replace(/-/g, ".");
+  } catch {
+    return "-";
+  }
+}
+
 type Props = {
   initialItems: RegistryItem[];
   initialTotal: number;
@@ -210,8 +219,53 @@ export function IpnakKeyringRegistryTab({ initialItems, initialTotal }: Props) {
         {loading && <span className="text-orange-500">로딩 중...</span>}
       </div>
 
-      {/* 목록 테이블 */}
-      <div className="overflow-x-auto rounded-xl border border-navy-100">
+      {/* 모바일 카드 목록 */}
+      <div className="sm:hidden space-y-2">
+        {items.length === 0 && (
+          <div className="rounded-xl border border-navy-100 px-4 py-10 text-center text-sm text-navy-400">
+            등록된 키링 ID가 없습니다.
+          </div>
+        )}
+        {items.map(item => (
+          <div key={item.id} className="rounded-xl border border-navy-100 bg-[#0d1b2a] p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Tag className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+              <span className="font-mono font-semibold text-navy-800 flex-1 min-w-0 truncate">{item.keyringId}</span>
+              <TagUrlCopyButton url={buildTagUrl("keyring", item.keyringId)} />
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${item.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"}`}>
+                {item.isActive ? "활성" : "비활성"}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-navy-400">
+              {item.memo && <span>메모: <span className="text-navy-500">{item.memo}</span></span>}
+              <span>
+                연동:{" "}
+                {item.linkedUserNickname
+                  ? <span className="text-navy-800 font-semibold">{item.linkedUserNickname}{item.linkedUserPhone ? ` · ${maskPhone(item.linkedUserPhone)}` : ""}</span>
+                  : <span className="text-navy-300">미등록</span>}
+              </span>
+              <span>등록일: {fmtDate(item.createdAt)}</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleToggle(item)}
+                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold border ${item.isActive ? "border-navy-100 text-navy-400 hover:bg-navy-50" : "border-green-500/30 text-green-500 hover:bg-green-500/10"}`}
+              >
+                {item.isActive ? "비활성으로 전환" : "활성으로 전환"}
+              </button>
+              <button
+                onClick={() => handleDelete(item)}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold border border-red-400/30 text-red-400 hover:bg-red-500/10"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 데스크톱 테이블 */}
+      <div className="hidden sm:block overflow-x-auto rounded-xl border border-navy-100">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-navy-100 bg-navy-50 text-left text-xs font-semibold text-navy-500">
@@ -259,7 +313,7 @@ export function IpnakKeyringRegistryTab({ initialItems, initialTotal }: Props) {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs text-navy-400">
-                  {item.createdAt ? String(item.createdAt).slice(0, 10) : "-"}
+                  {fmtDate(item.createdAt)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-center gap-2">
