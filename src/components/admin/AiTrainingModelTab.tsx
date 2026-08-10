@@ -75,7 +75,7 @@ export function AiTrainingModelTab() {
       const res = await fetch("/api/admin/ai-training/model", { method: "POST", body: form });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(d?.error ?? "업로드에 실패했습니다.");
+        setError(d?.error ?? `업로드에 실패했습니다. (HTTP ${res.status})`);
         return;
       }
       // 이 브라우저에 캐시된 이전 모델 세션을 버린다
