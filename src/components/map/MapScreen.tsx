@@ -17,7 +17,6 @@ import { km, duration, stopwatch, timeAgo } from "@/lib/utils";
 import { KOREA_SPOTS } from "@/lib/taxonomy";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { LoginRequiredModal } from "@/components/LoginRequiredModal";
-import { useRefRequiredGate } from "@/components/RefRequiredModal";
 
 const GPS_PREFERENCE_KEY = "ipnak:data-fishing:gps-enabled";
 
@@ -28,13 +27,6 @@ export function MapScreen({ userId }: { userId?: string }) {
   const router = useRouter();
   const loggedIn = !!userId;
   const [loginModal, setLoginModal] = useState(false);
-  // 기록 중 "피쉬" — 연동된 입낚볼·키링이 없으면 AI 측정으로 넘어가지 않고 등록 안내를 띄운다
-  const { blockIfNoRef, refModal } = useRefRequiredGate();
-  async function goMeasureFromFishing(e: React.MouseEvent<HTMLAnchorElement>) {
-    e.preventDefault();
-    if (await blockIfNoRef()) return;
-    router.push("/measure?from=fishing");
-  }
   // 기록 세션은 전역(RecordingProvider)에서 관리 — 페이지를 벗어나거나 새로고침/재실행해도 유지됨
   const { status, route, distance, elapsed, savedTrips, activeCatches, start, pause, finish, postToFeed, removeTrip, lastPoint, gpsWarning, dismissGpsWarning } = useRecording();
   const [center, setCenter] = useState<LatLng>({ lat: KOREA_SPOTS[0].lat, lng: KOREA_SPOTS[0].lng });
@@ -473,7 +465,6 @@ export function MapScreen({ userId }: { userId?: string }) {
   return (
     <div className="relative h-[calc(100dvh-7.75rem)] max-h-[calc(100dvh-7.75rem)] w-full overflow-hidden overscroll-none md:h-[calc(100dvh-3.25rem)] md:max-h-[calc(100dvh-3.25rem)]">
       <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="스마트피싱 기록 기능" />
-      {refModal}
       {gpsGuideOpen && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center px-5" role="dialog" aria-modal="true" aria-labelledby="gps-guide-title">
           <button
@@ -818,7 +809,6 @@ export function MapScreen({ userId }: { userId?: string }) {
                 <Link
                   data-tutorial-step="6"
                   href="/measure?from=fishing"
-                  onClick={goMeasureFromFishing}
                   className="inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[16px] bg-aqua-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft btn-press transition-colors hover:bg-aqua-600 active:scale-[0.97]"
                 >
                   <Fish size={18} /> 피쉬
@@ -999,7 +989,7 @@ export function MapScreen({ userId }: { userId?: string }) {
                   {/* 피쉬 — 물고기 사진 촬영 페이지로 이동 */}
                   <Link
                     href="/measure?from=fishing"
-                    onClick={(e) => { e.stopPropagation(); void goMeasureFromFishing(e); }}
+                    onClick={(e) => e.stopPropagation()}
                     className="flex flex-1 items-center justify-center gap-2 rounded-[18px] py-3.5 text-[13px] font-semibold text-aqua-300 ring-1 ring-aqua-500/30"
                     style={{ background: "rgba(20,184,166,0.12)" }}
                   >

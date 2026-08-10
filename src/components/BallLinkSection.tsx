@@ -18,7 +18,6 @@ import { useUser } from "@/lib/userContext";
 import { Sheet } from "@/components/ui";
 import { isIOSDevice } from "@/lib/device";
 import { ID_SAMPLE, ID_FORMAT_LABEL, LEGACY_ID_SAMPLE } from "@/lib/nfcTag";
-import { invalidateRefLink } from "@/lib/refEquipment";
 
 const NFC_UNSUPPORTED_MSG = "이 기기에서는 NFC를 지원하지 않습니다. Android Chrome에서 이용해 주세요.";
 const NFC_READ_TIMEOUT_MS = 20000;
@@ -89,8 +88,6 @@ function useBallLink() {
   const [reading, setReading] = useState(false);
 
   const refresh = useCallback(async () => {
-    // 등록·해제 후에는 AI 측정 진입 게이트의 판정 캐시도 다시 확인해야 한다
-    invalidateRefLink();
     setBalls(await fetchBalls());
   }, []);
 
@@ -147,8 +144,6 @@ function useKeyringLink() {
   const [reading, setReading] = useState(false);
 
   const refresh = useCallback(async () => {
-    // 등록·해제 후에는 AI 측정 진입 게이트의 판정 캐시도 다시 확인해야 한다
-    invalidateRefLink();
     setKeyrings(await fetchKeyrings());
   }, []);
 
@@ -474,9 +469,8 @@ export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: 
         </button>
       </div>
 
-      {/* "입낚볼 없이 AI 측정하는 방법" 안내는 제거했다.
-          AI 측정은 계정에 연동된 입낚볼·입낚키링이 있어야 진행되므로(기준물 미연동 시 카메라 차단),
-          기준물 없이도 측정할 수 있다는 안내는 실제 동작과 맞지 않는다. */}
+      {/* "입낚볼 없이 AI 측정하는 방법" 안내는 제거했다 — 기준물 없이도 측정된다고 알리지 않는다는
+          제품 방침에 따른 것이다. (카메라 실행 자체는 볼·키링 연동 여부와 무관하게 열린다) */}
 
       <IpnakLinkGuideSheet
         open={linkGuideOpen}

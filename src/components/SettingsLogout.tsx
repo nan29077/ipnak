@@ -3,7 +3,6 @@ import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { clearLocalUserScope } from "@/services/DatabaseService";
-import { invalidateRefLink } from "@/lib/refEquipment";
 
 export function SettingsLogout() {
   const router = useRouter();
@@ -13,7 +12,6 @@ export function SettingsLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     // 계측일지(localStorage) 계정 포인터 해제 — 다음 로그인 계정에 이전 기록이 보이지 않게 한다
     clearLocalUserScope();
-    invalidateRefLink(); // 기준물 연동 캐시 초기화 — 다음 계정에 이전 판정이 남지 않게 한다
     toast("로그아웃 되었습니다", "success");
     router.push("/login");
     router.refresh();

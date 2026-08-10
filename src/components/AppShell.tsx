@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import {
   IconHome, IconMap, IconTrophy, IconCalendar, IconTackleBox, IconUser, IconLogin, IconShield, IconRuler,
@@ -13,8 +13,6 @@ import { FeedWriteFab } from "@/components/FeedWriteFab";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { UserProvider } from "@/lib/userContext";
 import { clearLocalUserScope } from "@/services/DatabaseService";
-import { useRefRequiredGate } from "@/components/RefRequiredModal";
-import { invalidateRefLink } from "@/lib/refEquipment";
 import { AppDownloadSheet } from "@/components/AppDownloadSheet";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
@@ -153,17 +151,7 @@ function DesktopPatternBg({ image }: { image?: string }) {
 
 function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[] }) {
   const NAV = nav;
-  const router = useRouter();
   const measureActive = pathname.startsWith("/measure") || pathname.startsWith("/diary");
-  // 연동된 입낚볼·키링이 없으면 AI 측정으로 넘어가지 않고 등록 안내를 먼저 띄운다
-  const { blockIfNoRef, refModal } = useRefRequiredGate();
-
-  async function handleMeasureClick(e: React.MouseEvent<HTMLAnchorElement>) {
-    e.preventDefault();
-    if (await blockIfNoRef()) return;
-    router.push("/measure");
-  }
-
   return (
     <nav
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-navy-100 bg-[#0d1b2a]/95 backdrop-blur md:hidden"
@@ -182,7 +170,6 @@ function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[
         >
           <Link
             href="/measure"
-            onClick={handleMeasureClick}
             aria-current={measureActive ? "page" : undefined}
             className={cn(
               "-mt-5 flex h-[52px] w-[52px] items-center justify-center rounded-full bg-orange-500 text-gray-900 shadow-lg shadow-orange-500/30 ring-[3px] transition-all active:scale-95",
@@ -220,7 +207,6 @@ function MobileBottomNav({ pathname, nav }: { pathname: string; nav: NavItemDef[
           <NavItem key={n.href} {...n} active={n.match(pathname)} />
         ))}
       </div>
-      {refModal}
     </nav>
   );
 }
@@ -283,7 +269,6 @@ function DesktopRightNav({ pathname, user, nav }: { pathname: string; user: Sess
                   await fetch("/api/auth/logout", { method: "POST" });
                   // 계측일지(localStorage) 계정 포인터 해제 — 다음 로그인 계정에 이전 기록이 보이지 않게 한다
                   clearLocalUserScope();
-                  invalidateRefLink(); // 기준물 연동 캐시 초기화 — 다음 계정에 이전 판정이 남지 않게 한다
                   window.location.href = "/";
                 }}
                 className="flex w-full flex-col items-center gap-1 rounded-2xl py-2 text-[11px] font-medium text-navy-300 transition-colors hover:bg-white/5 hover:text-red-400"

@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
 import { clearLocalUserScope } from "@/services/DatabaseService";
-import { invalidateRefLink } from "@/lib/refEquipment";
 
 type MenuItem = { href: string; label: string; icon: any; exact?: boolean };
 type MenuGroup = { title: string; items: MenuItem[] };
@@ -107,7 +106,6 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
     await fetch("/api/auth/logout", { method: "POST" });
     // 계측일지(localStorage) 계정 포인터 해제 — 다음 로그인 계정에 이전 기록이 보이지 않게 한다
     clearLocalUserScope();
-    invalidateRefLink(); // 기준물 연동 캐시 초기화 — 다음 계정에 이전 판정이 남지 않게 한다
     router.push("/login");
   }
 
