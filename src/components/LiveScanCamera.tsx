@@ -1768,32 +1768,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         </div>
       )}
 
-      {camStatus === "loading" && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 text-white/80">
-          <Loader2 size={30} className="animate-spin text-orange-400" />
-          <p className="text-[13px]">카메라 준비 중...</p>
-        </div>
-      )}
-
-      {camStatus === "error" && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-8 text-center">
-          <p className="whitespace-pre-line text-[13px] leading-relaxed text-white/85">{camError}</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <button
-              onClick={() => setRetry((n) => n + 1)}
-              className="inline-flex items-center gap-1.5 rounded-[14px] bg-orange-500 px-4 py-2 text-[13px] font-semibold text-gray-900 transition-colors hover:bg-orange-600"
-            >
-              <RefreshCw size={15} /> 재시도
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded-[14px] bg-white/10 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20"
-            >
-              닫기
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 카메라 준비 중 / 권한 오류 안내는 회전 컨테이너 밖(아래쪽)에서 세로로 그린다 */}
 
       {/* ── 하단 컨트롤 (세로 모드) ── */}
       {camStatus !== "error" && !effectiveLandscape && stage !== "result" && (
@@ -2216,6 +2191,45 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               예
             </button>
           </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── 카메라 준비 중 ──
+        UI 컨테이너는 CSS 회전 모드에서 rotate(90deg) 되므로 그 안에 두면 안내가 옆으로 눕는다.
+        권한 사전 안내와 동일하게 회전 컨테이너 밖 fixed 레이어에 두어 항상 세로로 표시한다. */}
+    {consented && camStatus === "loading" && (
+      <div className="pointer-events-none fixed inset-0 z-[440] flex flex-col items-center justify-center gap-3 text-white/80">
+        <Loader2 size={30} className="animate-spin text-orange-400" />
+        <p className="text-[13px]">카메라 준비 중...</p>
+      </div>
+    )}
+
+    {/* ── 카메라 권한 미허용 · 오류 안내 (항상 세로) ── */}
+    {consented && camStatus === "error" && (
+      <div
+        className="fixed inset-0 z-[440] flex flex-col items-center justify-center gap-4 px-8 text-center"
+        style={{ background: "rgba(0,0,0,0.86)" }}
+        role="alertdialog"
+        aria-label="카메라를 사용할 수 없습니다"
+      >
+        <span className="flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
+          <Camera size={30} strokeWidth={1.6} className="text-orange-400" />
+        </span>
+        <p className="whitespace-pre-line text-[13px] leading-relaxed text-white/85">{camError}</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => setRetry((n) => n + 1)}
+            className="inline-flex items-center gap-1.5 rounded-[14px] bg-orange-500 px-4 py-2 text-[13px] font-semibold text-gray-900 transition-colors hover:bg-orange-600"
+          >
+            <RefreshCw size={15} /> 재시도
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-[14px] bg-white/10 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20"
+          >
+            닫기
+          </button>
         </div>
       </div>
     )}

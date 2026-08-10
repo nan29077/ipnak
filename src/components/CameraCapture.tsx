@@ -125,8 +125,11 @@ export function CameraCapture({ onCapture, onClose }: Props) {
     };
   }, [retry]);
 
-  // 카메라 실행 시 가로 방향으로 잠금 (지원 기기만)
+  // 카메라 미리보기가 실제로 뜬 뒤에만 가로 방향으로 잠근다 (지원 기기만).
+  // 권한 요청·거부 안내까지 가로로 잠가 버리면, 세로로 든 휴대폰에서 안내 문구가
+  // 옆으로 누운 채 표시된다 — 안내 화면은 세로 그대로 두는 게 맞다.
   useEffect(() => {
+    if (status !== "ready") return;
     const tryLock = async () => {
       try {
         await (screen.orientation as any).lock("landscape");
@@ -142,7 +145,7 @@ export function CameraCapture({ onCapture, onClose }: Props) {
         /* ignore */
       }
     };
-  }, []);
+  }, [status]);
 
   function capture() {
     const v = videoRef.current;

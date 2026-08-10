@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoginRequiredModal } from "@/components/LoginRequiredModal";
+import { useRefRequiredGate } from "@/components/RefRequiredModal";
 import { useUser } from "@/lib/userContext";
 import {
   Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
@@ -62,6 +63,8 @@ export default function MeasurePage() {
   const currentUser = useUser();
   const loggedIn = !!currentUser;
   const [loginModal, setLoginModal] = useState(false);
+  // 기준물(입낚볼·키링) 미연동 시 카메라 대신 등록 안내
+  const { blockIfNoRef, refModal } = useRefRequiredGate();
 
   // 대회 참가 모드 — URL ?tournamentId=xxx&species=xxx 로 진입
   const tournamentId = searchParams.get("tournamentId");
@@ -741,7 +744,7 @@ export default function MeasurePage() {
 
   /* ── AI 카메라 계측 열기: 비로그인이면 로그인 안내, 첫 방문이면 튜토리얼 먼저 ── */
   const TUTORIAL_KEY = "ipnak_ai_tutorial_done";
-  const openCamera = useCallback(() => {
+  const openCamera = useCallback(async () => {
     // 볼·키링 서비스가 모두 꺼져 있으면 기준물이 없어 측정할 수 없다.
     if (!anyRefEnabled) return;
     // PC(1024px 이상)에서는 카메라 계측 불가 → 안내 팝업 표시
@@ -750,6 +753,9 @@ export default function MeasurePage() {
       return;
     }
     if (!loggedIn) { setLoginModal(true); return; }
+    // 계정에 연동된 기준물이 하나도 없으면 카메라를 열지 않고 등록을 먼저 안내한다.
+    // NFC 태그로 들어온 경우(tagBallId/tagKeyringId)는 실물 기준물을 손에 든 흐름이라 통과시킨다.
+    if (!tagBallId && !tagKeyringId && (await blockIfNoRef())) return;
     try {
       if (!localStorage.getItem(TUTORIAL_KEY)) {
         setTutorialStep(0);
@@ -758,7 +764,7 @@ export default function MeasurePage() {
       }
     } catch { /* noop */ }
     setLiveScanOpen(true); // 앱 내 실시간 AI 스캐너 열기
-  }, [loggedIn, anyRefEnabled]);
+  }, [loggedIn, anyRefEnabled, tagBallId, tagKeyringId, blockIfNoRef]);
 
   /* ── 아이폰 1회성 태그 안내 ──
      태그로 계측 화면에 진입한 아이폰 사용자에게 처음 한 번만 사용법을 알려준다.
@@ -780,7 +786,7 @@ export default function MeasurePage() {
     iosTagGuideRef.current = false;
     setIosTagGuide(false);
     // 안내를 닫으면 이어서 평소처럼 카메라를 연다 (PC·비로그인·첫 튜토리얼은 openCamera 가 처리)
-    openCamera();
+    void openCamera();
   }, [openCamera]);
 
   // autoCamera 모드: 페이지 마운트 즉시 카메라 열기 (대회 제출 플로우에서 단계 줄이기)
@@ -788,11 +794,17 @@ export default function MeasurePage() {
   // (볼·키링 스위치를 확인한 뒤 실행 — 둘 다 꺼져 있으면 열지 않는다)
   useEffect(() => {
     if (!flagsLoaded || !anyRefEnabled) return;
+    // 자동 열기도 기준물 연동 확인을 거친다 — 여기가 뚫려 있으면 탭·피쉬 버튼의 차단이 무의미해진다.
+    // (태그 진입은 실물 기준물을 손에 든 흐름이라 통과)
+    const gate = async () => {
+      if (tagBallId || tagKeyringId) return false;
+      return blockIfNoRef();
+    };
     const t = setTimeout(() => {
       // 아이폰 태그 안내가 떠 있으면 안내를 닫은 뒤에 연다
       if (iosTagGuideRef.current) return;
       // autoCamera 파라미터가 있으면 무조건 열기 (대회 모드)
-      if (autoCamera) { setLiveScanOpen(true); return; }
+      if (autoCamera) { void gate().then((blocked) => { if (!blocked) setLiveScanOpen(true); }); return; }
       // 모바일 진입 시 자동으로 AI 카메라 열기 (비로그인이면 IDLE에서 클릭 유도)
       if (!loggedIn) return;
       const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
@@ -804,7 +816,7 @@ export default function MeasurePage() {
           return;
         }
       } catch { /* noop */ }
-      setLiveScanOpen(true);
+      void gate().then((blocked) => { if (!blocked) setLiveScanOpen(true); });
     }, 300);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -836,6 +848,7 @@ export default function MeasurePage() {
     >
     <div className={showCanvas ? "pb-2" : "pb-10"}>
       <LoginRequiredModal open={loginModal} onClose={() => setLoginModal(false)} feature="AI 측정 기능" />
+      {refModal}
 
       {/* ── PC 미지원 안내 팝업 ── */}
       {showPcModal && (
@@ -1024,7 +1037,7 @@ export default function MeasurePage() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={openCamera}
+                  onClick={() => void openCamera()}
                   className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-orange-500/50 bg-orange-500/5 py-6 text-orange-500 transition-colors hover:bg-orange-500/10 active:scale-[0.98]"
                 >
                   <Camera size={26} strokeWidth={1.7} />
