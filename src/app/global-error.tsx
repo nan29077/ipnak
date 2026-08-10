@@ -1,18 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
+import {
+  isChunkLoadError,
+  getChunkReloadCount,
+  chunkHardReload,
+  reportClientError,
+  MAX_CHUNK_RELOADS,
+} from "@/lib/clientErrorRecovery";
 
-const RELOAD_KEY = "ipnak_global_chunk_reload";
-
-function isChunkLoadError(error: Error) {
-  return (
-    error.name === "ChunkLoadError" ||
-    /Loading chunk|Loading CSS chunk|Failed to fetch dynamically imported module|error loading dynamically imported module/i.test(
-      error.message ?? ""
-    )
-  );
-}
-
+/**
+ * 루트 레이아웃까지 뚫고 나온 에러의 최종 방어선.
+ *
+ * ChunkLoadError 복구는 sessionStorage 가 아니라 URL 파라미터(_cr)로 횟수를 센다.
+ * NFC 태그는 탭마다 새로 열려 sessionStorage 가 항상 비어 있고,
+ * location.reload() 는 캐시를 재사용해 같은 청크 404 가 재발했기 때문.
+ * → 캐시버스터를 붙인 location.replace() 로 최대 2회 자동 재시도,
+ *   그동안은 화면에 아무것도 그리지 않는다 (에러 화면 깜빡임 없음).
+ */
 export default function GlobalError({
   error,
   reset,
@@ -21,24 +26,19 @@ export default function GlobalError({
   reset: () => void;
 }) {
   const chunkError = isChunkLoadError(error);
+  const reloadCount = getChunkReloadCount();
 
-  // ChunkLoadError + 아직 미시도 → UI 없이 즉시 새로고침
+  // ChunkLoadError + 재시도 여유 있음 → UI 없이 즉시 캐시버스터 리로드
   const willAutoReload =
-    chunkError &&
-    typeof window !== "undefined" &&
-    !sessionStorage.getItem(RELOAD_KEY);
+    chunkError && typeof window !== "undefined" && reloadCount < MAX_CHUNK_RELOADS;
 
   useEffect(() => {
     console.error(error);
-    if (chunkError && typeof window !== "undefined") {
-      if (!sessionStorage.getItem(RELOAD_KEY)) {
-        sessionStorage.setItem(RELOAD_KEY, "1");
-        window.location.reload();
-      }
-    } else if (typeof window !== "undefined") {
-      sessionStorage.removeItem(RELOAD_KEY);
-    }
-  }, [error, chunkError]);
+    // 실제 원인 파악용 서버 로그 (pm2 logs 에서 [client-error] 로 확인)
+    reportClientError(error, "global-error");
+    if (willAutoReload) chunkHardReload(reloadCount + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   if (willAutoReload) return null;
 
@@ -64,10 +64,16 @@ export default function GlobalError({
             앱에 문제가 발생했어요
           </h1>
           <p style={{ fontSize: 14, lineHeight: 1.6, color: "#5b6b85", margin: "0 0 20px" }}>
-            예기치 못한 오류가 생겼어요. 페이지를 새로고침해 주세요.
+            {chunkError
+              ? "네트워크가 불안정해 앱 파일을 받지 못했어요. 다시 시도해 주세요."
+              : "예기치 못한 오류가 생겼어요. 페이지를 새로고침해 주세요."}
           </p>
           <button
-            onClick={() => reset()}
+            onClick={() => {
+              // 청크 유실은 클라이언트 라우팅(reset)으로 복구되지 않는다 → 하드 리로드
+              if (chunkError) chunkHardReload(1);
+              else reset();
+            }}
             style={{
               display: "inline-flex",
               alignItems: "center",

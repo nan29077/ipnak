@@ -3,26 +3,23 @@
 import { useEffect, useState } from "react";
 import { TriangleAlert, RotateCcw } from "lucide-react";
 import { Button, Card } from "@/components/ui";
+import {
+  isChunkLoadError,
+  getChunkReloadCount,
+  chunkHardReload,
+  reportClientError,
+  MAX_CHUNK_RELOADS,
+} from "@/lib/clientErrorRecovery";
 
 /**
- * 청크 로드 실패인지 판별.
- * 모바일·터널(trycloudflare 등) 환경에서 /_next/static/chunks/* 요청이 끊기면
- * 클라이언트 라우팅 도중 ChunkLoadError가 나면서 이 에러 바운더리로 떨어진다.
- * (랜딩처럼 이미 로드된 페이지는 멀쩡하고, 새 청크가 필요한 페이지로
- *  이동할 때만 터지는 게 이 유형의 특징)
+ * 청크 로드 실패(ChunkLoadError)는 배포 직후 옛 청크가 사라졌거나 캐시가 낡았을 때
+ * 클라이언트 라우팅 도중 터진다. reset()으로는 복구되지 않으므로 하드 리로드가 필요하다.
+ *
+ * 재시도 횟수는 sessionStorage 가 아니라 URL 파라미터(_cr)로 센다.
+ * NFC 태그 진입은 탭마다 새로 열려 sessionStorage 가 항상 초기화되고,
+ * location.reload() 는 캐시를 재사용해 같은 에러가 재발했기 때문.
+ * → 캐시버스터를 붙인 location.replace() 로 최대 2회 자동 재시도.
  */
-function isChunkLoadError(error: Error) {
-  return (
-    error.name === "ChunkLoadError" ||
-    /Loading chunk|Loading CSS chunk|Failed to fetch dynamically imported module|error loading dynamically imported module/i.test(
-      error.message ?? ""
-    )
-  );
-}
-
-// 새로고침으로도 안 고쳐지는 경우 무한 새로고침에 빠지지 않도록 1회만 시도
-const RELOAD_KEY = "ipnak_chunk_reload";
-
 export default function Error({
   error,
   reset,
@@ -33,28 +30,20 @@ export default function Error({
   const [detailOpen, setDetailOpen] = useState(false);
 
   const chunkError = isChunkLoadError(error);
+  const reloadCount = getChunkReloadCount();
 
-  // ChunkLoadError + 아직 reload 미시도 → 화면 렌더 없이 즉시 reload 예정
+  // ChunkLoadError + 재시도 여유 있음 → 화면 렌더 없이 즉시 캐시버스터 리로드
   // (useEffect보다 먼저 판별해 에러 화면이 순간이라도 보이지 않도록 한다)
   const willAutoReload =
-    chunkError &&
-    typeof window !== "undefined" &&
-    !sessionStorage.getItem(RELOAD_KEY);
+    chunkError && typeof window !== "undefined" && reloadCount < MAX_CHUNK_RELOADS;
 
   useEffect(() => {
-    // 모니터링 연동을 위해 콘솔에 기록
+    // 모니터링 연동을 위해 콘솔 + 서버 로그(pm2 logs 의 [client-error])에 기록
     console.error(error);
-
-    if (chunkError && typeof window !== "undefined") {
-      if (!sessionStorage.getItem(RELOAD_KEY)) {
-        sessionStorage.setItem(RELOAD_KEY, "1");
-        // 청크가 유실된 상태라 클라이언트 라우팅(reset)으로는 복구되지 않는다 → 하드 리로드
-        window.location.reload();
-      }
-    } else if (typeof window !== "undefined") {
-      sessionStorage.removeItem(RELOAD_KEY);
-    }
-  }, [error, chunkError]);
+    reportClientError(error, "error");
+    if (willAutoReload) chunkHardReload(reloadCount + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   // 자동 새로고침 예정이면 빈 화면 반환 (에러 UI 노출 없음)
   if (willAutoReload) return null;
@@ -73,17 +62,19 @@ export default function Error({
         </p>
 
         <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-          <Button onClick={reset} leftIcon={<RotateCcw size={18} />}>
+          <Button
+            onClick={() => {
+              // 청크 유실은 클라이언트 라우팅(reset)으로 복구되지 않는다 → 하드 리로드
+              if (chunkError) chunkHardReload(1);
+              else reset();
+            }}
+            leftIcon={<RotateCcw size={18} />}
+          >
             다시 시도
           </Button>
           <Button
             variant="ghost"
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                sessionStorage.removeItem(RELOAD_KEY);
-                window.location.reload();
-              }
-            }}
+            onClick={() => chunkHardReload(1)}
           >
             새로고침
           </Button>
