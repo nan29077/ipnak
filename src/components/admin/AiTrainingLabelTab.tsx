@@ -279,6 +279,10 @@ function RoboflowPanel() {
   const [msg, setMsg] = useState("");
   // "이어서 업로드" 시작 위치 — 전송 옵션이 바뀌면 처음부터 다시 센다
   const [nextOffset, setNextOffset] = useState(0);
+  // 자동 전송 상태
+  const [autoRunning, setAutoRunning] = useState(false);
+  const autoStopRef = useRef(false);
+  const [autoProgress, setAutoProgress] = useState({ uploaded: 0, failed: 0, total: 0 });
 
   const load = useCallback(async () => {
     try {
@@ -318,28 +322,73 @@ function RoboflowPanel() {
     }
   }
 
+  async function uploadOnce(offset: number): Promise<{ uploaded: number; failed: number; remaining: number; nextOffset: number; errors: string[] }> {
+    const res = await fetch("/api/admin/ai-training/roboflow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ onlyUnlabeled, offset }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d?.error ?? "업로드에 실패했습니다.");
+    return {
+      uploaded: d.uploaded ?? 0,
+      failed: d.failed ?? 0,
+      remaining: d.remaining ?? 0,
+      nextOffset: d.nextOffset ?? 0,
+      errors: Array.isArray(d.errors) ? d.errors : [],
+    };
+  }
+
   async function upload() {
     setUploading(true);
     setMsg("");
     try {
-      const res = await fetch("/api/admin/ai-training/roboflow", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ onlyUnlabeled, offset: nextOffset }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMsg(d?.error ?? "업로드에 실패했습니다.");
-        return;
-      }
-      // 남은 장수가 있으면 다음 호출은 이어서, 다 보냈으면 처음부터
-      setNextOffset(d.remaining > 0 ? d.nextOffset ?? 0 : 0);
-      const rest = d.remaining > 0 ? ` (남은 ${d.remaining}장은 다시 눌러 이어서 업로드)` : "";
-      const errs = d.failed > 0 && Array.isArray(d.errors) && d.errors.length > 0 ? ` · ${d.errors.join(" / ")}` : "";
-      setMsg(`업로드 ${d.uploaded}장 · 실패 ${d.failed}장${rest}${errs}`);
+      const result = await uploadOnce(nextOffset);
+      setNextOffset(result.remaining > 0 ? result.nextOffset : 0);
+      const rest = result.remaining > 0 ? ` (남은 ${result.remaining}장은 다시 눌러 이어서 업로드)` : "";
+      const errs = result.failed > 0 && result.errors.length > 0 ? ` · ${result.errors.join(" / ")}` : "";
+      setMsg(`업로드 ${result.uploaded}장 · 실패 ${result.failed}장${rest}${errs}`);
+    } catch (e: any) {
+      setMsg(e?.message ?? "업로드에 실패했습니다.");
     } finally {
       setUploading(false);
     }
+  }
+
+  async function startAutoUpload() {
+    autoStopRef.current = false;
+    setAutoRunning(true);
+    setAutoProgress({ uploaded: 0, failed: 0, total: 0 });
+    setMsg("");
+    let offset = 0;
+    let totalUploaded = 0;
+    let totalFailed = 0;
+    try {
+      while (!autoStopRef.current) {
+        const result = await uploadOnce(offset);
+        totalUploaded += result.uploaded;
+        totalFailed += result.failed;
+        setAutoProgress((p) => ({ ...p, uploaded: totalUploaded, failed: totalFailed }));
+        if (result.remaining === 0) {
+          setMsg(`자동 전송 완료 — 업로드 ${totalUploaded}장 · 실패 ${totalFailed}장`);
+          setNextOffset(0);
+          break;
+        }
+        offset = result.nextOffset;
+        setNextOffset(offset);
+      }
+      if (autoStopRef.current) {
+        setMsg(`전송 중단 — 업로드 ${totalUploaded}장 · 실패 ${totalFailed}장`);
+      }
+    } catch (e: any) {
+      setMsg(`오류: ${e?.message ?? "업로드 실패"} (업로드 ${totalUploaded}장 완료)`);
+    } finally {
+      setAutoRunning(false);
+    }
+  }
+
+  function stopAutoUpload() {
+    autoStopRef.current = true;
   }
 
   return (
@@ -404,10 +453,25 @@ function RoboflowPanel() {
           />
           아직 라벨이 없는 이미지만 전송
         </label>
-        <Button size="sm" onClick={upload} disabled={uploading || !configured}
-          leftIcon={uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}>
-          Roboflow 로 전송
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={upload} disabled={uploading || autoRunning || !configured}
+            leftIcon={uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}>
+            Roboflow 로 전송
+          </Button>
+          {!autoRunning ? (
+            <Button size="sm" onClick={startAutoUpload} disabled={uploading || !configured}
+              leftIcon={<Upload size={14} />}
+              className="bg-emerald-600 hover:bg-emerald-500">
+              전체 자동 전송
+            </Button>
+          ) : (
+            <Button size="sm" onClick={stopAutoUpload}
+              leftIcon={<Loader2 size={14} className="animate-spin" />}
+              className="bg-red-600 hover:bg-red-500">
+              중단 ({autoProgress.uploaded}장 완료)
+            </Button>
+          )}
+        </div>
         {!configured && (
           <p className="mt-2 text-[12px] text-navy-400">설정을 먼저 저장해야 전송할 수 있습니다.</p>
         )}

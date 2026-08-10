@@ -127,11 +127,7 @@ export async function POST(req: Request) {
       const form = new FormData();
       form.append("file", new Blob([new Uint8Array(buf)]), name);
 
-      // 워크스페이스가 설정된 경우 "workspace/project" 형태로 경로를 구성한다
-      const projectPath = cfg.workspace
-        ? `${encodeURIComponent(cfg.workspace)}/${encodeURIComponent(cfg.project)}`
-        : encodeURIComponent(cfg.project);
-      const url = `${ROBOFLOW_UPLOAD}/${projectPath}/upload?api_key=${encodeURIComponent(cfg.apiKey)}&name=${encodeURIComponent(name)}&split=train`;
+      const url = `${ROBOFLOW_UPLOAD}/${encodeURIComponent(cfg.project)}/upload?api_key=${encodeURIComponent(cfg.apiKey)}&name=${encodeURIComponent(name)}&split=train`;
       const res = await fetch(url, { method: "POST", body: form, cache: "no-store" });
       if (res.ok) {
         uploaded += 1;

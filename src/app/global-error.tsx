@@ -53,20 +53,6 @@ export default function GlobalError({
 
   return (
     <html lang="ko">
-      <head>
-        {/*
-         * SSR 에러(레이아웃/서버 컴포넌트 크래시) 발생 시 React hydration 없이도
-         * 캐시버스터를 붙여 자동 재시도한다.
-         * - _cr=0(최초 방문)일 때만 한 번 재시도 → _cr=1 로 이동.
-         * - React가 클라이언트에서 이 컴포넌트를 렌더할 때는
-         *   dangerouslySetInnerHTML script 가 실행되지 않으므로 useEffect 와 충돌 없음.
-         */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var p=new URLSearchParams(location.search),n=+p.get('_cr')||0;if(!n){var u=new URL(location.href);u.searchParams.set('_cr','1');u.searchParams.set('_cb',Date.now().toString(36));location.replace(u.toString());}}catch(e){}})()`,
-          }}
-        />
-      </head>
       <body
         style={{
           margin: 0,
