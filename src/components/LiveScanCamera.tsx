@@ -911,7 +911,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     };
   }, [camStatus, videoHasData, stage, goStage, runYolo]);
 
-  /* ── "측정하기": 마지막 성공 프레임 확정 → 부모로 ── */
+  /* ── "측정하기": 마지막 성공 프레임 확정 → 부모로 ──
+     정상 흐름에서는 결과 패널 진입 시 finalizeOrientation() 이 이미 프레임을
+     landscape 로 확정했으므로 아래 needsRotate 는 false 가 되어 그대로 통과한다.
+     (회전 로직은 결과 패널을 거치지 않는 예외 경로 대비 안전망으로 유지) */
   const confirm = useCallback(() => {
     const s = successRef.current;
     if (!s) return;
@@ -982,11 +985,62 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     onConfirm(result);
   }, [cleanupStream, onConfirm, onClose]);
 
+  /* ── 결과 패널 진입 직전: 프레임 방향 확정 ──
+     CSS rotate(90deg) 트릭으로 촬영한 경우 캡처 프레임은 portrait(srcW < srcH)다.
+     결과 패널은 사용자가 본 방향(landscape)으로 보여야 하므로, 진입 시점에
+     실제 픽셀을 90°CW 회전하고 감지 좌표도 함께 변환해 successRef 를 교체한다.
+     이후 표시(고정 캔버스·오버레이) · 끝점 드래그 수정 · confirm 전달까지
+     전부 이 landscape 좌표계 하나로 통일된다 (표시/전달 좌표 불일치 원천 차단).
+     - 픽셀:   portrait (px, py) → landscape (srcH - py, px)
+     - 정규화: (nx, ny) → (1 - ny, nx)
+     - 반지름: 픽셀 반지름 r*srcW 는 회전 불변 → landscape 폭(srcH) 기준
+               정규화로 환산 (× srcW/srcH). 따라서 landscape 캔버스에서
+               ballAiR_land * W_land = ball.r * srcW 픽셀로 실제 볼 크기와 일치한다.
+     네이티브 가로(이미 landscape 프레임)·세로 모드에서는 아무것도 하지 않는다. */
+  const finalizeOrientation = useCallback(() => {
+    const s = successRef.current;
+    if (!s) return;
+    const srcW = s.work.width, srcH = s.work.height;
+    const needsRotate = isLandscapeRef.current && !browserIsLandscapeRef.current && srcW < srcH;
+    if (!needsRotate) return;
+
+    // 90°CW 회전: portrait(srcW×srcH) → landscape(srcH×srcW)
+    const dst = document.createElement("canvas");
+    dst.width = srcH;
+    dst.height = srcW;
+    const ctx = dst.getContext("2d");
+    if (!ctx) return;
+    ctx.translate(dst.width, 0);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(s.work, 0, 0, srcW, srcH);
+
+    const tf = (p: Norm): Norm => ({ x: 1 - p.y, y: p.x });
+    const kr = srcW / srcH; // width 기준 정규화 반지름 환산 계수 (픽셀값 보존)
+    const d = s.det;
+    const rotated: Detection = {
+      ...d,
+      ballN: { ...tf(d.ballN), r: d.ballN.r * kr },
+      ballAiR: d.ballAiR * kr,
+      headN: tf(d.headN),
+      tailN: tf(d.tailN),
+      widthN: d.widthN ? { top: tf(d.widthN.top), bottom: tf(d.widthN.bottom) } : null,
+      // lengthCm/widthCm 은 회전 불변 (정규화 dx*W, dy*H 가 축만 맞바뀜) — 재계산 불필요
+    };
+    successRef.current = { work: dst, det: rotated };
+    setDet(rotated);
+  }, []);
+
+  /* ── 결과 패널 열기: 프레임 방향 확정 후 result 단계로 전환 ── */
+  const openResult = useCallback(() => {
+    finalizeOrientation();
+    goStage("result");
+  }, [finalizeOrientation, goStage]);
+
   /* ── 윤슬 한 바퀴 완료 → 스캐너 화면 내 결과 패널 표시 ("다음"에서 confirm) ── */
   const handleShimmerComplete = useCallback(() => {
-    if (successRef.current) goStage("result");
+    if (successRef.current) openResult();
     else goStage("scan");
-  }, [goStage]);
+  }, [openResult, goStage]);
 
   /* ── 결과 패널 이미지 영역: 프레임 비율을 유지한 contain 박스 크기 계산 ──
      박스 크기 = 프레임 표시 크기이므로, 드래그 수정 레이어의 화면 정규화 좌표가
@@ -1270,7 +1324,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     <div className="flex justify-center">
       <button
         type="button"
-        onClick={() => goStage("result")}
+        onClick={openResult}
         disabled={!canConfirm}
         className={
           "flex h-[72px] w-[72px] flex-col items-center justify-center gap-1 rounded-full text-[11px] font-bold transition-all active:scale-[0.94] " +
@@ -1544,7 +1598,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           {/* 측정하기 (원형, 아쿠아 반투명) → 스캐너 내 결과 패널 열기 */}
           <button
             type="button"
-            onClick={() => goStage("result")}
+            onClick={openResult}
             disabled={!canConfirm}
             className={
               "flex h-[60px] w-[60px] flex-col items-center justify-center gap-1 rounded-full text-[10px] font-bold transition-all active:scale-[0.94] " +
@@ -1564,10 +1618,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
 
     {/* ── 결과 패널 (stage === "result") — 회전된 컨테이너 밖 fixed 오버레이 ──
         항상 화면(스크린) 좌표계 기준으로 표시된다 (CSS rotate 미적용 → 텍스트/UI가 눕지 않음).
-        이미지 영역(프레임 비율 유지 contain)과 데이터 카드 영역을 분리해
-        물고기 이미지가 카드에 가려지지 않고 온전히 보인다. */}
+        표시 프레임은 openResult → finalizeOrientation 에서 landscape 로 확정된 캔버스.
+        이미지 영역(프레임 비율 유지 contain)과 데이터 카드 영역을 위/아래(가로 기기는 좌/우)로
+        분리 배치해 물고기 이미지가 카드에 가려지지 않고 온전히 보인다.
+        width/height 를 명시해 어떤 부모/뷰포트 상태에서도 화면 전체를 덮는다
+        (100dvh = 모바일 주소창 제외 실제 가시 영역, 미지원 브라우저는 inset-0 이 대신 채움). */}
     {stage === "result" && det && (
-      <div className="fixed inset-0 z-[401] flex flex-col bg-[#0a1622]">
+      <div
+        className="fixed inset-0 z-[401] flex flex-col overflow-hidden bg-[#0a1622]"
+        style={{ width: "100vw", height: "100dvh" }}
+      >
         {/* 상단 바 — 타이틀 · 단계 · 플래시 · 닫기 */}
         <div
           className="flex shrink-0 items-center justify-between gap-2 px-4 py-2.5"
