@@ -85,9 +85,14 @@ export function YoloLabeler({ imageName, onSaved, onDirtyChange }: Props) {
     const wrap = wrapRef.current;
     if (!canvas || !img || !wrap || !imgSize.w) return;
 
-    // 컨테이너 폭에 맞춰 캔버스 크기를 잡는다 (원본 비율 유지)
-    const cssW = wrap.clientWidth;
-    const cssH = Math.round((cssW * imgSize.h) / imgSize.w);
+    // 컨테이너 폭에 맞춰 캔버스 크기를 잡는다 (원본 비율 유지, PC 최대 높이 560px 제한)
+    const MAX_H = 560;
+    let cssW = wrap.clientWidth;
+    let cssH = Math.round((cssW * imgSize.h) / imgSize.w);
+    if (cssH > MAX_H) {
+      cssH = MAX_H;
+      cssW = Math.round((cssH * imgSize.w) / imgSize.h);
+    }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
       canvas.width = Math.round(cssW * dpr);
@@ -295,7 +300,7 @@ export function YoloLabeler({ imageName, onSaved, onDirtyChange }: Props) {
       </div>
 
       {/* 캔버스 */}
-      <div ref={wrapRef} className="relative overflow-hidden rounded-2xl border border-navy-100 bg-black/30">
+      <div ref={wrapRef} className="relative flex items-center justify-center overflow-hidden rounded-2xl border border-navy-100 bg-black/30">
         {loading ? (
           <div className="flex aspect-[4/3] items-center justify-center gap-2 text-[13px] text-navy-400">
             <Loader2 size={16} className="animate-spin" /> 이미지 불러오는 중…
