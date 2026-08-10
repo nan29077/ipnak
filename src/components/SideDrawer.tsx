@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAppSettings } from "@/lib/appSettingsContext";
 import { useToast } from "@/components/Toast";
 import { getAvatarUrl } from "@/lib/avatarUtils";
+import { clearLocalUserScope } from "@/services/DatabaseService";
 
 export type DrawerUser = {
   id: string; email: string; nickname: string; role: string; avatarUrl: string | null;
@@ -48,6 +49,8 @@ export function SideDrawer({
   async function logout() {
     onClose();
     await fetch("/api/auth/logout", { method: "POST" });
+    // 계측일지(localStorage) 계정 포인터 해제 — 다음 로그인 계정에 이전 기록이 보이지 않게 한다
+    clearLocalUserScope();
     toast("로그아웃 되었습니다", "success");
     router.push("/login");
     router.refresh();

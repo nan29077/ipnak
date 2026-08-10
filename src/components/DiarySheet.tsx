@@ -4,7 +4,7 @@
  * AI측정 페이지에서 "계측일지" 버튼 클릭 시 하단에서 올라오는 시트
  * DiaryPage 와 동일한 로직 — PageHeader 없이 Sheet 안에 임베드
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera, Trophy, Ruler, Hash, MapPin, Thermometer, Waves,
   Trash2, CloudSun, Moon, ChevronRight, Loader2,
@@ -15,18 +15,24 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { entryFeeConfirmText, fetchEntryFeeInfo, type EntryFeeInfo } from "@/lib/tournamentFee";
 import { FISH_SPECIES } from "@/constants/errorMessages";
 import { dbService } from "@/services/DatabaseService";
+import { loadDiaryItems, filterDiaryItems, computeStats } from "@/services/DiaryDataService";
 import syncService from "@/services/SyncService";
-import { kstFormat } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
 
 type Item = {
-  id: number;
+  /** 로컬 기록은 number(타임스탬프), 서버 기록은 "srv:<id>" 문자열 */
+  id: number | string;
+  /** "local" = 이 기기 localStorage, "server" = /api/catch 서버 기록 */
+  source?: "local" | "server";
   measuredAt: string;
   lengthCm: number;
   weightG: number | null;
   speciesKr: string;
   confidenceGrade: string | null;
+  /** 서버 업로드 사진 URL (신규 기록) */
+  imageUrl?: string | null;
+  /** 업로드 실패 시 폴백으로 남는 로컬 base64 (구 기록 포함) */
   imageBase64: string | null;
   locationName: string | null;
   weather: string | null;
@@ -52,6 +58,11 @@ const GRADE_STYLE: Record<string, { label: string; cls: string }> = {
   MEDIUM: { label: "일반", cls: "bg-amber-500/15 text-amber-400" },
   LOW: { label: "재측정", cls: "bg-red-500/15 text-red-400" },
 };
+
+/** 목록·상세에서 쓸 사진 소스 — 서버 URL 우선, 없으면 로컬 base64 폴백 */
+function photoOf(m: Item) {
+  return m.imageUrl || m.imageBase64 || null;
+}
 
 function fmtDate(iso: string) {
   const d = new Date(iso);
@@ -84,8 +95,8 @@ function groupItemsByDate(items: Item[]): { dateLabel: string; items: Item[] }[]
 export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetProps) {
   const toast = useToast();
   const [stats, setStats] = useState<any>(null);
-  const [items, setItems] = useState<Item[]>([]);
-  const [total, setTotal] = useState(0);
+  // 로컬 + 서버 병합 원본. 필터·페이지는 이 배열에서 파생시킨다 (중복 로드/중복 항목 원천 차단)
+  const [all, setAll] = useState<Item[]>([]);
   const [page, setPage] = useState(1);
   const [species, setSpecies] = useState("");
   const [loading, setLoading] = useState(true);
@@ -102,67 +113,60 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
   // 참가비 차감 확인 모달 대상
   const [feeConfirm, setFeeConfirm] = useState<{ t: TournamentInfo; info: EntryFeeInfo } | null>(null);
 
-  const loadStats = useCallback(async () => {
-    setStats(await dbService.getStats());
+  /** 로컬 + 서버 기록을 한 번에 읽어 통계까지 갱신 */
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const list = (await loadDiaryItems()) as Item[];
+    setAll(list);
+    setStats(computeStats(list));
     const st = await syncService.getSyncStatus();
     setPendingSync(st.pendingCount);
-  }, []);
-
-  const loadPage = useCallback(async (p: number, sp: string, replace: boolean) => {
-    const r = await dbService.getMeasurements({ page: p, limit: PAGE_SIZE, species: sp });
-    setTotal(r.total);
-    setItems((prev) => (replace ? r.items : [...prev, ...r.items]));
     setLoading(false);
   }, []);
 
-  // 시트 열릴 때마다 데이터 초기화 + 로드
+  // 시트 열릴 때 1회만 초기화 + 로드 (예전엔 필터 이펙트까지 함께 돌아 2회 로드됐다)
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
     setPage(1);
     setSpecies("");
     setDetail(null);
     setDeleteTarget(null);
     setTournamentTarget(null);
-    loadPage(1, "", true);
-    loadStats();
-  }, [open, loadPage, loadStats]);
+    void reload();
+  }, [open, reload]);
 
-  // 어종 필터 변경
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    setPage(1);
-    loadPage(1, species, true);
-  }, [species, open, loadPage]);
+  // 어종 필터는 이미 받아온 목록에서 걸러낸다 — 재조회 없이 페이지만 처음으로
+  useEffect(() => { setPage(1); }, [species]);
+
+  const filtered = useMemo(() => filterDiaryItems(all, { species }) as Item[], [all, species]);
+  const total = filtered.length;
+  const items = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page]);
 
   // 무한 스크롤 (Sheet 내부 스크롤 컨테이너 기준)
+  // 목록을 원본에서 slice 로 파생시키므로 콜백이 여러 번 불려도 항목이 중복되지 않는다.
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const ob = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && items.length < total) {
-          const next = page + 1;
-          setPage(next);
-          loadPage(next, species, false);
-        }
+        if (!entries[0].isIntersecting) return;
+        setPage((p) => (p * PAGE_SIZE >= total ? p : p + 1));
       },
       { rootMargin: "200px" }
     );
     ob.observe(el);
     return () => ob.disconnect();
-  }, [items.length, total, page, species, loadPage]);
+  }, [items.length, total]);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
+    // 서버 기록은 이 화면에서 지우지 않는다 (로컬 기록만 삭제 대상)
+    if (deleteTarget.source === "server") { setDeleteTarget(null); return; }
     await dbService.deleteMeasurement(deleteTarget.id);
     setDeleteTarget(null);
     setDetail(null);
-    setLoading(true);
     setPage(1);
-    await loadPage(1, species, true);
-    await loadStats();
+    await reload();
     toast("기록을 삭제했어요", "info");
   }
 
@@ -202,8 +206,8 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
         body: JSON.stringify({
           speciesName: tournamentTarget.speciesKr,
           sizeCm: tournamentTarget.lengthCm,
-          photoUrl: tournamentTarget.imageBase64 ?? null,
-          measuredImageUrl: tournamentTarget.imageBase64 ?? null,
+          photoUrl: photoOf(tournamentTarget),
+          measuredImageUrl: photoOf(tournamentTarget),
           region: tournamentTarget.locationName ?? null,
         }),
       });
@@ -260,6 +264,7 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
 
   function ItemCard({ m, onDetailClick, onTournamentClick }: { m: Item; onDetailClick: () => void; onTournamentClick: () => void }) {
     const grade = m.confidenceGrade ? GRADE_STYLE[m.confidenceGrade] : null;
+    const photo = photoOf(m);
     return (
       <li>
         <div className="rounded-card border border-navy-100 bg-surface-200 overflow-hidden">
@@ -269,9 +274,9 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
             className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-300 active:scale-[0.99]"
           >
             <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-navy-50 ring-1 ring-navy-100">
-              {m.imageBase64 ? (
+              {photo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={m.imageBase64} alt="" className="h-full w-full object-cover" />
+                <img src={photo} alt="" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-navy-300">
                   <Ruler size={20} strokeWidth={1.6} />
@@ -389,9 +394,9 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
       >
         {detail && (
           <div className="space-y-3">
-            {detail.imageBase64 && (
+            {photoOf(detail) && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={detail.imageBase64} alt="측정 사진" className="w-full rounded-2xl ring-1 ring-navy-100" />
+              <img src={photoOf(detail)!} alt="측정 사진" className="w-full rounded-2xl ring-1 ring-navy-100" />
             )}
             <div className="grid grid-cols-2 gap-2 text-[13px]">
               <InfoRow icon={<Ruler size={14} strokeWidth={1.8} />} label="전장" value={`${detail.lengthCm}cm`} />
@@ -414,15 +419,22 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
                 {detail.locationName}
               </p>
             )}
-            <Button
-              variant="danger"
-              size="sm"
-              full
-              leftIcon={<Trash2 size={15} />}
-              onClick={() => setDeleteTarget(detail)}
-            >
-              기록 삭제
-            </Button>
+            {/* 서버 기록은 다른 기기에서 올라온 조과 — 이 화면에서는 삭제 대상이 아니다 */}
+            {detail.source === "server" ? (
+              <p className="rounded-xl bg-navy-50 px-3 py-2 text-center text-[11px] text-navy-300">
+                다른 기기에서 저장된 서버 기록입니다
+              </p>
+            ) : (
+              <Button
+                variant="danger"
+                size="sm"
+                full
+                leftIcon={<Trash2 size={15} />}
+                onClick={() => setDeleteTarget(detail)}
+              >
+                기록 삭제
+              </Button>
+            )}
           </div>
         )}
       </Sheet>
@@ -438,9 +450,9 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
           <div className="space-y-3">
             {/* 선택된 물고기 요약 */}
             <div className="flex items-center gap-3 rounded-xl bg-surface-200 border border-navy-100 p-3">
-              {tournamentTarget.imageBase64 ? (
+              {photoOf(tournamentTarget) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={tournamentTarget.imageBase64} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                <img src={photoOf(tournamentTarget)!} alt="" className="h-12 w-12 rounded-lg object-cover" />
               ) : (
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-navy-50 text-navy-300">
                   <Ruler size={18} strokeWidth={1.6} />

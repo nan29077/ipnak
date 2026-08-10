@@ -5,7 +5,7 @@
  * - 어종 필터 + 무한 스크롤 기록 리스트
  * - 기록 상세 시트 (이미지 + 자동 태그) / 삭제
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -16,17 +16,24 @@ import { useToast } from "@/components/Toast";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FISH_SPECIES } from "@/constants/errorMessages";
 import { dbService } from "@/services/DatabaseService";
+import { loadDiaryItems, filterDiaryItems, computeStats } from "@/services/DiaryDataService";
 import syncService from "@/services/SyncService";
 
 const PAGE_SIZE = 20;
 
 type Item = {
-  id: number;
+  /** 로컬 기록은 number(타임스탬프), 서버 기록은 "srv:<id>" 문자열 */
+  id: number | string;
+  /** "local" = 이 기기 localStorage, "server" = /api/catch 서버 기록 */
+  source?: "local" | "server";
   measuredAt: string;
   lengthCm: number;
   weightG: number | null;
   speciesKr: string;
   confidenceGrade: string | null;
+  /** 서버 업로드 사진 URL (신규 기록) */
+  imageUrl?: string | null;
+  /** 업로드 실패 시 폴백으로 남는 로컬 base64 (구 기록 포함) */
   imageBase64: string | null;
   locationName: string | null;
   weather: string | null;
@@ -45,6 +52,11 @@ const GRADE_STYLE: Record<string, { label: string; cls: string }> = {
   LOW: { label: "재측정", cls: "bg-red-500/15 text-red-400" },
 };
 
+/** 목록·상세에서 쓸 사진 소스 — 서버 URL 우선, 없으면 로컬 base64 폴백 */
+function photoOf(m: Item) {
+  return m.imageUrl || m.imageBase64 || null;
+}
+
 function fmtDate(iso: string) {
   const d = new Date(iso);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -56,8 +68,8 @@ export default function DiaryPage() {
   const ballIdFilter = searchParams.get("ballId") ?? "";
   const keyringIdFilter = searchParams.get("keyringId") ?? "";
   const [stats, setStats] = useState<any>(null);
-  const [items, setItems] = useState<Item[]>([]);
-  const [total, setTotal] = useState(0);
+  // 로컬 + 서버 병합 원본. 필터·페이지는 이 배열에서 파생시킨다
+  const [all, setAll] = useState<Item[]>([]);
   const [page, setPage] = useState(1);
   const [species, setSpecies] = useState("");
   const [loading, setLoading] = useState(true);
@@ -66,51 +78,51 @@ export default function DiaryPage() {
   const [pendingSync, setPendingSync] = useState(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const loadStats = useCallback(async () => {
-    setStats(await dbService.getStats());
+  /** 로컬 + 서버 기록을 한 번에 읽어 통계까지 갱신 */
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const list = (await loadDiaryItems()) as Item[];
+    setAll(list);
+    setStats(computeStats(list));
     const st = await syncService.getSyncStatus();
     setPendingSync(st.pendingCount);
-  }, []);
-
-  const loadPage = useCallback(async (p: number, sp: string, replace: boolean, bid: string = "", kid: string = "") => {
-    const r = await dbService.getMeasurements({ page: p, limit: PAGE_SIZE, species: sp, ballId: bid, keyringId: kid });
-    setTotal(r.total);
-    setItems((prev) => (replace ? r.items : [...prev, ...r.items]));
     setLoading(false);
   }, []);
 
-  // 최초 로드 + 필터 변경
-  useEffect(() => {
-    setLoading(true);
-    setPage(1);
-    loadPage(1, species, true, ballIdFilter, keyringIdFilter);
-    loadStats();
-  }, [species, ballIdFilter, keyringIdFilter, loadPage, loadStats]);
+  // 최초 1회 로드 — 필터는 아래에서 메모리로 처리하므로 재조회하지 않는다
+  useEffect(() => { void reload(); }, [reload]);
 
-  // 무한 스크롤
+  // 필터 변경 시 페이지만 처음으로
+  useEffect(() => { setPage(1); }, [species, ballIdFilter, keyringIdFilter]);
+
+  const filtered = useMemo(
+    () => filterDiaryItems(all, { species, ballId: ballIdFilter, keyringId: keyringIdFilter }) as Item[],
+    [all, species, ballIdFilter, keyringIdFilter]
+  );
+  const total = filtered.length;
+  const items = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page]);
+
+  // 무한 스크롤 — 목록을 원본에서 slice 로 파생시켜 콜백이 중복 호출돼도 항목이 겹치지 않는다
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const ob = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && items.length < total) {
-        const next = page + 1;
-        setPage(next);
-        loadPage(next, species, false, ballIdFilter, keyringIdFilter);
-      }
+      if (!entries[0].isIntersecting) return;
+      setPage((p) => (p * PAGE_SIZE >= total ? p : p + 1));
     }, { rootMargin: "200px" });
     ob.observe(el);
     return () => ob.disconnect();
-  }, [items.length, total, page, species, ballIdFilter, keyringIdFilter, loadPage]);
+  }, [items.length, total]);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
+    // 서버 기록은 이 화면에서 지우지 않는다 (로컬 기록만 삭제 대상)
+    if (deleteTarget.source === "server") { setDeleteTarget(null); return; }
     await dbService.deleteMeasurement(deleteTarget.id);
     setDeleteTarget(null);
     setDetail(null);
-    setLoading(true);
     setPage(1);
-    await loadPage(1, species, true, ballIdFilter, keyringIdFilter);
-    await loadStats();
+    await reload();
     toast("기록을 삭제했어요", "info");
   }
 
@@ -218,9 +230,9 @@ export default function DiaryPage() {
                     className="flex w-full items-center gap-3 rounded-card border border-navy-100 bg-surface-200 p-3 text-left transition-colors hover:bg-surface-300 active:scale-[0.99]"
                   >
                     <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-navy-50 ring-1 ring-navy-100">
-                      {m.imageBase64 ? (
+                      {photoOf(m) ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={m.imageBase64} alt="" className="h-full w-full object-cover" />
+                        <img src={photoOf(m)!} alt="" className="h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-navy-300">
                           <Ruler size={20} strokeWidth={1.6} />
@@ -263,9 +275,9 @@ export default function DiaryPage() {
       <Sheet open={!!detail} onClose={() => setDetail(null)} title={detail ? `${detail.speciesKr} ${detail.lengthCm}cm` : ""}>
         {detail && (
           <div className="space-y-3">
-            {detail.imageBase64 && (
+            {photoOf(detail) && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={detail.imageBase64} alt="측정 사진" className="w-full rounded-2xl ring-1 ring-navy-100" />
+              <img src={photoOf(detail)!} alt="측정 사진" className="w-full rounded-2xl ring-1 ring-navy-100" />
             )}
             <div className="grid grid-cols-2 gap-2 text-[13px]">
               <InfoRow icon={<Ruler size={14} strokeWidth={1.8} />} label="전장" value={`${detail.lengthCm}cm`} />
@@ -288,9 +300,16 @@ export default function DiaryPage() {
                 {detail.locationName}
               </p>
             )}
-            <Button variant="danger" size="sm" full leftIcon={<Trash2 size={15} />} onClick={() => setDeleteTarget(detail)}>
-              기록 삭제
-            </Button>
+            {/* 서버 기록은 다른 기기에서 올라온 조과 — 이 화면에서는 삭제 대상이 아니다 */}
+            {detail.source === "server" ? (
+              <p className="rounded-xl bg-navy-50 px-3 py-2 text-center text-[11px] text-navy-300">
+                다른 기기에서 저장된 서버 기록입니다
+              </p>
+            ) : (
+              <Button variant="danger" size="sm" full leftIcon={<Trash2 size={15} />} onClick={() => setDeleteTarget(detail)}>
+                기록 삭제
+              </Button>
+            )}
           </div>
         )}
       </Sheet>

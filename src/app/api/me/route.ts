@@ -19,7 +19,8 @@ export async function PATCH(req: Request) {
     data.nickname = nickname.trim().slice(0, 20);
   }
   if (typeof name === "string") data.name = name.trim().slice(0, 30) || null;
-  if (typeof phone === "string") data.phone = phone.trim().slice(0, 20) || null;
+  // 가입 시와 같은 형태(하이픈 제거)로 통일 저장 — User.phone unique 가 실제로 중복을 잡게 한다
+  if (typeof phone === "string") data.phone = phone.replace(/-/g, "").trim().slice(0, 20) || null;
   if (typeof bio === "string") data.bio = bio.trim().slice(0, 200) || null;
   if (typeof region === "string") data.region = region.trim().slice(0, 30) || null;
   if (typeof avatarUrl === "string") {
@@ -44,11 +45,18 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "변경할 내용이 없습니다." }, { status: 400 });
   }
 
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data,
-    select: { id: true, nickname: true, name: true, phone: true, bio: true, region: true, avatarUrl: true },
-  });
-
-  return NextResponse.json({ user: updated });
+  try {
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data,
+      select: { id: true, nickname: true, name: true, phone: true, bio: true, region: true, avatarUrl: true },
+    });
+    return NextResponse.json({ user: updated });
+  } catch (e: any) {
+    // phone unique 충돌 — 다른 계정이 이미 쓰고 있는 번호
+    if (e?.code === "P2002" && String(e?.meta?.target ?? "").includes("phone")) {
+      return NextResponse.json({ error: "이미 다른 계정에서 사용 중인 전화번호입니다." }, { status: 409 });
+    }
+    throw e;
+  }
 }

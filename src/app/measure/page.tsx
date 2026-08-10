@@ -521,13 +521,28 @@ export default function MeasurePage() {
       thumb.getContext("2d")!.drawImage(canvasRef.current!, 0, 0, thumb.width, thumb.height);
       const imageBase64 = thumb.toDataURL("image/jpeg", 0.6);
 
-      await dbService.saveMeasurement({
+      // 이미지를 먼저 서버에 업로드 (base64 → /api/upload → URL).
+      // 로컬 기록에는 가능하면 URL 만 남긴다 — base64 를 그대로 쌓으면 localStorage 5MB 를 금방 넘긴다.
+      let uploadedPhotoUrl: string | null = null;
+      try {
+        const blob = await fetch(imageBase64).then((r) => r.blob());
+        const form = new FormData();
+        form.append("file", blob, "measure.jpg");
+        const up = await fetch("/api/upload", { method: "POST", body: form });
+        if (up.ok) {
+          const upData = await up.json();
+          uploadedPhotoUrl = upData.url ?? null;
+        }
+      } catch { /* 업로드 실패 시 photoUrl null 로 저장 */ }
+
+      const { id: localId, photoDropped } = await dbService.saveMeasurement({
         lengthCm: result.lengthCm,
         bodyWidth: result.widthCm ?? null,
         weightG: result.weightG,
         speciesKr: species,
         confidence: ball?.confidence ?? 0,
         confidenceGrade: result.grade?.grade ?? null,
+        imageUrl: uploadedPhotoUrl,
         imageBase64,
         latitude: tags?.location?.latitude ?? null,
         longitude: tags?.location?.longitude ?? null,
@@ -544,20 +559,10 @@ export default function MeasurePage() {
 
       setSavedImageBase64(imageBase64);
       toast(MEASURE_ERRORS.SAVE_SUCCESS, "success");
+      // 사진만 실패한 경우 — 수치는 저장됐다는 점을 분명히 알린다
+      if (!uploadedPhotoUrl) toast("사진 저장에 실패했어요. 수치는 저장됩니다.", "error");
+      else if (photoDropped) toast("저장 공간이 부족해 기기의 사진 미리보기는 생략했어요.", "info");
       syncService.syncPendingMeasurements(); // 백그라운드 (서버 준비 전엔 스킵)
-
-      // 이미지를 서버에 업로드 (base64 → /api/upload → URL)
-      let uploadedPhotoUrl: string | null = null;
-      try {
-        const blob = await fetch(imageBase64).then((r) => r.blob());
-        const form = new FormData();
-        form.append("file", blob, "measure.jpg");
-        const up = await fetch("/api/upload", { method: "POST", body: form });
-        if (up.ok) {
-          const upData = await up.json();
-          uploadedPhotoUrl = upData.url ?? null;
-        }
-      } catch { /* 업로드 실패 시 photoUrl null 로 저장 */ }
 
       const catchLat = tags?.location?.latitude ?? lastPoint?.lat ?? null;
       const catchLng = tags?.location?.longitude ?? lastPoint?.lng ?? null;
@@ -583,7 +588,12 @@ export default function MeasurePage() {
       })
         // 어장포인트 저장 버튼에 쓸 catch id 확보 (실패해도 무시)
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => { if (d?.catchId) setSpotCatchId(d.catchId as string); })
+        .then((d) => {
+          if (!d?.catchId) return;
+          setSpotCatchId(d.catchId as string);
+          // 로컬 기록 ↔ 서버 기록 연결 — 계측일지에서 같은 조과가 두 번 보이지 않게 한다
+          void dbService.attachServerId(localId, d.catchId as string);
+        })
         .catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
 
       // 어장포인트 자동 입력값 — 위치가 있을 때만 버튼을 띄운다

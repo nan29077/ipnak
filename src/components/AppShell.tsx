@@ -12,6 +12,7 @@ import { RecordingBanner } from "@/components/RecordingBanner";
 import { FeedWriteFab } from "@/components/FeedWriteFab";
 import { getAvatarUrl } from "@/lib/avatarUtils";
 import { UserProvider } from "@/lib/userContext";
+import { clearLocalUserScope } from "@/services/DatabaseService";
 import { AppDownloadSheet } from "@/components/AppDownloadSheet";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
@@ -266,6 +267,8 @@ function DesktopRightNav({ pathname, user, nav }: { pathname: string; user: Sess
                 type="button"
                 onClick={async () => {
                   await fetch("/api/auth/logout", { method: "POST" });
+                  // 계측일지(localStorage) 계정 포인터 해제 — 다음 로그인 계정에 이전 기록이 보이지 않게 한다
+                  clearLocalUserScope();
                   window.location.href = "/";
                 }}
                 className="flex w-full flex-col items-center gap-1 rounded-2xl py-2 text-[11px] font-medium text-navy-300 transition-colors hover:bg-white/5 hover:text-red-400"

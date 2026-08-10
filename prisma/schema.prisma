@@ -20,7 +20,11 @@ model User {
   passwordHash String
   nickname     String
   name         String?  // 실명
-  phone        String?  // 전화번호 (추후 인증 서비스 연동)
+  // 전화번호 — 하이픈 제거 형태로 저장한다. 한 번호로 계정을 여러 개 만들지 못하도록 unique.
+  // ※ 운영 DB 적용 전, 중복/하이픈 표기가 섞여 있으면 아래를 1회 정리해야 인덱스가 생성된다:
+  //   UPDATE `User` SET phone = REPLACE(phone, '-', '') WHERE phone IS NOT NULL;
+  //   SELECT phone, COUNT(*) c FROM `User` WHERE phone IS NOT NULL GROUP BY phone HAVING c > 1;
+  phone        String?  @unique
   role         String   @default("ANGLER") // Role
   // 프로필 사진은 base64 data URI로 저장될 수 있어 VARCHAR(191)로는 잘린다 → LONGTEXT
   // ※ 이미 운영 중인 실서버 DB에는 아래 SQL을 별도로 1회 실행해야 한다 (db push 미사용 시):
