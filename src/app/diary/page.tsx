@@ -269,7 +269,8 @@ export default function DiaryPage() {
               <InfoRow icon={<CloudSun size={14} strokeWidth={1.8} />} label="날씨" value={detail.weather || "-"} />
               <InfoRow icon={<Thermometer size={14} strokeWidth={1.8} />} label="기온" value={detail.temperature != null ? `${detail.temperature}°C` : "-"} />
               <InfoRow icon={<Waves size={14} strokeWidth={1.8} />} label="물때" value={detail.tidePhase || "-"} />
-              <InfoRow icon={<Moon size={14} strokeWidth={1.8} />} label="측정 일시" value={fmtDate(detail.measuredAt)} />
+              {/* 날짜+시간이 길어 반 칸에서는 잘린다 — 두 칸을 통으로 사용 */}
+              <InfoRow icon={<Moon size={14} strokeWidth={1.8} />} label="측정 일시" value={fmtDate(detail.measuredAt)} className="col-span-2" />
             </div>
             {detail.locationName && (
               <p className="flex items-center gap-1.5 rounded-xl bg-navy-50 px-3 py-2 text-[12px] text-navy-500">
@@ -311,12 +312,13 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
   );
 }
 
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function InfoRow({ icon, label, value, className = "" }: { icon: React.ReactNode; label: string; value: string; className?: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-xl bg-navy-50 px-3 py-2.5">
+    <div className={"flex items-center gap-2 rounded-xl bg-navy-50 px-3 py-2.5 " + className}>
       <span className="shrink-0 text-aqua-400">{icon}</span>
-      <span className="text-navy-400">{label}</span>
-      <span className="ml-auto truncate font-semibold text-navy-800">{value}</span>
+      {/* 레이블·값 모두 줄바꿈/말줄임 없이 한 줄 유지 — 좁은 셀은 col-span-2 로 해결 */}
+      <span className="shrink-0 whitespace-nowrap text-navy-400">{label}</span>
+      <span className="ml-auto whitespace-nowrap font-semibold text-navy-800">{value}</span>
     </div>
   );
 }
