@@ -32,11 +32,20 @@ export default function Error({
 }) {
   const [detailOpen, setDetailOpen] = useState(false);
 
+  const chunkError = isChunkLoadError(error);
+
+  // ChunkLoadError + 아직 reload 미시도 → 화면 렌더 없이 즉시 reload 예정
+  // (useEffect보다 먼저 판별해 에러 화면이 순간이라도 보이지 않도록 한다)
+  const willAutoReload =
+    chunkError &&
+    typeof window !== "undefined" &&
+    !sessionStorage.getItem(RELOAD_KEY);
+
   useEffect(() => {
     // 모니터링 연동을 위해 콘솔에 기록
     console.error(error);
 
-    if (isChunkLoadError(error) && typeof window !== "undefined") {
+    if (chunkError && typeof window !== "undefined") {
       if (!sessionStorage.getItem(RELOAD_KEY)) {
         sessionStorage.setItem(RELOAD_KEY, "1");
         // 청크가 유실된 상태라 클라이언트 라우팅(reset)으로는 복구되지 않는다 → 하드 리로드
@@ -45,9 +54,10 @@ export default function Error({
     } else if (typeof window !== "undefined") {
       sessionStorage.removeItem(RELOAD_KEY);
     }
-  }, [error]);
+  }, [error, chunkError]);
 
-  const chunkError = isChunkLoadError(error);
+  // 자동 새로고침 예정이면 빈 화면 반환 (에러 UI 노출 없음)
+  if (willAutoReload) return null;
 
   return (
     <div className="animate-fadein flex min-h-[70vh] items-center justify-center px-4">
