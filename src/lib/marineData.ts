@@ -873,6 +873,75 @@ async function fetchOpenMeteoPressure(lat: number, lng: number): Promise<Pressur
   }
 }
 
+/** WMO weather_code → 한국어 날씨 표기 (Open-Meteo) */
+const WMO_LABEL: Record<number, string> = {
+  0: "맑음", 1: "대체로 맑음", 2: "구름 조금", 3: "흐림",
+  45: "안개", 48: "안개",
+  51: "이슬비", 53: "이슬비", 55: "이슬비", 56: "언 이슬비", 57: "언 이슬비",
+  61: "약한 비", 63: "비", 65: "강한 비", 66: "언 비", 67: "언 비",
+  71: "약한 눈", 73: "눈", 75: "많은 눈", 77: "싸락눈",
+  80: "소나기", 81: "소나기", 82: "강한 소나기",
+  85: "소낙눈", 86: "소낙눈",
+  95: "뇌우", 96: "우박 뇌우", 99: "우박 뇌우",
+};
+
+/** Open-Meteo 현재 날씨 — 키가 필요 없어 기상청 키 미등록 환경의 폴백으로 쓴다 */
+async function fetchOpenMeteoWeather(
+  lat: number,
+  lng: number,
+): Promise<{ weather: string | null; temperature: number | null }> {
+  const url =
+    `${OPEN_METEO_FORECAST}?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}` +
+    `&current=temperature_2m,weather_code&timezone=Asia%2FSeoul`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT), cache: "no-store" });
+    if (!res.ok) return { weather: null, temperature: null };
+    const data = await res.json();
+    const code = data?.current?.weather_code;
+    const t = data?.current?.temperature_2m;
+    return {
+      weather: typeof code === "number" ? (WMO_LABEL[code] ?? null) : null,
+      temperature: typeof t === "number" ? Math.round(t * 10) / 10 : null,
+    };
+  } catch {
+    return { weather: null, temperature: null };
+  }
+}
+
+/**
+ * 계측 기록용 현재 날씨.
+ * 기상청 초단기실황(강수형태·기온)을 우선 쓰되, 하늘 상태(맑음/흐림)는 실황에 없으므로
+ * Open-Meteo 로 보완한다. 기상청 키가 없거나 실패해도 Open-Meteo 만으로 값을 채운다
+ * (키 미등록 환경에서 계측일지 날씨가 계속 비어 있던 문제 대응 — 브라우저에 키를 노출하지 않는다).
+ */
+export async function getWeatherNowcast(
+  lat: number,
+  lng: number,
+): Promise<{ weather: string | null; temperature: number | null; source: string | null }> {
+  let weatherApiKey = "";
+  try {
+    weatherApiKey = (await getMarineCredentials()).weatherApiKey;
+  } catch {
+    /* 자격증명 조회 실패 → Open-Meteo 로만 응답 */
+  }
+
+  const [kma, om] = await Promise.all([
+    weatherApiKey
+      ? fetchKmaNowcast(weatherApiKey, lat, lng).catch(() => ({ wind: null, air: null, pressure: null }))
+      : Promise.resolve({ wind: null, air: null, pressure: null }),
+    fetchOpenMeteoWeather(lat, lng),
+  ]);
+
+  const precipitation = kma.air?.precipitation ?? null; // "없음" | "비" | "눈" ...
+  const raining = precipitation != null && precipitation !== "없음";
+  // 강수 중이면 기상청 실황이 가장 정확하고, 아니면 하늘 상태(Open-Meteo)를 쓴다.
+  const weather = raining ? precipitation : (om.weather ?? (precipitation === "없음" ? "맑음" : null));
+  const temperature = kma.air?.tempC ?? om.temperature;
+  const source = raining || kma.air?.tempC != null ? "기상청 초단기실황" : om.weather ? "Open-Meteo" : null;
+
+  return { weather, temperature, source };
+}
+
 // ===== 알고리즘 조석 예측 =====
 
 /**

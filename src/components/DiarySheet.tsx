@@ -396,7 +396,8 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
             <div className="grid grid-cols-2 gap-2 text-[13px]">
               <InfoRow icon={<Ruler size={14} strokeWidth={1.8} />} label="전장" value={`${detail.lengthCm}cm`} />
               <InfoRow icon={<Hash size={14} strokeWidth={1.8} />} label="추정 무게" value={detail.weightG ? `약 ${detail.weightG}g` : "-"} />
-              <InfoRow icon={<CloudSun size={14} strokeWidth={1.8} />} label="날씨" value={detail.weather || "-"} />
+              {/* 날씨는 저장 시점의 GPS 기준 실황 — 위치 거부·조회 실패 시 값이 없다 */}
+              <InfoRow icon={<CloudSun size={14} strokeWidth={1.8} />} label="날씨" value={detail.weather || "정보 없음"} />
               <InfoRow icon={<Thermometer size={14} strokeWidth={1.8} />} label="기온" value={detail.temperature != null ? `${detail.temperature}°C` : "-"} />
               <InfoRow icon={<Thermometer size={14} strokeWidth={1.8} />} label="수온" value={detail.waterTemp != null ? `${detail.waterTemp}°C` : "-"} />
               <InfoRow

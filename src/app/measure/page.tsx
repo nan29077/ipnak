@@ -1255,73 +1255,7 @@ export default function MeasurePage() {
           </>
         )}
 
-        {/* ── 저장 완료 ── */}
-        {phase === "SAVED" && result && (
-          <div className="space-y-2">
-            <div className="rounded-card border border-aqua-500/30 bg-aqua-500/10 p-3 text-center">
-              <p className="text-[14px] font-bold text-aqua-300">
-                {species}{result.lengthCm != null ? ` ${result.lengthCm}cm` : ""} 기록 완료
-              </p>
-              <p className="mt-0.5 text-[12px] text-navy-400">계측일지에서 언제든 다시 볼 수 있어요.</p>
-            </div>
-
-            {/* 대회 참가 모드 */}
-            {tournamentId && (
-              tourSubmitted ? (
-                <div className="flex items-center gap-2 rounded-xl bg-orange-500/10 px-4 py-3">
-                  <Trophy size={16} className="shrink-0 text-orange-400" />
-                  <p className="text-[13px] font-semibold text-orange-400">대회에 제출 완료! 관리자 심사 후 랭킹에 반영됩니다.</p>
-                </div>
-              ) : (
-                <Button
-                  full
-                  size="lg"
-                  onClick={submitToTournament}
-                  disabled={tourSubmitting}
-                  leftIcon={tourSubmitting ? <Loader2 size={17} className="animate-spin" /> : <Trophy size={17} />}
-                >
-                  {tourSubmitting ? "제출 중..." : "대회에 제출하기"}
-                </Button>
-              )
-            )}
-
-            {/* 어장포인트로 저장 (신규) — 측정 위치가 있을 때만 노출 */}
-            {spotDraft && (
-              <button
-                type="button"
-                onClick={() => setSpotModalOpen(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-aqua-400/40 bg-aqua-400/10 py-2.5 text-[15px] font-semibold text-aqua-300 transition-colors hover:bg-aqua-400/20"
-              >
-                <MapPin size={16} strokeWidth={1.9} />
-                어장포인트로 저장
-              </button>
-            )}
-
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={reset} leftIcon={<Camera size={16} />}>새 측정</Button>
-              <button
-                type="button"
-                onClick={() => setDiaryOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-orange-500 px-4 py-2.5 text-[15px] font-semibold text-gray-900 shadow-soft transition-all hover:bg-orange-600 active:scale-[0.97]"
-              >
-                <BookOpen size={16} strokeWidth={1.9} />
-                계측일지 보기
-              </button>
-            </div>
-            <div className={fromFishing ? "flex gap-2" : ""}>
-              <Button variant="outline" onClick={reset} leftIcon={<X size={16} />}>닫기</Button>
-              {fromFishing && (
-                <Link
-                  href="/map"
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-aqua-500 px-4 py-2.5 text-[15px] font-semibold text-white shadow-soft transition-all hover:bg-aqua-600 active:scale-[0.97]"
-                >
-                  <MapIcon size={16} strokeWidth={1.9} />
-                  스마트피싱으로 돌아가기
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
+        {/* ── 저장 완료 화면은 아래 전체화면 오버레이(portal)로 표시 ── */}
       </div>
 
       {/* ── 어장포인트 저장 모달 (기존 저장 흐름과 독립) ── */}
@@ -1485,6 +1419,160 @@ export default function MeasurePage() {
     </div>
     </div>{/* /portrait-lock wrapper */}
 
+    {/* ── 저장 완료 화면 — 화면 전체를 채우는 오버레이 ──
+        상단: 측정선이 그려진 사진 / 중간: 수치 카드 2열 / 하단: 액션 버튼 (화면 하단 고정).
+        모달·바텀시트(z-9000 이상)보다 아래에 두어 계측일지·어장포인트 저장이 위로 뜬다. */}
+    {phase === "SAVED" && result && typeof window !== "undefined" && createPortal(
+      <div
+        className="fixed inset-0 z-[300] flex flex-col overflow-hidden bg-[#0d1b2a]"
+        style={{ height: "100dvh" }}
+      >
+        {/* 상단 바 */}
+        <div
+          className="flex shrink-0 items-center justify-between px-4 pb-2"
+          style={{ paddingTop: "max(12px, env(safe-area-inset-top, 0px))" }}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-aqua-500/15 text-aqua-400">
+              <ScanLine size={15} strokeWidth={2} />
+            </span>
+            <p className="truncate text-[15px] font-extrabold tracking-tight text-white">
+              {species}{result.lengthCm != null ? ` ${result.lengthCm}cm` : ""} 기록 완료
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={reset}
+            aria-label="닫기"
+            className="shrink-0 rounded-full bg-white/8 p-2 text-white/70 transition-colors hover:bg-white/15 hover:text-white"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* 사진 — 남는 세로 공간을 모두 사용 (측정선 오버레이 포함된 저장 이미지) */}
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-black/40">
+          {savedImageBase64 ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={savedImageBase64}
+              alt="측정 결과"
+              className="absolute inset-0 h-full w-full object-contain"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-navy-400">
+              <Fish size={34} strokeWidth={1.5} />
+            </div>
+          )}
+          <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-bold text-aqua-300 ring-1 ring-aqua-400/30 backdrop-blur-sm">
+            계측일지에 저장됨
+          </span>
+        </div>
+
+        {/* 수치 카드 (2열 그리드) */}
+        <div className="grid shrink-0 grid-cols-2 gap-2 px-4 pt-3">
+          <SavedStat label="어종" value={species} accent="#ffffff" />
+          <SavedStat
+            label="전장"
+            value={result.lengthCm != null ? `${result.lengthCm} cm` : "—"}
+            accent="#eab308"
+          />
+          <SavedStat
+            label="몸통 너비"
+            value={result.widthCm != null ? `${result.widthCm} cm` : "—"}
+            accent="#06b6d4"
+          />
+          <SavedStat
+            label="추정 무게"
+            value={result.weightG != null ? `약 ${result.weightG}g` : "—"}
+            accent="#ffffff"
+          />
+        </div>
+
+        {/* 액션 버튼 — 화면 하단에 붙여 배치 */}
+        <div
+          className="shrink-0 space-y-2 px-4 pt-3"
+          style={{ paddingBottom: "max(14px, env(safe-area-inset-bottom, 0px))" }}
+        >
+          {/* 대회 참가 모드 */}
+          {tournamentId && (
+            tourSubmitted ? (
+              <div className="flex items-center gap-2 rounded-[14px] bg-orange-500/10 px-4 py-2.5">
+                <Trophy size={15} className="shrink-0 text-orange-400" />
+                <p className="text-[12.5px] font-semibold text-orange-400">대회 제출 완료 — 심사 후 랭킹에 반영됩니다.</p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={submitToTournament}
+                disabled={tourSubmitting}
+                className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-3 text-[14px] font-bold text-gray-900 transition-all active:scale-[0.98] disabled:opacity-60"
+              >
+                {tourSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Trophy size={16} />}
+                {tourSubmitting ? "제출 중..." : "대회에 제출하기"}
+              </button>
+            )
+          )}
+
+          {/* 어장포인트로 저장 — 측정 위치가 있을 때만 노출 */}
+          {spotDraft && (
+            <button
+              type="button"
+              onClick={() => setSpotModalOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-aqua-400/40 bg-aqua-400/10 py-3 text-[14px] font-bold text-aqua-300 transition-colors active:bg-aqua-400/20"
+            >
+              <MapPin size={16} strokeWidth={2} />
+              어장포인트로 저장
+            </button>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={reset}
+              className="flex items-center justify-center gap-2 rounded-[14px] border border-white/12 py-3 text-[14px] font-bold text-white/80 transition-colors active:bg-white/10"
+            >
+              <Camera size={16} strokeWidth={2} />
+              새 측정
+            </button>
+            <button
+              type="button"
+              onClick={() => setDiaryOpen(true)}
+              className="flex items-center justify-center gap-2 rounded-[14px] py-3 text-[14px] font-bold text-[#0d1b2a] transition-all active:scale-[0.98]"
+              style={{ background: "#eab308" }}
+            >
+              <BookOpen size={16} strokeWidth={2} />
+              계측일지 보기
+            </button>
+          </div>
+
+          <div className={fromFishing ? "flex gap-2" : ""}>
+            {fromFishing && (
+              <Link
+                href="/map"
+                className="flex flex-1 items-center justify-center gap-2 rounded-[14px] bg-aqua-500 py-3 text-[14px] font-bold text-white transition-all active:scale-[0.98]"
+              >
+                <MapIcon size={16} strokeWidth={2} />
+                스마트피싱으로
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={reset}
+              className={
+                "flex items-center justify-center gap-2 rounded-[14px] py-3 text-[13.5px] font-semibold text-white/45 transition-colors active:text-white/80 " +
+                (fromFishing ? "flex-1 border border-white/10" : "w-full")
+              }
+            >
+              <X size={15} strokeWidth={2} />
+              닫기
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+
     {/* ── 실시간 AI 스캐너: 세로 고정 wrapper 밖으로 portal (진짜 풀스크린 보장) ── */}
     {liveScanOpen && typeof window !== "undefined" && createPortal(
       <LiveScanCamera
@@ -1496,6 +1584,23 @@ export default function MeasurePage() {
       document.body
     )}
     </>
+  );
+}
+
+/* ─────────────────────────────────────────
+   저장 완료 화면 수치 카드 (2열 그리드 셀)
+───────────────────────────────────────── */
+function SavedStat({ label, value, accent }: { label: string; value: string; accent: string }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3.5 py-2.5">
+      <p className="text-[11px] font-medium text-navy-400">{label}</p>
+      <p
+        className="mt-0.5 truncate text-[19px] font-extrabold leading-tight tracking-tight"
+        style={{ color: accent }}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 

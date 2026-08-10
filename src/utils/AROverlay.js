@@ -28,33 +28,12 @@ class AROverlay {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.drawImage(imageElement, 0, 0, canvas.width, canvas.height)
 
-    if (ballResult && ballResult.found) this._drawBall(ctx, ballResult, canvas)
+    // 기준물(입낚볼) 원은 그리지 않는다 — 계산(mmPerPixel)에만 사용하고 화면에는 노출하지 않는다.
+    // (ballResult 는 측정 스케일 기준으로만 쓰인다)
     if (headPoint || tailPoint) this._drawMeasureLine(ctx, headPoint, tailPoint, measureResult && measureResult.lengthCm, canvas)
     if (widthPoints) this._drawWidthLine(ctx, widthPoints, measureResult && measureResult.widthCm, canvas)
     if (measureResult) this._drawResultCard(ctx, measureResult, selectedSpecies, canvas)
     if (isMockMode) this._drawMockBanner(ctx, canvas)
-  }
-
-  _drawBall(ctx, ball, canvas) {
-    const cx = ball.centerX
-    const cy = ball.centerY
-    // 표시 전용 지름(drawDiameterPx: AI 원본 ball.r 기준, 보정 계수 미적용)이 있으면 우선 사용
-    // — 측정용 diameterPx(보정 포함)와 분리해 원이 실제 볼 외곽선에 맞도록 한다
-    const r = (ball.drawDiameterPx ?? ball.diameterPx) / 2
-
-    ctx.beginPath()
-    ctx.arc(cx, cy, r, 0, Math.PI * 2)
-    ctx.strokeStyle = this.COLORS.ball
-    ctx.lineWidth = Math.max(2, canvas.width * 0.004)
-    ctx.setLineDash([8, 4])
-    ctx.stroke()
-    ctx.setLineDash([])
-
-    ctx.fillStyle = this.COLORS.ball
-    ctx.font = `bold ${Math.max(13, r * 0.45)}px sans-serif`
-    ctx.textAlign = 'center'
-    const label = ball.method === 'aruco' ? '20mm 마커' : '40mm'
-    ctx.fillText(label, cx, Math.max(16, cy - r - 8))
   }
 
   _drawMeasureLine(ctx, head, tail, lengthCm, canvas) {
