@@ -90,6 +90,12 @@ const SPARKLES = Array.from({ length: 34 }, (_, i) => {
   };
 });
 
+/** 기준물(입낚볼·입낚키링) 실측 "지름" — 반지름 아님.
+ *  AI 의 ball.r 은 정규화 "반지름"(이미지 폭 기준)이므로
+ *  픽셀 지름 = 2 × ball.r × imageWidth, mmPerPixel = 40 / 픽셀 지름.
+ *  원 그리기 반지름 = ball.r × imageWidth (px) = 실측 20mm 에 해당. */
+const REF_DIAMETER_MM = 40;
+
 const POLL_INTERVAL_MS = 1500; // 스캔 폴링 주기
 // idle 상태에서 연속으로 건너뛸 수 있는 최대 틱 수
 // 이 횟수를 초과하면 idle이어도 강제 호출 (물고기를 놓치지 않기 위한 안전망)
@@ -816,7 +822,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           let lengthCm: number | null = null;
           let widthCm: number | null = null;
           if (diameterPx > 0) {
-            const mmPerPixel = 40 / diameterPx; // 입낚볼 실지름 40mm
+            const mmPerPixel = REF_DIAMETER_MM / diameterPx; // 지름 40mm 기준
             const hx = data.head.x * w, hy = data.head.y * h;
             const tx = data.tail.x * w, ty = data.tail.y * h;
             const px = Math.hypot(tx - hx, ty - hy);
@@ -1009,7 +1015,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         // 표시용 지름도 정밀 측정 반지름 기준 — 결과 패널의 원과 측정 페이지의 원이 동일하게
         // 실제 볼 외곽을 감싸고, mmPerPixel 스케일 기준과도 일치한다
         drawDiameterPx: diameterPx,
-        mmPerPixel: 40 / diameterPx,
+        mmPerPixel: REF_DIAMETER_MM / diameterPx,
         confidence: s.det.confidence,
         method: "ai-scan",
       },
@@ -1128,7 +1134,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
     // 기준물(입낚볼/입낚키링) 실지름 라벨 — 결과 패널에서만 표시
-    drawDetection(ctx, det, W, H, { ballLabel: "40mm" });
+    drawDetection(ctx, det, W, H, { ballLabel: `${REF_DIAMETER_MM}mm` });
   }, [stage, det, fitBox]);
 
   /* ── 끝점 이동 후 길이/폭 재계산 (스캔 성공 경로와 동일 공식) ── */
@@ -1137,7 +1143,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     let lengthCm: number | null = null;
     let widthCm: number | null = null;
     if (diameterPx > 0) {
-      const mmPerPixel = 40 / diameterPx;
+      const mmPerPixel = REF_DIAMETER_MM / diameterPx;
       const px = Math.hypot((d.tailN.x - d.headN.x) * w, (d.tailN.y - d.headN.y) * h);
       lengthCm = Math.round((px * mmPerPixel) / 10 * 10) / 10;
       if (d.widthN) {
