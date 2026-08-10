@@ -1675,7 +1675,13 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       )}
     </div>
 
-    {/* ── UI 오버레이 컨테이너 (z-400, 투명 배경) — CSS 회전 모드일 때 rotate(90deg) 적용 ── */}
+    {/* ── UI 오버레이 컨테이너 (z-400, 투명 배경) — CSS 회전 모드일 때 rotate(90deg) 적용 ──
+        ⚠️ 카메라 미리보기가 실제로 살아 있을 때(camStatus === "ready")만 렌더한다.
+        여기 들어 있는 것은 전부 라이브 스트림용 UI(상단 바·안내·촬영 컨트롤)이고,
+        회전이 걸리는 유일한 레이어다. 준비 중·권한 오류 상태에서도 함께 그리면
+        회전된 상단 바와 컨트롤이 세로 안내 화면 뒤에 남아 글자가 옆으로 누운 것처럼 보인다.
+        권한/오류 안내는 이 컨테이너 밖의 세로 고정 레이어에서 그린다(아래 참조). */}
+    {camStatus === "ready" && (
     <div
       className={!needsCssRotation ? "fixed inset-0 z-[400] overflow-hidden" : undefined}
       style={needsCssRotation ? { ...outerStyle, backgroundColor: "transparent" } : undefined}
@@ -1771,7 +1777,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       {/* 카메라 준비 중 / 권한 오류 안내는 회전 컨테이너 밖(아래쪽)에서 세로로 그린다 */}
 
       {/* ── 하단 컨트롤 (세로 모드) ── */}
-      {camStatus !== "error" && !effectiveLandscape && stage !== "result" && (
+      {/* camStatus 는 이 컨테이너 조건(=== "ready")으로 이미 좁혀져 있어 따로 확인하지 않는다 */}
+      {!effectiveLandscape && stage !== "result" && (
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
           {/* scan 탐색 중에는 중앙 깜빡이는 흰 글씨가 안내 대신하므로 카드 숨김
               (키링 각도 경고는 예외 — 재촬영 방법을 바로 알려야 한다) */}
@@ -1781,7 +1788,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       )}
 
       {/* ── 안내 오버레이 — 가로 모드 시 카메라 왼쪽 영역 중앙 ── */}
-      {camStatus !== "error" && effectiveLandscape && stage !== "result" && (stage !== "scan" || canConfirm || keyringTilted) && (
+      {effectiveLandscape && stage !== "result" && (stage !== "scan" || canConfirm || keyringTilted) && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-30 flex flex-col items-center justify-center"
           style={{
@@ -1797,7 +1804,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       {/* ── 우측 컨트롤 패널 (가로 모드) ── */}
       {/* CSS 회전 모드: LOCAL right = 가로화면 오른쪽 = 홈인디케이터(safe-area-inset-bottom) */}
       {/* 네이티브 가로 모드: 오른쪽 = 홈인디케이터(safe-area-inset-right) */}
-      {camStatus !== "error" && effectiveLandscape && stage !== "result" && (
+      {effectiveLandscape && stage !== "result" && (
         <div
           className="absolute inset-y-0 right-0 z-30 flex flex-col items-center"
           style={{
@@ -1828,6 +1835,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       )}
 
     </div>
+    )}
 
     {/* ── 결과 패널 (stage === "result") — 회전된 컨테이너 밖 fixed 오버레이 ──
         항상 화면(스크린) 좌표계 기준으로 표시된다 (CSS rotate 미적용 → 텍스트/UI가 눕지 않음).
@@ -2195,28 +2203,41 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       </div>
     )}
 
-    {/* ── 카메라 준비 중 ──
-        UI 컨테이너는 CSS 회전 모드에서 rotate(90deg) 되므로 그 안에 두면 안내가 옆으로 눕는다.
-        권한 사전 안내와 동일하게 회전 컨테이너 밖 fixed 레이어에 두어 항상 세로로 표시한다. */}
+    {/* ── 카메라 준비 중 (항상 세로 정방향) ──
+        회전이 걸리는 UI 오버레이 컨테이너 밖의 독립 레이어다.
+        이 상태에서는 회전 컨테이너 자체가 렌더되지 않으므로 화면에 눕는 요소가 없다.
+        상단 바의 X 도 함께 사라지므로 여기서 닫기 수단을 직접 제공한다. */}
     {consented && camStatus === "loading" && (
-      <div className="pointer-events-none fixed inset-0 z-[440] flex flex-col items-center justify-center gap-3 text-white/80">
+      <div
+        className="fixed inset-0 z-[440] flex flex-col items-center justify-center gap-3 text-white/80"
+        style={{ background: "#0b1e2e" }}
+      >
         <Loader2 size={30} className="animate-spin text-orange-400" />
         <p className="text-[13px]">카메라 준비 중...</p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-2 rounded-[14px] bg-white/10 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20"
+        >
+          닫기
+        </button>
       </div>
     )}
 
-    {/* ── 카메라 권한 미허용 · 오류 안내 (항상 세로) ── */}
+    {/* ── 카메라 권한 미허용 · 오류 안내 (항상 세로 정방향) ──
+        불투명 배경으로 덮어 뒤쪽 카메라 레이어가 비치지 않게 한다. */}
     {consented && camStatus === "error" && (
       <div
         className="fixed inset-0 z-[440] flex flex-col items-center justify-center gap-4 px-8 text-center"
-        style={{ background: "rgba(0,0,0,0.86)" }}
+        style={{ background: "#0b1e2e" }}
         role="alertdialog"
         aria-label="카메라를 사용할 수 없습니다"
       >
         <span className="flex h-[64px] w-[64px] items-center justify-center rounded-[20px] bg-orange-500/15 ring-1 ring-orange-500/25">
           <Camera size={30} strokeWidth={1.6} className="text-orange-400" />
         </span>
-        <p className="whitespace-pre-line text-[13px] leading-relaxed text-white/85">{camError}</p>
+        <p className="text-[17px] font-extrabold tracking-tight text-white">카메라를 사용할 수 없어요</p>
+        <p className="whitespace-pre-line text-[13px] leading-relaxed text-white/70">{camError}</p>
         <div className="flex flex-wrap justify-center gap-2">
           <button
             onClick={() => setRetry((n) => n + 1)}
