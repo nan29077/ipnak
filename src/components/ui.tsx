@@ -63,8 +63,10 @@ export function Chip({ children, active, onClick, as, size = "md", className }: 
   return <button type="button" onClick={onClick} className={cls}>{children}</button>;
 }
 
-export function Sheet({ open, onClose, title, children, stickyContent, footer, size = "lg" }: {
+export function Sheet({ open, onClose, title, titleSub, children, stickyContent, footer, size = "lg" }: {
   open: boolean; onClose: () => void; title?: string; children: React.ReactNode;
+  /** 제목 바로 아래 한 줄로 붙는 보조 안내 문구 (아쿠아 강조, 좁은 화면에서는 말줄임) */
+  titleSub?: React.ReactNode;
   /** 제목 아래, 스크롤 영역 위에 고정되는 콘텐츠 (통계 카드 등) */
   stickyContent?: React.ReactNode;
   /** 스크롤 영역 아래, 시트 바닥에 고정되는 콘텐츠 (입력창 등) */
@@ -170,9 +172,15 @@ export function Sheet({ open, onClose, title, children, stickyContent, footer, s
           onTouchEnd={handleTouchEnd}
         >
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20" aria-hidden />
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[16px] font-bold text-navy-900">{title}</h2>
-            <button onClick={onClose} aria-label="닫기" className="rounded-full p-1 text-navy-300 transition-colors hover:bg-navy-50"><X size={20} /></button>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            {/* min-w-0 — 보조 문구가 좁은 화면에서 줄바꿈 대신 말줄임되도록 flex 축소를 허용한다 */}
+            <div className="min-w-0">
+              <h2 className="text-[16px] font-bold text-navy-900">{title}</h2>
+              {titleSub && (
+                <p className="mt-0.5 truncate text-[11px] font-medium text-aqua-300">{titleSub}</p>
+              )}
+            </div>
+            <button onClick={onClose} aria-label="닫기" className="shrink-0 rounded-full p-1 text-navy-300 transition-colors hover:bg-navy-50"><X size={20} /></button>
           </div>
           {/* 고정 섹션 (통계 카드 등) */}
           {stickyContent && <div className="pb-3">{stickyContent}</div>}

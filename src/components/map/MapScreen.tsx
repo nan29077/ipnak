@@ -845,7 +845,13 @@ export function MapScreen({ userId }: { userId?: string }) {
       </Sheet>
 
       {/* 내 스마트피싱 기록 시트 */}
-      <Sheet open={recordsOpen} onClose={() => setRecordsOpen(false)} title="내 스마트피싱 기록" size="md">
+      <Sheet
+        open={recordsOpen}
+        onClose={() => setRecordsOpen(false)}
+        title="내 스마트피싱 기록"
+        titleSub="(내 기록에 자동 저장됩니다)"
+        size="md"
+      >
         {savedTrips.length === 0 ? (
           <p className="py-12 text-center text-sm text-navy-300">
             아직 저장된 기록이 없습니다.<br />“기록 시작”으로 동선을 기록해보세요.
