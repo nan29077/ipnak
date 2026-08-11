@@ -226,9 +226,10 @@ export default function LandingPage() {
           onTouchEnd={() => setTouched(null)}
           onTouchCancel={() => setTouched(null)}
         >
-          {/* 터치·호버 공통 주황 글로우 오버레이 */}
+          {/* 터치·호버 공통 주황 글로우 오버레이 — 시각 효과 전용, 클릭 이벤트 차단 방지 */}
           <div
-            className={`absolute inset-0 transition-all duration-500${isTopActive ? " ipnak-active-glow" : ""}`}
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-0 transition-all duration-500${isTopActive ? " ipnak-active-glow" : ""}`}
             style={{
               background: isTopActive
                 ? "radial-gradient(ellipse at center, rgba(234,179,8,0.18) 0%, transparent 70%)"
@@ -238,7 +239,8 @@ export default function LandingPage() {
 
           {/* PC 전용 호버 어둠 오버레이 */}
           <div
-            className="absolute inset-0 transition-all duration-700 hidden md:block"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 transition-all duration-700 hidden md:block"
             style={{
               background: hovered === "left"
                 ? "linear-gradient(135deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.0) 100%)"
@@ -248,7 +250,8 @@ export default function LandingPage() {
 
           {/* 활성 글로우 테두리 — 모바일:하단선, PC:오른쪽선 */}
           <div
-            className={`absolute transition-all duration-500
+            aria-hidden="true"
+            className={`pointer-events-none absolute transition-all duration-500
               bottom-0 left-0 right-0 h-[2px]
               md:bottom-auto md:right-0 md:top-0 md:h-full md:w-[2px] md:left-auto${isTopActive ? " ipnak-active-border" : ""}`}
             style={{
@@ -349,14 +352,17 @@ export default function LandingPage() {
           }}
           onMouseEnter={() => setHovered("right")}
           onMouseLeave={() => setHovered(null)}
+          onFocus={() => setHovered("right")}
+          onBlur={() => setHovered(null)}
           onClick={enterApp}
           onTouchStart={(e) => handleTouch(e, "bottom")}
           onTouchEnd={() => setTouched(null)}
           onTouchCancel={() => setTouched(null)}
         >
-          {/* 터치·호버 공통 주황 글로우 오버레이 */}
+          {/* 터치·호버 공통 주황 글로우 오버레이 — 시각 효과 전용, 클릭 이벤트 차단 방지 */}
           <div
-            className={`absolute inset-0 transition-all duration-500${isBottomActive ? " ipnak-active-glow" : ""}`}
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-0 transition-all duration-500${isBottomActive ? " ipnak-active-glow" : ""}`}
             style={{
               background: isBottomActive
                 ? "radial-gradient(ellipse at center, rgba(234,179,8,0.18) 0%, transparent 70%)"
@@ -366,7 +372,8 @@ export default function LandingPage() {
 
           {/* PC 전용 호버 어둠 오버레이 */}
           <div
-            className="absolute inset-0 transition-all duration-700 hidden md:block"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 transition-all duration-700 hidden md:block"
             style={{
               background: hovered === "right"
                 ? "linear-gradient(225deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.0) 100%)"
@@ -376,7 +383,8 @@ export default function LandingPage() {
 
           {/* 활성 글로우 테두리 — 모바일:상단선, PC:왼쪽선 */}
           <div
-            className={`absolute transition-all duration-500
+            aria-hidden="true"
+            className={`pointer-events-none absolute transition-all duration-500
               top-0 left-0 right-0 h-[2px]
               md:top-0 md:left-0 md:right-auto md:h-full md:w-[2px]${isBottomActive ? " ipnak-active-border" : ""}`}
             style={{

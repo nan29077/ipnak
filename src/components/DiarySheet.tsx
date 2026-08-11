@@ -92,6 +92,66 @@ function groupItemsByDate(items: Item[]): { dateLabel: string; items: Item[] }[]
   return groups;
 }
 
+/** 계측 기록 한 줄 카드 — DiarySheet 외부에 정의해 매 렌더마다 새 컴포넌트 참조 생성을 방지 */
+function ItemCard({ m, onDetailClick, onTournamentClick }: { m: Item; onDetailClick: () => void; onTournamentClick: () => void }) {
+  const grade = m.confidenceGrade ? GRADE_STYLE[m.confidenceGrade] : null;
+  const photo = photoOf(m);
+  return (
+    <li>
+      <div className="rounded-card border border-navy-100 bg-surface-200 overflow-hidden">
+        <button
+          type="button"
+          onClick={onDetailClick}
+          className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-300 active:scale-[0.99]"
+        >
+          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-navy-50 ring-1 ring-navy-100">
+            {photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photo} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-navy-300">
+                <Ruler size={20} strokeWidth={1.6} />
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[15px] font-bold text-navy-900">{m.speciesKr}</span>
+              <span className="text-[16px] font-extrabold text-orange-500">{m.lengthCm}cm</span>
+              {grade && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${grade.cls}`}>{grade.label}</span>
+              )}
+            </div>
+            <p className="mt-0.5 text-[12px] text-navy-400">
+              {m.weightG ? `약 ${m.weightG}g · ` : ""}{fmtDate(m.measuredAt)}
+            </p>
+            {m.locationName && (
+              <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-navy-300">
+                <MapPin size={11} strokeWidth={1.8} className="shrink-0" />
+                {m.locationName}
+              </p>
+            )}
+          </div>
+        </button>
+        {/* 대회 참가 버튼 */}
+        <div className="border-t border-navy-100 px-3 py-2">
+          <button
+            type="button"
+            onClick={onTournamentClick}
+            className="flex w-full items-center justify-between rounded-xl bg-orange-500/10 px-3 py-2 text-left transition-colors hover:bg-orange-500/20"
+          >
+            <div className="flex items-center gap-2">
+              <Trophy size={13} className="text-orange-400" strokeWidth={1.8} />
+              <span className="text-[12px] font-semibold text-orange-400">대회 참가</span>
+            </div>
+            <ChevronRight size={13} className="text-orange-300" />
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetProps) {
   const toast = useToast();
   const [stats, setStats] = useState<any>(null);
@@ -261,65 +321,6 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
       </div>
     </div>
   ) : null;
-
-  function ItemCard({ m, onDetailClick, onTournamentClick }: { m: Item; onDetailClick: () => void; onTournamentClick: () => void }) {
-    const grade = m.confidenceGrade ? GRADE_STYLE[m.confidenceGrade] : null;
-    const photo = photoOf(m);
-    return (
-      <li>
-        <div className="rounded-card border border-navy-100 bg-surface-200 overflow-hidden">
-          <button
-            type="button"
-            onClick={onDetailClick}
-            className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-300 active:scale-[0.99]"
-          >
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-navy-50 ring-1 ring-navy-100">
-              {photo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photo} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-navy-300">
-                  <Ruler size={20} strokeWidth={1.6} />
-                </div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[15px] font-bold text-navy-900">{m.speciesKr}</span>
-                <span className="text-[16px] font-extrabold text-orange-500">{m.lengthCm}cm</span>
-                {grade && (
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${grade.cls}`}>{grade.label}</span>
-                )}
-              </div>
-              <p className="mt-0.5 text-[12px] text-navy-400">
-                {m.weightG ? `약 ${m.weightG}g · ` : ""}{fmtDate(m.measuredAt)}
-              </p>
-              {m.locationName && (
-                <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-navy-300">
-                  <MapPin size={11} strokeWidth={1.8} className="shrink-0" />
-                  {m.locationName}
-                </p>
-              )}
-            </div>
-          </button>
-          {/* 대회 참가 버튼 */}
-          <div className="border-t border-navy-100 px-3 py-2">
-            <button
-              type="button"
-              onClick={onTournamentClick}
-              className="flex w-full items-center justify-between rounded-xl bg-orange-500/10 px-3 py-2 text-left transition-colors hover:bg-orange-500/20"
-            >
-              <div className="flex items-center gap-2">
-                <Trophy size={13} className="text-orange-400" strokeWidth={1.8} />
-                <span className="text-[12px] font-semibold text-orange-400">대회 참가</span>
-              </div>
-              <ChevronRight size={13} className="text-orange-300" />
-            </button>
-          </div>
-        </div>
-      </li>
-    );
-  }
 
   return (
     <>
