@@ -610,25 +610,34 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우 (세로 고정 브라우저 + 가로 촬영)
   const needsCssRotation = effectiveLandscape && !browserIsLandscape;
 
-  /* ── 결과 화면 표시 회전 계산 (문제 2 — 물고기 뒤집힘 방지) ──
-     불변식: 라이브 프리뷰(video, 회전 없는 fixed 레이어)는 어떤 방향 모드에서도
-     사용자에게 항상 바르게 보였다. 따라서 "캡처 원본 프레임을 화면 좌표계에 회전 없이
-     그린 모습"이 곧 정답이다.
+  /* ── 결과 화면 표시 회전 계산 (물고기 뒤집힘 방지) ──
+     불변식: finalizeOrientation 을 거친 캡처 프레임은 "픽셀 자체"가 이미 사용자에게
+     보여줄 landscape 방향으로 확정되어 있다. 즉 결과 화면에서 사진을 CSS 로 다시
+     돌릴 이유는, 무대(stage)가 rotate(90deg) 로 그려지는 경우를 상쇄할 때뿐이다.
 
-     캡처 프레임은 finalizeOrientation 에서 픽셀 자체가 framePixelRotDeg 만큼 돌아가 있고,
-     결과 UI 는 촬영 화면과 같은 rotate(90deg) 무대(stage) 위에 그려질 수 있다.
-     화면상 최종 모습 = stage 회전 ∘ 사진 회전 ∘ 픽셀 회전 이므로,
-       사진 회전 = -(stage 회전) - (픽셀 회전)
-     으로 두면 세 경우 모두 정확히 프리뷰와 같은 모습이 된다.
-       · 세로 고정 + 가로 촬영 : 픽셀 -90(ccw) · stage +90 → 사진 0°   (기존과 동일)
-       · 세로 촬영             : 픽셀 +90(cw)  · stage 0   → 사진 -90°  (기존엔 90° 누워 보이던 케이스)
-       · 캡처 후 자동회전 발생  : stage 만 바뀌어도 합이 항상 -(픽셀 회전) 으로 유지된다 */
+     주의할 점은 finalizeOrientation 의 픽셀 회전이 서로 다른 두 목적으로 걸린다는 것이다.
+       ① CSS 회전 트릭 촬영 (needsCssRotation=true, frameTurn="ccw")
+          → 무대가 +90° 로 그려지므로 픽셀 CCW 회전은 그 무대 회전을 되돌리기 위한
+            "보정분"이다. CSS 회전량 계산에 그대로 반영해야 한다.
+       ② portrait → landscape 변환 (needsCssRotation=false, frameTurn="cw")
+          → 세로로 찍은 프레임을 가로로 눕혀 확정한 것이라 캔버스가 이미 올바른
+            landscape 다. 여기에 CSS 회전(-90°)까지 더 걸면 사진이 뒤집혀 보인다.
+     따라서 CSS 보정량은 ① 에서만 픽셀 회전을 쓰고 ② 에서는 0 으로 둔다.
+
+     결과적으로 세 케이스 모두 사진 CSS 회전은 0° 가 되고, 화면상 회전은 무대 회전과
+     같아진다. 포인터 좌표 역변환(resultRotDegRef)이 이 값을 그대로 쓰므로 끝점
+     히트 판정과 돋보기도 모든 끝점(머리/꼬리/폭)에서 정확히 맞는다.
+       · 세로 고정 + 가로 촬영 : 픽셀 -90(ccw) · stage +90 · 보정 -90 → 사진 0° (기존 동작 유지)
+       · 세로 촬영             : 픽셀 +90(cw)  · stage 0   · 보정 0   → 사진 0° (기존엔 -90° 로 뒤집히던 케이스)
+       · 회전 불필요           : 픽셀 0        · stage 0   · 보정 0   → 사진 0° */
   const framePixelRotDeg = frameTurn === "ccw" ? -90 : frameTurn === "cw" ? 90 : 0;
   const resultStageRotDeg = needsCssRotation ? 90 : 0;
-  /** 사진 박스가 화면상 최종적으로 회전된 각도 (= 픽셀 회전의 역) */
-  const resultPhotoScreenRotDeg = normalizeDeg(-framePixelRotDeg);
+  /** 무대 회전을 상쇄하기 위한 픽셀 회전량 (portrait→landscape 변환분은 제외) */
+  const cssCompensationRotDeg = needsCssRotation ? framePixelRotDeg : 0;
+  /** 사진 박스가 화면상 최종적으로 회전된 각도 (= 무대 회전과 동일) */
+  const resultPhotoScreenRotDeg = normalizeDeg(-cssCompensationRotDeg);
   /** 무대 안에서 사진 박스에 추가로 걸 CSS 회전량 */
-  const resultPhotoRotDeg = normalizeDeg(-resultStageRotDeg - framePixelRotDeg);
+  const resultPhotoRotDeg = normalizeDeg(-resultStageRotDeg - cssCompensationRotDeg);
   /** 사진이 ±90° 로 놓이면 표시 footprint 의 가로/세로가 뒤바뀐다 (contain 계산용) */
   const resultPhotoSwapsAxes = Math.abs(resultPhotoRotDeg) === 90;
   resultRotDegRef.current = resultPhotoScreenRotDeg;
@@ -2115,7 +2124,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         rotate(90deg) 되어, 배지·수치·버튼이 사용자 기준으로 바로 서서 보인다.
 
         사진은 무대 전체(상단 배지 · 하단 패널 사이 여백)에 비율 유지 contain 으로 채우고,
-        표시 회전은 resultPhotoRotDeg 하나로만 결정한다 (문제 2 — 뒤집힘 방지).
+        표시 회전은 resultPhotoRotDeg 하나로만 결정한다 (뒤집힘 방지).
         모든 정보/버튼은 사진 영역 바깥의 상·하단 반투명 오버레이에 배치해 물고기를 가리지 않는다. */}
     {stage === "result" && det && (
       <div
@@ -2144,7 +2153,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                 style={{
                   width: fitBox.w,
                   height: fitBox.h,
-                  // 무대 회전 + 픽셀 회전을 상쇄해 촬영 프리뷰와 똑같은 방향으로 세운다
+                  // 캔버스 픽셀이 이미 landscape 로 확정돼 있으므로 무대 회전분만 상쇄한다
                   transform: resultPhotoRotDeg ? `rotate(${resultPhotoRotDeg}deg)` : undefined,
                 }}
               >
