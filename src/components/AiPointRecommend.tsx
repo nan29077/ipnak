@@ -55,8 +55,21 @@ type MarineData = {
   fetchedAt: string;
 };
 
+/**
+ * 추천에 쓰인 데이터가 얼마나 쌓여 있는지 (서버 계산).
+ * 부족할 때만 안내 문구를 띄우기 위한 값이라, 값이 없으면(구버전 응답) 아무것도 표시하지 않는다.
+ */
+type DataQuality = {
+  regionPostCount: number;
+  speciesPostCount: number | null;
+  regionSufficient: boolean;
+  speciesSufficient: boolean;
+  broadened: boolean;
+};
+
 type RecResult = {
   basis: string; broadened?: boolean; points: RecPoint[]; query: any;
+  dataQuality?: DataQuality;
   webResults?: WebFishReport[];
   marine?: MarineData | null;
   marineOrigin?: { lat: number; lng: number; origin: "user" | "region" | "point" } | null;
@@ -313,6 +326,9 @@ export function AiPointRecommend({ variant = "feed" }: { variant?: "feed" | "bar
               </div>
               <p className="mt-1.5 text-[13px] leading-relaxed text-navy-700">{data.basis}</p>
             </div>
+
+            {/* 데이터가 부족할 때만 뜨는 정보 안내 (에러가 아니라 정확도 설명) */}
+            <DataQualityNotice dataQuality={data.dataQuality} query={data.query} />
 
             {data.points.length === 0 ? (
               <div className="py-10 text-center">
@@ -788,6 +804,42 @@ function PressureCard({ pressure }: { pressure: MarineData["pressure"] }) {
 }
 
 /** 분석 중 자리표시 — 물때/수온 카드와 추천 카드 자리를 미리 잡아 화면이 튀지 않게 한다. */
+/**
+ * 데이터 부족 안내 — 추천 결과가 왜 덜 정확할 수 있는지 알려주는 정보 문구.
+ * 에러 톤(빨강)이 아니라 회색 정보 톤으로, 충분할 때는 아무것도 렌더하지 않는다.
+ */
+function DataQualityNotice({ dataQuality, query }: { dataQuality?: DataQuality; query?: any }) {
+  if (!dataQuality) return null; // 구버전 응답 호환 — 값이 없으면 안내하지 않는다
+  const { regionSufficient, speciesSufficient } = dataQuality;
+  if (regionSufficient && speciesSufficient) return null;
+
+  const sido = query?.sido && query.sido !== "전체" ? String(query.sido) : null;
+  const sigungu = query?.sigungu && query.sigungu !== "전체" ? String(query.sigungu) : null;
+  const regionLabel = sido ? [sido, sigungu].filter(Boolean).join(" ") : "전국";
+  const species = query?.species ? String(query.species) : null;
+
+  return (
+    <div className="flex gap-2 rounded-xl bg-white/[0.03] px-3 py-2.5 ring-1 ring-white/10">
+      <Info size={13} className="mt-0.5 shrink-0 text-navy-400" />
+      <div className="min-w-0 space-y-1">
+        {!regionSufficient && (
+          <p className="text-[11.5px] leading-relaxed text-navy-400">
+            현재 {regionLabel} 지역 조황 데이터가 부족해 반경 30km까지 확대하여 추천했어요.
+            입낚 회원과 조황글이 많아질수록 선택하신 지역 기준 정확도가 올라가요.
+          </p>
+        )}
+        {/* 어종 안내는 어종을 고른 경우에만 의미가 있다 (species 가 없으면 서버가 항상 sufficient) */}
+        {!speciesSufficient && species && (
+          <p className="text-[11.5px] leading-relaxed text-navy-400">
+            현재 이 지역의 {species} 조황 데이터가 부족해요.
+            입낚 회원과 조황글이 많아질수록 어종별 추천 정확도가 올라가요.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function RecommendSkeleton() {
   return (
     <div className="space-y-3 pt-1">

@@ -197,6 +197,25 @@ export default function MeasurePage() {
   const linksLoaded = ballLinkLoaded && keyringLinkLoaded;
   const noRefLinked = linksLoaded && !activeBallId && !activeKeyringId;
 
+  /* ── 볼 / 키링 연동 탭 ──
+     한 화면에 두 카드를 같이 쌓지 않고 탭으로 나눠, 고른 쪽 내용만 보여준다.
+     각 카드는 자기 연동 상태에 따라 "연동 현황(해제 버튼)" 또는 "연동 방법 안내"를 스스로 그린다. */
+  const [linkTab, setLinkTab] = useState<"ball" | "keyring">(tagKeyringId ? "keyring" : "ball");
+  // 스위치·연동 조회가 끝난 뒤 초기 탭을 한 번만 보정한다 (사용자가 고른 탭을 나중에 덮어쓰지 않도록)
+  const linkTabAutoRef = useRef(false);
+  useEffect(() => {
+    if (linkTabAutoRef.current || !flagsLoaded || !linksLoaded) return;
+    linkTabAutoRef.current = true;
+    if (tagBallId || tagKeyringId) return; // 태그로 들어왔으면 태그한 기준물 탭 유지
+    if (!ballEnabled && keyringEnabled) { setLinkTab("keyring"); return; }
+    if (ballEnabled && !keyringEnabled) { setLinkTab("ball"); return; }
+    // 둘 다 노출 중이면 이미 연동된 쪽을 먼저 보여준다
+    if (!activeBallId && activeKeyringId) setLinkTab("keyring");
+  }, [flagsLoaded, linksLoaded, ballEnabled, keyringEnabled, activeBallId, activeKeyringId, tagBallId, tagKeyringId]);
+  // 노출 스위치가 꺼진 탭이 선택돼 있으면 켜져 있는 쪽으로 강제 보정한다.
+  const activeLinkTab: "ball" | "keyring" =
+    ballEnabled && keyringEnabled ? linkTab : (ballEnabled ? "ball" : "keyring");
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null); // 네이티브 카메라 앱
@@ -1145,22 +1164,58 @@ export default function MeasurePage() {
               </div>
             )}
 
-            {/* 입낚볼 / 입낚키링 연동 — 서비스 스위치가 켜진 것만 노출
-                볼·키링 중 하나라도 연동된 경우 나머지 기기의 연동 안내 섹션은 숨긴다.
-                linksLoaded 가 false 인 동안은 로딩 플래시 방지를 위해 둘 다 표시. */}
-            {ballEnabled && (!linksLoaded || activeBallId || !activeKeyringId) && (
-              <BallLinkSection
-                ballEnabled={ballEnabled}
-                keyringEnabled={keyringEnabled}
-                onUnlinked={() => setActiveBallId(null)}
-              />
-            )}
-            {keyringEnabled && (!linksLoaded || activeKeyringId || !activeBallId) && (
-              <KeyringLinkSection
-                ballEnabled={ballEnabled}
-                keyringEnabled={keyringEnabled}
-                onUnlinked={() => setActiveKeyringId(null)}
-              />
+            {/* 입낚볼 / 입낚키링 연동 — 탭으로 분리해 고른 쪽 내용만 보여준다.
+                서비스 스위치가 꺼진 상품은 탭 자체를 노출하지 않고,
+                둘 중 하나만 켜져 있으면 탭 바 없이 그 상품 카드만 그린다. */}
+            {anyRefEnabled && (
+              <div className="space-y-2">
+                {ballEnabled && keyringEnabled && (
+                  <div className="flex gap-2 rounded-2xl border border-navy-100 bg-surface-200 p-2">
+                    <button
+                      type="button"
+                      onClick={() => { linkTabAutoRef.current = true; setLinkTab("ball"); }}
+                      aria-pressed={activeLinkTab === "ball"}
+                      className={
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-[13px] font-bold transition-colors " +
+                        (activeLinkTab === "ball"
+                          ? "border-orange-500 bg-orange-500 text-gray-900"
+                          : "border-navy-100 text-navy-400 hover:text-navy-600")
+                      }
+                    >
+                      <CircleDashed size={15} strokeWidth={2} />
+                      입낚볼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { linkTabAutoRef.current = true; setLinkTab("keyring"); }}
+                      aria-pressed={activeLinkTab === "keyring"}
+                      className={
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-[13px] font-bold transition-colors " +
+                        (activeLinkTab === "keyring"
+                          ? "border-orange-500 bg-orange-500 text-gray-900"
+                          : "border-navy-100 text-navy-400 hover:text-navy-600")
+                      }
+                    >
+                      <KeyRound size={15} strokeWidth={2} />
+                      입낚키링
+                    </button>
+                  </div>
+                )}
+
+                {activeLinkTab === "ball" ? (
+                  <BallLinkSection
+                    ballEnabled={ballEnabled}
+                    keyringEnabled={keyringEnabled}
+                    onUnlinked={() => setActiveBallId(null)}
+                  />
+                ) : (
+                  <KeyringLinkSection
+                    ballEnabled={ballEnabled}
+                    keyringEnabled={keyringEnabled}
+                    onUnlinked={() => setActiveKeyringId(null)}
+                  />
+                )}
+              </div>
             )}
           </>
         )}

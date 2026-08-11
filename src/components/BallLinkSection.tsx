@@ -1415,7 +1415,7 @@ export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true,
           className="mb-2 flex w-full items-center justify-center gap-2 rounded-[14px] bg-orange-500 py-2.5 text-[13px] font-bold text-gray-900 transition-colors hover:bg-orange-600 active:scale-[0.98]"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-          입낚키링 구매하러 가기
+          키링 구매하기
         </button>
         <div className="flex gap-2.5 rounded-xl border border-aqua-500/25 bg-aqua-500/10 px-3.5 py-3">
           <KeyRound size={16} strokeWidth={1.9} className="mt-0.5 shrink-0 text-aqua-400" />

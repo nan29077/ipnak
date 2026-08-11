@@ -452,6 +452,25 @@ function nearbyPostCount(lat: number, lng: number, posts: AnyPost[], radius = R_
   return n;
 }
 
+/**
+ * 여러 후보 포인트 반경 안에 들어오는 조황글의 "실제 개수"를 센다.
+ * nearbyPostCount 를 포인트마다 더하면 반경이 겹치는 글이 중복으로 세어져
+ * (한 시군에서 후보 5곳이 나오면 같은 글이 최대 5번) 데이터가 실제보다 많아 보인다.
+ * 안내 문구 노출 판단은 사람이 체감하는 "글 수" 기준이어야 해서 id 로 중복을 제거한다.
+ */
+function countDistinctPostsNearSpots(spots: { lat: number; lng: number }[], posts: AnyPost[], radius = R_MATCH) {
+  const ids = new Set<string>();
+  for (const p of posts) {
+    for (const s of spots) {
+      if (distanceMeters({ lat: s.lat, lng: s.lng }, { lat: p.lat, lng: p.lng }) <= radius) {
+        ids.add(String(p.id));
+        break;
+      }
+    }
+  }
+  return ids.size;
+}
+
 function topSigunguByPosts(pool: PoolItem[], posts: AnyPost[], n: number): PoolItem[] {
   const scored = pool.map((sg) => ({ sg, c: nearbyPostCount(sg.lat, sg.lng, posts) }));
   scored.sort((a, b) => b.c - a.c);
@@ -527,6 +546,13 @@ export async function POST(req: Request) {
   // ---- 후보 포인트 구성 ----
   let cands: Cand[] = [];
   let broadened = false;
+  /**
+   * 지역 보강(broadened) 이전, "사용자가 고른 지역"의 후보 포인트 목록.
+   * dataQuality(안내 문구 노출 판단) 는 반드시 보강 전 지역 기준으로 세야 한다.
+   * 보강 후 cands 로 세면 옆 시군·전국 글까지 합산돼 "데이터 충분"으로 잘못 판정된다.
+   * null 이면 지역 미선택(전국) — 이 경우 전체 조황글을 그대로 센다.
+   */
+  let regionSpots: { lat: number; lng: number }[] | null = null;
   // 전체 지역 맞춤 추천 시 사용자 프로파일 (OpenAI 프롬프트에도 전달)
   let userFishingProfile: { preferredSpecies: string[]; preferredRegions: string[]; waterType: string | null } | null = null;
 
@@ -541,6 +567,7 @@ export async function POST(req: Request) {
 
   if (sidoName && sg) {
     cands = genSpots(sidoName, sg).map(tag(sidoName, sg.name));
+    regionSpots = cands.map((c) => ({ lat: c.lat, lng: c.lng }));
     const matched = cands.reduce((a, c) => a + nearbyPostCount(c.lat, c.lng, seedPosts), 0);
     if (matched < 3) {
       broadened = true;
@@ -554,6 +581,8 @@ export async function POST(req: Request) {
     }
   } else if (sidoName) {
     const pool = (findSido(sidoName)?.sigungu || []).map((x) => ({ ...x, sidoName }));
+    // 시·도만 고른 경우의 "선택 지역"은 그 시·도 전체다 (추천 후보로 뽑힌 상위 시군만이 아니다)
+    regionSpots = pool.flatMap((e) => genSpots(e.sidoName, e).map((s) => ({ lat: s.lat, lng: s.lng })));
     const top = topSigunguByPosts(pool, seedPosts, 5);
     for (const e of top) cands.push(...genSpots(e.sidoName, e).slice(0, 2).map(tag(e.sidoName, e.name)));
   } else {
@@ -621,9 +650,16 @@ export async function POST(req: Request) {
     const lastActivity = matched.length ? new Date(matched[0].p.createdAt).getTime() : 0;
     const daysSince = lastActivity ? (now - lastActivity) / 86400000 : 999;
 
+    /**
+     * 어종 점수는 "선택한 어종 조황글"만으로 계산한다.
+     * 글 수(volumeScore)·최신성(recencyScore)은 포인트 자체의 활성도라 전체 글을 그대로 쓰지만,
+     * 어종 관련 가점은 다른 어종 글이 섞이면 그 어종이 잘 잡히는 자리라는 근거가 흐려진다.
+     */
+    const speciesMatched = species ? matched.filter((m) => m.p.speciesName === species) : [];
+
     const volumeScore = matched.length * 14;
     const recencyScore = lastActivity ? Math.max(0, 30 - daysSince * 2) : 0;
-    const speciesMatch = species ? (sp.get(species) || 0) : 0;
+    const speciesMatch = species ? speciesMatched.length : 0;
     const speciesScore = speciesMatch * 22;
     const monthMatch = month ? matched.filter((m) => new Date(m.p.createdAt).getMonth() + 1 === month).length : 0;
     const monthScore = monthMatch * 6;
@@ -641,7 +677,7 @@ export async function POST(req: Request) {
     // 대상 어종을 고르면 카드에 보여줄 조황글도 그 어종 글만 남긴다.
     // (포인트만 걸러두고 목록에 다른 어종이 섞여 나오면 왜 추천됐는지 확인이 안 된다)
     // 어종 필터를 통과한 포인트는 해당 어종 글이 1건 이상이라 목록이 비지 않는다.
-    const listed = species ? matched.filter((m) => m.p.speciesName === species) : matched;
+    const listed = species ? speciesMatched : matched;
 
     const memberPosts = listed.slice(0, 8).map((m) => ({
       id: m.p.id,
@@ -689,6 +725,23 @@ export async function POST(req: Request) {
   const regionLabel = sidoName && sgName ? `${sidoName} ${sgName}` : sidoName || "전국";
   const totalMatched = points.reduce((a, p) => a + p.postCount, 0);
 
+  /**
+   * 추천 정확도의 근거가 되는 데이터 충분도.
+   * 화면에서 "이 지역/이 어종 데이터가 부족하다"는 안내를 조건부로 띄우기 위한 값이라
+   * 지역 보강 전의 선택 지역 기준으로 센다. 기준치 3건은 broadened 판정과 동일하게 맞췄다.
+   */
+  const regionPostCount = regionSpots ? countDistinctPostsNearSpots(regionSpots, posts) : posts.length;
+  const speciesPostCount = species
+    ? (regionSpots ? countDistinctPostsNearSpots(regionSpots, seedPosts) : seedPosts.length)
+    : null;
+  const dataQuality = {
+    regionPostCount,
+    speciesPostCount,
+    regionSufficient: regionPostCount >= 3,
+    speciesSufficient: species ? (speciesPostCount ?? 0) >= 3 : true,
+    broadened,
+  };
+
   // 위치도 지역도 안 주어진 전국 추천이면 1위 포인트 좌표를 해양·기상 기준점으로 삼는다.
   if (!originCoords && points[0]) {
     originCoords = { lat: points[0].lat, lng: points[0].lng, origin: "point" };
@@ -731,6 +784,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     basis: aiBasis || basis,
     broadened,
+    dataQuality,
     query: { sido: sidoName || "전체", sigungu: sgName || "전체", month, day, species: species || null },
     points,
     webResults,
