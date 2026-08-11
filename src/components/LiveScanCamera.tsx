@@ -1159,7 +1159,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
             bothMissRef.current = 0;
           } else if (data?.ok === false && data?.reason === "no-ball") {
             totalFailRef.current = 0; // 확정 판정 수신 → 판정 불가 연속 카운터 리셋
-            // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 —
+            // 기준물(입낚볼·입낚키링) 미감지 —
             // API 가 fishFound:false 이고 ballFound:false ("아무것도 없음") 인 경우:
             //   → 클라이언트 윤곽 감지(scanStatus "locked") 를 무시하고 둘 다 없음으로 처리.
             //     (윤곽 감지는 사람 다리/의류 등을 물고기로 오인식할 수 있음)
@@ -2344,7 +2344,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           </div>
           <div>
             <p className="text-[18px] font-extrabold leading-snug tracking-tight text-white">
-              입낚볼 / 입낚키링 /<br />입낚인쇄물을 찾을 수 없습니다
+              입낚볼 / 입낚키링을<br />찾을 수 없습니다
             </p>
             <p className="mt-2 text-[13px] text-white/50">잠시 후 종료 여부를 확인합니다...</p>
           </div>
@@ -2435,7 +2435,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               AI 카메라를<br />종료하시겠습니까?
             </p>
             <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
-              물고기는 인식됐어요.<br />입낚볼 / 입낚키링 / 입낚인쇄물을<br />함께 놓아주세요
+              물고기는 인식됐어요.<br />입낚볼 / 입낚키링을<br />함께 놓아주세요
             </p>
           </div>
           <div className="flex gap-2 px-4 pb-6 pt-1">

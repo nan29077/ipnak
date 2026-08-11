@@ -208,7 +208,7 @@ export default function MeasurePage() {
   const pendingScanRef = useRef<{
     ball: any; head: Point; tail: Point; width: { top: Point; bottom: Point } | null;
   } | null>(null);
-  // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 안내 팝업
+  // 기준물(입낚볼·입낚키링) 미감지 안내 팝업
   const [refMissing, setRefMissing] = useState(false);
 
   function engines() {
@@ -325,7 +325,7 @@ export default function MeasurePage() {
         return;
       }
 
-      // 기준물(입낚볼·입낚키링·인쇄 기준물) 미감지 → 측정 불가 안내 후 선택 화면 복귀
+      // 기준물(입낚볼·입낚키링) 미감지 → 측정 불가 안내 후 선택 화면 복귀
       if (data?.ok === false && data.reason === "no-ball") {
         setPhase("CHOICE");
         setRefMissing(true);
@@ -1145,9 +1145,15 @@ export default function MeasurePage() {
               </div>
             )}
 
-            {/* 입낚볼 / 입낚키링 연동 — 서비스 스위치가 켜진 것만 노출 */}
-            {ballEnabled && <BallLinkSection ballEnabled={ballEnabled} keyringEnabled={keyringEnabled} />}
-            {keyringEnabled && <KeyringLinkSection ballEnabled={ballEnabled} keyringEnabled={keyringEnabled} />}
+            {/* 입낚볼 / 입낚키링 연동 — 서비스 스위치가 켜진 것만 노출
+                볼·키링 중 하나라도 연동된 경우 나머지 기기의 연동 안내 섹션은 숨긴다.
+                linksLoaded 가 false 인 동안은 로딩 플래시 방지를 위해 둘 다 표시. */}
+            {ballEnabled && (!linksLoaded || activeBallId || !activeKeyringId) && (
+              <BallLinkSection ballEnabled={ballEnabled} keyringEnabled={keyringEnabled} />
+            )}
+            {keyringEnabled && (!linksLoaded || activeKeyringId || !activeBallId) && (
+              <KeyringLinkSection ballEnabled={ballEnabled} keyringEnabled={keyringEnabled} />
+            )}
           </>
         )}
 
@@ -1495,7 +1501,7 @@ export default function MeasurePage() {
               </div>
               <p className="text-[17px] font-extrabold tracking-tight text-white">측정할 수 없는 사진이에요</p>
               <p className="mt-2.5 text-center text-[13px] leading-relaxed text-white/50">
-                기준물(입낚볼·입낚키링·인쇄 기준물)이 없는 사진은<br />측정할 수 없습니다.
+                기준물(입낚볼·입낚키링)이 없는 사진은<br />측정할 수 없습니다.
               </p>
             </div>
             <div className="px-4 pb-6 pt-1">

@@ -59,7 +59,7 @@ export function AppShell({ user, shopEnabled = true, reservationEnabled = true, 
   const pathname = usePathname() || "/";
   // 비밀번호 찾기도 로그인·회원가입과 같은 인증 화면이라 앱 헤더/내비 없이 전체 화면으로 보여준다.
   // 온보딩(/onboarding)도 앱 헤더/내비 없이 전체 화면으로 보여준다 (앱 최초 실행 전용 화면)
-  const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/forgot-password") || pathname.startsWith("/admin") || pathname.startsWith("/print") || pathname.startsWith("/landing") || pathname.startsWith("/about") || pathname.startsWith("/onboarding");
+  const bare = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/forgot-password") || pathname.startsWith("/admin") || pathname.startsWith("/landing") || pathname.startsWith("/about") || pathname.startsWith("/onboarding");
   const MOBILE_NAV = buildMobileNav(shopEnabled);
   const DESKTOP_NAV = buildDesktopNav(shopEnabled, reservationEnabled);
   const showFab =
