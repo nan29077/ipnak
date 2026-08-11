@@ -351,15 +351,39 @@ export default function MeasurePage() {
         return;
       }
 
-      // 실패 조건: 입낚볼/물고기 미감지, 자세 flat 아님, 신뢰도 부족, 응답 이상
+      // ── 자세(pose) 게이트 ──
+      // 입낚볼은 지름 40mm 구(球)라 어느 각도·위치에서 봐도 정원으로 보인다. 따라서 볼을 들고
+      // 찍은 사진(pose="held")도 바닥에 눕힌 사진과 동일한 정확도로 환산할 수 있다.
+      // 반면 입낚키링은 평면 디스크라 기울면 타원으로 찌그러지므로 flat 만 허용한다.
+      // (실시간 스캐너 LiveScanCamera 도 볼 경로에서 flat/held 를 모두 통과시킨다 — 두 경로 일치)
+      const poseOk =
+        refType === "keyring"
+          ? data?.pose === "flat"
+          : data?.pose === "flat" || data?.pose === "held";
+      // 볼을 들고 찍은 프레임은 AI 가 신뢰도를 다소 보수적으로 매기는 경향이 있어
+      // 볼 경로만 임계값을 0.6 으로 낮춘다. 키링은 기존 기준(0.7)을 그대로 유지한다.
+      const minConf = refType === "keyring" ? SCAN_MIN_CONFIDENCE : Math.min(SCAN_MIN_CONFIDENCE, 0.6);
+
+      // 실패 조건: 입낚볼/물고기 미감지, 허용되지 않는 자세, 신뢰도 부족, 응답 이상
       if (
         !data?.ok ||
         !data.ball || !data.head || !data.tail ||
-        data.pose !== "flat" ||
+        !poseOk ||
         typeof data.confidence !== "number" ||
-        data.confidence < SCAN_MIN_CONFIDENCE
+        data.confidence < minConf
       ) {
         throw new Error("scan-unreliable");
+      }
+
+      // ── 원근 안전장치 ──
+      // 볼이 렌즈 쪽으로 튀어나오고 물고기는 멀리 있으면 볼이 실제보다 크게 찍혀
+      // mmPerPixel 이 과소 추정되고 길이가 과대 측정된다. 서버(AI)가 두 피사체의 거리가
+      // 명백히 다르다고 판정한 경우에만 차단한다. 필드가 없거나 true 면 그대로 진행.
+      if (data.planeConsistent === false) {
+        scanFailToChoice(
+          `${refType === "keyring" ? "입낚키링" : "볼"}과 물고기가 비슷한 거리에 있도록 맞춰 주세요.`,
+        );
+        return;
       }
 
       // ── 정규화 좌표(0~1) → 작업 캔버스 픽셀 좌표 ──
@@ -445,7 +469,14 @@ export default function MeasurePage() {
 
   /* ── 자동 스캔 실패 → 안내 후 2초 뒤 선택 화면 복귀 ── */
   function scanFailToChoice(msg?: string) {
-    setScanFailMsg(msg ?? "자동 측정이 어려운 사진이에요. 물고기를 옆으로 눕히고 입낚볼과 함께 다시 촬영해 주세요.");
+    // 기본 안내는 기준물 종류에 맞춘다.
+    //   볼: 어느 자세로 들고 찍어도 되므로 "눕히라"고 안내하면 안 된다 — 함께 잘 보이는지만 확인.
+    //   키링: 평면 디스크라 눕힌 물고기 + 바닥에 놓인 키링이 필요하다.
+    const fallbackMsg =
+      refType === "keyring"
+        ? "자동 측정이 어려운 사진이에요. 물고기를 옆으로 눕히고 입낚키링과 함께 다시 촬영해 주세요."
+        : "자동 측정이 어려운 사진이에요. 볼과 물고기가 함께 잘 보이는지 확인 후 다시 시도해 주세요.";
+    setScanFailMsg(msg ?? fallbackMsg);
     setPhase("SCAN_FAILED");
     if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
     scanTimerRef.current = setTimeout(() => {
@@ -1085,7 +1116,7 @@ export default function MeasurePage() {
                 <p className="text-[12px] text-navy-400">
                   {refType === "keyring"
                     ? "물고기를 옆으로 눕혀 입낚키링과 함께 촬영하세요"
-                    : "물고기를 옆으로 눕혀 입낚볼과 함께 촬영하세요"}
+                    : "입낚볼과 물고기를 함께 촬영하세요 (들고 찍어도 돼요)"}
                 </p>
               </div>
             </div>
@@ -1284,7 +1315,7 @@ export default function MeasurePage() {
               <p className="text-[12px] leading-relaxed text-navy-500">
                 {refType === "keyring"
                   ? "물고기를 바닥에 옆으로 눕히고, 입낚키링도 바닥에 평평하게 놓아 위에서 수직으로 찍으면 자동 측정이 가능해요."
-                  : "물고기를 바닥에 옆으로 눕혀 입낚볼과 함께 찍으면 자동 측정이 가능해요."}
+                  : "입낚볼은 어느 각도에서도 동그랗게 보여서, 바닥에 눕혀 찍든 손에 들고 찍든 자동 측정이 가능해요. 볼과 물고기만 비슷한 거리에서 함께 잘 보이면 돼요."}
               </p>
             </div>
 

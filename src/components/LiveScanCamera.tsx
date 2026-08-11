@@ -121,6 +121,10 @@ const SHIMMER_MS = 1800;       // 윤슬(빛 포인트)이 물고기 외곽을 �
 // 미만이면 연속 2회 성공해야 윤슬로 넘어간다 (오탐으로 인한 잘못된 자동 측정 방지)
 const CONFIDENCE_INSTANT = 0.85;
 const CONSECUTIVE_SUCCESS_NEEDED = 2;
+// 원근 불일치(볼만 렌즈 앞으로 튀어나옴) 차단을 적용할 최소 신뢰도.
+// 실시간 스캔은 매 1.5초마다 판정이 갱신되므로, 확신이 낮은 응답까지 차단에 쓰면
+// 안내 문구가 깜빡이며 UX 가 나빠진다. 충분히 확신하는 응답에서만 게이트를 건다.
+const PLANE_CHECK_MIN_CONFIDENCE = 0.75;
 // 물고기는 인식됐는데 기준물만 연속으로 못 잡은 횟수 — 이 횟수를 넘으면 안내 후 카메라 종료
 // (AI 응답 한 번의 실수로 카메라가 닫히지 않도록 2회 연속을 요구)
 const REF_MISS_LIMIT = 2;
@@ -535,6 +539,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const consecutiveSuccessRef = useRef(0); // 스캔 연속 성공 횟수 (낮은 신뢰도 확인용)
   // 키링이 너무 찌그러진 타원으로 잡힌 상태 (종횡비 미달) — 수직 촬영 안내 표시
   const [keyringTilted, setKeyringTilted] = useState(false);
+  // 기준물과 물고기의 카메라 거리가 명백히 다른 상태 — 거리 맞추기 안내 표시
+  const [planeMismatch, setPlaneMismatch] = useState(false);
 
   /* ── 결과 패널 (stage === "result") 전용 상태 ──
      캡처 프레임 고정 표시 캔버스 + 머리/꼬리/폭 끝점 드래그 수정.
@@ -1029,13 +1035,23 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         }
         if (stopped) return;
 
+        // 원근 안전장치 — 볼만 렌즈 앞으로 튀어나오면 mmPerPixel 이 과소 추정돼 길이가 과대 측정된다.
+        // AI 가 명백히 거리가 다르다고 판정(false)했고, 그 판정의 신뢰도까지 충분할 때만 차단한다.
+        // (필드가 없으면 null → 차단하지 않음. 키링 프롬프트는 이 필드를 요청하지 않는다.)
+        const planeBlocked =
+          data?.ok === true &&
+          data.planeConsistent === false &&
+          typeof data.confidence === "number" &&
+          data.confidence >= PLANE_CHECK_MIN_CONFIDENCE;
+
         const ok =
           data?.ok &&
           data.ball && data.head && data.tail &&
           (data.pose === "flat" || data.pose === "held") &&
           typeof data.confidence === "number" &&
           data.confidence >= CONFIDENCE_MIN &&
-          typeof data.ball.r === "number" && data.ball.r > 0;
+          typeof data.ball.r === "number" && data.ball.r > 0 &&
+          !planeBlocked;
 
         if (ok) {
           const w = frame.width, h = frame.height;
@@ -1131,6 +1147,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           bothMissRef.current = 0;
           totalFailRef.current = 0;
           setKeyringTilted(false);
+          setPlaneMismatch(false);
           setDet(detection);
           // 물고기 + 기준물 모두 인식 → 윤슬 한 바퀴 후 자동 측정.
           // 다만 신뢰도가 낮으면(< CONFIDENCE_INSTANT) 한 번 더 같은 결과가 나올 때까지
@@ -1152,6 +1169,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           // 수직 촬영 안내만 띄운다.
           const tilted = data?.ok === false && data?.reason === "keyring-tilted";
           setKeyringTilted(tilted);
+          // 원근 불일치는 기준물·물고기가 모두 보이는 상태이므로 미감지 카운터는 건드리지 않고
+          // (아래 data.ok === true 분기에서 리셋된다) 거리 맞추기 안내만 띄운다.
+          setPlaneMismatch(planeBlocked);
           if (tilted) {
             totalFailRef.current = 0;
             refMissRef.current = 0;
@@ -1211,6 +1231,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         if (!stopped) {
           successRef.current = null;
           setDet(null);
+          setPlaneMismatch(false); // 판정 불가 응답에서는 거리 안내를 남겨두지 않는다
           consecutiveSuccessRef.current = 0; // 연속 성공 카운터 리셋
           // 클라이언트 요청 타임아웃(9초 abort)·네트워크 오류도 "판정 불가"로 집계
           totalFailRef.current += 1;
@@ -1778,6 +1799,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         키링을 바닥에 수평으로 놓고 카메라를 더 수직으로 세워서 다시 찍어주세요
       </p>
     </div>
+  ) : planeMismatch && stage === "scan" ? (
+    <div className="flex flex-col items-center gap-1 text-center">
+      <p className="flex items-center gap-1.5 text-[13px] font-semibold text-orange-300">
+        <AlertTriangle size={14} strokeWidth={2.2} />
+        {refLabel}과 물고기의 거리가 달라요
+      </p>
+      <p className="text-[11px] text-white/60">
+        {refLabel}과 물고기가 비슷한 거리에 있도록 맞춰 주세요
+      </p>
+    </div>
   ) : stage === "shimmer" ? (
     <p className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-aqua-300">
       <ScanLine size={15} strokeWidth={2.2} />
@@ -2036,7 +2067,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       )}
 
       {/* ── 화면 중앙 안내 문구 — scan 탐색 중 + 카메라 준비 완료 시만 표시 ── */}
-      {stage === "scan" && camStatus === "ready" && videoHasData && !canConfirm && !keyringTilted && (
+      {stage === "scan" && camStatus === "ready" && videoHasData && !canConfirm && !keyringTilted && !planeMismatch && (
         <div
           className="pointer-events-none absolute inset-x-0 z-20 flex flex-col items-center gap-1"
           style={{ top: "50%", transform: "translateY(-50%)", animation: "slowBlink 2.8s ease-in-out infinite" }}
@@ -2078,13 +2109,13 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         <div className="pb-safe absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 pb-5 pt-10">
           {/* scan 탐색 중에는 중앙 깜빡이는 흰 글씨가 안내 대신하므로 카드 숨김
               (키링 각도 경고는 예외 — 재촬영 방법을 바로 알려야 한다) */}
-          {(stage !== "scan" || canConfirm || keyringTilted) && <div className="mb-3">{guidance}</div>}
+          {(stage !== "scan" || canConfirm || keyringTilted || planeMismatch) && <div className="mb-3">{guidance}</div>}
           {measureButton}
         </div>
       )}
 
       {/* ── 안내 오버레이 — 가로 모드 시 카메라 왼쪽 영역 중앙 ── */}
-      {effectiveLandscape && stage !== "result" && (stage !== "scan" || canConfirm || keyringTilted) && (
+      {effectiveLandscape && stage !== "result" && (stage !== "scan" || canConfirm || keyringTilted || planeMismatch) && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 z-30 flex flex-col items-center justify-center"
           style={{

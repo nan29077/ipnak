@@ -108,8 +108,9 @@ const USER_PROMPT = `Analyze the image and return JSON with this exact shape:
   "widthFound": boolean,       // true only if the fish body outline is clear enough to measure its maximum width
   "bodyTop": { "x": number, "y": number },     // on the widest cross-section of the BODY, the point on one side of the outline, normalized
   "bodyBottom": { "x": number, "y": number },  // the opposite point of that same cross-section, normalized
-  "pose": "flat" | "held" | "unknown",   // "flat" = fish lying on its side flat on the ground; "held" = held up / standing / angled; "unknown" if unclear
-  "confidence": number         // 0.0~1.0 overall confidence that ball + head + tail are correctly located. High confidence is possible for held fish if perspective matches and full fish is visible.
+  "pose": "flat" | "held" | "unknown",   // "flat" = fish lying on its side flat on the ground; "held" = held up / standing / angled; "unknown" if unclear. BOTH "flat" and "held" are normal, fully measurable poses.
+  "planeConsistent": boolean,  // true if the ball and the fish are at roughly the same distance from the camera (same plane); false ONLY when the ball is obviously much closer to (or much farther from) the lens than the fish
+  "confidence": number         // 0.0~1.0 overall confidence that ball + head + tail are correctly located. A held pose is measured exactly like a flat pose, so it must NOT lower this value.
 }
 Rules:
 - All coordinates MUST be within 0..1. x is relative to image width, y to image height.
@@ -122,12 +123,13 @@ Rules:
 - On a dark background, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker.
 - If the yellow reference circle is not clearly visible, set ballFound=false and confidence<=0.3.
 - If no whole fish is visible, set fishFound=false and confidence<=0.3.
-- pose: "flat" if fish is lying on its side on a flat surface; "held" if fish is being held up or is not flat; "unknown" if unclear.
+- pose: "flat" if fish is lying on its side on a flat surface; "held" if fish is being held up or is not flat; "unknown" if unclear. Report the pose truthfully — BOTH "flat" and "held" are accepted, normal measuring poses and neither is an error.
 - The 입낚볼 is a 3D SPHERICAL ball: unlike a flat disc, it appears as a PERFECT CIRCLE from EVERY viewing angle. Its circular outline has NO perspective distortion, so a tilted camera or a held fish never deforms the ball's shape.
-- Because the ball is a sphere, pose="held" does NOT reduce confidence by itself: if the fish is held vertically or at any angle but the ball is clearly visible as a sharp circle AND the entire fish (head to tail) is visible, confidence 0.7~0.9 is allowed.
+- Because the ball is a sphere, a held-up pose (ball and fish lifted together in the hand) keeps EXACTLY the same size ratio between the ball and the fish as a flat pose. Therefore measure pose="held" identically to pose="flat" and apply NO confidence penalty for a held pose.
 - The ball may hang from a fishing line, or sit beside, above or below the fish — its position never matters. Whenever its circular outline is clearly visible, proceed with the measurement using its exact 40mm diameter.
-- If pose="held" but the ball and fish are in proper perspective (same plane, proportional size) AND the entire fish (head to tail) is clearly visible, confidence may be 0.7~0.9.
-- If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
+- If pose="held" and the entire fish (head to tail) plus the ball are clearly visible, confidence 0.7~0.9 is allowed, exactly as for a flat pose.
+- Only lower confidence (<=0.5) when the fish itself is partially cropped, blurred or hidden — never merely because the pose is "held".
+- planeConsistent: set it to false ONLY when the ball is obviously at a very different distance from the camera than the fish — for example the ball is thrust out toward the lens while the fish stays far behind it, so the ball looks abnormally large compared to the fish. When the ball and the fish are held together, lie together, or otherwise look like they are at a similar distance, set planeConsistent=true. If you are not sure, set planeConsistent=true (never block a measurement on a guess).
 - Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
 - ball.r MUST be measured from the CENTER of the ball/circle to its OUTERMOST VISIBLE EDGE (the physical outer boundary of the yellow circle). Do NOT measure to any inner logo, marking, or shadow — always measure to the outermost pixel boundary of the yellow color.
 - The head→tail segment MUST represent the fish's TOTAL LENGTH: from the frontmost tip of the closed mouth/snout to the rearmost tip of the caudal (tail) fin.
@@ -236,7 +238,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: process.env.OPENAI_MEASURE_MODEL || "gpt-4.1-mini",
         temperature: 0,
-        max_tokens: 400, // 너비(bodyTop/bodyBottom) 필드 추가분 여유
+        max_tokens: 450, // 너비(bodyTop/bodyBottom) + planeConsistent 필드 추가분 여유
         response_format: { type: "json_object" },
         messages: [
           {
@@ -320,6 +322,13 @@ export async function POST(req: Request) {
       parsed?.pose === "flat" || parsed?.pose === "held" ? parsed.pose : "unknown";
     const confidence = num(parsed?.confidence);
 
+    // 볼(구)은 어느 자세에서도 정원으로 보이므로 held 자세도 그대로 측정한다.
+    // 다만 볼만 렌즈 앞으로 튀어나온 사진은 mmPerPixel 이 과소 추정돼 길이가 과대 측정되므로
+    // AI 가 "명백히 거리가 다르다"고 판정한 경우(false)만 클라이언트에 알린다.
+    // 값이 없으면 null → 클라이언트는 통과시킨다 (키링 프롬프트는 이 필드를 요청하지 않는다).
+    const planeConsistent: boolean | null =
+      typeof parsed?.planeConsistent === "boolean" ? parsed.planeConsistent : null;
+
     // 몸통 최대 너비 (선택) — 감지 실패해도 길이 측정은 그대로 성공 처리
     const bodyTop = pt(parsed?.bodyTop);
     const bodyBottom = pt(parsed?.bodyBottom);
@@ -335,6 +344,7 @@ export async function POST(req: Request) {
       tail,
       width,
       pose,
+      planeConsistent,
       confidence: confidence == null ? 0 : Math.max(0, Math.min(1, confidence)),
     });
   } catch (e: any) {

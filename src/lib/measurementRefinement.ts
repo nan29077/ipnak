@@ -502,6 +502,10 @@ export function refineReferenceCircle(
     radiusRatio < 0.55 || radiusRatio > 1.45 ||
     centerShift > aiR * 0.65 || coverage < 0.5 || residualRatio > 0.12
   ) return edgeFallback();
+  // NOTE: coverage 하한(0.5)을 낮추면 안 된다. 노란 외곽이 절반 미만만 보이는 프레임에서
+  // 대수적 원 피팅은 짧은 호 + 절단면 직선에 끌려 반지름을 7~32% 과소 추정하고
+  // (실측: 46px 볼이 32~42px 로 피팅), 그 결과 mmPerPixel 이 과대 → 전장이 과대 측정된다.
+  // 커버리지가 0.5 미만인 프레임은 아래 edgeFallback(방사 에지 탐색)이 훨씬 정확하다.
 
   const confidence = clamp(
     coverage * 0.5 + (1 - residualRatio / 0.12) * 0.3 + (1 - centerShift / (aiR * 0.65)) * 0.2,
