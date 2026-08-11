@@ -123,6 +123,15 @@ function windText(d: FishingSpotDraft): string {
   return `${d.windLabel ? `${d.windLabel} ` : ""}${d.windSpeed}m/s`;
 }
 
+/** 저장 시점의 계절 — 3~5월 봄 / 6~8월 여름 / 9~11월 가을 / 12~2월 겨울 */
+function seasonNow(): string {
+  const m = new Date().getMonth() + 1; // getMonth 는 0-based
+  if (m >= 3 && m <= 5) return "봄";
+  if (m >= 6 && m <= 8) return "여름";
+  if (m >= 9 && m <= 11) return "가을";
+  return "겨울";
+}
+
 export function FishingSpotSaveModal({
   open,
   onClose,
@@ -167,7 +176,8 @@ export function FishingSpotSaveModal({
     setTideName(src?.tideName ?? "");
     setDepth(src?.depth != null ? String(src.depth) : "");
     setSpecies(src?.species ?? "");
-    setSeason(src?.season ?? "");
+    // 계절은 저장 시점 기준으로 자동 입력한다. 이미 값이 있으면(수정 모드 등) 그대로 둔다.
+    setSeason(src?.season || seasonNow());
     setMemo(src?.memo ?? "");
     setSaving(false);
     // 한 프레임 뒤에 올린다. requestAnimationFrame 은 화면이 가려진 탭에서 아예 발화하지
@@ -400,7 +410,7 @@ export function FishingSpotSaveModal({
           </div>
 
           <div>
-            <label className={labelCls} htmlFor="spot-season">최적 계절/시간</label>
+            <label className={labelCls} htmlFor="spot-season">최적 계절/시간 <AutoBadge /></label>
             <input
               id="spot-season"
               className={inputCls}

@@ -13,7 +13,8 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { createPortal } from "react-dom";
 import {
-  Crosshair, Fish, Loader2, MapPin, Pencil, Plus, Route, Ruler, Trash2, X, ZoomIn,
+  CloudSun, Crosshair, Fish, Loader2, MapPin, Pencil, Plus, Route, Ruler,
+  Thermometer, Trash2, Waves, Wind, X, ZoomIn,
 } from "lucide-react";
 import { Sheet } from "@/components/ui";
 import { useToast } from "@/components/Toast";
@@ -58,6 +59,29 @@ function formatDate(iso: string) {
 
 function formatDist(m: number) {
   return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${Math.round(m)}m`;
+}
+
+/**
+ * 상세 시트의 환경 정보 카드 (수심·주요 어종 카드와 동일한 스타일)
+ * 값이 없으면 "—" 로 자리를 지킨다 — 항목을 숨기면 2열 격자가 어긋난다.
+ */
+function SpotStat({
+  icon, label, value, className,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value?: string | null;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-2xl bg-[#0d1b2a] p-3${className ? ` ${className}` : ""}`}>
+      <div className="mb-1 flex items-center gap-1.5">
+        {icon}
+        <p className="text-[10px] text-navy-400">{label}</p>
+      </div>
+      <p className="truncate text-[13px] font-semibold text-navy-800">{value || "—"}</p>
+    </div>
+  );
 }
 
 export function FishingSpotTab() {
@@ -416,13 +440,36 @@ export function FishingSpotTab() {
               </div>
             </div>
 
+            {/* 저장 당시 자동 수집된 환경 정보 — 값이 없는 항목은 "—" 로 둔다 */}
+            <div className="grid grid-cols-2 gap-2">
+              <SpotStat icon={<CloudSun size={13} className="text-navy-400" />} label="날씨" value={selected.weather} />
+              <SpotStat
+                icon={<Thermometer size={13} className="text-navy-400" />}
+                label="기온"
+                value={selected.airTemp != null ? `${selected.airTemp}°C` : null}
+              />
+              <SpotStat
+                icon={<Thermometer size={13} className="text-navy-400" />}
+                label="수온"
+                value={selected.waterTemp != null ? `${selected.waterTemp}°C` : null}
+              />
+              <SpotStat icon={<Wind size={13} className="text-navy-400" />} label="바람" value={selected.wind} />
+              <SpotStat
+                icon={<Waves size={13} className="text-navy-400" />}
+                label="물때"
+                value={selected.tideName}
+                className="col-span-2"
+              />
+            </div>
+
             <div className="rounded-2xl bg-[#0d1b2a] p-3">
               <div className="mb-1 flex items-center gap-1.5">
                 <MapPin size={13} className="text-navy-400" />
                 <p className="text-[10px] text-navy-400">위치</p>
               </div>
+              {/* 저장할 때 적어 둔 지명이 있으면 그것을, 없으면 기존처럼 좌표를 보여준다 */}
               <p className="text-[13px] font-semibold tabular-nums text-navy-800">
-                {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
+                {selected.locationName || `${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}`}
               </p>
               {selected.season && (
                 <p className="mt-1 text-[12px] text-navy-400">최적 계절/시간: {selected.season}</p>
