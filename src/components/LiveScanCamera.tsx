@@ -144,6 +144,17 @@ const SAFE_LOCAL_BOTTOM = "max(0px, env(safe-area-inset-bottom, 0px), env(safe-a
 const RESULT_TOP_INSET = `calc(${RESULT_TOP_BAR_H}px + ${SAFE_LOCAL_TOP})`;
 const RESULT_BOTTOM_INSET = `calc(${RESULT_BOTTOM_PANEL_H}px + ${SAFE_LOCAL_BOTTOM})`;
 
+/* ── 끝점 미세 조정용 돋보기(loupe) ──
+   끝점을 길게 누르면 손가락에 가린 영역을 확대해 보여준다.
+   배율은 "화면에 보이는 크기" 기준이다 (프레임 픽셀 기준이 아님) — 사용자가 체감하는
+   확대율이 사진 표시 크기와 무관하게 일정해야 하기 때문이다. */
+const LOUPE_LONG_PRESS_MS = 400;
+const LOUPE_SIZE = 104;   // 지름 (CSS px)
+const LOUPE_ZOOM = 2.6;
+/** 돋보기가 손가락/끝점을 가리면 반대쪽으로 피할 때 쓰는 여유 */
+const LOUPE_AVOID_MARGIN = 30;
+const LOUPE_EDGE_GAP = 10;
+
 type Cam = "loading" | "ready" | "error";
 
 /**
@@ -545,6 +556,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const finalizedFrameRef = useRef<HTMLCanvasElement | null>(null);
   // 사진 박스가 화면상 최종적으로 몇 도 회전되어 있는지 — 포인터 좌표 역변환에 쓴다.
   const resultRotDegRef = useRef(0);
+  const resultStageRef = useRef<HTMLDivElement>(null);      // 결과 화면 무대 (돋보기 배치 기준 좌표계)
+  const loupeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const loupeBoxRef = useRef<HTMLDivElement>(null);
+  const loupeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 롱프레스 타이머가 만료되는 시점의 "최신" 포인터 위치 (프레임 정규화 좌표)
+  const loupePointRef = useRef<Norm | null>(null);
+  // 표시 중인 돋보기 중심 — state 로 둬야 오버레이 갱신 뒤에 다시 그릴 수 있다
+  const [loupePoint, setLoupePoint] = useState<Norm | null>(null);
   const dragKeyRef = useRef<"head" | "tail" | "widthTop" | "widthBottom" | null>(null);
   const initialDetectionRef = useRef<Detection | null>(null);
   const [activeDragKey, setActiveDragKey] = useState<typeof dragKeyRef.current>(null);
@@ -1445,6 +1464,82 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     drawResultOverlay(ctx, det, W, H);
   }, [stage, det, fitBox]);
 
+  /* ── 돋보기(loupe) 렌더링 ──
+     ⚠️ 반드시 위 측정 오버레이 effect "뒤에" 선언한다. 같은 커밋에서 오버레이가 먼저
+        갱신돼야 돋보기 안의 측정선이 한 프레임 뒤처지지 않는다 (effect 는 선언 순서로 실행).
+     소스는 frozenRef(사진) + resultOverlayRef(측정선)를 같은 소스 사각형으로 겹쳐 그린다.
+     배율은 화면 표시 크기 기준이라, 사진이 크게/작게 표시되어도 체감 확대율이 일정하다. */
+  useEffect(() => {
+    if (stage !== "result" || !loupePoint || !fitBox) return;
+    const s = successRef.current;
+    const cv = loupeCanvasRef.current;
+    const box = loupeBoxRef.current;
+    const area = resultAreaRef.current;
+    const stageEl = resultStageRef.current;
+    const photo = frozenRef.current;
+    if (!s || !cv || !box || !area || !stageEl || !photo) return;
+    const fw = s.work.width, fh = s.work.height;
+    if (!(fw > 0) || !(fh > 0) || !(fitBox.w > 0)) return;
+
+    // ① 배치 — 기본은 사진 영역 상단. 누른 지점이 그 자리와 겹치면(손가락에 가림) 하단으로 피한다.
+    //    모든 좌표를 "무대 로컬" 로 계산하므로 회전 무대에서도 그대로 성립한다.
+    const rad = (resultPhotoRotDeg * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const dx = (loupePoint.x - 0.5) * fitBox.w;
+    const dy = (loupePoint.y - 0.5) * fitBox.h;
+    const pointX = area.offsetLeft + area.clientWidth / 2 + (dx * cos - dy * sin);
+    const pointY = area.offsetTop + area.clientHeight / 2 + (dx * sin + dy * cos);
+    const topY = area.offsetTop + LOUPE_EDGE_GAP;
+    const bottomY = area.offsetTop + area.clientHeight - LOUPE_SIZE - LOUPE_EDGE_GAP;
+    const centerX = stageEl.clientWidth / 2;
+    const hidesPoint = (y: number) =>
+      Math.abs(pointX - centerX) < LOUPE_SIZE / 2 + LOUPE_AVOID_MARGIN &&
+      pointY > y - LOUPE_AVOID_MARGIN && pointY < y + LOUPE_SIZE + LOUPE_AVOID_MARGIN;
+    const placeY = hidesPoint(topY) && !hidesPoint(bottomY) ? bottomY : topY;
+    box.style.top = `${Math.max(0, placeY)}px`;
+
+    // ② 확대 렌더링
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    const D = Math.max(1, Math.round(LOUPE_SIZE * dpr));
+    if (cv.width !== D) cv.width = D;
+    if (cv.height !== D) cv.height = D;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    const displayScale = fitBox.w / fw;                     // 화면 px / 프레임 px
+    const span = LOUPE_SIZE / (LOUPE_ZOOM * displayScale);  // 원 안에 담을 프레임 픽셀 폭
+    const sx = loupePoint.x * fw - span / 2;
+    const sy = loupePoint.y * fh - span / 2;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // 사진 가장자리를 볼 때 프레임 밖은 검게 — 소스 사각형을 잘라내지 않아야 중심이 정확히 맞는다
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, D, D);
+    ctx.save();
+    // 사용자가 보는 방향과 같도록, 무대 안에서 사진에 걸린 회전을 그대로 적용한다
+    ctx.translate(D / 2, D / 2);
+    ctx.rotate(rad);
+    ctx.translate(-D / 2, -D / 2);
+    ctx.drawImage(photo, sx, sy, span, span, 0, 0, D, D);
+    const ov = resultOverlayRef.current;
+    if (ov) ctx.drawImage(ov, sx, sy, span, span, 0, 0, D, D);
+    ctx.restore();
+
+    // ③ 중심 십자선 — 지금 잡고 있는 정확한 지점 (회전과 무관하게 화면 기준)
+    const c = D / 2;
+    const arm = D * 0.11;
+    ctx.lineCap = "round";
+    for (const [color, w] of [["rgba(0,0,0,0.55)", 3.4 * dpr], ["rgba(255,255,255,0.95)", 1.4 * dpr]] as const) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(c - arm, c); ctx.lineTo(c - arm * 0.3, c);
+      ctx.moveTo(c + arm * 0.3, c); ctx.lineTo(c + arm, c);
+      ctx.moveTo(c, c - arm); ctx.lineTo(c, c - arm * 0.3);
+      ctx.moveTo(c, c + arm * 0.3); ctx.lineTo(c, c + arm);
+      ctx.stroke();
+    }
+  }, [stage, loupePoint, det, fitBox, resultPhotoRotDeg]);
+
   /* ── 끝점 이동 후 길이/폭 재계산 (스캔 성공 경로와 동일 공식) ── */
   const recomputeMeasures = useCallback((d: Detection, w: number, h: number): Detection => {
     const diameterPx = 2 * d.ballN.r * w;
@@ -1494,6 +1589,22 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     dragKeyRef.current = best;
     setActiveDragKey(best);
     e.currentTarget.setPointerCapture(e.pointerId);
+    // 끝점을 잡은 채로 LOUPE_LONG_PRESS_MS 이상 누르고 있으면 돋보기를 띄운다.
+    // 이동해도 취소하지 않는다 — 미세 조정은 "누른 채 끌기"가 기본 동작이라
+    // 움직임에서 취소하면 정작 필요한 순간에 돋보기가 뜨지 않는다.
+    loupePointRef.current = { x: nx, y: ny };
+    if (loupeTimerRef.current) clearTimeout(loupeTimerRef.current);
+    loupeTimerRef.current = setTimeout(() => {
+      loupeTimerRef.current = null;
+      if (dragKeyRef.current && loupePointRef.current) setLoupePoint(loupePointRef.current);
+    }, LOUPE_LONG_PRESS_MS);
+  }, []);
+
+  /** 돋보기 롱프레스 타이머 · 표시 상태 정리 (드래그 종료 · 초기화 · 언마운트 공용) */
+  const clearLoupe = useCallback(() => {
+    if (loupeTimerRef.current) { clearTimeout(loupeTimerRef.current); loupeTimerRef.current = null; }
+    loupePointRef.current = null;
+    setLoupePoint(null);
   }, []);
 
   const onEditPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -1519,12 +1630,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const rec = recomputeMeasures(next, s.work.width, s.work.height);
     s.det = rec; // confirm()이 수정된 좌표를 사용하도록 동기화
     setDet(rec);
+    // 돋보기는 끌고 있는 끝점을 계속 따라간다 (아직 안 떴으면 타이머 만료 시점의 위치로 쓰인다)
+    loupePointRef.current = { x: nx, y: ny };
+    setLoupePoint((prev) => (prev ? { x: nx, y: ny } : prev));
   }, [recomputeMeasures]);
 
   const onEditPointerUp = useCallback(() => {
     dragKeyRef.current = null;
     setActiveDragKey(null);
-  }, []);
+    clearLoupe();
+  }, [clearLoupe]);
 
   const resetMeasurementPoints = useCallback(() => {
     const s = successRef.current;
@@ -1534,8 +1649,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     s.det = restored;
     dragKeyRef.current = null;
     setActiveDragKey(null);
+    clearLoupe();
     setDet(restored);
-  }, []);
+  }, [clearLoupe]);
+
+  /* ── 결과 화면을 벗어나거나 언마운트되면 롱프레스 타이머를 반드시 정리한다 ── */
+  useEffect(() => {
+    if (stage === "result") return;
+    clearLoupe();
+  }, [stage, clearLoupe]);
+  useEffect(() => () => { if (loupeTimerRef.current) clearTimeout(loupeTimerRef.current); }, []);
 
   /* ── no-ref-warning → 1.5초 후 자동으로 ref-missing 모달로 전환 ── */
   useEffect(() => {
@@ -2000,7 +2123,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         className="fixed inset-0 z-[401] overflow-hidden bg-black"
         style={{ width: "100vw", height: "100dvh" }}
       >
-        <div style={resultStageStyle}>
+        <div ref={resultStageRef} style={resultStageStyle}>
           {/* 같은 프레임을 cover + 블러로 깔아 letterbox 여백까지 화면을 채운다 */}
           <canvas
             ref={bgRef}
@@ -2162,10 +2285,28 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
 
             <p className="shrink-0 truncate text-center text-[9.5px] font-semibold text-white/50">
               {activePointLabel
-                ? `${activePointLabel} 위치 조정 중`
-                : `점을 드래그해 입·꼬리·등·배를 조정 · ${refLabel} Ø40mm 기준`}
+                ? `${activePointLabel} 위치 조정 중 · 길게 누르면 확대`
+                : `점을 드래그해 조정 · 길게 누르면 확대 · ${refLabel} Ø40mm 기준`}
             </p>
           </div>
+
+          {/* ── 돋보기 — 끝점을 길게 누르는 동안만 표시 ──
+              기본 위치는 사진 영역 상단(손가락 반대편). 누른 지점과 겹치면 위 effect 가
+              box.style.top 을 하단으로 바꾼다 (초기값을 기본 위치로 두어 깜빡임 없음). */}
+          {loupePoint && (
+            <div
+              ref={loupeBoxRef}
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 z-40 -translate-x-1/2 overflow-hidden rounded-full bg-black shadow-2xl ring-2 ring-white/80"
+              style={{
+                width: LOUPE_SIZE,
+                height: LOUPE_SIZE,
+                top: `calc(${RESULT_TOP_INSET} + ${LOUPE_EDGE_GAP}px)`,
+              }}
+            >
+              <canvas ref={loupeCanvasRef} className="h-full w-full" />
+            </div>
+          )}
 
           {!ballFound && (
             <div
