@@ -42,6 +42,20 @@ export type FishingSpotDraft = {
   season?: string | null;
   memo?: string | null;
   photoUrl?: string | null;
+  /* ── 자동 수집된 환경 정보 (표시 전용 — 저장 payload 에는 포함하지 않는다) ──
+     계측 저장 시점의 날씨를 그대로 보여줘, 어떤 조건에서 잡은 자리인지 알 수 있게 한다.
+     값이 하나도 없으면 "날씨 (자동 입력)" 행 자체가 숨겨진다. */
+  weather?: string | null;
+  /** 기온(°C) */
+  temperature?: number | null;
+  /** 풍속(m/s) */
+  windSpeed?: number | null;
+  /** 풍향 한글 (북/북동/동 ...) */
+  windLabel?: string | null;
+  /** 수온(°C) */
+  waterTemp?: number | null;
+  /** 물때 이름 (예: "7물") */
+  tideName?: string | null;
 };
 
 type Props = {
@@ -98,6 +112,21 @@ export function FishingSpotSaveModal({
   }, [open]);
 
   if (!open || !initial || typeof document === "undefined") return null;
+
+  // 표시할 환경 정보만 골라낸다 — 하나도 없으면 "날씨 (자동 입력)" 행을 통째로 숨긴다
+  const weatherChips = [
+    { label: "날씨", value: initial.weather ?? null },
+    { label: "기온", value: initial.temperature != null ? `${initial.temperature}°C` : null },
+    { label: "수온", value: initial.waterTemp != null ? `${initial.waterTemp}°C` : null },
+    {
+      label: "바람",
+      value:
+        initial.windSpeed != null
+          ? `${initial.windLabel ? `${initial.windLabel} ` : ""}${initial.windSpeed}m/s`
+          : initial.windLabel ?? null,
+    },
+    { label: "물때", value: initial.tideName ?? null },
+  ].filter((c): c is { label: string; value: string } => !!c.value);
 
   async function handleSave() {
     if (saving || !initial) return;
@@ -179,6 +208,21 @@ export function FishingSpotSaveModal({
               {initial.lat.toFixed(5)}, {initial.lng.toFixed(5)}
             </p>
           </div>
+
+          {/* 자동 입력된 날씨 — 계측 시점에 수집된 값이 있을 때만 표시 (수정 불가) */}
+          {weatherChips.length > 0 && (
+            <div className="rounded-xl border border-navy-100/20 bg-[#0d1b2a] px-3 py-2.5">
+              <p className="text-[11px] font-semibold text-navy-400">날씨 (자동 입력)</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {weatherChips.map((c) => (
+                  <span key={c.label} className="text-[13px] font-semibold text-navy-800">
+                    <span className="mr-1 text-[11px] font-medium text-navy-400">{c.label}</span>
+                    <span className="tabular-nums">{c.value}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {initial.photoUrl && (
             /* eslint-disable-next-line @next/next/no-img-element */

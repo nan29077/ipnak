@@ -10,7 +10,7 @@ class TideService {
         `/api/tide/current?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`,
         { signal: AbortSignal.timeout(8000) },
       )
-      if (!res.ok) return { tidePhase: null, mulddae: null, nextHighTide: null, moonPhase, waterTemp: null, airTemp: null }
+      if (!res.ok) return this._empty(moonPhase)
       const data = await res.json()
       return {
         tidePhase: data.tidePhase ?? null,
@@ -19,10 +19,20 @@ class TideService {
         moonPhase: data.moonPhase ?? moonPhase,
         waterTemp: data.waterTemp ?? null,   // 수온(°C)
         airTemp: data.airTemp ?? null,       // 기온(°C) — 클라이언트 날씨 API 폴백용
+        windSpeed: data.windSpeed ?? null,   // 풍속(m/s) — 어장포인트 저장 모달 표시용
+        windLabel: data.windLabel ?? null,   // 풍향 한글 (북/북동/동 ...)
       }
     } catch (e) {
       console.warn('TideService 실패:', e && e.message)
-      return { tidePhase: null, mulddae: null, nextHighTide: null, moonPhase, waterTemp: null, airTemp: null }
+      return this._empty(moonPhase)
+    }
+  }
+
+  /** 조회 실패 시 기본값 — 달 위상만 채워 반환한다 */
+  _empty(moonPhase) {
+    return {
+      tidePhase: null, mulddae: null, nextHighTide: null, moonPhase,
+      waterTemp: null, airTemp: null, windSpeed: null, windLabel: null,
     }
   }
 

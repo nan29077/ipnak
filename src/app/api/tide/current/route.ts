@@ -13,7 +13,7 @@ function getMoonPhase(): string {
 
 const NULL_RESULT = {
   tidePhase: null, nextTideTime: null, nextTideKind: null, mulddae: null, moonPhase: null,
-  waterTemp: null, airTemp: null,
+  waterTemp: null, airTemp: null, windSpeed: null, windLabel: null,
 };
 
 export async function GET(req: NextRequest) {
@@ -41,6 +41,9 @@ export async function GET(req: NextRequest) {
       // 계측일지 환경 기록용 — 수온(해양 관측/Open-Meteo) · 기온(기상청)
       waterTemp: snapshot.waterTemp?.tempC ?? null,
       airTemp: snapshot.air?.tempC ?? null,
+      // 어장포인트 저장 모달의 "날씨 (자동 입력)" 표시용 바람 (스냅샷에 이미 포함된 값 재사용)
+      windSpeed: snapshot.wind?.speedMs ?? null,
+      windLabel: snapshot.wind?.label ?? null,
     });
   } catch {
     return NextResponse.json({ ...NULL_RESULT, moonPhase });

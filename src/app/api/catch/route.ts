@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { ensureKeyringTables } from "@/lib/ensureKeyringTables";
+import { ensureCatchEnvColumns, CATCH_ENV_COLUMNS } from "@/lib/ensureCatchEnvColumns";
 import { awardPostReward } from "@/lib/points";
 import { getBoolSetting } from "@/lib/settings";
 import { resolveWeightG, speciesKeyFromName } from "@/lib/weightEstimation";
@@ -9,6 +10,13 @@ import { resolveWeightG, speciesKeyFromName } from "@/lib/weightEstimation";
 export const dynamic = "force-dynamic";
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0.5));
+
+/** 환경 정보 숫자 필드 정규화 — 빈 문자열·NaN·무한대는 저장하지 않는다 */
+const numOrNull = (v: unknown): number | null => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
 /** 계측일지에서 가져갈 최대 서버 기록 수 */
 const DIARY_MAX = 200;
@@ -32,30 +40,56 @@ export async function GET(req: Request) {
     },
   });
 
+  // 환경 정보(날씨·기온·수온·물때)는 Prisma 가 모르는 raw 컬럼이라 별도로 읽어 붙인다.
+  // 조회에 실패해도(컬럼 미생성 등) 기존처럼 null 로 내려가 계측일지는 정상 동작한다.
+  const envById = new Map<string, Record<string, unknown>>();
+  if (rows.length) {
+    try {
+      await ensureCatchEnvColumns();
+      const cols = CATCH_ENV_COLUMNS.map((c) => `\`${c}\``).join(", ");
+      const placeholders = rows.map(() => "?").join(", ");
+      const envRows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+        `SELECT \`id\`, ${cols} FROM \`CatchRecord\` WHERE \`id\` IN (${placeholders})`,
+        ...rows.map((r) => r.id),
+      );
+      for (const e of envRows) envById.set(String(e.id), e);
+    } catch { /* 환경 정보 없이 진행 */ }
+  }
+
+  const num = (v: unknown) => (v == null || Number.isNaN(Number(v)) ? null : Number(v));
+  const str = (v: unknown) => (v == null || v === "" ? null : String(v));
+
   // 로컬 기록(DatabaseService)과 같은 형태로 정규화해 병합 비용을 클라이언트에서 없앤다.
   // 길이가 없는 기록은 계측일지에서 의미가 없으므로 제외한다 (통계도 오염시킨다).
   const items = rows
     .filter((r) => (r.measuredLengthCm ?? r.sizeCm) != null)
-    .map((r) => ({
-      id: `srv:${r.id}`,
-      serverId: r.id,
-      measuredAt: r.createdAt.toISOString(),
-      lengthCm: r.measuredLengthCm ?? r.sizeCm,
-      bodyWidth: r.bodyWidth ?? null,
-      weightG: r.estimatedWeight ?? null,
-      speciesKr: r.speciesName || "기타",
-      confidence: r.confidence ?? null,
-      confidenceGrade: null,
-      imageUrl: r.measuredImageUrl || r.photoUrl || null,
-      imageBase64: null,
-      latitude: r.fishingPoint?.lat ?? null,
-      longitude: r.fishingPoint?.lng ?? null,
-      locationName: r.fishingPoint?.region ?? null,
-      weather: null, temperature: null, tidePhase: null, tideName: null, waterTemp: null,
-      ballId: r.ballId ?? null,
-      keyringId: null,
-      synced: 1,
-    }));
+    .map((r) => {
+      const env = envById.get(r.id) ?? {};
+      return {
+        id: `srv:${r.id}`,
+        serverId: r.id,
+        measuredAt: r.createdAt.toISOString(),
+        lengthCm: r.measuredLengthCm ?? r.sizeCm,
+        bodyWidth: r.bodyWidth ?? null,
+        weightG: r.estimatedWeight ?? null,
+        speciesKr: r.speciesName || "기타",
+        confidence: r.confidence ?? null,
+        confidenceGrade: null,
+        imageUrl: r.measuredImageUrl || r.photoUrl || null,
+        imageBase64: null,
+        latitude: r.fishingPoint?.lat ?? null,
+        longitude: r.fishingPoint?.lng ?? null,
+        locationName: r.fishingPoint?.region ?? null,
+        weather: str(env.weather),
+        temperature: num(env.airTemp),
+        tidePhase: str(env.tidePhase),
+        tideName: str(env.tideName),
+        waterTemp: num(env.waterTemp),
+        ballId: r.ballId ?? null,
+        keyringId: null,
+        synced: 1,
+      };
+    });
 
   return NextResponse.json({ items });
 }
@@ -160,6 +194,28 @@ export async function POST(req: Request) {
 
     return { point, cr, postId };
   });
+
+  // 환경 정보(날씨·기온·수온·물때·풍속) — keyringId 와 같은 raw 컬럼이라 트랜잭션 뒤 raw UPDATE.
+  // 값이 하나도 없으면 UPDATE 자체를 생략하고, 실패해도 기록 저장은 성공 처리한다.
+  const envValues: Record<string, string | number | null> = {
+    weather: typeof b.weather === "string" && b.weather.trim() ? b.weather.trim().slice(0, 64) : null,
+    airTemp: numOrNull(b.airTemp ?? b.temperature),
+    waterTemp: numOrNull(b.waterTemp),
+    tideName: typeof b.tideName === "string" && b.tideName.trim() ? b.tideName.trim().slice(0, 32) : null,
+    tidePhase: typeof b.tidePhase === "string" && b.tidePhase.trim() ? b.tidePhase.trim().slice(0, 32) : null,
+    windSpeed: numOrNull(b.windSpeed),
+  };
+  const envSet = Object.entries(envValues).filter(([, v]) => v !== null);
+  if (envSet.length) {
+    try {
+      await ensureCatchEnvColumns();
+      await prisma.$executeRawUnsafe(
+        `UPDATE \`CatchRecord\` SET ${envSet.map(([k]) => `\`${k}\` = ?`).join(", ")} WHERE \`id\` = ?`,
+        ...envSet.map(([, v]) => v),
+        cr.id,
+      );
+    } catch { /* noop — 환경 정보는 부가 정보라 저장 실패해도 기록은 유지 */ }
+  }
 
   // 키링 모드 측정 — keyringId 는 Prisma 가 모르는 raw 컬럼이라 트랜잭션 뒤 raw UPDATE 로 기록.
   // 실패해도 기록 저장 자체는 성공 처리한다.

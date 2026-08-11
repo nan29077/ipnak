@@ -11,6 +11,8 @@ class AROverlay {
       tail: '#3b82f6',
       line: '#fbbf24',
       width: '#22d3ee',
+      // 폭 선/조절점 전용 — 기본 width 보다 한 단계 밝은 청록 (몸통 위에서도 또렷하게)
+      widthLine: '#67e8f9',
       text: '#ffffff',
       bg: 'rgba(0,0,0,0.72)',
       warning: '#ef4444',
@@ -84,44 +86,90 @@ class AROverlay {
     }
   }
 
-  /** 몸통 최대 너비 선 (전장에 수직) */
+  /**
+   * 몸통 최대 너비 선 (전장에 수직)
+   *
+   * 전장선(노란 점선)과 달리 폭선은 물고기 몸통 위에 겹쳐 그려져 잘 보이지 않았다.
+   * 밝은 청록 실선 + 어두운 외곽(halo) + 머리/꼬리와 같은 크기의 조절점으로
+   * 어떤 배경에서도 구분되게 한다. (전장선 렌더링은 건드리지 않는다)
+   */
   _drawWidthLine(ctx, widthPoints, widthCm, canvas) {
     const { top, bottom } = widthPoints
     if (!top || !bottom) return
 
+    // 머리/꼬리 점과 동일한 반지름 — 폭 조절점이 더 작아 보이지 않게 맞춘다
+    const R = Math.max(8, canvas.width * 0.012)
+    const lw = Math.max(3, canvas.width * 0.005)
+
+    // ① 어두운 외곽선을 먼저 깔아 밝은 배경(모래·물보라)에서도 선이 살아남게 한다
+    ctx.lineCap = 'round'
     ctx.beginPath()
     ctx.moveTo(top.x, top.y)
     ctx.lineTo(bottom.x, bottom.y)
-    ctx.strokeStyle = this.COLORS.width
-    ctx.lineWidth = Math.max(2, canvas.width * 0.0035)
-    ctx.setLineDash([6, 4])
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'
+    ctx.lineWidth = lw + Math.max(2, canvas.width * 0.003)
     ctx.stroke()
-    ctx.setLineDash([])
 
-    // 양 끝 짧은 마감선
-    const r = Math.max(5, canvas.width * 0.008)
+    // ② 밝은 청록 실선 (점선 → 실선으로 변경: 몸통 무늬에 묻히지 않는다)
+    ctx.beginPath()
+    ctx.moveTo(top.x, top.y)
+    ctx.lineTo(bottom.x, bottom.y)
+    ctx.strokeStyle = this.COLORS.widthLine
+    ctx.lineWidth = lw
+    ctx.stroke()
+    ctx.lineCap = 'butt'
+
+    // ③ 양 끝 마감선 (선에 수직) — 폭의 시작/끝을 명확히 한다
     const ux = bottom.x - top.x
     const uy = bottom.y - top.y
     const len = Math.hypot(ux, uy) || 1
     const px = -uy / len // 수직 단위벡터
     const py = ux / len
+    const capR = R * 1.5
     ctx.beginPath()
-    ctx.moveTo(top.x - px * r, top.y - py * r); ctx.lineTo(top.x + px * r, top.y + py * r)
-    ctx.moveTo(bottom.x - px * r, bottom.y - py * r); ctx.lineTo(bottom.x + px * r, bottom.y + py * r)
+    ctx.moveTo(top.x - px * capR, top.y - py * capR); ctx.lineTo(top.x + px * capR, top.y + py * capR)
+    ctx.moveTo(bottom.x - px * capR, bottom.y - py * capR); ctx.lineTo(bottom.x + px * capR, bottom.y + py * capR)
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)'
+    ctx.lineWidth = Math.max(1.5, canvas.width * 0.002)
     ctx.stroke()
+
+    // ④ 조절점 — 머리/꼬리 점과 같은 크기 + 흰 테두리 + 어두운 링으로 배경과 분리
+    ;[top, bottom].forEach((pt) => {
+      ctx.beginPath()
+      ctx.arc(pt.x, pt.y, R + 2, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(pt.x, pt.y, R, 0, Math.PI * 2)
+      ctx.fillStyle = this.COLORS.width
+      ctx.fill()
+      ctx.strokeStyle = '#fff'
+      ctx.lineWidth = 2
+      ctx.stroke()
+    })
 
     if (widthCm) {
       const mx = (top.x + bottom.x) / 2
       const my = (top.y + bottom.y) / 2
       const label = `폭 ${widthCm} cm`
-      const fs = Math.max(12, canvas.width * 0.021)
+      const fs = Math.max(14, canvas.width * 0.024)
       ctx.font = `bold ${fs}px sans-serif`
       ctx.textAlign = 'left'
       const tw = ctx.measureText(label).width
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'
-      ctx.fillRect(mx + r * 1.4, my - fs * 0.85, tw + 10, fs + 8)
-      ctx.fillStyle = this.COLORS.width
-      ctx.fillText(label, mx + r * 1.4 + 5, my + fs * 0.25)
+      const bx = mx + R * 1.8
+      const by = my - fs * 0.95
+      const bw = tw + 14
+      const bh = fs + 10
+      // 라벨 배경 박스 — 불투명도를 올리고 청록 테두리를 둘러 폭 표시임을 명확히 한다
+      ctx.fillStyle = 'rgba(0,0,0,0.78)'
+      this._roundRect(ctx, bx, by, bw, bh, 6)
+      ctx.fill()
+      ctx.strokeStyle = this.COLORS.widthLine
+      ctx.lineWidth = 1.5
+      this._roundRect(ctx, bx, by, bw, bh, 6)
+      ctx.stroke()
+      ctx.fillStyle = this.COLORS.widthLine
+      ctx.fillText(label, bx + 7, my + fs * 0.2)
     }
   }
 

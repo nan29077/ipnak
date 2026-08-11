@@ -49,8 +49,18 @@ type Phase =
   | "SAVING"
   | "SAVED";
 type Point = { x: number; y: number };
+/** 결과 화면에서 드래그로 조정할 수 있는 측정점 */
+type DragTarget = "head" | "tail" | "wtop" | "wbottom";
+/** 돋보기 상태 — cx/cy: 원본 캔버스 픽셀 좌표, lx/ly: 캔버스 박스 안 배치 좌표(CSS px) */
+type LoupeState = { cx: number; cy: number; lx: number; ly: number };
 
 const MAX_WORK_PX = 1280;
+/* ── 돋보기(loupe) ── */
+const LOUPE_SIZE = 132;    // 지름(CSS px)
+const LOUPE_ZOOM = 2.6;    // 확대 배율
+const LOUPE_HOLD_MS = 500; // 이 시간 이상 누르고 있으면 표시
+const LOUPE_GAP = 28;      // 손가락과의 간격 — 확대 화면이 손에 가리지 않게 띄운다
+const LOUPE_EDGE = 6;      // 캔버스 가장자리 여백
 const SCAN_TIMEOUT_MS = 12000; // 자동 스캔 하드 타임아웃 — 무한 로딩 방지
 const SCAN_MIN_CONFIDENCE = 0.7; // 이 미만이면 실패 처리
 const SHIMMER_MS = 1800; // 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 도는 시간
@@ -90,6 +100,10 @@ export default function MeasurePage() {
   const [species, setSpecies] = useState<string>(tournamentSpecies ?? "기타");
   const [result, setResult] = useState<any>(null);
   const [hasImage, setHasImage] = useState(false);
+  // 이번 측정의 사진 출처 — 갤러리에서 불러왔으면 true.
+  // 결과 화면의 "재촬영" 버튼을 "재선택"(갤러리 다시 열기)으로 바꾸는 데 쓴다.
+  // (갤러리 사진으로 측정했는데 재촬영을 누르면 AI 카메라가 열려 흐름이 끊기던 문제)
+  const [fromGallery, setFromGallery] = useState(false);
   const [savedImageBase64, setSavedImageBase64] = useState<string | null>(null);
   // 어장포인트로 저장 — 측정 위치·어종·사진을 자동 입력한다 (기존 저장 흐름과 독립)
   const [spotDraft, setSpotDraft] = useState<FishingSpotDraft | null>(null);
@@ -198,6 +212,11 @@ export default function MeasurePage() {
   const noRefLinked = linksLoaded && !activeBallId && !activeKeyringId;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // 결과 화면 미세조정 — 드래그 중인 점 / 길게 누르기 타이머 / 돋보기
+  const dragTargetRef = useRef<DragTarget | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loupeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [loupe, setLoupe] = useState<LoupeState | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null); // 네이티브 카메라 앱
   const workCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -475,6 +494,7 @@ export default function MeasurePage() {
     setResult(null);
     workCanvasRef.current = res.work;
     setHasImage(true);
+    setFromGallery(false); // 실시간 AI 스캐너(카메라) 경로 — 재촬영 버튼 그대로
     setBall(res.ball);
     setHead(res.head);
     setTail(res.tail);
@@ -512,6 +532,33 @@ export default function MeasurePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ball, head, tail, widthPts, species]);
 
+  /* ── 위치·날씨·물때 자동 수집 (계측일지 환경 기록 / 어장포인트 자동 입력) ──
+     결과 화면(RESULT)에 들어오면 미리 한 번 모아둔다. 저장 버튼을 눌렀을 때
+     GPS 측위(최대 7초)와 날씨 조회를 처음부터 하면 저장이 그만큼 늦어지기 때문이다.
+     수집은 autoTagService 가 담당한다 — 내부적으로 navigator.geolocation 으로 좌표를 얻고
+     /api/weather/current(날씨·기온) 와 /api/tide/current(수온·물때·바람) 를 병렬 호출하며,
+     어느 하나가 실패해도 나머지는 그대로 반환한다(전부 실패 시 null). */
+  const envTagsRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (phase !== "RESULT") return;
+    if (envTagsRef.current) return; // 어종 변경 등으로 재진입해도 다시 모으지 않는다
+    let alive = true;
+    autoTagService
+      .collectAll()
+      .then((t) => { if (alive && t) envTagsRef.current = t; })
+      .catch(() => { /* 수집 실패 — 저장 시 한 번 더 시도한다 */ });
+    return () => { alive = false; };
+  }, [phase]);
+
+  /** 저장 시점의 환경 태그 — 미리 모아둔 값이 있으면 재사용, 없으면 지금 수집 (실패 시 null) */
+  async function getEnvTags() {
+    if (envTagsRef.current) return envTagsRef.current;
+    const t = await autoTagService.collectAll().catch(() => null);
+    if (t) envTagsRef.current = t;
+    return t;
+  }
+
   /* ── 어종 자동 인식용 사진 준비 (결과 화면 진입 시 1회) ──
      원본 대신 640px 축소본을 쓴다 (전송량·AI 비용 절감). 실패해도 계측 흐름에는 영향 없음. */
   useEffect(() => {
@@ -547,16 +594,29 @@ export default function MeasurePage() {
     });
   }, [hasImage, ball, result, head, tail, widthPts, species, phase]);
 
-  /* ── 캔버스 탭: 결과 화면에서 AI가 잡은 머리/꼬리 점 미세조정 ── */
-  function onCanvasTap(e: React.PointerEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    if (phase !== "RESULT" || !head || !tail) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
-    const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
-    const p = { x, y };
+  /* ── 캔버스 조작: 결과 화면에서 AI가 잡은 머리/꼬리/폭 점 미세조정 ──
+     탭 = 가장 가까운 점을 그 자리로 이동 (기존 동작 유지)
+     드래그 = 잡은 점을 따라 이동
+     길게 누르기(500ms) = 손가락에 가린 부분을 확대해 보여주는 돋보기 표시 */
 
+  /** 포인터 이벤트 → 캔버스 픽셀 좌표 + 캔버스 박스 내 CSS 좌표 */
+  function canvasPos(e: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const vx = e.clientX - rect.left;
+    const vy = e.clientY - rect.top;
+    return {
+      rect,
+      vx,
+      vy,
+      cx: rect.width > 0 ? (vx / rect.width) * canvas.width : 0,
+      cy: rect.height > 0 ? (vy / rect.height) * canvas.height : 0,
+    };
+  }
+
+  /** 탭 위치에서 가장 가까운 조절점 선택 (기존 onCanvasTap 판정 규칙 그대로) */
+  function pickTarget(p: Point): DragTarget | null {
+    if (!head || !tail) return null;
     const dHead = Math.hypot(p.x - head.x, p.y - head.y);
     const dTail = Math.hypot(p.x - tail.x, p.y - tail.y);
 
@@ -564,27 +624,131 @@ export default function MeasurePage() {
     if (widthPts) {
       const dWTop = Math.hypot(p.x - widthPts.top.x, p.y - widthPts.top.y);
       const dWBot = Math.hypot(p.x - widthPts.bottom.x, p.y - widthPts.bottom.y);
-      const minWidth = Math.min(dWTop, dWBot);
-      const minHeadTail = Math.min(dHead, dTail);
-
-      if (minWidth < minHeadTail) {
-        // 폭 끝점이 더 가까움
-        if (dWTop <= dWBot) setWidthPts({ ...widthPts, top: p });
-        else setWidthPts({ ...widthPts, bottom: p });
-        return;
+      if (Math.min(dWTop, dWBot) < Math.min(dHead, dTail)) {
+        return dWTop <= dWBot ? "wtop" : "wbottom";
       }
     }
-
-    if (dHead <= dTail) setHead(p);
-    else setTail(p);
+    return dHead <= dTail ? "head" : "tail";
   }
+
+  function movePoint(target: DragTarget, p: Point) {
+    if (target === "head") setHead(p);
+    else if (target === "tail") setTail(p);
+    // 드래그 중에는 함수형 갱신으로 최신 값을 기준 삼는다 (클로저 지연 방지)
+    else setWidthPts((prev) => (prev ? (target === "wtop" ? { ...prev, top: p } : { ...prev, bottom: p }) : prev));
+  }
+
+  /** 돋보기 배치 — 손가락 위쪽에 띄우되 캔버스 밖으로 나가지 않게 가둔다 */
+  function loupeStateFrom(pos: ReturnType<typeof canvasPos>): LoupeState {
+    const { rect, vx, vy, cx, cy } = pos;
+    const maxX = Math.max(LOUPE_EDGE, rect.width - LOUPE_SIZE - LOUPE_EDGE);
+    const maxY = Math.max(LOUPE_EDGE, rect.height - LOUPE_SIZE - LOUPE_EDGE);
+    const lx = Math.min(maxX, Math.max(LOUPE_EDGE, vx - LOUPE_SIZE / 2));
+    const above = vy - LOUPE_SIZE - LOUPE_GAP;
+    const ly = above >= LOUPE_EDGE ? above : Math.min(maxY, vy + LOUPE_GAP);
+    return { cx, cy, lx, ly: Math.max(LOUPE_EDGE, ly) };
+  }
+
+  function onCanvasPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (phase !== "RESULT" || !head || !tail) return;
+    const pos = canvasPos(e);
+    const target = pickTarget({ x: pos.cx, y: pos.cy });
+    if (!target) return;
+    dragTargetRef.current = target;
+    movePoint(target, { x: pos.cx, y: pos.cy });
+    // 포인터 캡처 — 손가락이 캔버스 밖으로 나가도 드래그가 끊기지 않는다
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* 미지원 브라우저 무시 */ }
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = setTimeout(() => setLoupe(loupeStateFrom(pos)), LOUPE_HOLD_MS);
+  }
+
+  function onCanvasPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+    const target = dragTargetRef.current;
+    if (!target || !canvasRef.current) return;
+    // 포인터 캡처가 안 걸린 환경(구형 브라우저)에서 캔버스 밖에서 버튼을 뗀 경우 —
+    // 버튼이 눌려 있지 않으면 드래그를 끝낸다 (마우스가 지나가기만 해도 점이 끌려가는 것 방지)
+    if (e.pointerType === "mouse" && e.buttons === 0) { endCanvasDrag(e); return; }
+    const pos = canvasPos(e);
+    movePoint(target, { x: pos.cx, y: pos.cy });
+    // 돋보기가 이미 떠 있을 때만 따라 움직인다 (hold 전에는 띄우지 않음)
+    setLoupe((prev) => (prev ? loupeStateFrom(pos) : prev));
+  }
+
+  function endCanvasDrag(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
+    if (dragTargetRef.current) {
+      dragTargetRef.current = null;
+      try { canvasRef.current?.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    }
+    setLoupe((prev) => (prev ? null : prev));
+  }
+
+  /* ── 돋보기 렌더 — 측정 캔버스의 해당 영역을 원형으로 잘라 확대해 그린다 ──
+     오버레이 렌더 useEffect 다음에 선언해, 점이 이동된 캔버스를 원본으로 삼는다. */
+  useEffect(() => {
+    const lc = loupeCanvasRef.current;
+    const src = canvasRef.current;
+    if (!lc || !src || !loupe) return;
+    const dpr = Math.min(3, (typeof window !== "undefined" && window.devicePixelRatio) || 1);
+    const px = Math.round(LOUPE_SIZE * dpr);
+    if (lc.width !== px) { lc.width = px; lc.height = px; }
+    const ctx = lc.getContext("2d");
+    if (!ctx) return;
+
+    const rect = src.getBoundingClientRect();
+    // 화면에 보이는 배율(캔버스 픽셀 → CSS px)에 확대 배율을 곱한다
+    const viewScale = rect.width > 0 && src.width > 0 ? rect.width / src.width : 1;
+    const srcSpan = LOUPE_SIZE / (viewScale * LOUPE_ZOOM); // 잘라올 원본 픽셀 크기
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(LOUPE_SIZE / 2, LOUPE_SIZE / 2, LOUPE_SIZE / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = "#0d1b2a";
+    ctx.fillRect(0, 0, LOUPE_SIZE, LOUPE_SIZE);
+    ctx.imageSmoothingEnabled = false; // 픽셀 경계를 살려 점 위치를 또렷하게
+    ctx.drawImage(
+      src,
+      loupe.cx - srcSpan / 2, loupe.cy - srcSpan / 2, srcSpan, srcSpan,
+      0, 0, LOUPE_SIZE, LOUPE_SIZE,
+    );
+    // 중앙 십자선 — 현재 조절 중인 지점
+    const c = LOUPE_SIZE / 2;
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(c - 12, c); ctx.lineTo(c - 3, c);
+    ctx.moveTo(c + 3, c); ctx.lineTo(c + 12, c);
+    ctx.moveTo(c, c - 12); ctx.lineTo(c, c - 3);
+    ctx.moveTo(c, c + 3); ctx.lineTo(c, c + 12);
+    ctx.stroke();
+    ctx.restore();
+  }, [loupe, head, tail, widthPts, result]);
+
+  // 언마운트 시 hold 타이머 정리
+  useEffect(() => () => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); }, []);
 
   /* ── 저장 ── */
   async function handleSave() {
     if (!result) return;
     setPhase("SAVING");
     try {
-      const tags = await autoTagService.collectAll().catch(() => null);
+      const tags = await getEnvTags();
+      // 계측일지·어장포인트에 함께 기록할 환경 정보 (없으면 null — 저장 흐름은 그대로 진행)
+      const envTemp = tags?.weather?.temperature ?? tags?.tide?.airTemp ?? null;
+      const env = {
+        weather: tags?.weather?.weather ?? null,
+        temperature: envTemp,
+        waterTemp: tags?.tide?.waterTemp ?? null,
+        tideName: tags?.tide?.mulddae ?? null,
+        tidePhase: tags?.tide?.tidePhase ?? null,
+        windSpeed: tags?.tide?.windSpeed ?? null,
+        windLabel: tags?.tide?.windLabel ?? null,
+      };
 
       // 저장용 이미지: 640px 로 축소 (localStorage 용량 보호)
       const work = workCanvasRef.current!;
@@ -621,12 +785,12 @@ export default function MeasurePage() {
         latitude: tags?.location?.latitude ?? null,
         longitude: tags?.location?.longitude ?? null,
         locationName: tags?.location?.locationName ?? null,
-        weather: tags?.weather?.weather ?? null,
+        weather: env.weather,
         // 기온: 기상청 초단기실황(클라이언트 키) → 없으면 해양 스냅샷 기온으로 폴백
-        temperature: tags?.weather?.temperature ?? tags?.tide?.airTemp ?? null,
-        tidePhase: tags?.tide?.tidePhase ?? null,
-        tideName: tags?.tide?.mulddae ?? null,   // 물때 이름 (예: "7물")
-        waterTemp: tags?.tide?.waterTemp ?? null, // 수온(°C) — 해양 관측/Open-Meteo
+        temperature: env.temperature,
+        tidePhase: env.tidePhase,
+        tideName: env.tideName,   // 물때 이름 (예: "7물")
+        waterTemp: env.waterTemp, // 수온(°C) — 해양 관측/Open-Meteo
         ballId: refType === "ball" ? (activeBallId ?? null) : null,
         keyringId: refType === "keyring" ? activeKeyringId ?? null : null,
       });
@@ -659,6 +823,13 @@ export default function MeasurePage() {
           pointVisibility: "EXACT",
           ballId: refType === "ball" ? (activeBallId ?? null) : null,
           keyringId: refType === "keyring" ? activeKeyringId ?? null : null,
+          // 환경 정보 — 서버 기록에도 남겨야 기기를 바꿔도 계측일지에 날씨·수온·물때가 보인다
+          weather: env.weather,
+          airTemp: env.temperature,
+          waterTemp: env.waterTemp,
+          tideName: env.tideName,
+          tidePhase: env.tidePhase,
+          windSpeed: env.windSpeed,
         }),
       })
         // 어장포인트 저장 버튼에 쓸 catch id 확보 (실패해도 무시)
@@ -681,6 +852,13 @@ export default function MeasurePage() {
               lng: catchLng,
               species: species || null,
               photoUrl: uploadedPhotoUrl,
+              // 표시 전용 자동 입력값 — 모달의 "날씨 (자동 입력)" 행에서 보여준다
+              weather: env.weather,
+              temperature: env.temperature,
+              windSpeed: env.windSpeed,
+              windLabel: env.windLabel,
+              waterTemp: env.waterTemp,
+              tideName: env.tideName,
             }
           : null
       );
@@ -779,6 +957,7 @@ export default function MeasurePage() {
     setRefMissing(false);
     setPhase("IDLE");
     setHasImage(false);
+    setFromGallery(false);
     setErrorMsg(null);
     setScanFailMsg(null);
     setBall(null);
@@ -790,6 +969,10 @@ export default function MeasurePage() {
     setSpotDraft(null);
     setSpotCatchId(null);
     setSpotModalOpen(false);
+    setLoupe(null);
+    dragTargetRef.current = null;
+    if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
+    envTagsRef.current = null; // 새 측정은 그때의 위치·날씨를 다시 수집한다
     workCanvasRef.current = null;
   }
 
@@ -812,6 +995,15 @@ export default function MeasurePage() {
   const retake = useCallback(() => {
     reset();
     setLiveScanOpen(true);
+  }, []);
+
+  /* ── 재선택: 갤러리에서 불러온 사진으로 측정한 경우의 다시 하기 ──
+     카메라를 열면 흐름이 끊기므로 갤러리 입력을 다시 연다.
+     reset() 이 상태를 비운 직후에 click 하면 같은 렌더 사이클에서 input 이 사라질 수 있어
+     다음 틱에 연다 (input 자체는 항상 마운트돼 있지만 안전하게 순서를 보장). */
+  const reselect = useCallback(() => {
+    reset();
+    setTimeout(() => galleryInputRef.current?.click(), 0);
   }, []);
 
   /* ── AI 카메라 계측 열기: 비로그인이면 로그인 안내, 첫 방문이면 튜토리얼 먼저 ── */
@@ -1051,12 +1243,12 @@ export default function MeasurePage() {
         }
       />
 
-      {/* 갤러리 파일 입력 */}
+      {/* 갤러리 파일 입력 — 같은 사진을 다시 고를 수 있게 value 를 비운다 ("재선택" 대응) */}
       <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])} />
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; setFromGallery(true); handleFile(f); }} />
       {/* 네이티브 카메라 앱 입력 */}
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])} />
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; setFromGallery(false); handleFile(f); }} />
 
       <div className={showCanvas ? "space-y-2 px-3 py-2" : "space-y-2 px-4 pt-2 pb-4"}>
         {/* ── IDLE: 안내 + 촬영 버튼 ── */}
@@ -1202,10 +1394,26 @@ export default function MeasurePage() {
           <div className="relative overflow-hidden rounded-card ring-1 ring-navy-100">
             <canvas
               ref={canvasRef}
-              onPointerDown={onCanvasTap}
+              onPointerDown={onCanvasPointerDown}
+              onPointerMove={onCanvasPointerMove}
+              onPointerUp={endCanvasDrag}
+              onPointerCancel={endCanvasDrag}
               className="block touch-none select-none"
               style={{ width: "100%", height: "auto", maxHeight: phase === "SAVED" ? "26vh" : "55vh" }}
             />
+            {/* ── 돋보기: 조절점을 길게 누르고 드래그하는 동안 주변을 확대해 보여준다 ── */}
+            {loupe && (
+              <div
+                className="pointer-events-none absolute z-20 overflow-hidden rounded-full border-2 border-white/85 shadow-2xl shadow-black/60 ring-2 ring-black/40"
+                style={{ left: loupe.lx, top: loupe.ly, width: LOUPE_SIZE, height: LOUPE_SIZE }}
+              >
+                <canvas
+                  ref={loupeCanvasRef}
+                  className="block h-full w-full"
+                  style={{ width: LOUPE_SIZE, height: LOUPE_SIZE }}
+                />
+              </div>
+            )}
             {/* 자동 스캔 중: 물고기 윤곽선 반짝임 애니메이션 (측정 완료 시 자동 종료) */}
             {phase === "SCANNING" && (
               <>
@@ -1393,7 +1601,7 @@ export default function MeasurePage() {
                 </span>
                 {result.lengthCm != null ? (
                   <p className="text-[11px] text-navy-300">
-                    기준: {ball?.method === "aruco" ? "ArUco 마커 20mm" : refType === "keyring" ? "입낚키링 40mm" : "입낚볼 40mm"} · 점 탭으로 미세조정 가능
+                    기준: {ball?.method === "aruco" ? "ArUco 마커 20mm" : refType === "keyring" ? "입낚키링 40mm" : "입낚볼 40mm"} · 점을 끌어 조정 (길게 누르면 확대)
                   </p>
                 ) : (
                   <p className="text-[11px] text-navy-400">입낚볼 연동 시 정확한 길이 측정 가능</p>
@@ -1402,7 +1610,12 @@ export default function MeasurePage() {
             </div>
 
             <div className="grid grid-cols-4 gap-2">
-              <Button variant="outline" size="sm" onClick={retake} leftIcon={<RefreshCcw size={15} />}>재촬영</Button>
+              {/* 갤러리로 불러온 사진이면 "재선택"(갤러리 다시 열기), 카메라 촬영이면 기존 "재촬영" */}
+              {fromGallery ? (
+                <Button variant="outline" size="sm" onClick={reselect} leftIcon={<Images size={15} />}>재선택</Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={retake} leftIcon={<RefreshCcw size={15} />}>재촬영</Button>
+              )}
               <Button variant="outline" size="sm" onClick={handleDownload} leftIcon={<Download size={15} />}>이미지</Button>
               <Button size="sm" onClick={handleSave} leftIcon={<Save size={15} />}>저장</Button>
               <Button variant="outline" size="sm" onClick={reset} leftIcon={<X size={15} />}>닫기</Button>
