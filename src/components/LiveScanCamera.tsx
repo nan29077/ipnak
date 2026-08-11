@@ -18,7 +18,14 @@ import { FISH_SPECIES } from "@/constants/errorMessages";
 import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 import { FishScanGlow } from "./FishScanGlow";
 import { FishShimmer } from "./FishShimmer";
-import type { ContourStatus } from "@/lib/fishContour";
+import { FishContourDetector, type ContourStatus } from "@/lib/fishContour";
+import { refineFishLandmarks, refineReferenceCircle } from "@/lib/measurementRefinement";
+import {
+  portraitToLandscapeTurn,
+  rotateNormPoint,
+  rotatePixelPoint,
+  rotateWidthNormalizedRadius,
+} from "@/lib/cameraOrientation";
 import { createFrameFilter } from "@/lib/frameFilter";
 import type { FrameFilterMode } from "@/lib/frameFilter";
 import { isYoloModelAvailable } from "@/lib/yolo/modelLoader";
@@ -96,16 +103,11 @@ const SPARKLES = Array.from({ length: 34 }, (_, i) => {
  *  원 그리기 반지름 = ball.r × imageWidth (px) = 실측 20mm 에 해당. */
 const REF_DIAMETER_MM = 40;
 
-/* 결과 패널 수치 배지 크기(px) — 코너 자동 배치 계산과 실제 렌더 크기를 맞춘다 */
-const BADGE_W_PX = 148;
-const BADGE_H_PX = 104;
-const BADGE_MARGIN_PX = 12;
-
 const POLL_INTERVAL_MS = 1500; // 스캔 폴링 주기
 // idle 상태에서 연속으로 건너뛸 수 있는 최대 틱 수
 // 이 횟수를 초과하면 idle이어도 강제 호출 (물고기를 놓치지 않기 위한 안전망)
 const IDLE_SKIP_LIMIT = 3; // 3틱 = 4.5초
-const SCAN_MAX_PX = 1024;      // 전송 프레임 최대 해상도 (속도/정확도 균형)
+const SCAN_MAX_PX = 1280;      // 끝점·볼 외곽 정밀화를 위한 전송 프레임 최대 해상도
 const REQ_TIMEOUT_MS = 9000;   // 개별 요청 하드 타임아웃
 const CONFIDENCE_MIN = 0.7;    // 이 미만이면 실패 처리 (measure 페이지와 동일 기준)
 const SHIMMER_MS = 1800;       // 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 도는 시간
@@ -146,102 +148,22 @@ type Detection = {
   headN: Norm;
   tailN: Norm;
   widthN: { top: Norm; bottom: Norm } | null; // 몸통 최대 너비 (선택)
+  /** 인식 완료 프레임의 물고기 외곽선. 결과 확인 화면에서만 표시한다. */
+  contourN: Norm[] | null;
   confidence: number;
   lengthCm: number | null;
   widthCm: number | null;
 };
 
-/**
- * 입낚볼 구체만의 반지름을 정밀 측정한다.
- * AI가 반환한 볼 중심(cx, cy)에서 16방향으로 방사형 스캔해
- * 노란색(HSV H:20~70°, S>30%, V>20%) 픽셀이 이어지는 최대 반경을 구한다.
- * testBall=true 이면 주황색(H:10~70°)까지 범위를 확장한다.
- * 검정 연결고리 등 비대상 영역은 자연스럽게 제외된다.
- *
- * @param canvas    캡처된 프레임 캔버스
- * @param cx        AI 감지 볼 중심 X (픽셀)
- * @param cy        AI 감지 볼 중심 Y (픽셀)
- * @param aiR       AI 감지 반경 (픽셀) — 실패 시 이 값을 그대로 반환
- * @param testBall  true 이면 주황볼(H:10°~)도 허용 (테스트 모드)
- * @returns         정제된 반경 (픽셀)
- */
-function refineYellowBallRadius(
-  canvas: HTMLCanvasElement,
-  cx: number,
-  cy: number,
-  aiR: number,
-  testBall = false,
-): number {
-  try {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return aiR;
-    const w = canvas.width, h = canvas.height;
-    // AI 반경의 1.5배 또는 캔버스 절반 중 작은 값까지 탐색
-    const searchR = Math.min(aiR * 1.5, Math.min(w, h) / 2);
-
-    // 탐색 영역만 ImageData 추출 (전체 캔버스보다 훨씬 빠름)
-    const x0 = Math.max(0, Math.round(cx - searchR));
-    const y0 = Math.max(0, Math.round(cy - searchR));
-    const x1 = Math.min(w - 1, Math.round(cx + searchR));
-    const y1 = Math.min(h - 1, Math.round(cy + searchR));
-    const iw = x1 - x0 + 1, ih = y1 - y0 + 1;
-    if (iw <= 0 || ih <= 0) return aiR;
-    const imageData = ctx.getImageData(x0, y0, iw, ih);
-    const px = imageData.data;
-
-    /** 픽셀 (px, py) 가 노란색 범위인지 판별 (전역 캔버스 좌표) */
-    function isYellow(gx: number, gy: number): boolean {
-      const lx = Math.round(gx) - x0, ly = Math.round(gy) - y0;
-      if (lx < 0 || ly < 0 || lx >= iw || ly >= ih) return false;
-      const i = (ly * iw + lx) * 4;
-      const r = px[i] / 255, g = px[i + 1] / 255, b = px[i + 2] / 255;
-      const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
-      if (max < 0.2 || delta < 0.08) return false;   // 너무 어둡거나 무채색
-      const s = delta / max;
-      if (s < 0.3) return false;                       // 채도 부족 (흰/회색)
-      // Hue 계산
-      let hue = 0;
-      if (max === r)      hue = 60 * (((g - b) / delta) % 6);
-      else if (max === g) hue = 60 * ((b - r) / delta + 2);
-      else                hue = 60 * ((r - g) / delta + 4);
-      if (hue < 0) hue += 360;
-      // 노란색 범위 H: 20~70° / 테스트 모드(주황볼 포함) H: 10~70°
-      const hueMin = testBall ? 10 : 20;
-      return hue >= hueMin && hue <= 70;
-    }
-
-    // 16방향 방사형 스캔 → 각 방향의 마지막 노란 픽셀 반경 수집
-    const DIRS = 16;
-    const radii: number[] = [];
-    for (let d = 0; d < DIRS; d++) {
-      const angle = (d / DIRS) * Math.PI * 2;
-      const cos = Math.cos(angle), sin = Math.sin(angle);
-      let lastYellow = 0;
-      for (let step = 2; step <= searchR; step += 1.5) {
-        if (isYellow(cx + cos * step, cy + sin * step)) {
-          lastYellow = step;
-        } else if (step > lastYellow + 10) {
-          break; // 10px 이상 연속 비노란 → 경계로 확정
-        }
-      }
-      if (lastYellow > aiR * 0.3) radii.push(lastYellow);
-    }
-
-    if (radii.length < 6) return aiR; // 방향 데이터 불충분 → AI 값 유지
-
-    // 중앙값으로 이상치 제거
-    radii.sort((a, b) => a - b);
-    const mid = Math.floor(radii.length / 2);
-    const median = radii.length % 2 === 0
-      ? (radii[mid - 1] + radii[mid]) / 2
-      : radii[mid];
-
-    // AI 반경의 55~110% 범위 내일 때만 적용 (극단적 오측 방어)
-    if (median < aiR * 0.55 || median > aiR * 1.1) return aiR;
-    return median;
-  } catch {
-    return aiR;
-  }
+function cloneDetection(d: Detection): Detection {
+  return {
+    ...d,
+    ballN: { ...d.ballN },
+    headN: { ...d.headN },
+    tailN: { ...d.tailN },
+    widthN: d.widthN ? { top: { ...d.widthN.top }, bottom: { ...d.widthN.bottom } } : null,
+    contourN: d.contourN ? d.contourN.map((p) => ({ ...p })) : null,
+  };
 }
 
 /**
@@ -251,7 +173,7 @@ function refineYellowBallRadius(
  * 가장 바깥 테두리)을 사용해 실제 볼 외곽을 정확히 감싼다.
  * 이 값은 mmPerPixel 계산에 쓰는 반지름과 동일하므로, 화면의 원이 곧
  * 40mm 스케일 기준임이 시각적으로 일치한다 (실측 실패 시 AI 원본과 같음).
- * (결과 패널은 볼 원을 표시하지 않는 drawResultOverlay 를 쓴다)
+ * 결과 확인 화면에서도 같은 반지름을 사용해 40mm 기준 원과 계산 스케일을 일치시킨다.
  */
 function drawDetection(
   ctx: CanvasRenderingContext2D,
@@ -325,62 +247,10 @@ function drawDetection(
   }
 }
 
-/** 라운드 사각형 경로 (Safari 구버전 roundRect 미지원 대응) */
-function roundRectPath(
-  ctx: CanvasRenderingContext2D,
-  x: number, y: number, w: number, h: number, r: number,
-) {
-  const rr = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.lineTo(x + w - rr, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-  ctx.lineTo(x + w, y + h - rr);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-  ctx.lineTo(x + rr, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-  ctx.lineTo(x, y + rr);
-  ctx.quadraticCurveTo(x, y, x + rr, y);
-  ctx.closePath();
-}
-
-/** 측정선 위 수치 라벨 (반투명 다크 배지 + 컬러 텍스트) — 캔버스 밖으로 나가지 않도록 clamp */
-function drawMeasureLabel(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  cx: number, cy: number,
-  color: string,
-  W: number, H: number,
-  base: number,
-) {
-  const fontPx = Math.max(14, Math.round(base * 0.028));
-  ctx.font = `800 ${fontPx}px system-ui, -apple-system, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const tw = ctx.measureText(text).width;
-  const padX = Math.round(fontPx * 0.55);
-  const bw = tw + padX * 2;
-  const bh = Math.round(fontPx * 1.65);
-  const bx = Math.min(Math.max(cx - bw / 2, 4), W - bw - 4);
-  const by = Math.min(Math.max(cy - bh / 2, 4), H - bh - 4);
-  ctx.fillStyle = "rgba(6,12,20,0.72)";
-  roundRectPath(ctx, bx, by, bw, bh, bh * 0.32);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.18)";
-  ctx.lineWidth = Math.max(1, base * 0.0015);
-  ctx.stroke();
-  ctx.fillStyle = color;
-  ctx.fillText(text, bx + bw / 2, by + bh / 2 + fontPx * 0.04);
-  ctx.textAlign = "start";
-  ctx.textBaseline = "alphabetic";
-}
-
 /**
- * 결과 패널 전용 오버레이 — 사진 위에 "선"만 그린다.
- * - 전장 선: 머리(파란 점) → 꼬리(빨간 점)
- * - 폭 선  : 위/아래 끝점(시안 점)
- * - 각 선 위에 수치 라벨(예: "39.5 cm" / "폭 7.1 cm")
- * 기준물(입낚볼) 원은 그리지 않는다 — 계산에는 쓰되 화면에는 노출하지 않는다.
+ * 결과 확인 화면 전용 오버레이.
+ * 물고기 위에는 외곽선·측정선·드래그 끝점만 표시한다. 길이·폭·예상 무게
+ * 같은 수치는 사진 밖의 결과 패널에 표시해 피사체를 가리지 않는다.
  */
 function drawResultOverlay(
   ctx: CanvasRenderingContext2D,
@@ -398,6 +268,23 @@ function drawResultOverlay(
   ctx.setLineDash([]);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+
+  // 검증된 물고기 외곽을 첨부 시안처럼 하늘색으로 표시한다.
+  if (d.contourN && d.contourN.length >= 3) {
+    ctx.beginPath();
+    d.contourN.forEach((p, index) => {
+      const x = p.x * W, y = p.y * H;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = Math.max(4, base * 0.0065);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(56,189,248,0.96)";
+    ctx.lineWidth = Math.max(2, base * 0.0035);
+    ctx.stroke();
+  }
 
   /** 선 + 어두운 외곽선(밝은 사진 위에서도 보이도록) */
   const line = (x1: number, y1: number, x2: number, y2: number, color: string) => {
@@ -431,8 +318,8 @@ function drawResultOverlay(
     ctx.fill();
   };
 
-  // ── 전장(가로) 선 ──
-  line(hx, hy, tx, ty, "#eab308");
+  // ── 전장(입↔꼬리) 선 ──
+  line(hx, hy, tx, ty, "#22c55e");
 
   // ── 폭(세로) 선 ──
   if (d.widthN) {
@@ -441,36 +328,35 @@ function drawResultOverlay(
     line(wtx, wty, wbx, wby, "#22d3ee");
     dot(wtx, wty, "#22d3ee");
     dot(wbx, wby, "#22d3ee");
-    if (d.widthCm != null) {
-      // 폭 선 오른쪽에 라벨 (선과 겹치지 않도록 가로로 밀어낸다)
-      drawMeasureLabel(
-        ctx, `폭 ${d.widthCm.toFixed(1)} cm`,
-        (wtx + wbx) / 2 + base * 0.09, (wty + wby) / 2,
-        "#67e8f9", W, H, base,
-      );
-    }
   }
 
-  // 끝점은 선 위에 그린다 (폭 점보다 머리/꼬리가 위)
-  dot(hx, hy, "#3b82f6"); // 머리 = 파랑
-  dot(tx, ty, "#ef4444"); // 꼬리 = 빨강
+  // 전장 양 끝점 — 사용자가 입과 꼬리를 직접 미세 조정한다.
+  dot(hx, hy, "#22c55e");
+  dot(tx, ty, "#22c55e");
 
-  // ── 전장 라벨 (선 중앙 위쪽) ──
-  if (d.lengthCm != null) {
-    drawMeasureLabel(
-      ctx, `${d.lengthCm.toFixed(1)} cm`,
-      (hx + tx) / 2, (hy + ty) / 2 - base * 0.045,
-      "#fde047", W, H, base,
-    );
+  // 기준물은 화면상의 검출 픽셀 지름을 실제 40mm로 환산하는 스케일이다.
+  // 이 원은 확인/조정 화면에서만 보이고 다음 결과 화면에는 남기지 않는다.
+  const bx = d.ballN.x * W, by = d.ballN.y * H, br = d.ballN.r * W;
+  if (br > 0) {
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(0,0,0,0.6)";
+    ctx.lineWidth = Math.max(4, base * 0.006);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(250,204,21,0.98)";
+    ctx.lineWidth = Math.max(2, base * 0.0035);
+    ctx.stroke();
   }
 }
-
-/** 수치 배지를 놓을 코너 — 물고기와 가장 덜 겹치는 곳을 고른다 */
-type BadgeCorner = "tl" | "tr" | "bl" | "br";
 
 export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType = "ball" }: Props) {
   const refLabel = refType === "keyring" ? "입낚키링" : "입낚볼";
   const videoRef = useRef<HTMLVideoElement>(null);
+  // AI가 판정한 바로 그 프레임을 shimmer 동안 고정 표시한다.
+  // 네트워크 응답 뒤 라이브 영상이 움직여 좌표와 피사체가 어긋나는 현상을 차단한다.
+  const lockedFrameRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -514,6 +400,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   // 이미지 영역 안에서 프레임 비율을 유지한 표시 박스 크기 (px)
   const [fitBox, setFitBox] = useState<{ w: number; h: number } | null>(null);
   const dragKeyRef = useRef<"head" | "tail" | "widthTop" | "widthBottom" | null>(null);
+  const initialDetectionRef = useRef<Detection | null>(null);
+  const [activeDragKey, setActiveDragKey] = useState<typeof dragKeyRef.current>(null);
   // 결과 패널에서 사용자가 선택한 어종 — confirm 시 부모(측정 페이지)로 전달
   const [fishSpecies, setFishSpecies] = useState<string>("기타");
   // 플래시(토치) — 기기가 지원할 때만 사이드바에 버튼 노출
@@ -806,8 +694,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const ov = overlayRef.current;
     const v = videoRef.current;
     if (!ov) return;
-    const W = v?.videoWidth || ov.width;
-    const H = v?.videoHeight || ov.height;
+    const locked = stage === "shimmer" ? successRef.current?.work : null;
+    const W = locked?.width || v?.videoWidth || ov.width;
+    const H = locked?.height || v?.videoHeight || ov.height;
     if (!W || !H) return;
     if (ov.width !== W) ov.width = W;
     if (ov.height !== H) ov.height = H;
@@ -818,7 +707,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     /* ── YOLO 감지 박스 (모델이 배포된 경우에만) ──
        기존 오버레이보다 먼저 그려 아래 레이어로 깔린다.
        모델이 없으면 yoloRef 가 항상 null 이라 이 블록은 실행되지 않는다. */
-    const yolo = yoloEnabledRef.current ? yoloRef.current : null;
+    // 인식 확정 화면에서는 측정선만 남겨 결과를 깨끗하게 보여준다.
+    const yolo = stage === "scan" && yoloEnabledRef.current ? yoloRef.current : null;
     if (yolo) {
       const yBase = Math.max(W, H);
       const fontPx = Math.max(13, Math.round(yBase * 0.022));
@@ -864,10 +754,22 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
 
     if (!d) return;
     drawDetection(ctx, d, W, H);
-  }, []);
+  }, [stage]);
 
   // yoloTick 은 YOLO 감지가 갱신될 때마다 증가 — 모델이 없으면 영원히 0 이라 기존과 동일하다
-  useEffect(() => { drawOverlay(det); }, [det, videoHasData, drawOverlay, yoloTick]);
+  useEffect(() => { drawOverlay(det); }, [det, videoHasData, drawOverlay, yoloTick, stage]);
+
+  /* 인식 확정 시 AI가 실제로 분석한 프레임을 고정한다.
+     이후 shimmer·측정선·결과 전환이 모두 같은 픽셀을 기준으로 동작한다. */
+  useEffect(() => {
+    if (stage !== "shimmer") return;
+    const source = successRef.current?.work;
+    const canvas = lockedFrameRef.current;
+    if (!source || !canvas) return;
+    canvas.width = source.width;
+    canvas.height = source.height;
+    canvas.getContext("2d")?.drawImage(source, 0, 0);
+  }, [stage]);
 
   /* ── 프레임 캡처 → /api/measure/scan 폴링 ──
      stage 가 scan 일 때만 동작한다 (윤슬 진행 중/기준물 안내 중에는 정지) */
@@ -885,8 +787,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         const frame = document.createElement("canvas");
         frame.width = Math.max(1, Math.round(v.videoWidth * s));
         frame.height = Math.max(1, Math.round(v.videoHeight * s));
-        frame.getContext("2d")!.drawImage(v, 0, 0, frame.width, frame.height);
-        const dataUrl = frame.toDataURL("image/jpeg", 0.8);
+        const frameCtx = frame.getContext("2d", { willReadFrequently: true });
+        if (!frameCtx) return;
+        frameCtx.drawImage(v, 0, 0, frame.width, frame.height);
+        const dataUrl = frame.toDataURL("image/jpeg", 0.88);
 
         // ── YOLO 온디바이스 감지 (모델이 배포된 경우에만) ──
         // 서버 스캔을 늦추지 않도록 await 하지 않고 백그라운드로 돌린다.
@@ -933,42 +837,83 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
 
         if (ok) {
           const w = frame.width, h = frame.height;
-          // ── 노란 볼 구체만 정밀 측정 (검정 연결고리 제외) ──
-          // AI가 감지한 반경을 기준으로, 클라이언트 픽셀 분석으로 노란색 경계를 재측정.
-          // 실패 시(조명·과노출 등) AI 반경을 그대로 사용해 기존 동작 유지.
-          // 키링은 평면 디스크(타원)라 방사형 중앙값 보정이 단축 쪽으로 끌려간다 —
-          // 서버가 검증한 장축 반경을 그대로 사용한다.
+          // ── 노란 기준물의 중심 + 외곽을 함께 정밀 보정 ──
+          // AI 좌표는 탐색 힌트로만 쓰고, 실제 노란 외곽점에 원을 피팅한다.
+          // 원형도·각도 커버리지 검증 실패 시에는 AI 원본으로 안전하게 폴백한다.
           const aiRadiusPx = data.ball.r * w;
-          const refinedRadiusPx = refType === "keyring"
-            ? aiRadiusPx
-            : refineYellowBallRadius(frame, data.ball.x * w, data.ball.y * h, aiRadiusPx, testBall);
+          let referenceGeometry = {
+            centerX: data.ball.x * w,
+            centerY: data.ball.y * h,
+            radiusPx: aiRadiusPx,
+            refined: false,
+            confidence: 0,
+            angularCoverage: 0,
+          };
+          try {
+            const pixels = frameCtx.getImageData(0, 0, w, h);
+            const refined = refineReferenceCircle(
+              { data: pixels.data, width: w, height: h },
+              referenceGeometry,
+              testBall,
+            );
+            if (refined.refined) {
+              referenceGeometry = refType === "keyring"
+                // 키링은 약간의 원근 타원이 허용되므로 서버가 검증한 장축 반경을
+                // 측정 스케일로 유지하되, 픽셀 분석으로 중심 위치만 바로잡는다.
+                ? { ...refined, radiusPx: aiRadiusPx }
+                : refined;
+            }
+          } catch { /* 픽셀 접근 실패 시 AI 원본 유지 */ }
+          const refinedRadiusPx = referenceGeometry.radiusPx;
           const diameterPx = 2 * refinedRadiusPx;
-          const widthN =
+          const coarseWidth =
             data.width?.top && data.width?.bottom
               ? { top: data.width.top as Norm, bottom: data.width.bottom as Norm }
               : null;
+
+          // ── 물고기 끝점을 실제 외곽으로 보수적으로 스냅 ──
+          // 색상 기반 윤곽이 AI 축과 충분히 일치할 때만 적용한다. 복잡한 배경 등으로
+          // 검증에 실패하면 서버의 기존 좌표를 그대로 사용한다.
+          let landmarks = {
+            head: { x: data.head.x, y: data.head.y } as Norm,
+            tail: { x: data.tail.x, y: data.tail.y } as Norm,
+            width: coarseWidth,
+          };
+          let contourN: Norm[] | null = null;
+          const contourDetector = new FishContourDetector();
+          try {
+            const contour = contourDetector.detect(frame, w, h);
+            if (contour.status === "locked") {
+              contourN = contour.points.map((p) => ({ x: p.x, y: p.y }));
+              const refined = refineFishLandmarks(contour.points, w, h, landmarks);
+              landmarks = { head: refined.head, tail: refined.tail, width: refined.width };
+            }
+          } catch { /* 윤곽 보정 실패 시 AI 좌표 유지 */ }
+          finally { contourDetector.dispose(); }
+
           let lengthCm: number | null = null;
           let widthCm: number | null = null;
           if (diameterPx > 0) {
             const mmPerPixel = REF_DIAMETER_MM / diameterPx; // 지름 40mm 기준
-            const hx = data.head.x * w, hy = data.head.y * h;
-            const tx = data.tail.x * w, ty = data.tail.y * h;
+            const hx = landmarks.head.x * w, hy = landmarks.head.y * h;
+            const tx = landmarks.tail.x * w, ty = landmarks.tail.y * h;
             const px = Math.hypot(tx - hx, ty - hy);
             lengthCm = Math.round((px * mmPerPixel) / 10 * 10) / 10; // cm, 소수 1자리
-            if (widthN) {
+            if (landmarks.width) {
               const wpx = Math.hypot(
-                (widthN.bottom.x - widthN.top.x) * w,
-                (widthN.bottom.y - widthN.top.y) * h,
+                (landmarks.width.bottom.x - landmarks.width.top.x) * w,
+                (landmarks.width.bottom.y - landmarks.width.top.y) * h,
               );
               widthCm = wpx > 0 ? Math.round((wpx * mmPerPixel) / 10 * 10) / 10 : null;
             }
           }
           const detection: Detection = {
-            ballN: { x: data.ball.x, y: data.ball.y, r: refinedRadiusPx / w },
+            ballN: { x: referenceGeometry.centerX / w, y: referenceGeometry.centerY / h, r: refinedRadiusPx / w },
             ballAiR: data.ball.r,
-            headN: { x: data.head.x, y: data.head.y },
-            tailN: { x: data.tail.x, y: data.tail.y },
-            widthN,
+            headN: landmarks.head,
+            tailN: landmarks.tail,
+            widthN: landmarks.width,
+            contourN,
             confidence: data.confidence,
             lengthCm,
             widthCm,
@@ -1095,7 +1040,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     // 캡처 프레임이 세로(portrait)인 경우 → 부모(측정 페이지)에서도 항상 가로로
     // 보이도록 실제 픽셀을 90° 회전한다 (finalizeOrientation 과 동일 기준·동일 방향).
     const needsRotate = srcW < srcH;
-    const ccw = isLandscapeRef.current && !browserIsLandscapeRef.current;
+    const turn = portraitToLandscapeTurn(isLandscapeRef.current, browserIsLandscapeRef.current);
 
     // diameterPx는 항상 원본 portrait width 기준 (ballN.r는 portrait width로 정규화됨)
     const diameterPx = 2 * s.det.ballN.r * srcW;
@@ -1119,7 +1064,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       dst.width = srcH;
       dst.height = srcW;
       const ctx = dst.getContext("2d")!;
-      if (ccw) {
+      if (turn === "ccw") {
         ctx.translate(0, dst.height);
         ctx.rotate(-Math.PI / 2);
       } else {
@@ -1130,8 +1075,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       workCanvas = dst;
 
       // 좌표 변환: CCW (px,py) → (py, srcW - px) / CW (px,py) → (srcH - py, px)
-      const tf = (p: { x: number; y: number }) =>
-        ccw ? { x: p.y, y: srcW - p.x } : { x: srcH - p.y, y: p.x };
+      const tf = (p: { x: number; y: number }) => rotatePixelPoint(p, srcW, srcH, turn);
       const rotatedBall = tf({ x: ballCX, y: ballCY });
       ballCX = rotatedBall.x;
       ballCY = rotatedBall.y;
@@ -1197,7 +1141,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const needsRotate = srcW < srcH;
     if (!needsRotate) return;
     // CSS 회전 트릭으로 가로 촬영한 경우에만 반시계 방향으로 되돌린다
-    const ccw = isLandscapeRef.current && !browserIsLandscapeRef.current;
+    const turn = portraitToLandscapeTurn(isLandscapeRef.current, browserIsLandscapeRef.current);
 
     // 90° 회전: portrait(srcW×srcH) → landscape(srcH×srcW)
     const dst = document.createElement("canvas");
@@ -1205,7 +1149,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     dst.height = srcW;
     const ctx = dst.getContext("2d");
     if (!ctx) return;
-    if (ccw) {
+    if (turn === "ccw") {
       ctx.translate(0, dst.height);
       ctx.rotate(-Math.PI / 2);
     } else {
@@ -1214,16 +1158,17 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     }
     ctx.drawImage(s.work, 0, 0, srcW, srcH);
 
-    const tf = (p: Norm): Norm => (ccw ? { x: p.y, y: 1 - p.x } : { x: 1 - p.y, y: p.x });
-    const kr = srcW / srcH; // width 기준 정규화 반지름 환산 계수 (픽셀값 보존)
+    const tf = (p: Norm): Norm => rotateNormPoint(p, turn);
+    const rotatedRadius = (r: number) => rotateWidthNormalizedRadius(r, srcW, srcH);
     const d = s.det;
     const rotated: Detection = {
       ...d,
-      ballN: { ...tf(d.ballN), r: d.ballN.r * kr },
-      ballAiR: d.ballAiR * kr,
+      ballN: { ...tf(d.ballN), r: rotatedRadius(d.ballN.r) },
+      ballAiR: rotatedRadius(d.ballAiR),
       headN: tf(d.headN),
       tailN: tf(d.tailN),
       widthN: d.widthN ? { top: tf(d.widthN.top), bottom: tf(d.widthN.bottom) } : null,
+      contourN: d.contourN ? d.contourN.map(tf) : null,
       // lengthCm/widthCm 은 회전 불변 (정규화 dx*W, dy*H 가 축만 맞바뀜) — 재계산 불필요
     };
     successRef.current = { work: dst, det: rotated };
@@ -1233,6 +1178,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   /* ── 결과 패널 열기: 프레임 방향 확정 후 result 단계로 전환 ── */
   const openResult = useCallback(() => {
     finalizeOrientation();
+    const current = successRef.current;
+    initialDetectionRef.current = current ? cloneDetection(current.det) : null;
     goStage("result");
   }, [finalizeOrientation, goStage]);
 
@@ -1263,6 +1210,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     return () => ro.disconnect();
   }, [stage]);
 
+  // 결과 화면 뒤의 측정 페이지가 스크롤되거나 스크롤바가 비쳐 보이지 않게 잠근다.
+  useEffect(() => {
+    if (stage !== "result") return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [stage]);
+
   /* ── 결과 패널 진입 시 캡처 프레임을 고정 표시 캔버스에 그린다 ──
      배경 캔버스(bgRef)에도 같은 프레임을 그려 cover + 블러로 화면 여백을 채운다.
      (fitBox 확정 후 캔버스가 마운트되므로 fitBox 를 deps 에 포함) */
@@ -1283,7 +1238,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   }, [stage, fitBox]);
 
   /* ── 결과 패널 측정 오버레이 (프레임 좌표계) ──
-     전장·폭 선과 끝점·수치 라벨만 그린다 (기준물 원은 표시하지 않음) */
+     외곽선·전장·폭·조정점·40mm 기준 원만 그리고 수치는 전용 여백 패널에 둔다. */
   useEffect(() => {
     if (stage !== "result" || !det) return;
     const s = successRef.current;
@@ -1297,49 +1252,6 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     ctx.clearRect(0, 0, W, H);
     drawResultOverlay(ctx, det, W, H);
   }, [stage, det, fitBox]);
-
-  /* ── 수치 배지 위치: 물고기와 가장 덜 겹치는 코너 자동 선택 ──
-     물고기 bounding box(머리·꼬리·폭 끝점 + 여유)와 각 코너 후보 배지 사각형의
-     겹침 넓이를 비교해 가장 작은 곳에 배치한다. 동률이면 아래 우선순위 순.
-     ("다음" 버튼이 있는 우하단은 마지막 순위) */
-  const badgeCorner: BadgeCorner = (() => {
-    if (!det || !fitBox) return "bl";
-    const xs = [det.headN.x, det.tailN.x];
-    const ys = [det.headN.y, det.tailN.y];
-    if (det.widthN) {
-      xs.push(det.widthN.top.x, det.widthN.bottom.x);
-      ys.push(det.widthN.top.y, det.widthN.bottom.y);
-    }
-    const pad = 0.06; // 물고기 몸통이 끝점 밖으로 나오는 여유
-    const fx0 = (Math.min(...xs) - pad) * fitBox.w;
-    const fx1 = (Math.max(...xs) + pad) * fitBox.w;
-    const fy0 = (Math.min(...ys) - pad) * fitBox.h;
-    const fy1 = (Math.max(...ys) + pad) * fitBox.h;
-
-    const m = BADGE_MARGIN_PX;
-    const bw = BADGE_W_PX, bh = BADGE_H_PX;
-    const cands: Array<[BadgeCorner, number, number]> = [
-      ["bl", m, fitBox.h - bh - m],
-      ["tl", m, m],
-      ["tr", fitBox.w - bw - m, m],
-      ["br", fitBox.w - bw - m, fitBox.h - bh - m],
-    ];
-    let best: BadgeCorner = "bl";
-    let bestOverlap = Infinity;
-    for (const [key, bx, by] of cands) {
-      const ox = Math.max(0, Math.min(bx + bw, fx1) - Math.max(bx, fx0));
-      const oy = Math.max(0, Math.min(by + bh, fy1) - Math.max(by, fy0));
-      const overlap = ox * oy;
-      if (overlap < bestOverlap - 1) { bestOverlap = overlap; best = key; }
-    }
-    return best;
-  })();
-
-  const badgeStyle: React.CSSProperties = {
-    width: BADGE_W_PX,
-    [badgeCorner === "tl" || badgeCorner === "tr" ? "top" : "bottom"]: BADGE_MARGIN_PX,
-    [badgeCorner === "tl" || badgeCorner === "bl" ? "left" : "right"]: BADGE_MARGIN_PX,
-  };
 
   /* ── 끝점 이동 후 길이/폭 재계산 (스캔 성공 경로와 동일 공식) ── */
   const recomputeMeasures = useCallback((d: Detection, w: number, h: number): Detection => {
@@ -1387,6 +1299,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     }
     if (best == null || bestDist > 44) return; // 끝점 근처(44px)에서만 드래그 시작
     dragKeyRef.current = best;
+    setActiveDragKey(best);
     e.currentTarget.setPointerCapture(e.pointerId);
   }, []);
 
@@ -1415,7 +1328,21 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     setDet(rec);
   }, [recomputeMeasures]);
 
-  const onEditPointerUp = useCallback(() => { dragKeyRef.current = null; }, []);
+  const onEditPointerUp = useCallback(() => {
+    dragKeyRef.current = null;
+    setActiveDragKey(null);
+  }, []);
+
+  const resetMeasurementPoints = useCallback(() => {
+    const s = successRef.current;
+    const initial = initialDetectionRef.current;
+    if (!s || !initial) return;
+    const restored = cloneDetection(initial);
+    s.det = restored;
+    dragKeyRef.current = null;
+    setActiveDragKey(null);
+    setDet(restored);
+  }, []);
 
   /* ── no-ref-warning → 1.5초 후 자동으로 ref-missing 모달로 전환 ── */
   useEffect(() => {
@@ -1498,6 +1425,11 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       : null;
   // 기준물(입낚볼) 감지 여부 — 결과 패널 안내 문구 분기 (측정은 항상 볼 기준)
   const ballFound = !!det && det.ballN.r > 0;
+  const activePointLabel =
+    activeDragKey === "head" ? "입" :
+    activeDragKey === "tail" ? "꼬리" :
+    activeDragKey === "widthTop" ? "등" :
+    activeDragKey === "widthBottom" ? "배" : null;
 
   /* ── 윤곽 감지 상태별 안내 문구 ── */
   const scanGuide: { main: string; sub: string; locked: boolean } =
@@ -1611,6 +1543,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         30% { opacity: 0.9; transform: scale(1.2) translateX(-4px) translateY(-8px); }
         70% { opacity: 0.6; transform: scale(0.9) translateX(5px) translateY(-4px); }
       }
+      .ipnak-result-photo { right: 0; }
+      .ipnak-result-side { display: none; }
+      .ipnak-result-bottom { display: flex; }
+      @media (min-aspect-ratio: 4 / 3) {
+        .ipnak-result-photo { right: 206px; }
+        .ipnak-result-side { display: flex; }
+        .ipnak-result-bottom { display: none; }
+      }
     `}</style>
 
     {/* ── video/canvas는 항상 z-399 portrait fixed 레이어에 단일 배치 ──
@@ -1627,6 +1567,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         autoPlay
         style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0 }}
       />
+      {/* AI 판정 프레임 고정 레이어 — 응답 이후 휴대폰이 움직여도 측정선이 밀리지 않는다. */}
+      {stage === "shimmer" && (
+        <canvas
+          ref={lockedFrameRef}
+          aria-hidden="true"
+          style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0, zIndex: 9 }}
+        />
+      )}
       {/* ⚠️ objectFit cover 필수 — video 와 동일한 크롭을 적용해야 감지 좌표(머리/꼬리 끝점·볼 원)가
           화면에 보이는 영상과 정확히 일치한다 (기본값 fill 은 화면 비율 ≠ 영상 비율일 때 좌표가 어긋남) */}
       <canvas
@@ -1647,7 +1595,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       {/* ── 윤슬(빛 포인트) 한 바퀴 → 완료 시 자동 측정 ── */}
       <FishShimmer
         active={stage === "shimmer"}
-        sourceRef={videoRef}
+        sourceRef={lockedFrameRef}
         objectFit="cover"
         durationMs={SHIMMER_MS}
         onComplete={handleShimmerComplete}
@@ -1840,12 +1788,13 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     {/* ── 결과 패널 (stage === "result") — 회전된 컨테이너 밖 fixed 오버레이 ──
         항상 화면(스크린) 좌표계 기준으로 표시된다 (CSS rotate 미적용 → 텍스트/UI가 눕지 않음).
         표시 프레임은 openResult → finalizeOrientation 에서 landscape 로 확정된 캔버스.
-        사진이 화면 전체를 채우고(비율 유지 contain + 같은 사진 블러 배경으로 여백 제거),
-        그 위에 측정선·수치 배지·버튼만 오버레이로 얹는다.
+        사진은 비율을 유지한 contain 방식으로 표시하고 같은 사진의 블러로 여백을 채운다.
+        측정선은 사진 위에, 수치·버튼은 사진과 분리된 우측/하단 전용 여백에 배치한다.
         width/height 를 명시해 어떤 부모/뷰포트 상태에서도 화면 전체를 덮는다
         (100dvh = 모바일 주소창 제외 실제 가시 영역, 미지원 브라우저는 inset-0 이 대신 채움). */}
     {stage === "result" && det && (
       <div
+        data-testid="ai-measurement-result"
         className="fixed inset-0 z-[401] overflow-hidden bg-black"
         style={{ width: "100vw", height: "100dvh" }}
       >
@@ -1859,7 +1808,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         {/* ── 사진 영역 — 화면 전체 (프레임 비율 유지 contain) ── */}
         <div
           ref={resultAreaRef}
-          className="absolute inset-0 flex items-center justify-center overflow-hidden"
+          className="ipnak-result-photo absolute inset-y-0 left-0 flex items-center justify-center overflow-hidden"
         >
             {fitBox && (
               <div className="relative" style={{ width: fitBox.w, height: fitBox.h }}>
@@ -1880,32 +1829,6 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                   onPointerUp={onEditPointerUp}
                   onPointerCancel={onEditPointerUp}
                 />
-                {/* ── 수치 배지 — 물고기와 가장 덜 겹치는 코너에 자동 배치 ── */}
-                <div
-                  className="pointer-events-none absolute rounded-2xl bg-black/60 px-3 py-2.5 ring-1 ring-white/15 backdrop-blur-sm"
-                  style={badgeStyle}
-                >
-                  <div className="flex items-baseline justify-between gap-1">
-                    <span className="text-[10.5px] font-medium text-white/55">전장</span>
-                    <span className="text-[17px] font-extrabold leading-tight tracking-tight text-[#fde047]">
-                      {det.lengthCm != null ? det.lengthCm.toFixed(1) : "—"}
-                      <span className="ml-0.5 text-[10.5px] font-bold text-white/60">cm</span>
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-baseline justify-between gap-1">
-                    <span className="text-[10.5px] font-medium text-white/55">폭</span>
-                    <span className="text-[15px] font-extrabold leading-tight tracking-tight text-[#67e8f9]">
-                      {det.widthCm != null ? det.widthCm.toFixed(1) : "—"}
-                      <span className="ml-0.5 text-[10.5px] font-bold text-white/60">cm</span>
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-baseline justify-between gap-1 border-t border-white/10 pt-1.5">
-                    <span className="text-[10.5px] font-medium text-white/55">예상무게</span>
-                    <span className="text-[15px] font-extrabold leading-tight tracking-tight text-white">
-                      {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
-                    </span>
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -1919,14 +1842,15 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               paddingRight: "max(16px, env(safe-area-inset-right, 0px))",
             }}
           >
+          <div className="pointer-events-none absolute left-1/2 hidden max-w-[54%] -translate-x-1/2 items-center gap-1.5 truncate rounded-full bg-green-700/90 px-4 py-2 text-[12px] font-extrabold text-white shadow-lg ring-1 ring-green-300/45 backdrop-blur-sm min-[560px]:flex">
+            <Check size={15} strokeWidth={2.8} className="shrink-0" />
+            <span className="truncate">물고기 인식됨 · 측정 완료</span>
+          </div>
           <div className="flex min-w-0 items-center gap-2">
             <ScanLine size={17} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
-            <span className="truncate text-[14px] font-bold text-white">AI 실시간 스캐너</span>
+            <span className="truncate text-[14px] font-bold text-white">AI 측정 확인</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="whitespace-nowrap text-[10.5px] font-semibold tracking-tight text-white/60">
-              2단계 · 측정 결과 확인
-            </span>
             {torchSupported && (
               <button
                 type="button"
@@ -1951,66 +1875,125 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           </div>
         </div>
 
-        {/* ── 어종 선택 (상단 바 아래 가로 스크롤) — confirm 시 부모로 전달 ── */}
-        <div
-          className="absolute inset-x-0 z-20"
-          style={{ top: "calc(max(10px, env(safe-area-inset-top, 0px)) + 46px)" }}
-        >
-          <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 py-1">
-            {FISH_SPECIES.map((s: { key: string }) => (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => setFishSpecies(s.key)}
-                className={
-                  "shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-bold shadow-md transition-all active:scale-[0.96] " +
-                  (fishSpecies === s.key
-                    ? "bg-orange-500 text-gray-900"
-                    : "bg-black/55 text-white/75 ring-1 ring-white/15 backdrop-blur-sm")
-                }
-              >
-                {s.key}
-              </button>
-            ))}
+        {/* 가로 화면: 사진 오른쪽의 전용 여백에 측정값과 조작부를 둔다. */}
+        <aside className="ipnak-result-side absolute bottom-2 right-2 top-[54px] z-30 w-[190px] flex-col overflow-hidden rounded-[20px] bg-[#071827]/90 p-2.5 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-md">
+          <div className="flex items-center gap-1.5 text-[12px] font-extrabold text-green-300">
+            <Check size={14} strokeWidth={2.7} />
+            측정 완료
           </div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <div className="rounded-xl bg-white/[0.07] px-2 py-1.5">
+              <p className="text-[10px] font-semibold text-white/45">전장</p>
+              <p className="mt-0.5 text-[18px] font-black leading-none text-green-400">
+                {det.lengthCm != null ? det.lengthCm.toFixed(1) : "—"}<span className="ml-0.5 text-[10px] text-white/50">cm</span>
+              </p>
+            </div>
+            <div className="rounded-xl bg-white/[0.07] px-2 py-1.5">
+              <p className="text-[10px] font-semibold text-white/45">폭</p>
+              <p className="mt-0.5 text-[18px] font-black leading-none text-cyan-300">
+                {det.widthCm != null ? det.widthCm.toFixed(1) : "—"}<span className="ml-0.5 text-[10px] text-white/50">cm</span>
+              </p>
+            </div>
+          </div>
+          <div className="mt-1.5 rounded-xl bg-white/[0.07] px-2 py-1.5">
+            <div className="flex items-end justify-between gap-2">
+              <p className="text-[10px] font-semibold text-white/45">예상 무게</p>
+              <p className="text-[17px] font-black leading-none text-white">
+                {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
+              </p>
+            </div>
+            <p className="mt-1 border-t border-white/10 pt-1 text-[9px] font-semibold text-yellow-300/85">
+              {refLabel} 실지름 Ø40mm 기준
+            </p>
+          </div>
+          <select
+            id="scan-fish-species-side"
+            aria-label="어종"
+            value={fishSpecies}
+            onChange={(e) => setFishSpecies(e.target.value)}
+            className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-[11px] font-bold text-white outline-none"
+          >
+            {FISH_SPECIES.map((s: { key: string }) => <option key={s.key} value={s.key} className="bg-[#0b1e2e]">{s.key}</option>)}
+          </select>
+          <p className="mt-1.5 text-[9.5px] leading-snug text-white/55">
+            {activePointLabel ? `${activePointLabel} 위치 조정 중` : "초록 점: 입·꼬리 · 하늘 점: 등·배 · 드래그로 미세 조정"}
+          </p>
+          <div className="mt-auto flex gap-1.5 pt-2">
+            <button
+              type="button"
+              onClick={resetMeasurementPoints}
+              aria-label="AI 위치로 초기화"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white/75 transition-colors hover:bg-white/15 active:scale-[0.98]"
+            >
+              <RefreshCw size={14} strokeWidth={2.2} />
+            </button>
+            <button
+              type="button"
+              onClick={confirm}
+              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-yellow-500 text-[13px] font-extrabold text-[#0d1b2a] shadow-lg shadow-yellow-500/20 transition-all active:scale-[0.98]"
+            >
+              다음
+              <ArrowRight size={16} strokeWidth={2.6} />
+            </button>
+          </div>
+        </aside>
+
+        {/* 세로 화면: 가로 사진 아래의 letterbox 여백을 측정 패널로 사용한다. */}
+        <div
+          className="ipnak-result-bottom absolute inset-x-3 bottom-3 z-30 flex-col rounded-[20px] bg-[#071827]/92 p-3 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-md"
+          style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))" }}
+        >
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl bg-white/[0.07] px-2 py-2 text-center">
+              <p className="text-[9.5px] font-semibold text-white/45">전장</p>
+              <p className="text-[16px] font-black text-green-400">{det.lengthCm != null ? `${det.lengthCm.toFixed(1)}cm` : "—"}</p>
+            </div>
+            <div className="rounded-xl bg-white/[0.07] px-2 py-2 text-center">
+              <p className="text-[9.5px] font-semibold text-white/45">폭</p>
+              <p className="text-[16px] font-black text-cyan-300">{det.widthCm != null ? `${det.widthCm.toFixed(1)}cm` : "—"}</p>
+            </div>
+            <div className="rounded-xl bg-white/[0.07] px-2 py-2 text-center">
+              <p className="text-[9.5px] font-semibold text-white/45">예상 무게</p>
+              <p className="text-[16px] font-black text-white">{resultWeightG != null ? formatWeight(resultWeightG) : "—"}</p>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <select
+              aria-label="어종 선택"
+              value={fishSpecies}
+              onChange={(e) => setFishSpecies(e.target.value)}
+              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-2.5 py-2.5 text-[12px] font-bold text-white outline-none"
+            >
+              {FISH_SPECIES.map((s: { key: string }) => <option key={s.key} value={s.key} className="bg-[#0b1e2e]">{s.key}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={resetMeasurementPoints}
+              aria-label="AI 측정 위치로 초기화"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white/75 active:scale-[0.97]"
+            >
+              <RefreshCw size={16} strokeWidth={2.2} />
+            </button>
+            <button
+              type="button"
+              onClick={confirm}
+              className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-yellow-500 px-4 text-[13px] font-extrabold text-[#0d1b2a] active:scale-[0.97]"
+            >
+              다음 <ArrowRight size={15} strokeWidth={2.6} />
+            </button>
+          </div>
+          <p className="mt-2 text-center text-[9.5px] font-semibold text-white/50">
+            {activePointLabel ? `${activePointLabel} 위치 조정 중` : `점을 드래그해 입·꼬리·등·배를 조정 · ${refLabel} Ø40mm 기준`}
+          </p>
         </div>
 
-        {/* ── 기준물 미감지 안내 (원은 그리지 않고 문구만) ── */}
         {!ballFound && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-24 z-20 flex justify-center px-4">
-            <span className="rounded-full bg-black/65 px-4 py-2 text-[13px] font-bold text-[#fde047] ring-1 ring-white/15 backdrop-blur-sm">
-              입낚볼을 화면에 맞춰주세요
+          <div className="pointer-events-none absolute inset-x-0 bottom-24 z-40 flex justify-center px-4">
+            <span className="rounded-full bg-black/75 px-4 py-2 text-[13px] font-bold text-yellow-300 ring-1 ring-white/15 backdrop-blur-sm">
+              40mm 기준물을 다시 맞춰주세요
             </span>
           </div>
         )}
-
-        {/* ── 하단 안내 문구 (좌) ── */}
-        <div
-          className="pointer-events-none absolute z-20 max-w-[55%]"
-          style={{
-            left: "max(16px, env(safe-area-inset-left, 0px))",
-            bottom: "calc(max(18px, env(safe-area-inset-bottom, 0px)) + 6px)",
-          }}
-        >
-          <span className="rounded-full bg-black/55 px-3 py-1.5 text-[11.5px] font-semibold text-white/75 ring-1 ring-white/12 backdrop-blur-sm">
-            점을 드래그해 위치를 조정할 수 있어요
-          </span>
-        </div>
-
-        {/* ── "다음" 버튼 (우하단 고정) → 측정 페이지로 ── */}
-        <button
-          type="button"
-          onClick={confirm}
-          className="absolute z-30 flex items-center gap-1.5 rounded-full px-6 py-3.5 text-[15px] font-extrabold text-[#0d1b2a] shadow-2xl transition-all active:scale-[0.96]"
-          style={{
-            background: "#eab308",
-            right: "max(16px, env(safe-area-inset-right, 0px))",
-            bottom: "max(18px, env(safe-area-inset-bottom, 0px))",
-          }}
-        >
-          다음
-          <ArrowRight size={17} strokeWidth={2.6} />
-        </button>
       </div>
     )}
 

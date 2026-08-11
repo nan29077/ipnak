@@ -238,7 +238,8 @@ export async function POST(req: Request) {
             role: "user",
             content: [
               { type: "text", text: refType === "keyring" ? USER_PROMPT_KEYRING : testBall ? USER_PROMPT_TEST : USER_PROMPT },
-              { type: "image_url", image_url: { url: imageBase64, detail: "auto" } },
+              // 머리·꼬리·몸통 경계 좌표가 계측값에 직접 사용되므로 고해상도 분석을 요청한다.
+              { type: "image_url", image_url: { url: imageBase64, detail: "high" } },
             ],
           },
         ],
