@@ -288,14 +288,18 @@ export function FishingSpotSaveModal({
 
         {/* 폼 — 내부 스크롤 */}
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-          {/* 사진 섬네일 — 잘리지 않게 object-contain 으로 전체를 보여준다 */}
+          {/* 계측 사진 — 측정선·수치가 찍힌 사진이라 한 귀퉁이도 잘리면 안 된다.
+              가로를 꽉 채우고 높이는 사진 비율대로 늘어난다(h-auto). 세로로 긴 사진은
+              폼이 화면 밖으로 밀리지 않게 높이만 제한하고, object-contain 이 남는 자리를
+              어두운 배경으로 남겨 잘림 없이 전체가 보이게 한다. */}
           {initial.photoUrl && (
-            <div className="flex items-center justify-center rounded-xl border border-navy-100/20 bg-[#0d1b2a] p-2">
+            <div className="overflow-hidden rounded-xl border border-navy-100/20 bg-[#0d1b2a]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={initial.photoUrl}
                 alt="어장포인트 사진"
-                className="max-h-28 w-auto max-w-full rounded-lg object-contain"
+                className="block h-auto w-full object-contain"
+                style={{ maxHeight: "38vh" }}
               />
             </div>
           )}
