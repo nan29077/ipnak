@@ -300,8 +300,11 @@ function IosTagPrompt({
   );
 }
 
-/* ── 측정 페이지: 입낚볼 연동 카드 ── */
-export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: { ballEnabled?: boolean; keyringEnabled?: boolean } = {}) {
+/* ── 측정 페이지: 입낚볼 연동 카드 ──
+   onUnlinked: 이 카드에서 볼 연동을 해제했을 때 호출된다. 측정 페이지는 자체적으로
+   activeBallId 를 들고 있어서(카드 내부 balls 상태와 별개) 이 신호가 없으면
+   해제 후에도 "볼 연동됨" 으로 판단해 반대편(키링) 섹션을 계속 숨긴다. */
+export function BallLinkSection({ ballEnabled = true, keyringEnabled = false, onUnlinked }: { ballEnabled?: boolean; keyringEnabled?: boolean; onUnlinked?: () => void } = {}) {
   const router = useRouter();
   const { supported, balls, reading, tagAndRegister, refresh } = useBallLink();
   const toast = useToast();
@@ -312,9 +315,37 @@ export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: 
   const [ballExampleOpen, setBallExampleOpen] = useState(false);
   const [manualId, setManualId] = useState("");
   const [registering, setRegistering] = useState(false);
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const currentUser = useUser();
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [ballPrice, setBallPrice] = useState<number | null>(null);
+
+  /** 연동 해제 — MyBallManager 와 동일한 2단계(확인 → 실행) 방식 */
+  async function unlinkBall(b: Ball) {
+    if (confirmingId !== b.id) {
+      setConfirmingId(b.id);
+      return;
+    }
+    setConfirmingId(null);
+    setUnlinkingId(b.id);
+    try {
+      const res = await fetch("/api/balls", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: b.id }),
+      });
+      if (res.ok) {
+        toast(`입낚볼(${b.ballId}) 연동 해제`, "success");
+        await refresh();
+        onUnlinked?.(); // 부모(측정 페이지)의 activeBallId 초기화 → 키링 섹션 재표시
+      } else {
+        toast("연동 해제에 실패했어요.", "error");
+      }
+    } finally {
+      setUnlinkingId(null);
+    }
+  }
 
   async function registerManual() {
     const trimmed = manualId.trim();
@@ -445,14 +476,45 @@ export function BallLinkSection({ ballEnabled = true, keyringEnabled = false }: 
           </p>
           <div className="space-y-1">
             {balls.map((b) => (
-              <Link
-                key={b.id}
-                href={`/diary?ballId=${encodeURIComponent(b.ballId)}`}
-                className="flex items-center justify-between rounded-xl px-2 py-1.5 text-[12px] font-semibold text-navy-600 transition-colors hover:bg-navy-50"
-              >
-                <span className="truncate">{b.ballId} 측정 기록 보기</span>
-                <ChevronRight size={13} strokeWidth={2.2} className="shrink-0 text-navy-300" />
-              </Link>
+              <div key={b.id} className="flex items-center gap-1">
+                <Link
+                  href={`/diary?ballId=${encodeURIComponent(b.ballId)}`}
+                  className="flex min-w-0 flex-1 items-center justify-between rounded-xl px-2 py-1.5 text-[12px] font-semibold text-navy-600 transition-colors hover:bg-navy-50"
+                >
+                  <span className="truncate">{b.ballId} 측정 기록 보기</span>
+                  <ChevronRight size={13} strokeWidth={2.2} className="shrink-0 text-navy-300" />
+                </Link>
+                {confirmingId === b.id ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => unlinkBall(b)}
+                      disabled={unlinkingId === b.id}
+                      className="rounded-lg bg-red-500/15 px-2 py-1 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/25 disabled:opacity-40"
+                    >
+                      {unlinkingId === b.id ? <Loader2 size={12} className="animate-spin" /> : "해제"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingId(null)}
+                      className="rounded-lg bg-navy-50 px-2 py-1 text-[11px] font-bold text-navy-500 transition-colors hover:bg-navy-100"
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => unlinkBall(b)}
+                    disabled={unlinkingId === b.id}
+                    title="연동 해제"
+                    aria-label="입낚볼 연동 해제"
+                    className="shrink-0 rounded-full p-1.5 text-navy-300 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
+                  >
+                    <Unlink size={14} strokeWidth={1.9} />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -1134,8 +1196,9 @@ export function MyKeyringManager() {
   );
 }
 
-/* ── 측정 페이지: 입낚키링 연동 카드 (BallLinkSection 과 동일 구조) ── */
-export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true }: { ballEnabled?: boolean; keyringEnabled?: boolean } = {}) {
+/* ── 측정 페이지: 입낚키링 연동 카드 (BallLinkSection 과 동일 구조) ──
+   onUnlinked: 해제 시 측정 페이지의 activeKeyringId 를 비워 볼 섹션이 다시 보이게 한다. */
+export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true, onUnlinked }: { ballEnabled?: boolean; keyringEnabled?: boolean; onUnlinked?: () => void } = {}) {
   const { supported, keyrings, reading, tagAndRegister, refresh } = useKeyringLink();
   const toast = useToast();
   const currentUser = useUser();
@@ -1145,8 +1208,36 @@ export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true 
   const [linkGuideTab, setLinkGuideTab] = useState<"android" | "iphone">("android");
   const [manualId, setManualId] = useState("");
   const [registering, setRegistering] = useState(false);
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [keyringPrice, setKeyringPrice] = useState<number | null>(null);
+
+  /** 연동 해제 — MyKeyringManager 와 동일한 2단계(확인 → 실행) 방식 */
+  async function unlinkKeyring(k: Keyring) {
+    if (confirmingId !== k.id) {
+      setConfirmingId(k.id);
+      return;
+    }
+    setConfirmingId(null);
+    setUnlinkingId(k.id);
+    try {
+      const res = await fetch("/api/keyrings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: k.id }),
+      });
+      if (res.ok) {
+        toast(`입낚키링(${k.keyringId}) 연동 해제`, "success");
+        await refresh();
+        onUnlinked?.(); // 부모(측정 페이지)의 activeKeyringId 초기화 → 볼 섹션 재표시
+      } else {
+        toast("연동 해제에 실패했어요.", "error");
+      }
+    } finally {
+      setUnlinkingId(null);
+    }
+  }
 
   async function registerManual() {
     const trimmed = manualId.trim();
@@ -1278,9 +1369,39 @@ export function KeyringLinkSection({ ballEnabled = false, keyringEnabled = true 
           </p>
           <div className="space-y-1">
             {keyrings.map((k) => (
-              <div key={k.id} className="flex items-center justify-between rounded-xl px-2 py-1.5 text-[12px] font-semibold text-navy-600">
-                <span className="truncate">{k.keyringId}</span>
+              <div key={k.id} className="flex items-center gap-1 rounded-xl px-2 py-1.5 text-[12px] font-semibold text-navy-600">
+                <span className="min-w-0 flex-1 truncate">{k.keyringId}</span>
                 <span className="shrink-0 text-[11px] font-normal text-navy-300">{String(k.linkedAt).slice(0, 10)}</span>
+                {confirmingId === k.id ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => unlinkKeyring(k)}
+                      disabled={unlinkingId === k.id}
+                      className="rounded-lg bg-red-500/15 px-2 py-1 text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/25 disabled:opacity-40"
+                    >
+                      {unlinkingId === k.id ? <Loader2 size={12} className="animate-spin" /> : "해제"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingId(null)}
+                      className="rounded-lg bg-navy-50 px-2 py-1 text-[11px] font-bold text-navy-500 transition-colors hover:bg-navy-100"
+                    >
+                      취소
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => unlinkKeyring(k)}
+                    disabled={unlinkingId === k.id}
+                    title="연동 해제"
+                    aria-label="입낚키링 연동 해제"
+                    className="shrink-0 rounded-full p-1.5 text-navy-300 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
+                  >
+                    <Unlink size={14} strokeWidth={1.9} />
+                  </button>
+                )}
               </div>
             ))}
           </div>

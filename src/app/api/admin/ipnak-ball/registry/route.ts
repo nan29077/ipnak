@@ -45,6 +45,7 @@ export async function GET(req: Request) {
       updatedAt: string;
       linkedUserId: string | null;
       linkedUserNickname: string | null;
+      linkedUserName: string | null;
       linkedUserPhone: string | null;
     };
 
@@ -57,6 +58,7 @@ export async function GET(req: Request) {
         `SELECT r.id, r.ballId, r.memo, r.isActive, r.createdAt, r.updatedAt,
                 lb.userId as linkedUserId,
                 u.nickname as linkedUserNickname,
+                u.name as linkedUserName,
                 u.phone as linkedUserPhone
          FROM IpnakBallRegistry r
          LEFT JOIN LinkedBall lb ON lb.ballId = r.ballId

@@ -75,6 +75,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
     createdAt: string;
     linkedUserId: string | null;
     linkedUserNickname: string | null;
+    linkedUserName: string | null;
     linkedUserPhone: string | null;
   };
   let registryItems: RegistryRow[] = [];
@@ -85,6 +86,7 @@ export default async function BallAdmin({ searchParams }: { searchParams: { tab?
         `SELECT r.id, r.ballId, r.memo, r.isActive, r.createdAt,
                 lb.userId as linkedUserId,
                 u.nickname as linkedUserNickname,
+                u.name as linkedUserName,
                 u.phone as linkedUserPhone
          FROM IpnakBallRegistry r
          LEFT JOIN LinkedBall lb ON lb.ballId = r.ballId

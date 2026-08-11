@@ -1149,10 +1149,18 @@ export default function MeasurePage() {
                 볼·키링 중 하나라도 연동된 경우 나머지 기기의 연동 안내 섹션은 숨긴다.
                 linksLoaded 가 false 인 동안은 로딩 플래시 방지를 위해 둘 다 표시. */}
             {ballEnabled && (!linksLoaded || activeBallId || !activeKeyringId) && (
-              <BallLinkSection ballEnabled={ballEnabled} keyringEnabled={keyringEnabled} />
+              <BallLinkSection
+                ballEnabled={ballEnabled}
+                keyringEnabled={keyringEnabled}
+                onUnlinked={() => setActiveBallId(null)}
+              />
             )}
             {keyringEnabled && (!linksLoaded || activeKeyringId || !activeBallId) && (
-              <KeyringLinkSection ballEnabled={ballEnabled} keyringEnabled={keyringEnabled} />
+              <KeyringLinkSection
+                ballEnabled={ballEnabled}
+                keyringEnabled={keyringEnabled}
+                onUnlinked={() => setActiveKeyringId(null)}
+              />
             )}
           </>
         )}

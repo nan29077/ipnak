@@ -2009,6 +2009,21 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                 {effectiveLandscape ? "세로로" : "가로로"}
               </button>
             )}
+            {/* 플래시(토치) — 어두운 곳에서 스캔할 때 쓰므로 촬영 단계에 둔다 */}
+            {torchSupported && (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                aria-label="플래시"
+                aria-pressed={torchOn}
+                className={
+                  "rounded-full p-2 transition-colors " +
+                  (torchOn ? "bg-yellow-400/25 text-yellow-400" : "bg-white/10 text-white hover:bg-white/20")
+                }
+              >
+                <Zap size={17} strokeWidth={2} />
+              </button>
+            )}
             <button
               onClick={onClose}
               aria-label="닫기"
@@ -2178,7 +2193,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
             )}
           </div>
 
-          {/* ── 상단 오버레이 — 타이틀 · 인식 배지 · 플래시 · 닫기 ──
+          {/* ── 상단 오버레이 — 타이틀 · 인식 배지 · 닫기 ──
               회전 무대에서는 LOCAL top = 기기 right 이므로 두 safe-area 축을 max() 로 함께 잡는다. */}
           <div
             className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-2 bg-gradient-to-b from-black/85 via-black/45 to-transparent"
@@ -2202,20 +2217,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                 {det.widthCm != null && ` · 폭 ${det.widthCm}cm`}
               </span>
             </div>
+            {/* 플래시 버튼은 촬영(scan) 단계 상단 바로 옮겼다 — 결과 화면에서는 노출하지 않는다 */}
             <div className="flex shrink-0 items-center gap-1.5">
-              {torchSupported && (
-                <button
-                  type="button"
-                  onClick={toggleTorch}
-                  aria-label="플래시"
-                  className={
-                    "flex h-8 w-8 items-center justify-center rounded-full transition-colors " +
-                    (torchOn ? "bg-yellow-400/25 text-yellow-400" : "bg-white/10 text-white/75 hover:bg-white/20")
-                  }
-                >
-                  <Zap size={16} strokeWidth={2} />
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => { cleanupStream(); onClose(); }}

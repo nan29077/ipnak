@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Search, Plus, Trash2, ToggleLeft, ToggleRight, Tag, RefreshCw } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { Search, Plus, Trash2, ToggleLeft, ToggleRight, Tag, RefreshCw, Unlink, Filter } from "lucide-react";
 import { buildTagUrl, ID_SAMPLE, LEGACY_ID_SAMPLE } from "@/lib/nfcTag";
 import { TagUrlCopyButton } from "@/components/admin/TagUrlCopyButton";
 import { NfcTagProgrammingGuide } from "@/components/admin/NfcTagProgrammingGuide";
@@ -14,6 +14,7 @@ type RegistryItem = {
   createdAt: string;
   linkedUserId?: string | null;
   linkedUserNickname?: string | null;
+  linkedUserName?: string | null;
   linkedUserPhone?: string | null;
 };
 
@@ -47,6 +48,8 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  // 현재 목록 안에서만 걸러내는 즉시 필터 (서버 요청 없음) — 볼 ID / 유저 이름 / 대화명
+  const [filterText, setFilterText] = useState("");
 
   // 추가 폼 상태
   const [showAdd, setShowAdd] = useState(false);
@@ -136,6 +139,32 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
     }
   };
 
+  // 연동 해제 — 레지스트리는 남기고 LinkedBall 만 삭제
+  const handleUnlink = async (item: RegistryItem) => {
+    const who = item.linkedUserNickname || item.linkedUserName || "회원";
+    if (!confirm(`볼 ID '${item.ballId}'와 [${who}]의 연동을 해제하시겠습니까?\n볼 ID 자체는 삭제되지 않으며, 이후 다시 연동할 수 있습니다.`)) return;
+    const res = await fetch(`/api/admin/ipnak-ball/registry/${encodeURIComponent(item.id)}/unlink`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      fetchList(query, page);
+    } else {
+      const data = await res.json().catch(() => null);
+      alert(data?.error ?? "연동 해제 실패");
+    }
+  };
+
+  // 클라이언트 사이드 필터링 — 볼 ID / 유저 이름 / 유저 대화명
+  const visibleItems = useMemo(() => {
+    const kw = filterText.trim().toLowerCase();
+    if (!kw) return items;
+    return items.filter(i =>
+      [i.ballId, i.linkedUserName, i.linkedUserNickname]
+        .some(v => (v ?? "").toLowerCase().includes(kw))
+    );
+  }, [items, filterText]);
+
+  const isFiltering = filterText.trim().length > 0;
   const totalPages = Math.ceil(total / 50);
 
   return (
@@ -174,6 +203,34 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
           <Plus className="h-4 w-4" />
           볼 ID 등록
         </button>
+      </div>
+
+      {/* 현재 목록 즉시 필터 — 서버 요청 없이 화면에 있는 항목만 걸러낸다 */}
+      <div className="mb-4 flex items-center gap-2">
+        <div className="relative w-full max-w-sm">
+          <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-400" />
+          <input
+            type="text"
+            value={filterText}
+            onChange={e => setFilterText(e.target.value)}
+            placeholder="현재 목록에서 찾기 — 볼 ID · 이름 · 대화명"
+            className="w-full rounded-lg border border-navy-100 bg-[#0d1b2a] py-2 pl-9 pr-3 text-sm text-navy-800 outline-none focus:border-orange-400/70"
+          />
+        </div>
+        {isFiltering && (
+          <>
+            <span className="text-xs text-navy-400">
+              {visibleItems.length}개 표시 중
+            </span>
+            <button
+              type="button"
+              onClick={() => setFilterText("")}
+              className="rounded-lg border border-navy-100 px-2.5 py-1.5 text-xs text-navy-500 hover:bg-navy-50"
+            >
+              초기화
+            </button>
+          </>
+        )}
       </div>
 
       {/* 등록 폼 */}
@@ -235,12 +292,12 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
 
       {/* 모바일 카드 목록 */}
       <div className="sm:hidden space-y-2">
-        {items.length === 0 && (
+        {visibleItems.length === 0 && (
           <div className="rounded-xl border border-navy-100 px-4 py-10 text-center text-sm text-navy-400">
-            등록된 볼 ID가 없습니다.
+            {isFiltering ? "검색 결과가 없습니다." : "등록된 볼 ID가 없습니다."}
           </div>
         )}
-        {items.map(item => (
+        {visibleItems.map(item => (
           <div key={item.id} className="rounded-xl border border-navy-100 bg-[#0d1b2a] p-4">
             {/* 상단: ID + 상태 + 관리 */}
             <div className="flex items-center gap-2 mb-2">
@@ -256,8 +313,8 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
               {item.memo && <span>메모: <span className="text-navy-500">{item.memo}</span></span>}
               <span>
                 연동:{" "}
-                {item.linkedUserNickname
-                  ? <span className="text-navy-800 font-semibold">{item.linkedUserNickname}{item.linkedUserPhone ? ` · ${maskPhone(item.linkedUserPhone)}` : ""}</span>
+                {item.linkedUserNickname || item.linkedUserName
+                  ? <span className="text-navy-800 font-semibold">{item.linkedUserNickname || item.linkedUserName}{item.linkedUserName && item.linkedUserNickname ? ` (${item.linkedUserName})` : ""}{item.linkedUserPhone ? ` · ${maskPhone(item.linkedUserPhone)}` : ""}</span>
                   : <span className="text-navy-300">미등록</span>}
               </span>
               <span>등록일: {fmtDate(item.createdAt)}</span>
@@ -270,6 +327,14 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
               >
                 {item.isActive ? "비활성으로 전환" : "활성으로 전환"}
               </button>
+              {(item.linkedUserNickname || item.linkedUserPhone || item.linkedUserName) && (
+                <button
+                  onClick={() => handleUnlink(item)}
+                  className="rounded-lg border border-orange-400/40 px-3 py-1.5 text-xs font-semibold text-orange-400 hover:bg-orange-500/10"
+                >
+                  연동 해제
+                </button>
+              )}
               <button
                 onClick={() => handleDelete(item)}
                 className="rounded-lg px-3 py-1.5 text-xs font-semibold border border-red-400/30 text-red-400 hover:bg-red-500/10"
@@ -295,14 +360,14 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 && (
+            {visibleItems.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-12 text-center text-navy-400">
-                  등록된 볼 ID가 없습니다.
+                  {isFiltering ? "검색 결과가 없습니다." : "등록된 볼 ID가 없습니다."}
                 </td>
               </tr>
             )}
-            {items.map(item => (
+            {visibleItems.map(item => (
               <tr key={item.id} className="border-b border-navy-100/60 hover:bg-navy-50/50">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -313,9 +378,14 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
                 </td>
                 <td className="px-4 py-3 text-navy-500">{item.memo ?? <span className="text-navy-300">-</span>}</td>
                 <td className="px-4 py-3">
-                  {item.linkedUserNickname ? (
+                  {item.linkedUserNickname || item.linkedUserName ? (
                     <div>
-                      <p className="text-sm font-semibold text-navy-800 leading-tight">{item.linkedUserNickname}</p>
+                      <p className="text-sm font-semibold text-navy-800 leading-tight">
+                        {item.linkedUserNickname || item.linkedUserName}
+                        {item.linkedUserNickname && item.linkedUserName && (
+                          <span className="ml-1 text-xs font-normal text-navy-400">({item.linkedUserName})</span>
+                        )}
+                      </p>
                       {item.linkedUserPhone && (
                         <p className="text-xs text-navy-400">{maskPhone(item.linkedUserPhone)}</p>
                       )}
@@ -343,6 +413,15 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
                         ? <ToggleRight className="h-5 w-5 text-green-500" />
                         : <ToggleLeft className="h-5 w-5 text-navy-300" />}
                     </button>
+                    {(item.linkedUserNickname || item.linkedUserPhone || item.linkedUserName) && (
+                      <button
+                        onClick={() => handleUnlink(item)}
+                        title="연동 해제 (볼 ID는 유지)"
+                        className="rounded-lg p-1.5 hover:bg-orange-500/10"
+                      >
+                        <Unlink className="h-4 w-4 text-orange-400" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(item)}
                       title="삭제"
@@ -387,6 +466,7 @@ export function IpnakBallRegistryTab({ initialItems, initialTotal }: Props) {
         <p>2. 이 화면에서 동일한 ID를 등록하면 사용자가 NFC 태그 또는 수동 입력으로 볼을 연동할 수 있습니다.</p>
         <p>3. 비활성 처리 시 해당 ID로 새 연동이 불가능해집니다. 분실·불량 볼 관리에 활용하세요.</p>
         <p>4. 삭제 시 해당 볼과 연동된 회원의 연동 정보(LinkedBall)도 함께 삭제됩니다.</p>
+        <p>5. <strong>연동 해제</strong>는 볼 ID를 남겨 둔 채 회원 연동만 끊습니다. 이후 같은 ID로 다시 연동할 수 있습니다.</p>
         <p className="mt-1">
           ※ 구형 <span className="font-mono">{LEGACY_ID_SAMPLE.ball}</span> 형식 ID도 그대로 등록·인식됩니다.
         </p>
