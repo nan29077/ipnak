@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { refineFishLandmarks, refineReferenceCircle } from "../src/lib/measurementRefinement";
+import {
+  AI_REFERENCE_RADIUS_MARGIN,
+  isContourAlignedWithAxis,
+  refineFishLandmarks,
+  refineReferenceCircle,
+} from "../src/lib/measurementRefinement";
 import {
   portraitToLandscapeTurn,
   rotateNormPoint,
@@ -165,6 +170,77 @@ function referenceFixture() {
   const rawRadiusN = 42 / portraitW;
   const landscapeRadiusN = rotateWidthNormalizedRadius(rawRadiusN, portraitW, portraitH);
   assert.ok(Math.abs(landscapeRadiusN * portraitH - 42) < 1e-9, "rotation must preserve the marker radius in pixels");
+}
+
+{
+  // 기준물 보정 계수 — 폴백 경로(실시간 스캐너 · measure 페이지)가 공유하는 값.
+  assert.ok(
+    AI_REFERENCE_RADIUS_MARGIN > 1 && AI_REFERENCE_RADIUS_MARGIN <= 1.25,
+    `unexpected reference radius margin: ${AI_REFERENCE_RADIUS_MARGIN}`,
+  );
+  // 반지름을 키우면 mmPerPixel 이 작아져 계측값이 줄어드는 방향이어야 한다.
+  const raw = 40 / (2 * 50);
+  const corrected = 40 / (2 * 50 * AI_REFERENCE_RADIUS_MARGIN);
+  assert.ok(corrected < raw, "radius margin must reduce mmPerPixel");
+}
+
+{
+  // 외곽선 정합 검증 — 정상 물고기 외곽선은 통과해야 한다.
+  const width = 520, height = 320;
+  const cx = 260, cy = 158, rx = 164, ry = 46;
+  const fish = Array.from({ length: 144 }, (_, i) => {
+    const a = (i / 144) * Math.PI * 2;
+    return { x: (cx + Math.cos(a) * rx) / width, y: (cy + Math.sin(a) * ry) / height };
+  });
+  const head = { x: (cx - rx + 10) / width, y: cy / height };
+  const tail = { x: (cx + rx - 12) / width, y: cy / height };
+  assert.equal(isContourAlignedWithAxis(fish, width, height, head, tail), true, "aligned fish contour must pass");
+
+  // ① 화면 반대편의 엉뚱한 영역(사람 다리·바닥 무늬 등)은 걸러져야 한다.
+  const elsewhere = fish.map((p) => ({ x: p.x, y: Math.min(1, p.y * 0.25 + 0.02) }));
+  assert.equal(
+    isContourAlignedWithAxis(elsewhere, width, height, head, tail), false,
+    "contour far off the AI axis must be rejected",
+  );
+
+  // ② 물고기보다 훨씬 큰 영역(프레임 전체 배경)도 걸러져야 한다.
+  const huge = Array.from({ length: 144 }, (_, i) => {
+    const a = (i / 144) * Math.PI * 2;
+    return { x: 0.5 + Math.cos(a) * 0.48, y: 0.5 + Math.sin(a) * 0.45 };
+  });
+  assert.equal(
+    isContourAlignedWithAxis(huge, width, height, head, tail), false,
+    "oversized blob must be rejected",
+  );
+
+  // ③ 축 방향으로만 길고 폭이 비정상적으로 넓은(원형) 영역도 걸러져야 한다.
+  const round = Array.from({ length: 144 }, (_, i) => {
+    const a = (i / 144) * Math.PI * 2;
+    return { x: (cx + Math.cos(a) * rx) / width, y: (cy + Math.sin(a) * rx) / height };
+  });
+  assert.equal(
+    isContourAlignedWithAxis(round, width, height, head, tail), false,
+    "round blob must be rejected (not fish-shaped)",
+  );
+}
+
+{
+  // AI 가 꼬리를 꼬리자루에 찍어 축이 18% 짧게 잡힌 경우에도 실제 끝점으로 보정돼야 한다.
+  const width = 640, height = 360;
+  const cx = 320, cy = 180, rx = 210, ry = 52;
+  const contour = Array.from({ length: 160 }, (_, i) => {
+    const a = (i / 160) * Math.PI * 2;
+    return { x: (cx + Math.cos(a) * rx) / width, y: (cy + Math.sin(a) * ry) / height };
+  });
+  const refined = refineFishLandmarks(contour, width, height, {
+    head: { x: (cx - rx + 22) / width, y: cy / height },   // 눈 근처
+    tail: { x: (cx + rx - 40) / width, y: cy / height },   // 꼬리자루
+    width: null,
+  });
+  assert.equal(refined.refinedHead, true, "short AI axis must still snap the head");
+  assert.equal(refined.refinedTail, true, "short AI axis must still snap the tail");
+  assert.ok(Math.abs(refined.head.x * width - (cx - rx)) <= 5, `head error: ${refined.head.x * width - (cx - rx)}`);
+  assert.ok(Math.abs(refined.tail.x * width - (cx + rx)) <= 5, `tail error: ${refined.tail.x * width - (cx + rx)}`);
 }
 
 console.log("measurement refinement verification: PASS");

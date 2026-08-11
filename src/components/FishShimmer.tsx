@@ -18,6 +18,16 @@ type Props = {
   active: boolean;
   /** 윤곽을 추출할 원본 (카메라 video 또는 캡처 canvas) */
   sourceRef?: React.RefObject<SourceEl>;
+  /**
+   * 이미 확정된 물고기 외곽선 (원본 프레임 기준 정규화 0~1).
+   *
+   * - 배열: 자체 재감지를 하지 않고 이 선을 그대로 따라 돈다.
+   *   인식 시점에 검증된 윤곽과 윤슬 경로가 어긋나는 것을 막는다.
+   *   (좌표 정합을 위해 sourceRef 는 여전히 필요하다 — 원본 프레임 크기 기준)
+   * - null: 부모가 "쓸 수 있는 윤곽 없음"을 확정한 상태. 재감지하지 않고 짧게 대기 후 완료한다.
+   * - undefined(미지정): 기존 동작 — 컴포넌트가 직접 윤곽을 감지한다.
+   */
+  contour?: Pt[] | null;
   /** 원본이 오버레이 박스를 채우는 방식 — 좌표 정합용 */
   objectFit?: "cover" | "contain" | "fill";
   /** 한 바퀴 도는 시간 (ms) */
@@ -33,6 +43,8 @@ const TAIL_DOTS = 18;            // 포인트 뒤에 따라붙는 꼬리 점 개
 const TAIL_SPAN = 0.055;         // 꼬리 점이 차지하는 경로 비율
 const HEAD_R = 5;                // 선두 포인트 반경 (CSS px)
 const FALLBACK_MS = 3200;        // 윤곽 미확보 시에도 이 시간 안에는 반드시 완료
+// 부모가 "쓸 수 있는 윤곽 없음"을 이미 확정한 경우 — 더 기다릴 이유가 없으므로 짧게 끝낸다
+const NO_CONTOUR_MS = 800;
 const DEFAULT_DURATION = 1800;   // 한 바퀴 기본 소요 시간
 
 /** 소스 엘리먼트의 실제 픽셀 크기 (video는 videoWidth/Height) */
@@ -49,6 +61,7 @@ function sourceSize(el: SourceEl): { w: number; h: number } | null {
 export function FishShimmer({
   active,
   sourceRef,
+  contour,
   objectFit = "cover",
   durationMs = DEFAULT_DURATION,
   onComplete,
@@ -59,6 +72,8 @@ export function FishShimmer({
   // 최신 props 를 rAF 루프에서 참조 (루프 재시작 없이 반영)
   const sourceRefRef = useRef(sourceRef);
   sourceRefRef.current = sourceRef;
+  const givenContourRef = useRef(contour);
+  givenContourRef.current = contour;
   const fitRef = useRef(objectFit);
   fitRef.current = objectFit;
   const durationRef = useRef(durationMs);
@@ -78,8 +93,8 @@ export function FishShimmer({
     let stopped = false;
     let done = false;
 
-    // 검출 결과 (정규화 좌표) + 원본 프레임 크기
-    let contour: Pt[] = [];
+    // 진행 중인 윤슬 경로 (정규화 좌표) + 원본 프레임 크기
+    let path: Pt[] = [];
     let srcW = 0;
     let srcH = 0;
     let lastDetect = -Infinity;
@@ -109,25 +124,35 @@ export function FishShimmer({
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
-      /* ── ① 윤곽 갱신 — 확보에 실패해도 마지막 윤곽을 유지한다 ── */
+      /* ── ① 윤곽 갱신 — 확보에 실패해도 마지막 윤곽을 유지한다 ──
+         외부에서 확정된 윤곽(contour prop)이 있으면 재감지하지 않는다.
+         재감지하면 인식 시점과 다른 영역을 잡아 윤슬이 물고기를 벗어날 수 있다. */
       if (now - lastDetect >= DETECT_INTERVAL_MS) {
         lastDetect = now;
         const el = sourceRefRef.current?.current ?? null;
         const size = sourceSize(el);
-        if (size) {
+        const given = givenContourRef.current;
+        if (given && given.length >= 12) {
+          if (size) { srcW = size.w; srcH = size.h; }
+          path = given;
+          if (runStart == null && srcW > 0) runStart = now;
+        } else if (given === null) {
+          /* 부모가 윤곽 없음을 확정 — 재감지하지 않는다 (아래 ②에서 짧게 완료) */
+        } else if (size) {
           const res = detector.detect(el, size.w, size.h);
           if (res.status === "locked" && res.points.length >= 12) {
             srcW = size.w;
             srcH = size.h;
-            contour = res.points;
+            path = res.points;
             if (runStart == null) runStart = now;
           }
         }
       }
 
       /* ── ② 윤곽 미확보 — 안전장치 시간 안에는 완료 처리 ── */
-      if (runStart == null || contour.length < 12) {
-        if (now - mounted >= FALLBACK_MS) finish();
+      if (runStart == null || path.length < 12) {
+        const limit = givenContourRef.current === null ? NO_CONTOUR_MS : FALLBACK_MS;
+        if (now - mounted >= limit) finish();
         return;
       }
 
@@ -146,7 +171,7 @@ export function FishShimmer({
         ox = (w - sx) / 2;
         oy = (h - sy) / 2;
       }
-      const pts = contour.map((p) => ({ x: ox + p.x * sx, y: oy + p.y * sy }));
+      const pts = path.map((p) => ({ x: ox + p.x * sx, y: oy + p.y * sy }));
 
       /* ── ④ 한 바퀴 진행도 (0~1) ── */
       const dur = Math.max(300, durationRef.current);

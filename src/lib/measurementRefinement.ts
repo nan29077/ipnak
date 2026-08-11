@@ -29,6 +29,16 @@ type PixelPoint = { x: number; y: number };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/**
+ * AI 가 돌려주는 기준물 반지름 보정 계수.
+ *
+ * Vision 모델은 볼의 외곽이 아니라 내부 로고/하이라이트 영역의 경계를 잡는 경향이 있어
+ * 반지름을 일관되게 과소 추정한다. 픽셀 기반 정밀화(refineReferenceCircle)가 성공하면
+ * 실측 반지름을 쓰므로 이 계수는 필요 없고, 정밀화가 실패했을 때의 폴백에만 적용한다.
+ * (반지름이 커지면 mmPerPixel 이 작아져 계측값이 과대 산출되는 것을 막는다)
+ */
+export const AI_REFERENCE_RADIUS_MARGIN = 1.15;
+
 function isReferenceYellow(r8: number, g8: number, b8: number, testBall: boolean) {
   const r = r8 / 255;
   const g = g8 / 255;
@@ -147,7 +157,9 @@ function refineCircleByRadialEdge(
   let best: (ReferenceGeometry & { score: number; yellow: number }) | null = null;
   for (let cy = coarse.centerY - centerRange; cy <= coarse.centerY + centerRange + 0.01; cy += centerStep) {
     for (let cx = coarse.centerX - centerRange; cx <= coarse.centerX + centerRange + 0.01; cx += centerStep) {
-      for (let radius = aiR * 0.7; radius <= aiR * 1.3 + 0.01; radius += radiusStep) {
+      // AI 반지름은 볼 내부(로고/하이라이트) 기준으로 과소 추정되는 쪽으로 치우치므로
+      // 탐색 범위를 바깥쪽(1.45배)까지 넓게 잡는다.
+      for (let radius = aiR * 0.75; radius <= aiR * 1.45 + 0.01; radius += radiusStep) {
         const gap = Math.max(2, radius * 0.035);
         let gradient = 0;
         let edgeHits = 0;
@@ -260,7 +272,9 @@ export function refineReferenceCircle(
         }
       }
     }
-    if (pixels.length < Math.max(20, Math.PI * aiR * aiR * 0.09)) continue;
+    // 볼 표면이 로고·반사광으로 크게 잘려도 남은 노란 조각을 후보로 살린다.
+    // (조각이 작아도 아래 원 피팅·각도 커버리지 검증을 통과해야만 채택된다)
+    if (pixels.length < Math.max(20, Math.PI * aiR * aiR * 0.06)) continue;
     const bw = maxX - minX + 1;
     const bh = maxY - minY + 1;
     const aspect = Math.min(bw, bh) / Math.max(bw, bh);
@@ -270,7 +284,9 @@ export function refineReferenceCircle(
     const size = (bw + bh) / 4;
     const sizeFit = Math.max(0, 1 - Math.abs(size - aiR) / Math.max(aiR, 1));
     const proximity = Math.max(0, 1 - dist / Math.max(aiR * 1.25, 1));
-    const score = aspect * 2.2 + sizeFit * 1.4 + proximity * 1.8 + Math.min(1, pixels.length / (Math.PI * aiR * aiR));
+    // AI 힌트 위치에 가까운 후보를 우선한다(proximity 가중 상향) — 배경의 노란 물체가
+    // 더 크고 동그랗다는 이유만으로 기준물을 대체하지 못하게 한다.
+    const score = aspect * 2.2 + sizeFit * 1.4 + proximity * 2.4 + Math.min(1, pixels.length / (Math.PI * aiR * aiR));
     if (score > bestScore) { bestScore = score; bestPixels = pixels; }
   }
   if (!bestPixels) return edgeFallback();
@@ -290,6 +306,8 @@ export function refineReferenceCircle(
     const gy = y0 + y;
     const d = Math.hypot(gx - coarse.centerX, gy - coarse.centerY);
     // Removes logo holes and long lanyard/cable edges before the first fit.
+    // 1.48×aiR 은 AI 가 15~20% 과소 추정해도 실제 외곽을 충분히 포함하는 범위다.
+    // 더 넓히면 끈·케이블 픽셀이 섞여 원 피팅 품질이 떨어진다.
     if (d >= aiR * 0.48 && d <= aiR * 1.48) boundary.push({ x: gx, y: gy });
   }
   if (boundary.length < 18) return edgeFallback();
@@ -312,7 +330,8 @@ export function refineReferenceCircle(
 
   if (
     !Number.isFinite(circle.x) || !Number.isFinite(circle.y) || !Number.isFinite(circle.r) ||
-    radiusRatio < 0.55 || radiusRatio > 1.35 ||
+    // 실측 반지름이 AI 값보다 큰 쪽(과소 추정 보정)은 더 넓게 허용한다.
+    radiusRatio < 0.55 || radiusRatio > 1.45 ||
     centerShift > aiR * 0.65 || coverage < 0.5 || residualRatio > 0.12
   ) return edgeFallback();
 
@@ -329,6 +348,81 @@ export function refineReferenceCircle(
     confidence,
     angularCoverage: coverage,
   };
+}
+
+/**
+ * 외곽선이 AI 축과 얼마나 어긋나도 되는지의 허용 범위.
+ *
+ * AI 는 꼬리를 꼬리자루(fork)에, 머리를 눈 근처에 두는 실수를 자주 하므로 실제 외곽선이
+ * AI 축보다 최대 45% 길게 나올 수 있다. 반대로 외곽선이 AI 축보다 지나치게 짧거나 길면
+ * 물고기가 아닌 다른 피사체를 잡은 것이므로 보정에 쓰지 않는다.
+ */
+const AXIS_SPAN_MIN = 0.70;
+const AXIS_SPAN_MAX = 1.45;
+
+/**
+ * 색상 기반 외곽선이 실제로 "AI 가 지목한 그 물고기"인지 검증한다.
+ *
+ * FishContourDetector 는 테두리 대비 중앙 색 우도비로 전경을 고르기 때문에, 복잡한 배경에서는
+ * 사람 다리·바닥 무늬 같은 엉뚱한 영역을 물고기로 잡을 수 있다. 그런 외곽선을 그대로 그리면
+ * 둘레선이 물고기가 아닌 곳에 표시되고, 끝점 보정까지 망가진다.
+ * 아래 조건을 모두 통과할 때만 신뢰한다.
+ *   1. 머리→꼬리 축 방향 길이(span)가 AI 축 길이와 비슷할 것
+ *   2. 외곽선의 축 방향 양 극단이 AI 의 머리/꼬리 근처에 있을 것
+ *   3. 축에 수직인 퍼짐(폭)이 축 길이를 크게 넘지 않을 것
+ *   4. 머리-꼬리 중점이 외곽선 내부에 있을 것
+ */
+export function isContourAlignedWithAxis(
+  contour: NormPoint[],
+  frameWidth: number,
+  frameHeight: number,
+  head: NormPoint,
+  tail: NormPoint,
+): boolean {
+  if (contour.length < 12 || !(frameWidth > 0) || !(frameHeight > 0)) return false;
+  const toPx = (p: NormPoint) => ({ x: p.x * frameWidth, y: p.y * frameHeight });
+  const pts = contour.map(toPx);
+  const h = toPx(head);
+  const t = toPx(tail);
+  const ax = t.x - h.x;
+  const ay = t.y - h.y;
+  const axisLen = Math.hypot(ax, ay);
+  if (axisLen < 30) return false;
+  const ux = ax / axisLen;
+  const uy = ay / axisLen;
+
+  let minT = Infinity, maxT = -Infinity, maxAbsCross = 0;
+  for (const p of pts) {
+    const dx = p.x - h.x;
+    const dy = p.y - h.y;
+    const along = dx * ux + dy * uy;
+    const across = Math.abs(dx * -uy + dy * ux);
+    if (along < minT) minT = along;
+    if (along > maxT) maxT = along;
+    if (across > maxAbsCross) maxAbsCross = across;
+  }
+  const span = maxT - minT;
+  if (span < axisLen * AXIS_SPAN_MIN || span > axisLen * AXIS_SPAN_MAX) return false;
+  // 축 방향 양 극단이 AI 머리/꼬리에서 크게 벗어나면 다른 피사체다.
+  const endTolerance = axisLen * 0.3;
+  if (Math.abs(minT) > endTolerance || Math.abs(maxT - axisLen) > endTolerance) return false;
+  // 물고기는 전장보다 폭이 훨씬 좁다(체고는 보통 전장의 25~40%). 지느러미를 넉넉히 감안해도
+  // 반폭이 축 길이의 45%를 넘으면 원형 물체(양동이·접시·둥근 배경)를 잡은 것이다.
+  if (maxAbsCross > axisLen * 0.45) return false;
+  return pointInPolygon({ x: (h.x + t.x) / 2, y: (h.y + t.y) / 2 }, pts);
+}
+
+/** 짝수-홀수 규칙 점-다각형 내부 판정 */
+function pointInPolygon(p: PixelPoint, poly: PixelPoint[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.y > p.y) !== (b.y > p.y) &&
+        p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y || 1e-9) + a.x) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
 
 export type FishLandmarkInput = {
@@ -377,7 +471,7 @@ export function refineFishLandmarks(
   const minT = projected[0].t;
   const maxT = projected[projected.length - 1].t;
   const span = maxT - minT;
-  if (span < axisLen * 0.72 || span > axisLen * 1.32) return unchanged;
+  if (span < axisLen * AXIS_SPAN_MIN || span > axisLen * AXIS_SPAN_MAX) return unchanged;
 
   const chooseEnd = (target: PixelPoint, fromHead: boolean) => {
     // 입/꼬리는 축 방향 극단의 좁은 5% 구간에서만 고른다. 기존처럼 넓은
@@ -393,7 +487,9 @@ export function refineFishLandmarks(
       const score = transverse + extremePenalty * 1.5 + dist * 0.08;
       if (score < bestScore) { bestScore = score; best = q.p; }
     }
-    if (!best || Math.hypot(best.x - target.x, best.y - target.y) > Math.max(18, axisLen * 0.16)) return null;
+    // AI 가 꼬리를 꼬리자루에, 머리를 눈 근처에 두는 실수를 자주 하므로 이동 허용치를
+    // 축 길이의 22% 까지 넓힌다. (이보다 멀면 다른 지형지물로 튄 것으로 보고 원본 유지)
+    if (!best || Math.hypot(best.x - target.x, best.y - target.y) > Math.max(24, axisLen * 0.22)) return null;
     return best;
   };
 

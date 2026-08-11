@@ -19,7 +19,12 @@ import { hasCameraConsent, setCameraConsent } from "./LiveMeasureCamera";
 import { FishScanGlow } from "./FishScanGlow";
 import { FishShimmer } from "./FishShimmer";
 import { FishContourDetector, type ContourStatus } from "@/lib/fishContour";
-import { refineFishLandmarks, refineReferenceCircle } from "@/lib/measurementRefinement";
+import {
+  AI_REFERENCE_RADIUS_MARGIN,
+  isContourAlignedWithAxis,
+  refineFishLandmarks,
+  refineReferenceCircle,
+} from "@/lib/measurementRefinement";
 import {
   portraitToLandscapeTurn,
   rotateNormPoint,
@@ -154,6 +159,112 @@ type Detection = {
   lengthCm: number | null;
   widthCm: number | null;
 };
+
+type Landmarks = { head: Norm; tail: Norm; width: { top: Norm; bottom: Norm } | null };
+
+/**
+ * 물고기 외곽선 감지 (프레임 정규화 좌표).
+ *
+ * ① 전체 프레임에서 1회 감지 → ② 실패하면 AI 가 지목한 물고기 주변만 잘라 재감지한다.
+ *    FishContourDetector 는 "테두리(배경) vs 중앙(피사체)" 색 우도비로 전경을 고르므로,
+ *    바닥·장비가 복잡한 프레임에서는 물고기를 놓치거나 엉뚱한 영역을 잡는다.
+ *    물고기 주변으로 잘라 주면 배경 표본이 정리되어 감지 성공률이 크게 올라간다.
+ *
+ * 어느 경우든 AI 의 머리→꼬리 축과 정합이 검증된 외곽선만 반환한다.
+ * 검증에 실패하면 null 을 돌려 "엉뚱한 곳에 둘레선이 그려지는" 상황을 원천 차단한다.
+ */
+function detectFishContour(
+  frame: HTMLCanvasElement,
+  w: number,
+  h: number,
+  landmarks: Landmarks,
+): Norm[] | null {
+  const { head, tail } = landmarks;
+
+  const attempt = (
+    source: HTMLCanvasElement,
+    sw: number,
+    sh: number,
+    toFrame: (p: Norm) => Norm,
+  ): Norm[] | null => {
+    const detector = new FishContourDetector();
+    try {
+      const res = detector.detect(source, sw, sh);
+      if (res.status !== "locked" || res.points.length < 12) return null;
+      const pts = res.points.map(toFrame);
+      return isContourAlignedWithAxis(pts, w, h, head, tail) ? pts : null;
+    } finally {
+      detector.dispose();
+    }
+  };
+
+  const full = attempt(frame, w, h, (p) => ({ x: p.x, y: p.y }));
+  if (full) return full;
+
+  // ── 물고기 주변 크롭 재시도 ──
+  const xs = [head.x, tail.x];
+  const ys = [head.y, tail.y];
+  if (landmarks.width) {
+    xs.push(landmarks.width.top.x, landmarks.width.bottom.x);
+    ys.push(landmarks.width.top.y, landmarks.width.bottom.y);
+  }
+  const bw = (Math.max(...xs) - Math.min(...xs)) * w;
+  const bh = (Math.max(...ys) - Math.min(...ys)) * h;
+  // AI 가 머리·꼬리를 안쪽에 찍었을 수 있으므로(눈·꼬리자루) 실제 끝점까지 담기도록 넉넉히 확장한다
+  const pad = Math.max(16, Math.max(bw, bh) * 0.22);
+  const x0 = Math.max(0, Math.round(Math.min(...xs) * w - pad));
+  const y0 = Math.max(0, Math.round(Math.min(...ys) * h - pad));
+  const x1 = Math.min(w, Math.round(Math.max(...xs) * w + pad));
+  const y1 = Math.min(h, Math.round(Math.max(...ys) * h + pad));
+  const cw = x1 - x0;
+  const ch = y1 - y0;
+  // 너무 작거나 원본과 거의 같은 크롭은 재시도할 의미가 없다
+  if (cw < 48 || ch < 48 || (cw >= w * 0.95 && ch >= h * 0.95)) return null;
+
+  const crop = document.createElement("canvas");
+  crop.width = cw;
+  crop.height = ch;
+  const ctx = crop.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(frame, x0, y0, cw, ch, 0, 0, cw, ch);
+  return attempt(crop, cw, ch, (p) => ({ x: (x0 + p.x * cw) / w, y: (y0 + p.y * ch) / h }));
+}
+
+/**
+ * 포인터 이벤트를 대상 엘리먼트의 로컬 정규화 좌표(0~1)로 변환한다.
+ *
+ * 결과 패널이 rotate(90deg) 컨테이너 안에 있으면 getBoundingClientRect() 가
+ * "회전된 사각형의 AABB"를 돌려주므로 (clientX - left) / width 공식이 성립하지 않는다.
+ * 정확히 90° 회전이라 AABB 의 가로/세로가 로컬의 세로/가로와 같다는 성질을 이용해 역변환한다.
+ *   rotate(90deg): 로컬 변위 (dx,dy) → 화면 변위 (-dy, dx)  ⇒  dx = sy, dy = -sx
+ */
+function pointerToLocalNorm(
+  el: HTMLElement,
+  clientX: number,
+  clientY: number,
+  rotated: boolean,
+): { x: number; y: number; width: number; height: number } | null {
+  const rect = el.getBoundingClientRect();
+  if (!(rect.width > 0) || !(rect.height > 0)) return null;
+  if (!rotated) {
+    return {
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+  const localW = rect.height;
+  const localH = rect.width;
+  const sx = clientX - (rect.left + rect.width / 2);
+  const sy = clientY - (rect.top + rect.height / 2);
+  return {
+    x: (localW / 2 + sy) / localW,
+    y: (localH / 2 - sx) / localH,
+    width: localW,
+    height: localH,
+  };
+}
 
 function cloneDetection(d: Detection): Detection {
   return {
@@ -399,6 +510,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const resultAreaRef = useRef<HTMLDivElement>(null);       // 이미지 영역 (contain 계산 기준)
   // 이미지 영역 안에서 프레임 비율을 유지한 표시 박스 크기 (px)
   const [fitBox, setFitBox] = useState<{ w: number; h: number } | null>(null);
+  // 결과 패널이 rotate(90deg) 컨테이너 안에 그려지는지 — 포인터 좌표 역변환에 쓴다.
+  // (렌더 시점에 needsCssRotation 으로 동기화)
+  const rotatedResultRef = useRef(false);
   const dragKeyRef = useRef<"head" | "tail" | "widthTop" | "widthBottom" | null>(null);
   const initialDetectionRef = useRef<Detection | null>(null);
   const [activeDragKey, setActiveDragKey] = useState<typeof dragKeyRef.current>(null);
@@ -841,10 +955,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           // AI 좌표는 탐색 힌트로만 쓰고, 실제 노란 외곽점에 원을 피팅한다.
           // 원형도·각도 커버리지 검증 실패 시에는 AI 원본으로 안전하게 폴백한다.
           const aiRadiusPx = data.ball.r * w;
+          // AI 는 볼 외곽이 아니라 내부 로고/하이라이트 경계를 잡아 반지름을 과소 추정한다.
+          // 픽셀 정밀화가 성공하면 실측값을 쓰고, 실패하면 이 보정된 폴백을 쓴다.
+          // (measure 페이지 autoScan 과 동일한 규칙 — 두 경로의 스케일을 일치시킨다)
+          const fallbackRadiusPx = aiRadiusPx * AI_REFERENCE_RADIUS_MARGIN;
           let referenceGeometry = {
             centerX: data.ball.x * w,
             centerY: data.ball.y * h,
-            radiusPx: aiRadiusPx,
+            radiusPx: fallbackRadiusPx,
             refined: false,
             confidence: 0,
             angularCoverage: 0,
@@ -853,17 +971,18 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
             const pixels = frameCtx.getImageData(0, 0, w, h);
             const refined = refineReferenceCircle(
               { data: pixels.data, width: w, height: h },
-              referenceGeometry,
+              // 탐색 기준은 항상 AI 원본 반지름 — 보정값을 넣으면 탐색 창이 통째로 밀린다
+              { centerX: data.ball.x * w, centerY: data.ball.y * h, radiusPx: aiRadiusPx },
               testBall,
             );
             if (refined.refined) {
               referenceGeometry = refType === "keyring"
                 // 키링은 약간의 원근 타원이 허용되므로 서버가 검증한 장축 반경을
                 // 측정 스케일로 유지하되, 픽셀 분석으로 중심 위치만 바로잡는다.
-                ? { ...refined, radiusPx: aiRadiusPx }
+                ? { ...refined, radiusPx: fallbackRadiusPx }
                 : refined;
             }
-          } catch { /* 픽셀 접근 실패 시 AI 원본 유지 */ }
+          } catch { /* 픽셀 접근 실패 시 AI 원본 + 보정 유지 */ }
           const refinedRadiusPx = referenceGeometry.radiusPx;
           const diameterPx = 2 * refinedRadiusPx;
           const coarseWidth =
@@ -874,22 +993,22 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           // ── 물고기 끝점을 실제 외곽으로 보수적으로 스냅 ──
           // 색상 기반 윤곽이 AI 축과 충분히 일치할 때만 적용한다. 복잡한 배경 등으로
           // 검증에 실패하면 서버의 기존 좌표를 그대로 사용한다.
-          let landmarks = {
-            head: { x: data.head.x, y: data.head.y } as Norm,
-            tail: { x: data.tail.x, y: data.tail.y } as Norm,
+          let landmarks: Landmarks = {
+            head: { x: data.head.x, y: data.head.y },
+            tail: { x: data.tail.x, y: data.tail.y },
             width: coarseWidth,
           };
           let contourN: Norm[] | null = null;
-          const contourDetector = new FishContourDetector();
           try {
-            const contour = contourDetector.detect(frame, w, h);
-            if (contour.status === "locked") {
-              contourN = contour.points.map((p) => ({ x: p.x, y: p.y }));
-              const refined = refineFishLandmarks(contour.points, w, h, landmarks);
+            // 전체 프레임 → 실패 시 물고기 주변 크롭으로 재시도.
+            // AI 축과의 정합 검증을 통과한 윤곽만 돌아온다 (검증 실패 시 null → AI 좌표 유지).
+            const contour = detectFishContour(frame, w, h, landmarks);
+            if (contour) {
+              contourN = contour;
+              const refined = refineFishLandmarks(contour, w, h, landmarks);
               landmarks = { head: refined.head, tail: refined.tail, width: refined.width };
             }
           } catch { /* 윤곽 보정 실패 시 AI 좌표 유지 */ }
-          finally { contourDetector.dispose(); }
 
           let lengthCm: number | null = null;
           let widthCm: number | null = null;
@@ -1279,10 +1398,11 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const onEditPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const s = successRef.current;
     if (!s) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const nx = (e.clientX - rect.left) / rect.width;
-    const ny = (e.clientY - rect.top) / rect.height;
+    const local = pointerToLocalNorm(e.currentTarget, e.clientX, e.clientY, rotatedResultRef.current);
+    if (!local) return;
+    const nx = local.x;
+    const ny = local.y;
+    const rect = { width: local.width, height: local.height };
     const d = s.det;
     const cands: Array<["head" | "tail" | "widthTop" | "widthBottom", Norm]> = [
       ["head", d.headN],
@@ -1307,10 +1427,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const key = dragKeyRef.current;
     const s = successRef.current;
     if (!key || !s) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    const ny = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    const local = pointerToLocalNorm(e.currentTarget, e.clientX, e.clientY, rotatedResultRef.current);
+    if (!local) return;
+    const nx = Math.min(1, Math.max(0, local.x));
+    const ny = Math.min(1, Math.max(0, local.y));
     const d = s.det;
     const next: Detection = {
       ...d,
@@ -1414,6 +1534,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const effectiveLandscape = isLandscape || browserIsLandscape;
   // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우
   const needsCssRotation = effectiveLandscape && !browserIsLandscape;
+  // 결과 패널도 같은 회전 컨테이너에 그려지므로 드래그 좌표 역변환에 이 값을 쓴다
+  rotatedResultRef.current = needsCssRotation;
 
   const canConfirm = !!det;
 
@@ -1543,10 +1665,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         30% { opacity: 0.9; transform: scale(1.2) translateX(-4px) translateY(-8px); }
         70% { opacity: 0.6; transform: scale(0.9) translateX(5px) translateY(-4px); }
       }
-      /* AI 측정 결과 — 세로/가로 화면 모두 이미지(좌)·수치(우) 가로 레이아웃 고정 */
+      /* AI 측정 결과 — 기본(가로 공간): 이미지(좌) · 수치(우) 가로 레이아웃 */
       .ipnak-result-photo { right: calc(45% + 12px); }
       .ipnak-result-side { display: flex; }
       .ipnak-result-bottom { display: none; }
+      /* 세로 공간(사용자가 세로 촬영을 선택한 경우): 이미지(위) · 수치(아래) */
+      .ipnak-result-portrait .ipnak-result-photo { right: 0; bottom: 172px; }
+      .ipnak-result-portrait .ipnak-result-side { display: none; }
+      .ipnak-result-portrait .ipnak-result-bottom { display: flex; }
     `}</style>
 
     {/* ── video/canvas는 항상 z-399 portrait fixed 레이어에 단일 배치 ──
@@ -1589,9 +1715,12 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         silent /* 카메라에서는 윤곽선을 그리지 않는다 — 인식 후 윤슬만 노출 */
       />
       {/* ── 윤슬(빛 포인트) 한 바퀴 → 완료 시 자동 측정 ── */}
+      {/* 인식 시점에 검증된 윤곽을 그대로 넘긴다 — 윤슬이 자체 재감지로 다른 영역을 돌지 않게 한다.
+          (윤곽 검증에 실패한 프레임은 null → 기존처럼 FALLBACK 시간 뒤 자동 완료) */}
       <FishShimmer
         active={stage === "shimmer"}
         sourceRef={lockedFrameRef}
+        contour={stage === "shimmer" ? det?.contourN ?? null : null}
         objectFit="cover"
         durationMs={SHIMMER_MS}
         onComplete={handleShimmerComplete}
@@ -1781,8 +1910,11 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     </div>
     )}
 
-    {/* ── 결과 패널 (stage === "result") — 회전된 컨테이너 밖 fixed 오버레이 ──
-        항상 화면(스크린) 좌표계 기준으로 표시된다 (CSS rotate 미적용 → 텍스트/UI가 눕지 않음).
+    {/* ── 결과 패널 (stage === "result") — 촬영 UI 와 동일한 좌표계의 fixed 오버레이 ──
+        세로 고정 브라우저에서 가로로 촬영한 경우(needsCssRotation)에는 촬영 화면과 똑같이
+        rotate(90deg) 컨테이너에 그린다 → 폰을 눕혀 든 사용자에게 결과가 바로 서서 보이고,
+        가로 프레임이 가로 영역에 contain 되어 사진·측정선이 화면을 가득 채운다.
+        (회전 컨테이너 안에서는 포인터 좌표가 어긋나므로 드래그는 pointerToLocalNorm 이 역변환한다)
         표시 프레임은 openResult → finalizeOrientation 에서 landscape 로 확정된 캔버스.
         사진은 비율을 유지한 contain 방식으로 표시하고 같은 사진의 블러로 여백을 채운다.
         측정선은 사진 위에, 수치·버튼은 사진과 분리된 우측/하단 전용 여백에 배치한다.
@@ -1791,8 +1923,18 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     {stage === "result" && det && (
       <div
         data-testid="ai-measurement-result"
-        className="fixed inset-0 z-[401] overflow-hidden bg-black"
-        style={{ width: "100vw", height: "100dvh" }}
+        className={
+          (needsCssRotation ? "" : "fixed inset-0 overflow-hidden bg-black ") +
+          (effectiveLandscape ? "" : "ipnak-result-portrait")
+        }
+        style={
+          needsCssRotation
+            // 촬영 UI 와 동일하게 90° 회전한 좌표계에 그린다.
+            // 회전 없이 화면 좌표계에 그리면, 폰을 눕혀 든 사용자에게는 결과가 옆으로 누워 보이고
+            // 가로 프레임이 세로 영역에 contain 되어 사진·측정선이 극도로 작아진다.
+            ? { ...outerStyle, zIndex: 401 }
+            : { width: "100vw", height: "100dvh", zIndex: 401 }
+        }
       >
         {/* 같은 프레임을 cover + 블러로 깔아 letterbox 여백까지 화면을 채운다 */}
         <canvas
@@ -1833,9 +1975,12 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           <div
             className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 bg-gradient-to-b from-black/75 via-black/35 to-transparent px-4 pb-7 pt-2.5"
             style={{
-              paddingTop: "max(10px, env(safe-area-inset-top, 0px))",
-              paddingLeft: "max(16px, env(safe-area-inset-left, 0px))",
-              paddingRight: "max(16px, env(safe-area-inset-right, 0px))",
+              // 회전 컨테이너에서는 LOCAL 방향과 기기 safe-area 축이 어긋난다
+              // (LOCAL left = 기기 top(노치) / LOCAL right = 기기 bottom(홈 인디케이터)).
+              // 두 축 모두 max() 로 잡아 회전·비회전 어느 쪽에서도 가려지지 않게 한다.
+              paddingTop: "max(10px, env(safe-area-inset-top, 0px), env(safe-area-inset-right, 0px))",
+              paddingLeft: "max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-top, 0px))",
+              paddingRight: "max(16px, env(safe-area-inset-right, 0px), env(safe-area-inset-bottom, 0px))",
             }}
           >
           <div className="pointer-events-none absolute left-1/2 hidden max-w-[54%] -translate-x-1/2 items-center gap-1.5 truncate rounded-full bg-green-700/90 px-4 py-2 text-[12px] font-extrabold text-white shadow-lg ring-1 ring-green-300/45 backdrop-blur-sm min-[560px]:flex">
@@ -1872,7 +2017,15 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         </div>
 
         {/* 가로 화면: 사진 오른쪽의 전용 여백에 측정값과 조작부를 둔다. */}
-        <aside className="ipnak-result-side absolute bottom-2 right-2 top-[54px] z-30 flex-col overflow-hidden rounded-[20px] bg-[#071827]/90 p-2.5 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-md" style={{ width: "calc(45% - 8px)" }}>
+        <aside
+          className="ipnak-result-side absolute bottom-2 right-2 top-[54px] z-30 flex-col overflow-hidden rounded-[20px] bg-[#071827]/90 p-2.5 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-md"
+          style={{
+            width: "calc(45% - 8px)",
+            // LOCAL right = 회전 시 기기 bottom(홈 인디케이터) / 비회전 시 기기 right.
+            // 패널 위치는 그대로 두고 안쪽 여백만 늘려 버튼이 인디케이터에 가리지 않게 한다.
+            paddingRight: "max(10px, env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px))",
+          }}
+        >
           <div className="flex items-center gap-1.5 text-[12px] font-extrabold text-green-300">
             <Check size={14} strokeWidth={2.7} />
             측정 완료

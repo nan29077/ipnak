@@ -12,7 +12,7 @@ import { LoginRequiredModal } from "@/components/LoginRequiredModal";
 import { useUser } from "@/lib/userContext";
 import {
   Camera, Images, RefreshCcw, Save, Download, BookOpen, AlertTriangle,
-  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, ChevronRight, FolderOpen, X, Smartphone, QrCode, KeyRound, MapPin,
+  CircleDashed, Loader2, Fish, ScanLine, Map as MapIcon, Trophy, ChevronRight, FolderOpen, X, Smartphone, QrCode, KeyRound, MapPin, Nfc,
 } from "lucide-react";
 import { FishingSpotSaveModal, type FishingSpotDraft } from "@/components/FishingSpotSaveModal";
 import { PageHeader, Button, Chip } from "@/components/ui";
@@ -27,6 +27,7 @@ import { LiveScanCamera, type LiveScanResult } from "@/components/LiveScanCamera
 import { FishScanGlow } from "@/components/FishScanGlow";
 import { FishShimmer } from "@/components/FishShimmer";
 import { estimateWeightByWidth } from "@/lib/weightEstimation";
+import { AI_REFERENCE_RADIUS_MARGIN, refineReferenceCircle } from "@/lib/measurementRefinement";
 import { BallLinkSection, KeyringLinkSection } from "@/components/BallLinkSection";
 import { SpeciesIdentifySection } from "@/components/SpeciesIdentifySection";
 import { useRecording } from "@/components/RecordingProvider";
@@ -110,6 +111,11 @@ export default function MeasurePage() {
   const [activeBallId, setActiveBallId] = useState<string | null>(tagBallId);
   // 현재 연동된 입낚키링 ID (키링 모드 측정 저장 시 keyringId 연결에 사용)
   const [activeKeyringId, setActiveKeyringId] = useState<string | null>(tagKeyringId);
+  // 연동 조회 완료 여부 — 조회가 끝나기 전에는 "미연동"으로 단정하지 않는다 (오탐 방지)
+  const [ballLinkLoaded, setBallLinkLoaded] = useState(false);
+  const [keyringLinkLoaded, setKeyringLinkLoaded] = useState(false);
+  // 연동된 입낚볼·입낚키링이 하나도 없을 때 카메라 대신 띄우는 안내 모달
+  const [noLinkModal, setNoLinkModal] = useState(false);
 
   // 입낚볼 / 입낚키링 서비스 스위치 (관리자 설정) — 측정 모드·연동 섹션 노출 기준
   const [ballEnabled, setBallEnabled] = useState(true);
@@ -157,28 +163,39 @@ export default function MeasurePage() {
   // 연동된 입낚볼 ID 로드 (측정 기록과 볼 연결)
   // 태그로 지정된 ID 가 있으면 그것이 우선이므로 덮어쓰지 않는다.
   useEffect(() => {
-    if (tagBallId) return;
+    if (tagBallId) { setBallLinkLoaded(true); return; }
     fetch("/api/balls", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const first = Array.isArray(data?.balls) ? data.balls[0] : null;
         if (first?.ballId) setActiveBallId(first.ballId);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setBallLinkLoaded(true));
   }, [tagBallId]);
 
   // 연동된 입낚키링 ID 로드 (키링 모드 측정 기록과 키링 연결)
   useEffect(() => {
-    if (tagKeyringId) return;
+    if (tagKeyringId) { setKeyringLinkLoaded(true); return; }
     fetch("/api/keyrings", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const first = Array.isArray(data?.keyrings) ? data.keyrings[0] : null;
         if (first?.keyringId) setActiveKeyringId(first.keyringId);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setKeyringLinkLoaded(true));
   }, [tagKeyringId]);
 
+  // 연동 조회 워치독 — 응답이 지연돼도 2.5초 뒤에는 판정 가능 상태로 넘긴다.
+  useEffect(() => {
+    const t = setTimeout(() => { setBallLinkLoaded(true); setKeyringLinkLoaded(true); }, 2500);
+    return () => clearTimeout(t);
+  }, []);
+
+  // 연동 상태 판정 — 조회가 끝났고(오탐 방지) 볼·키링 둘 다 연동되지 않은 경우에만 true
+  const linksLoaded = ballLinkLoaded && keyringLinkLoaded;
+  const noRefLinked = linksLoaded && !activeBallId && !activeKeyringId;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -326,18 +343,44 @@ export default function MeasurePage() {
         throw new Error("scan-unreliable");
       }
 
-      // 정규화 좌표(0~1) → 작업 캔버스 픽셀 좌표
-      const BALL_RADIUS_CORRECTION = 1.1; // AI tends to underestimate ball radius (mmPerPixel 보정 전용)
-      const diameterPx = 2 * data.ball.r * work.width * BALL_RADIUS_CORRECTION;
+      // ── 정규화 좌표(0~1) → 작업 캔버스 픽셀 좌표 ──
+      // 기준물 반지름은 실시간 스캐너(LiveScanCamera)와 완전히 동일한 규칙으로 구한다.
+      //   ① 노란 외곽을 픽셀 단위로 정밀화(refineReferenceCircle) → 성공하면 실측 반지름 사용
+      //   ② 실패하면 AI 반지름 × AI_REFERENCE_RADIUS_MARGIN (AI 과소 추정 보정)
+      // 두 경로의 mmPerPixel 이 달라 같은 물고기가 다르게 측정되던 문제를 없앤다.
+      const aiRadiusPx = data.ball.r * work.width;
+      let refCenterX = data.ball.x * work.width;
+      let refCenterY = data.ball.y * work.height;
+      let refRadiusPx = aiRadiusPx * AI_REFERENCE_RADIUS_MARGIN;
+      try {
+        const wctx = work.getContext("2d", { willReadFrequently: true });
+        if (wctx) {
+          const pixels = wctx.getImageData(0, 0, work.width, work.height);
+          const refined = refineReferenceCircle(
+            { data: pixels.data, width: work.width, height: work.height },
+            { centerX: refCenterX, centerY: refCenterY, radiusPx: aiRadiusPx },
+            searchParams.get("testBall") === "1",
+          );
+          if (refined.refined) {
+            refCenterX = refined.centerX;
+            refCenterY = refined.centerY;
+            // 키링은 원근 타원이라 픽셀 원 피팅 반지름을 스케일로 쓰지 않는다
+            // (서버가 검증한 장축 기준값 + 보정 유지, 중심만 바로잡는다).
+            if (refType !== "keyring") refRadiusPx = refined.radiusPx;
+          }
+        }
+      } catch { /* 픽셀 접근 실패 시 AI 원본 + 보정 유지 */ }
+
+      const diameterPx = 2 * refRadiusPx;
       if (!(diameterPx > 0)) throw new Error("scan-unreliable");
 
       const ballObj = {
         found: true,
-        centerX: data.ball.x * work.width,
-        centerY: data.ball.y * work.height,
+        centerX: refCenterX,
+        centerY: refCenterY,
         diameterPx,
-        // 화면 표시(원 그리기) 전용 지름 — 보정 계수 없이 AI 원본 ball.r 그대로 (실제 볼 외곽선에 맞춤)
-        drawDiameterPx: 2 * data.ball.r * work.width,
+        // 표시용 지름도 측정 스케일과 동일한 반지름 기준 — 화면의 원이 곧 40mm 기준임을 보장한다
+        drawDiameterPx: diameterPx,
         mmPerPixel: 40 / diameterPx, // 입낚볼·입낚키링 실지름 40mm
         confidence: data.confidence,
         method: "ai-scan",
@@ -751,6 +794,8 @@ export default function MeasurePage() {
       return;
     }
     if (!loggedIn) { setLoginModal(true); return; }
+    // 연동된 입낚볼·입낚키링이 하나도 없으면 측정 기록을 연결할 기준물이 없다 → 연동 안내
+    if (noRefLinked) { setNoLinkModal(true); return; }
     try {
       if (!localStorage.getItem(TUTORIAL_KEY)) {
         setTutorialStep(0);
@@ -759,7 +804,7 @@ export default function MeasurePage() {
       }
     } catch { /* noop */ }
     setLiveScanOpen(true); // 앱 내 실시간 AI 스캐너 열기
-  }, [loggedIn, anyRefEnabled]);
+  }, [loggedIn, anyRefEnabled, noRefLinked]);
 
   /* ── 아이폰 1회성 태그 안내 ──
      태그로 계측 화면에 진입한 아이폰 사용자에게 처음 한 번만 사용법을 알려준다.
@@ -788,10 +833,15 @@ export default function MeasurePage() {
   // 또는 일반 진입 시에도 모바일이면 자동 카메라 열기
   // (볼·키링 스위치를 확인한 뒤 실행 — 둘 다 꺼져 있으면 열지 않는다)
   useEffect(() => {
-    if (!flagsLoaded || !anyRefEnabled) return;
+    // 연동 조회(linksLoaded)까지 기다린다 — 연동 여부를 모른 채 카메라를 열면
+    // 미연동 안내가 카메라 뒤에 가려진다.
+    if (!flagsLoaded || !anyRefEnabled || !linksLoaded) return;
     const t = setTimeout(() => {
       // 아이폰 태그 안내가 떠 있으면 안내를 닫은 뒤에 연다
       if (iosTagGuideRef.current) return;
+      // 로그인 사용자인데 연동된 기준물이 없으면 카메라 대신 연동 안내를 띄운다.
+      // (비로그인은 애초에 연동 정보를 조회할 수 없으므로 기존 흐름을 그대로 둔다)
+      if (loggedIn && noRefLinked) { setNoLinkModal(true); return; }
       // autoCamera 파라미터가 있으면 무조건 열기 (대회 모드)
       if (autoCamera) { setLiveScanOpen(true); return; }
       // 모바일 진입 시 자동으로 AI 카메라 열기 (비로그인이면 IDLE에서 클릭 유도)
@@ -809,7 +859,7 @@ export default function MeasurePage() {
     }, 300);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flagsLoaded, anyRefEnabled]);
+  }, [flagsLoaded, anyRefEnabled, linksLoaded, noRefLinked]);
 
   const [diaryOpen, setDiaryOpen] = useState(false);
   const [showGallerySheet, setShowGallerySheet] = useState(false); // 갤러리 선택 커스텀 바텀시트
@@ -892,6 +942,54 @@ export default function MeasurePage() {
               <button
                 type="button"
                 onClick={() => setShowPcModal(false)}
+                className="flex w-full items-center justify-center rounded-[14px] border border-white/10 py-3 text-[14px] font-medium text-navy-400 transition-all hover:border-white/20 hover:text-navy-300"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── 입낚볼·입낚키링 미연동 안내 팝업 ──
+          연동된 기준물이 없으면 측정 기록을 볼·키링에 연결할 수 없어 카메라 대신 안내를 띄운다. */}
+      {noLinkModal && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
+          onClick={() => setNoLinkModal(false)}
+        >
+          <div
+            className="w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d1b2a] shadow-2xl shadow-black/70"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative flex flex-col items-center bg-gradient-to-b from-[#0f2540] to-[#0d1b2a] px-6 pb-6 pt-8">
+              <div className="relative mb-4">
+                <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[20px] border border-white/10 bg-white/5 ring-4 ring-white/5">
+                  <CircleDashed size={30} strokeWidth={1.4} className="text-navy-300" />
+                </div>
+                <span className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 shadow-lg shadow-orange-500/40 ring-2 ring-[#0d1b2a]">
+                  <Nfc size={14} strokeWidth={2.2} className="text-white" />
+                </span>
+              </div>
+
+              <h3 className="text-[17px] font-extrabold tracking-tight text-white">
+                연동된 입낚볼이 없습니다
+              </h3>
+              <p className="mt-2 text-center text-[13px] leading-relaxed text-navy-400">
+                입낚볼 또는 입낚 키링을<br />NFC 태그로 연동해 주세요.
+              </p>
+
+              <div className="mt-4 flex w-full items-center gap-2.5 rounded-xl border border-aqua-500/20 bg-aqua-500/8 px-3.5 py-2.5">
+                <KeyRound size={16} strokeWidth={1.7} className="shrink-0 text-aqua-400" />
+                <p className="text-[12px] text-aqua-300/80">
+                  휴대폰 뒷면을 입낚볼·키링에 가까이 대면 연동됩니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-white/5 px-6 pb-6 pt-4">
+              <button
+                type="button"
+                onClick={() => setNoLinkModal(false)}
                 className="flex w-full items-center justify-center rounded-[14px] border border-white/10 py-3 text-[14px] font-medium text-navy-400 transition-all hover:border-white/20 hover:text-navy-300"
               >
                 닫기

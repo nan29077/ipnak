@@ -20,7 +20,7 @@ const SYSTEM_PROMPT =
   "You are a precise fish-measurement vision assistant for a Korean fishing app called 입낚. " +
   "In each photo the user places an '입낚볼' — a deep yellow (golden yellow, similar to #eab308) reference ball or printed logo that is exactly 40mm in diameter — next to a fish. " +
   "The 입낚볼 is a deep yellow circle with the '입낚' logo — a fishing-hook-shaped arrow — printed on it. It may appear as a 3D physical ball or as a flat printed paper circle. " +
-  "Locate the yellow reference circle, the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
+  "Locate the yellow reference circle, the very tip of the fish's snout (frontmost point of the closed mouth), the very tip of the caudal fin (rearmost point of the tail — never the fork between the lobes and never the peduncle), the widest part of the fish body, and judge the fish's pose. " +
   "Even under strong glare/reflection or when the fish is wet and shiny, still estimate the head and tail tips as precisely as you can. " +
   "The reference circle may sit ABOVE or BELOW the fish, not only beside it — accept it in any position. " +
   "On dark backgrounds, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker. " +
@@ -39,7 +39,7 @@ const SYSTEM_PROMPT_KEYRING =
   "You are a precise fish-measurement vision assistant for a Korean fishing app called 입낚. " +
   "In each photo the user places an '입낚키링' — a FLAT deep yellow (golden yellow, similar to #eab308) circular disc that is exactly 40mm in diameter and 3.2mm thick — on the ground next to a fish. " +
   "The 입낚키링 is a flat disc with the '입낚' logo — a fishing-hook-shaped arrow — printed on it. It is NOT a sphere: when the camera is tilted, it appears as an ELLIPSE. " +
-  "Locate the yellow reference disc and measure BOTH its major and minor axis, the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
+  "Locate the yellow reference disc and measure BOTH its major and minor axis, the very tip of the fish's snout (frontmost point of the closed mouth), the very tip of the caudal fin (rearmost point of the tail — never the fork between the lobes and never the peduncle), the widest part of the fish body, and judge the fish's pose. " +
   "Even under strong glare/reflection or when the fish is wet and shiny, still estimate the head and tail tips as precisely as you can. " +
   "The reference disc may sit ABOVE or BELOW the fish, not only beside it — accept it in any position. " +
   "On dark backgrounds, use the fishing-hook-shaped arrow of the 입낚 logo printed on the disc to identify the reference marker. " +
@@ -79,7 +79,10 @@ Rules:
 - If the keyring is being held in the air, hanging, or tilted (it appears as a clearly flattened ellipse), the measurement is unreliable: set confidence<=0.4.
 - Only set a high confidence when both the reference disc and the full fish (head to tail) are clearly visible.
 - ball.r MUST be measured from the CENTER of the ball/circle to its OUTERMOST VISIBLE EDGE (the physical outer boundary of the yellow circle). Do NOT measure to any inner logo, marking, or shadow — always measure to the outermost pixel boundary of the yellow color.
-- head MUST be placed at the very TIP of the fish's mouth (the frontmost point of the snout or jaw), not at the eye or body. tail MUST be placed at the very END of the tail fin's longest ray, not at the base of the tail.
+- The head→tail segment MUST represent the fish's TOTAL LENGTH: from the frontmost tip of the closed mouth/snout to the rearmost tip of the caudal (tail) fin.
+- head = the single FRONTMOST point of the fish outline along the body axis: the tip of the upper jaw/snout with the mouth closed. NEVER the eye, the nostril, the forehead, the gill cover, or any point on the body.
+- tail = the single REARMOST point of the fish outline along the body axis: the far end of the LONGEST caudal fin ray. NEVER the caudal peduncle (the narrow stalk where the body meets the tail fin), NEVER the fork/notch between the upper and lower tail lobes, and NEVER the base of the tail fin. If the tail is forked, use the tip of the LONGER lobe.
+- Final check before answering: no part of the fish must extend beyond the head point or beyond the tail point along the head→tail direction. If any part does, move that point further outward until nothing extends past it.
 Return ONLY the JSON object.`;
 
 /** 테스트 모드 전용 시스템 프롬프트 — 주황볼도 기준물로 허용 */
@@ -88,7 +91,7 @@ const SYSTEM_PROMPT_TEST =
   "In each photo the user places an '입낚볼' — a reference ball that is exactly 40mm in diameter — next to a fish. " +
   "The 입낚볼 may be DEEP YELLOW (golden yellow, similar to #eab308) OR ORANGE in test mode. " +
   "It may appear as a 3D physical ball or as a flat printed paper circle with the '입낚' logo. " +
-  "Locate the reference circle (yellow OR orange), the tip of the fish's mouth/head, the tip of the tail fin, the widest part of the fish body, and judge the fish's pose. " +
+  "Locate the reference circle (yellow OR orange), the very tip of the fish's snout (frontmost point of the closed mouth), the very tip of the caudal fin (rearmost point of the tail — never the fork between the lobes and never the peduncle), the widest part of the fish body, and judge the fish's pose. " +
   "Even under strong glare/reflection or when the fish is wet and shiny, still estimate the head and tail tips as precisely as you can. " +
   "The reference circle may sit ABOVE or BELOW the fish, not only beside it — accept it in any position. " +
   "On dark backgrounds, use the fishing-hook-shaped arrow of the 입낚 logo printed on the circle to identify the reference marker. " +
@@ -127,7 +130,10 @@ Rules:
 - If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
 - Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
 - ball.r MUST be measured from the CENTER of the ball/circle to its OUTERMOST VISIBLE EDGE (the physical outer boundary of the yellow circle). Do NOT measure to any inner logo, marking, or shadow — always measure to the outermost pixel boundary of the yellow color.
-- head MUST be placed at the very TIP of the fish's mouth (the frontmost point of the snout or jaw), not at the eye or body. tail MUST be placed at the very END of the tail fin's longest ray, not at the base of the tail.
+- The head→tail segment MUST represent the fish's TOTAL LENGTH: from the frontmost tip of the closed mouth/snout to the rearmost tip of the caudal (tail) fin.
+- head = the single FRONTMOST point of the fish outline along the body axis: the tip of the upper jaw/snout with the mouth closed. NEVER the eye, the nostril, the forehead, the gill cover, or any point on the body.
+- tail = the single REARMOST point of the fish outline along the body axis: the far end of the LONGEST caudal fin ray. NEVER the caudal peduncle (the narrow stalk where the body meets the tail fin), NEVER the fork/notch between the upper and lower tail lobes, and NEVER the base of the tail fin. If the tail is forked, use the tip of the LONGER lobe.
+- Final check before answering: no part of the fish must extend beyond the head point or beyond the tail point along the head→tail direction. If any part does, move that point further outward until nothing extends past it.
 Return ONLY the JSON object.`;
 
 /** 테스트 모드 전용 유저 프롬프트 — 주황볼도 기준물로 허용 */
@@ -163,7 +169,10 @@ Rules:
 - If pose="held" and the perspective is wrong (ball and fish not in same plane) OR the fish is partially cropped/hidden, set confidence<=0.5.
 - Only set a high confidence when both the reference ball and the full fish (head to tail) are clearly visible regardless of pose.
 - ball.r MUST be measured from the CENTER of the ball/circle to its OUTERMOST VISIBLE EDGE (the physical outer boundary of the yellow circle). Do NOT measure to any inner logo, marking, or shadow — always measure to the outermost pixel boundary of the yellow color.
-- head MUST be placed at the very TIP of the fish's mouth (the frontmost point of the snout or jaw), not at the eye or body. tail MUST be placed at the very END of the tail fin's longest ray, not at the base of the tail.
+- The head→tail segment MUST represent the fish's TOTAL LENGTH: from the frontmost tip of the closed mouth/snout to the rearmost tip of the caudal (tail) fin.
+- head = the single FRONTMOST point of the fish outline along the body axis: the tip of the upper jaw/snout with the mouth closed. NEVER the eye, the nostril, the forehead, the gill cover, or any point on the body.
+- tail = the single REARMOST point of the fish outline along the body axis: the far end of the LONGEST caudal fin ray. NEVER the caudal peduncle (the narrow stalk where the body meets the tail fin), NEVER the fork/notch between the upper and lower tail lobes, and NEVER the base of the tail fin. If the tail is forked, use the tip of the LONGER lobe.
+- Final check before answering: no part of the fish must extend beyond the head point or beyond the tail point along the head→tail direction. If any part does, move that point further outward until nothing extends past it.
 Return ONLY the JSON object.`;
 
 function num(v: unknown): number | null {
