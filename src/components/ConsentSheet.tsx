@@ -13,7 +13,7 @@ import { MapPin, Shield, FileText, CheckCircle2, Loader2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 
 // 이 페이지들에서는 ConsentSheet를 표시하지 않음 (약관 확인용 페이지 등)
-const EXEMPT_PATHS = ["/terms", "/privacy", "/location-terms", "/login", "/signup"];
+const EXEMPT_PATHS = ["/terms", "/privacy", "/location-terms", "/login", "/signup", "/landing"];
 
 type Props = {
   /** true면 시트를 렌더링하지 않음 */

@@ -339,8 +339,10 @@ export default function LandingPage() {
         {/* ──────────────────────────────────────────────
             하단(모바일) / 우측(PC): 앱 바로가기
         ────────────────────────────────────────────── */}
-        <div
-          className="group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden"
+        <button
+          type="button"
+          aria-label="입낚 앱 바로가기"
+          className="group relative flex cursor-pointer flex-col items-center justify-center overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-[#eab308]"
           style={{
             flex: isBottomActive ? "1.35" : "1",
             transition: "flex 0.6s cubic-bezier(0.4,0,0.2,1)",
@@ -440,9 +442,8 @@ export default function LandingPage() {
               <span className="hidden md:inline">넓은 화면에서 커뮤니티와 기록을 한눈에 만나보세요.</span>
             </p>
 
-            <button
-              onClick={(e) => { e.stopPropagation(); enterApp(); }}
-              className="mt-1 rounded-full px-7 py-2 text-sm font-bold text-gray-900 transition-all duration-400 md:mt-2 md:px-8 md:py-2.5"
+            <span
+              className="mt-1 inline-block rounded-full px-7 py-2 text-sm font-bold text-gray-900 transition-all duration-400 md:mt-2 md:px-8 md:py-2.5"
               style={{
                 background: isBottomActive
                   ? "linear-gradient(135deg, #eab308, #ca8a04)"
@@ -455,9 +456,9 @@ export default function LandingPage() {
             >
               <span className="md:hidden">모바일 버전 바로가기 →</span>
               <span className="hidden md:inline">PC 버전 바로가기 →</span>
-            </button>
+            </span>
           </div>
-        </div>
+        </button>
       </div>
     </>
   );
