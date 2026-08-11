@@ -30,6 +30,7 @@ import {
   rotateNormPoint,
   rotatePixelPoint,
   rotateWidthNormalizedRadius,
+  type QuarterTurn,
 } from "@/lib/cameraOrientation";
 import { createFrameFilter } from "@/lib/frameFilter";
 import type { FrameFilterMode } from "@/lib/frameFilter";
@@ -131,6 +132,18 @@ const BOTH_MISS_LIMIT = 2;
 // (판정 불가만 계속 오면 fishMiss/refMiss 카운터가 영원히 안 올라 팝업이 절대 안 뜨는 것 방지)
 const TOTAL_FAIL_LIMIT = FISH_MISS_LIMIT * 3; // 6회 연속 (약 12초+)
 
+/* ── 결과 화면 레이아웃 상수 ──
+   사진(물고기)이 정보/버튼에 가리지 않도록, 상·하단 오버레이 높이와 사진 영역의
+   inset 을 같은 값으로 묶어 둔다 (한쪽만 바꾸면 사진이 패널 밑으로 들어간다).
+   회전 무대에서는 LOCAL 방향과 기기 safe-area 축이 어긋나므로
+   (LOCAL top = 기기 right / LOCAL bottom = 기기 left) 두 축을 max() 로 함께 잡는다. */
+const RESULT_TOP_BAR_H = 52;
+const RESULT_BOTTOM_PANEL_H = 118;
+const SAFE_LOCAL_TOP = "max(0px, env(safe-area-inset-top, 0px), env(safe-area-inset-right, 0px))";
+const SAFE_LOCAL_BOTTOM = "max(0px, env(safe-area-inset-bottom, 0px), env(safe-area-inset-left, 0px))";
+const RESULT_TOP_INSET = `calc(${RESULT_TOP_BAR_H}px + ${SAFE_LOCAL_TOP})`;
+const RESULT_BOTTOM_INSET = `calc(${RESULT_BOTTOM_PANEL_H}px + ${SAFE_LOCAL_BOTTOM})`;
+
 type Cam = "loading" | "ready" | "error";
 
 /**
@@ -230,23 +243,32 @@ function detectFishContour(
   return attempt(crop, cw, ch, (p) => ({ x: (x0 + p.x * cw) / w, y: (y0 + p.y * ch) / h }));
 }
 
+/** 각도를 (-180, 180] 로 정규화한다 (사진 표시 회전량 계산용) */
+function normalizeDeg(deg: number) {
+  return (((deg % 360) + 540) % 360) - 180;
+}
+
 /**
  * 포인터 이벤트를 대상 엘리먼트의 로컬 정규화 좌표(0~1)로 변환한다.
  *
- * 결과 패널이 rotate(90deg) 컨테이너 안에 있으면 getBoundingClientRect() 가
- * "회전된 사각형의 AABB"를 돌려주므로 (clientX - left) / width 공식이 성립하지 않는다.
- * 정확히 90° 회전이라 AABB 의 가로/세로가 로컬의 세로/가로와 같다는 성질을 이용해 역변환한다.
- *   rotate(90deg): 로컬 변위 (dx,dy) → 화면 변위 (-dy, dx)  ⇒  dx = sy, dy = -sx
+ * 결과 패널의 사진 박스는 회전된 컨테이너 + 사진 자체 회전이 겹쳐 화면상 0/±90/180°
+ * 어느 쪽으로도 놓일 수 있다. getBoundingClientRect() 는 "회전된 사각형의 AABB"를
+ * 돌려주므로 (clientX - left) / width 공식이 그대로 성립하지 않는다.
+ * 직각 회전이라 AABB 의 가로/세로가 로컬의 가로/세로 또는 그 반대와 같다는 성질을 이용해 역변환한다.
+ *   rotate(90deg) : 로컬 변위 (dx,dy) → 화면 변위 (-dy,  dx)  ⇒  dx =  sy, dy = -sx
+ *   rotate(-90deg): 로컬 변위 (dx,dy) → 화면 변위 ( dy, -dx)  ⇒  dx = -sy, dy =  sx
+ *   rotate(180deg): 로컬 변위 (dx,dy) → 화면 변위 (-dx, -dy)  ⇒  dx = -sx, dy = -sy
  */
 function pointerToLocalNorm(
   el: HTMLElement,
   clientX: number,
   clientY: number,
-  rotated: boolean,
+  rotationDeg: number,
 ): { x: number; y: number; width: number; height: number } | null {
   const rect = el.getBoundingClientRect();
   if (!(rect.width > 0) || !(rect.height > 0)) return null;
-  if (!rotated) {
+  const rot = normalizeDeg(rotationDeg);
+  if (rot === 0) {
     return {
       x: (clientX - rect.left) / rect.width,
       y: (clientY - rect.top) / rect.height,
@@ -254,13 +276,16 @@ function pointerToLocalNorm(
       height: rect.height,
     };
   }
-  const localW = rect.height;
-  const localH = rect.width;
+  const quarter = Math.abs(rot) === 90;
+  const localW = quarter ? rect.height : rect.width;
+  const localH = quarter ? rect.width : rect.height;
   const sx = clientX - (rect.left + rect.width / 2);
   const sy = clientY - (rect.top + rect.height / 2);
+  const dx = rot === 90 ? sy : rot === -90 ? -sy : -sx;
+  const dy = rot === 90 ? -sx : rot === -90 ? sx : -sy;
   return {
-    x: (localW / 2 + sy) / localW,
-    y: (localH / 2 - sx) / localH,
+    x: (localW / 2 + dx) / localW,
+    y: (localH / 2 + dy) / localH,
     width: localW,
     height: localH,
   };
@@ -510,9 +535,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const resultAreaRef = useRef<HTMLDivElement>(null);       // 이미지 영역 (contain 계산 기준)
   // 이미지 영역 안에서 프레임 비율을 유지한 표시 박스 크기 (px)
   const [fitBox, setFitBox] = useState<{ w: number; h: number } | null>(null);
-  // 결과 패널이 rotate(90deg) 컨테이너 안에 그려지는지 — 포인터 좌표 역변환에 쓴다.
-  // (렌더 시점에 needsCssRotation 으로 동기화)
-  const rotatedResultRef = useRef(false);
+  /* finalizeOrientation 이 캡처 프레임 "픽셀"에 실제로 적용한 90° 회전 방향.
+     null = 회전 없음(이미 가로 프레임).
+     결과 패널의 사진 표시 회전량은 오직 이 값으로 결정한다 — 렌더 시점의 기기 방향
+     상태로 다시 계산하면, 캡처 후 자동회전이 걸린 경우 회전이 180° 어긋나
+     물고기가 뒤집혀 보인다 (문제 2의 원인). */
+  const [frameTurn, setFrameTurn] = useState<QuarterTurn | null>(null);
+  // finalizeOrientation 이 이미 방향을 확정한 캔버스 — 중복 호출 시 재회전·turn 초기화를 막는다
+  const finalizedFrameRef = useRef<HTMLCanvasElement | null>(null);
+  // 사진 박스가 화면상 최종적으로 몇 도 회전되어 있는지 — 포인터 좌표 역변환에 쓴다.
+  const resultRotDegRef = useRef(0);
   const dragKeyRef = useRef<"head" | "tail" | "widthTop" | "widthBottom" | null>(null);
   const initialDetectionRef = useRef<Detection | null>(null);
   const [activeDragKey, setActiveDragKey] = useState<typeof dragKeyRef.current>(null);
@@ -553,6 +585,34 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const browserIsLandscapeRef = useRef(
     typeof window !== "undefined" && window.matchMedia("(orientation: landscape)").matches
   );
+
+  // effectiveLandscape: 실제로 가로 UI를 표시할지 여부
+  const effectiveLandscape = isLandscape || browserIsLandscape;
+  // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우 (세로 고정 브라우저 + 가로 촬영)
+  const needsCssRotation = effectiveLandscape && !browserIsLandscape;
+
+  /* ── 결과 화면 표시 회전 계산 (문제 2 — 물고기 뒤집힘 방지) ──
+     불변식: 라이브 프리뷰(video, 회전 없는 fixed 레이어)는 어떤 방향 모드에서도
+     사용자에게 항상 바르게 보였다. 따라서 "캡처 원본 프레임을 화면 좌표계에 회전 없이
+     그린 모습"이 곧 정답이다.
+
+     캡처 프레임은 finalizeOrientation 에서 픽셀 자체가 framePixelRotDeg 만큼 돌아가 있고,
+     결과 UI 는 촬영 화면과 같은 rotate(90deg) 무대(stage) 위에 그려질 수 있다.
+     화면상 최종 모습 = stage 회전 ∘ 사진 회전 ∘ 픽셀 회전 이므로,
+       사진 회전 = -(stage 회전) - (픽셀 회전)
+     으로 두면 세 경우 모두 정확히 프리뷰와 같은 모습이 된다.
+       · 세로 고정 + 가로 촬영 : 픽셀 -90(ccw) · stage +90 → 사진 0°   (기존과 동일)
+       · 세로 촬영             : 픽셀 +90(cw)  · stage 0   → 사진 -90°  (기존엔 90° 누워 보이던 케이스)
+       · 캡처 후 자동회전 발생  : stage 만 바뀌어도 합이 항상 -(픽셀 회전) 으로 유지된다 */
+  const framePixelRotDeg = frameTurn === "ccw" ? -90 : frameTurn === "cw" ? 90 : 0;
+  const resultStageRotDeg = needsCssRotation ? 90 : 0;
+  /** 사진 박스가 화면상 최종적으로 회전된 각도 (= 픽셀 회전의 역) */
+  const resultPhotoScreenRotDeg = normalizeDeg(-framePixelRotDeg);
+  /** 무대 안에서 사진 박스에 추가로 걸 CSS 회전량 */
+  const resultPhotoRotDeg = normalizeDeg(-resultStageRotDeg - framePixelRotDeg);
+  /** 사진이 ±90° 로 놓이면 표시 footprint 의 가로/세로가 뒤바뀐다 (contain 계산용) */
+  const resultPhotoSwapsAxes = Math.abs(resultPhotoRotDeg) === 90;
+  resultRotDegRef.current = resultPhotoScreenRotDeg;
 
   /* ── 스트림/폴링 정리 (재사용) ── */
   const cleanupStream = useCallback(() => {
@@ -1253,12 +1313,15 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const finalizeOrientation = useCallback(() => {
     const s = successRef.current;
     if (!s) return;
+    // 이미 이 프레임에 방향을 확정했다면 아무것도 하지 않는다.
+    // (중복 호출 시 회전 완료된 가로 프레임을 "회전 없음"으로 재기록해 표시 방향이 어긋나는 것 방지)
+    if (finalizedFrameRef.current === s.work) return;
     const srcW = s.work.width, srcH = s.work.height;
     // 어떤 방향으로 촬영했든 최종 프레임은 항상 landscape(가로) —
     // 캡처 프레임이 portrait 이면 UI 모드와 무관하게 90° 회전해 확정한다.
     // (세로 모드 촬영도 결과·계측일지에서는 가로로 눕혀 보여준다)
     const needsRotate = srcW < srcH;
-    if (!needsRotate) return;
+    if (!needsRotate) { finalizedFrameRef.current = s.work; setFrameTurn(null); return; }
     // CSS 회전 트릭으로 가로 촬영한 경우에만 반시계 방향으로 되돌린다
     const turn = portraitToLandscapeTurn(isLandscapeRef.current, browserIsLandscapeRef.current);
 
@@ -1267,7 +1330,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     dst.width = srcH;
     dst.height = srcW;
     const ctx = dst.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) { setFrameTurn(null); return; }
     if (turn === "ccw") {
       ctx.translate(0, dst.height);
       ctx.rotate(-Math.PI / 2);
@@ -1291,11 +1354,17 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       // lengthCm/widthCm 은 회전 불변 (정규화 dx*W, dy*H 가 축만 맞바뀜) — 재계산 불필요
     };
     successRef.current = { work: dst, det: rotated };
+    finalizedFrameRef.current = dst;
+    // 표시 회전량의 유일한 기준 — 이후 기기 방향이 바뀌어도 사진은 정방향을 유지한다
+    setFrameTurn(turn);
     setDet(rotated);
   }, []);
 
   /* ── 결과 패널 열기: 프레임 방향 확정 후 result 단계로 전환 ── */
   const openResult = useCallback(() => {
+    // 윤슬 완료와 "측정하기" 탭이 겹쳐 두 번 호출되면 조정 기준(initialDetection)이
+    // 사용자가 이미 수정한 좌표로 덮어써진다 — 이미 결과 화면이면 무시한다.
+    if (stageRef.current === "result") return;
     finalizeOrientation();
     const current = successRef.current;
     initialDetectionRef.current = current ? cloneDetection(current.det) : null;
@@ -1309,8 +1378,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   }, [openResult, goStage]);
 
   /* ── 결과 패널 이미지 영역: 프레임 비율을 유지한 contain 박스 크기 계산 ──
-     박스 크기 = 프레임 표시 크기이므로, 드래그 수정 레이어의 화면 정규화 좌표가
-     그대로 프레임 정규화 좌표와 일치한다 (기존 드래그 로직 무변경) */
+     박스 크기 = 프레임 표시 크기이므로, 드래그 수정 레이어의 로컬 정규화 좌표가
+     그대로 프레임 정규화 좌표와 일치한다 (기존 드래그 로직 무변경).
+     사진이 ±90° 로 놓이는 경우에는 화면을 차지하는 footprint 의 가로/세로가 뒤바뀌므로
+     그 상태로 contain 을 계산해야 사진이 영역 밖으로 삐져나가지 않는다. */
   useEffect(() => {
     if (stage !== "result") { setFitBox(null); return; }
     const area = resultAreaRef.current;
@@ -1320,14 +1391,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       const aw = area.clientWidth, ah = area.clientHeight;
       const fw = s.work.width, fh = s.work.height;
       if (!aw || !ah || !fw || !fh) return;
-      const k = Math.min(aw / fw, ah / fh);
+      const dispW = resultPhotoSwapsAxes ? fh : fw;
+      const dispH = resultPhotoSwapsAxes ? fw : fh;
+      const k = Math.min(aw / dispW, ah / dispH);
       setFitBox({ w: fw * k, h: fh * k });
     };
     compute();
     const ro = new ResizeObserver(compute);
     ro.observe(area);
     return () => ro.disconnect();
-  }, [stage]);
+  }, [stage, resultPhotoSwapsAxes]);
 
   // 결과 화면 뒤의 측정 페이지가 스크롤되거나 스크롤바가 비쳐 보이지 않게 잠근다.
   useEffect(() => {
@@ -1398,7 +1471,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const onEditPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const s = successRef.current;
     if (!s) return;
-    const local = pointerToLocalNorm(e.currentTarget, e.clientX, e.clientY, rotatedResultRef.current);
+    const local = pointerToLocalNorm(e.currentTarget, e.clientX, e.clientY, resultRotDegRef.current);
     if (!local) return;
     const nx = local.x;
     const ny = local.y;
@@ -1427,7 +1500,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const key = dragKeyRef.current;
     const s = successRef.current;
     if (!key || !s) return;
-    const local = pointerToLocalNorm(e.currentTarget, e.clientX, e.clientY, rotatedResultRef.current);
+    const local = pointerToLocalNorm(e.currentTarget, e.clientX, e.clientY, resultRotDegRef.current);
     if (!local) return;
     const nx = Math.min(1, Math.max(0, local.x));
     const ny = Math.min(1, Math.max(0, local.y));
@@ -1529,13 +1602,6 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     totalFailRef.current = 0;
     goStage("scan");
   }, [goStage]);
-
-  // effectiveLandscape: 실제로 가로 UI를 표시할지 여부
-  const effectiveLandscape = isLandscape || browserIsLandscape;
-  // needsCssRotation: CSS rotate(90deg) 트릭이 필요한 경우
-  const needsCssRotation = effectiveLandscape && !browserIsLandscape;
-  // 결과 패널도 같은 회전 컨테이너에 그려지므로 드래그 좌표 역변환에 이 값을 쓴다
-  rotatedResultRef.current = needsCssRotation;
 
   const canConfirm = !!det;
 
@@ -1647,6 +1713,21 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       }
     : {};
 
+  /* 결과 화면 무대(stage) — 루트(fixed inset-0) 안에서만 회전한다.
+     세로 고정 브라우저에서 가로로 촬영한 경우, 사용자는 폰을 눕혀 들고 있으므로
+     촬영 UI 와 동일하게 90° 회전해야 배지·수치·버튼이 바로 서서 보인다. */
+  const resultStageStyle: React.CSSProperties = needsCssRotation
+    ? {
+        position: "absolute",
+        width: "100dvh",
+        height: "100vw",
+        top: "calc(50dvh - 50vw)",
+        left: "calc(50vw - 50dvh)",
+        transform: "rotate(90deg)",
+        overflow: "hidden",
+      }
+    : { position: "absolute", inset: 0, overflow: "hidden" };
+
   return (
   <>
     {/* 안내 텍스트 느린 깜빡임 keyframe */}
@@ -1665,14 +1746,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         30% { opacity: 0.9; transform: scale(1.2) translateX(-4px) translateY(-8px); }
         70% { opacity: 0.6; transform: scale(0.9) translateX(5px) translateY(-4px); }
       }
-      /* AI 측정 결과 — 기본(가로 공간): 이미지(좌) · 수치(우) 가로 레이아웃 */
-      .ipnak-result-photo { right: calc(45% + 12px); }
-      .ipnak-result-side { display: flex; }
-      .ipnak-result-bottom { display: none; }
-      /* 세로 공간(사용자가 세로 촬영을 선택한 경우): 이미지(위) · 수치(아래) */
-      .ipnak-result-portrait .ipnak-result-photo { right: 0; bottom: 172px; }
-      .ipnak-result-portrait .ipnak-result-side { display: none; }
-      .ipnak-result-portrait .ipnak-result-bottom { display: flex; }
+      /* AI 측정 결과 — 어종 칩 가로 스크롤 (스크롤바 숨김) */
+      .ipnak-chip-row { scrollbar-width: none; -ms-overflow-style: none; }
+      .ipnak-chip-row::-webkit-scrollbar { display: none; }
     `}</style>
 
     {/* ── video/canvas는 항상 z-399 portrait fixed 레이어에 단일 배치 ──
@@ -1910,46 +1986,45 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     </div>
     )}
 
-    {/* ── 결과 패널 (stage === "result") — 촬영 UI 와 동일한 좌표계의 fixed 오버레이 ──
-        세로 고정 브라우저에서 가로로 촬영한 경우(needsCssRotation)에는 촬영 화면과 똑같이
-        rotate(90deg) 컨테이너에 그린다 → 폰을 눕혀 든 사용자에게 결과가 바로 서서 보이고,
-        가로 프레임이 가로 영역에 contain 되어 사진·측정선이 화면을 가득 채운다.
-        (회전 컨테이너 안에서는 포인터 좌표가 어긋나므로 드래그는 pointerToLocalNorm 이 역변환한다)
-        표시 프레임은 openResult → finalizeOrientation 에서 landscape 로 확정된 캔버스.
-        사진은 비율을 유지한 contain 방식으로 표시하고 같은 사진의 블러로 여백을 채운다.
-        측정선은 사진 위에, 수치·버튼은 사진과 분리된 우측/하단 전용 여백에 배치한다.
-        width/height 를 명시해 어떤 부모/뷰포트 상태에서도 화면 전체를 덮는다
-        (100dvh = 모바일 주소창 제외 실제 가시 영역, 미지원 브라우저는 inset-0 이 대신 채움). */}
+    {/* ── 결과 화면 (stage === "result") — 폰 방향과 무관하게 항상 전체화면 오버레이 ──
+        루트는 언제나 화면 좌표계의 fixed inset-0 이다. 그 안의 "무대(stage)"만
+        사용자가 폰을 눕혀 들고 있는 경우(needsCssRotation)에 촬영 UI 와 똑같이
+        rotate(90deg) 되어, 배지·수치·버튼이 사용자 기준으로 바로 서서 보인다.
+
+        사진은 무대 전체(상단 배지 · 하단 패널 사이 여백)에 비율 유지 contain 으로 채우고,
+        표시 회전은 resultPhotoRotDeg 하나로만 결정한다 (문제 2 — 뒤집힘 방지).
+        모든 정보/버튼은 사진 영역 바깥의 상·하단 반투명 오버레이에 배치해 물고기를 가리지 않는다. */}
     {stage === "result" && det && (
       <div
         data-testid="ai-measurement-result"
-        className={
-          (needsCssRotation ? "" : "fixed inset-0 overflow-hidden bg-black ") +
-          (effectiveLandscape ? "" : "ipnak-result-portrait")
-        }
-        style={
-          needsCssRotation
-            // 촬영 UI 와 동일하게 90° 회전한 좌표계에 그린다.
-            // 회전 없이 화면 좌표계에 그리면, 폰을 눕혀 든 사용자에게는 결과가 옆으로 누워 보이고
-            // 가로 프레임이 세로 영역에 contain 되어 사진·측정선이 극도로 작아진다.
-            ? { ...outerStyle, zIndex: 401 }
-            : { width: "100vw", height: "100dvh", zIndex: 401 }
-        }
+        className="fixed inset-0 z-[401] overflow-hidden bg-black"
+        style={{ width: "100vw", height: "100dvh" }}
       >
-        {/* 같은 프레임을 cover + 블러로 깔아 letterbox 여백까지 화면을 채운다 */}
-        <canvas
-          ref={bgRef}
-          aria-hidden
-          className="pointer-events-none absolute inset-0 h-full w-full"
-          style={{ objectFit: "cover", filter: "blur(26px)", transform: "scale(1.15)", opacity: 0.45 }}
-        />
-        {/* ── 사진 영역 — 화면 전체 (프레임 비율 유지 contain) ── */}
-        <div
-          ref={resultAreaRef}
-          className="ipnak-result-photo absolute inset-y-0 left-0 flex items-center justify-center overflow-hidden"
-        >
+        <div style={resultStageStyle}>
+          {/* 같은 프레임을 cover + 블러로 깔아 letterbox 여백까지 화면을 채운다 */}
+          <canvas
+            ref={bgRef}
+            aria-hidden
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            style={{ objectFit: "cover", filter: "blur(26px)", transform: "scale(1.15)", opacity: 0.45 }}
+          />
+
+          {/* ── 사진 영역 — 상단 배지와 하단 패널 사이 전체 (프레임 비율 유지 contain) ── */}
+          <div
+            ref={resultAreaRef}
+            className="absolute inset-x-0 flex items-center justify-center overflow-hidden"
+            style={{ top: RESULT_TOP_INSET, bottom: RESULT_BOTTOM_INSET }}
+          >
             {fitBox && (
-              <div className="relative" style={{ width: fitBox.w, height: fitBox.h }}>
+              <div
+                className="relative"
+                style={{
+                  width: fitBox.w,
+                  height: fitBox.h,
+                  // 무대 회전 + 픽셀 회전을 상쇄해 촬영 프리뷰와 똑같은 방향으로 세운다
+                  transform: resultPhotoRotDeg ? `rotate(${resultPhotoRotDeg}deg)` : undefined,
+                }}
+              >
                 <canvas
                   ref={frozenRef}
                   style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
@@ -1958,7 +2033,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                   ref={resultOverlayRef}
                   style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
                 />
-                {/* 끝점 드래그 수정 레이어 — 표시 박스와 정확히 일치 (화면 정규화 좌표 = 프레임 정규화 좌표) */}
+                {/* 끝점 드래그 수정 레이어 — 표시 박스와 정확히 일치 (로컬 정규화 좌표 = 프레임 정규화 좌표) */}
                 <div
                   className="absolute inset-0"
                   style={{ touchAction: "none" }}
@@ -1971,178 +2046,138 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
             )}
           </div>
 
-          {/* 상단 바 — 타이틀 · 단계 · 플래시 · 닫기 (이미지 위 그라데이션 오버레이) */}
+          {/* ── 상단 오버레이 — 타이틀 · 인식 배지 · 플래시 · 닫기 ──
+              회전 무대에서는 LOCAL top = 기기 right 이므로 두 safe-area 축을 max() 로 함께 잡는다. */}
           <div
-            className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 bg-gradient-to-b from-black/75 via-black/35 to-transparent px-4 pb-7 pt-2.5"
+            className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-2 bg-gradient-to-b from-black/85 via-black/45 to-transparent"
             style={{
-              // 회전 컨테이너에서는 LOCAL 방향과 기기 safe-area 축이 어긋난다
-              // (LOCAL left = 기기 top(노치) / LOCAL right = 기기 bottom(홈 인디케이터)).
-              // 두 축 모두 max() 로 잡아 회전·비회전 어느 쪽에서도 가려지지 않게 한다.
-              paddingTop: "max(10px, env(safe-area-inset-top, 0px), env(safe-area-inset-right, 0px))",
-              paddingLeft: "max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-top, 0px))",
-              paddingRight: "max(16px, env(safe-area-inset-right, 0px), env(safe-area-inset-bottom, 0px))",
+              height: RESULT_TOP_INSET,
+              paddingTop: SAFE_LOCAL_TOP,
+              paddingLeft: "max(12px, env(safe-area-inset-left, 0px), env(safe-area-inset-top, 0px))",
+              paddingRight: "max(12px, env(safe-area-inset-right, 0px), env(safe-area-inset-bottom, 0px))",
             }}
           >
-          <div className="pointer-events-none absolute left-1/2 hidden max-w-[54%] -translate-x-1/2 items-center gap-1.5 truncate rounded-full bg-green-700/90 px-4 py-2 text-[12px] font-extrabold text-white shadow-lg ring-1 ring-green-300/45 backdrop-blur-sm min-[560px]:flex">
-            <Check size={15} strokeWidth={2.8} className="shrink-0" />
-            <span className="truncate">물고기 인식됨 · 측정 완료</span>
-          </div>
-          <div className="flex min-w-0 items-center gap-2">
-            <ScanLine size={17} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
-            <span className="truncate text-[14px] font-bold text-white">AI 측정 확인</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {torchSupported && (
+            <div className="flex min-w-0 items-center gap-1.5">
+              <ScanLine size={16} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
+              <span className="truncate text-[13px] font-bold text-white">AI 측정 확인</span>
+            </div>
+            {/* 좁은 무대(세로 화면)에서도 잘리지 않게 가운데 배지가 남는 폭을 모두 가져간다 */}
+            <div className="pointer-events-none mx-1 flex min-w-0 flex-1 items-center justify-center gap-1.5 self-center rounded-full bg-green-600/85 px-3 py-1 text-[11.5px] font-extrabold text-white shadow-lg ring-1 ring-green-300/40 backdrop-blur-sm">
+              <Check size={13} strokeWidth={2.8} className="shrink-0" />
+              <span className="truncate">
+                물고기 인식됨
+                {det.lengthCm != null && ` · 약 ${det.lengthCm}cm`}
+                {det.widthCm != null && ` · 폭 ${det.widthCm}cm`}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {torchSupported && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  aria-label="플래시"
+                  className={
+                    "flex h-8 w-8 items-center justify-center rounded-full transition-colors " +
+                    (torchOn ? "bg-yellow-400/25 text-yellow-400" : "bg-white/10 text-white/75 hover:bg-white/20")
+                  }
+                >
+                  <Zap size={16} strokeWidth={2} />
+                </button>
+              )}
               <button
                 type="button"
-                onClick={toggleTorch}
-                aria-label="플래시"
-                className={
-                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors " +
-                  (torchOn ? "bg-yellow-400/25 text-yellow-400" : "bg-white/10 text-white/75 hover:bg-white/20")
-                }
+                onClick={() => { cleanupStream(); onClose(); }}
+                aria-label="닫기"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
               >
-                <Zap size={17} strokeWidth={2} />
+                <X size={17} />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => { cleanupStream(); onClose(); }}
-              aria-label="닫기"
-              className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
-            >
-              <X size={19} />
-            </button>
+            </div>
           </div>
-        </div>
 
-        {/* 가로 화면: 사진 오른쪽의 전용 여백에 측정값과 조작부를 둔다. */}
-        <aside
-          className="ipnak-result-side absolute bottom-2 right-2 top-[54px] z-30 flex-col overflow-hidden rounded-[20px] bg-[#071827]/90 p-2.5 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-md"
-          style={{
-            width: "calc(45% - 8px)",
-            // LOCAL right = 회전 시 기기 bottom(홈 인디케이터) / 비회전 시 기기 right.
-            // 패널 위치는 그대로 두고 안쪽 여백만 늘려 버튼이 인디케이터에 가리지 않게 한다.
-            paddingRight: "max(10px, env(safe-area-inset-bottom, 0px), env(safe-area-inset-right, 0px))",
-          }}
-        >
-          <div className="flex items-center gap-1.5 text-[12px] font-extrabold text-green-300">
-            <Check size={14} strokeWidth={2.7} />
-            측정 완료
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <div className="rounded-xl bg-white/[0.07] px-2 py-1.5">
-              <p className="text-[10px] font-semibold text-white/45">전장</p>
-              <p className="mt-0.5 text-[18px] font-black leading-none text-green-400">
-                {det.lengthCm != null ? det.lengthCm.toFixed(1) : "—"}<span className="ml-0.5 text-[10px] text-white/50">cm</span>
-              </p>
+          {/* ── 하단 오버레이 — 어종 칩 · 전장/폭/무게 · 초기화 · 다음 ──
+              회전 무대에서는 LOCAL bottom = 기기 left 이므로 두 safe-area 축을 max() 로 함께 잡는다. */}
+          <div
+            className="absolute inset-x-0 bottom-0 z-30 flex flex-col justify-end gap-1.5 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-3 pt-5"
+            style={{ height: RESULT_BOTTOM_INSET, paddingBottom: SAFE_LOCAL_BOTTOM }}
+          >
+            {/* 어종 선택 칩 — 회전 무대에서 방향이 어긋나는 네이티브 select 대신 가로 스크롤 칩 */}
+            <div className="ipnak-chip-row flex shrink-0 gap-1.5 overflow-x-auto">
+              {FISH_SPECIES.map((s: { key: string }) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setFishSpecies(s.key)}
+                  aria-pressed={fishSpecies === s.key}
+                  className={
+                    "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors " +
+                    (fishSpecies === s.key
+                      ? "bg-aqua-500 text-white shadow-md shadow-aqua-500/30"
+                      : "bg-white/12 text-white/70 hover:bg-white/20")
+                  }
+                >
+                  {s.key}
+                </button>
+              ))}
             </div>
-            <div className="rounded-xl bg-white/[0.07] px-2 py-1.5">
-              <p className="text-[10px] font-semibold text-white/45">폭</p>
-              <p className="mt-0.5 text-[18px] font-black leading-none text-cyan-300">
-                {det.widthCm != null ? det.widthCm.toFixed(1) : "—"}<span className="ml-0.5 text-[10px] text-white/50">cm</span>
-              </p>
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              <div className="flex min-w-0 flex-1 gap-1.5">
+                <div className="min-w-0 flex-1 rounded-xl bg-black/55 px-2 py-1 text-center ring-1 ring-white/10">
+                  <p className="text-[9px] font-semibold leading-none text-white/45">전장</p>
+                  <p className="mt-0.5 truncate text-[15px] font-black leading-none text-green-400">
+                    {det.lengthCm != null ? `${det.lengthCm.toFixed(1)}cm` : "—"}
+                  </p>
+                </div>
+                <div className="min-w-0 flex-1 rounded-xl bg-black/55 px-2 py-1 text-center ring-1 ring-white/10">
+                  <p className="text-[9px] font-semibold leading-none text-white/45">폭</p>
+                  <p className="mt-0.5 truncate text-[15px] font-black leading-none text-cyan-300">
+                    {det.widthCm != null ? `${det.widthCm.toFixed(1)}cm` : "—"}
+                  </p>
+                </div>
+                <div className="min-w-0 flex-1 rounded-xl bg-black/55 px-2 py-1 text-center ring-1 ring-white/10">
+                  <p className="text-[9px] font-semibold leading-none text-white/45">예상 무게</p>
+                  <p className="mt-0.5 truncate text-[15px] font-black leading-none text-white">
+                    {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={resetMeasurementPoints}
+                aria-label="AI 측정 위치로 초기화"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/12 text-white/75 transition-colors hover:bg-white/20 active:scale-[0.97]"
+              >
+                <RefreshCw size={15} strokeWidth={2.2} />
+              </button>
+              <button
+                type="button"
+                onClick={confirm}
+                className="flex h-9 shrink-0 items-center gap-1 rounded-xl bg-yellow-500 px-4 text-[13px] font-extrabold text-[#0d1b2a] shadow-lg shadow-yellow-500/20 transition-all active:scale-[0.97]"
+              >
+                다음
+                <ArrowRight size={15} strokeWidth={2.6} />
+              </button>
             </div>
-          </div>
-          <div className="mt-1.5 rounded-xl bg-white/[0.07] px-2 py-1.5">
-            <div className="flex items-end justify-between gap-2">
-              <p className="text-[10px] font-semibold text-white/45">예상 무게</p>
-              <p className="text-[17px] font-black leading-none text-white">
-                {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
-              </p>
-            </div>
-            <p className="mt-1 border-t border-white/10 pt-1 text-[9px] font-semibold text-yellow-300/85">
-              {refLabel} 실지름 Ø40mm 기준
+
+            <p className="shrink-0 truncate text-center text-[9.5px] font-semibold text-white/50">
+              {activePointLabel
+                ? `${activePointLabel} 위치 조정 중`
+                : `점을 드래그해 입·꼬리·등·배를 조정 · ${refLabel} Ø40mm 기준`}
             </p>
           </div>
-          <select
-            id="scan-fish-species-side"
-            aria-label="어종"
-            value={fishSpecies}
-            onChange={(e) => setFishSpecies(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/10 px-2.5 py-1.5 text-[11px] font-bold text-white outline-none"
-          >
-            {FISH_SPECIES.map((s: { key: string }) => <option key={s.key} value={s.key} className="bg-[#0b1e2e]">{s.key}</option>)}
-          </select>
-          <p className="mt-1.5 text-[9.5px] leading-snug text-white/55">
-            {activePointLabel ? `${activePointLabel} 위치 조정 중` : "초록 점: 입·꼬리 · 하늘 점: 등·배 · 드래그로 미세 조정"}
-          </p>
-          <div className="mt-auto flex gap-1.5 pt-2">
-            <button
-              type="button"
-              onClick={resetMeasurementPoints}
-              aria-label="AI 위치로 초기화"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white/75 transition-colors hover:bg-white/15 active:scale-[0.98]"
-            >
-              <RefreshCw size={14} strokeWidth={2.2} />
-            </button>
-            <button
-              type="button"
-              onClick={confirm}
-              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-yellow-500 text-[13px] font-extrabold text-[#0d1b2a] shadow-lg shadow-yellow-500/20 transition-all active:scale-[0.98]"
-            >
-              다음
-              <ArrowRight size={16} strokeWidth={2.6} />
-            </button>
-          </div>
-        </aside>
 
-        {/* 세로 화면: 가로 사진 아래의 letterbox 여백을 측정 패널로 사용한다. */}
-        <div
-          className="ipnak-result-bottom absolute inset-x-3 bottom-3 z-30 flex-col rounded-[20px] bg-[#071827]/92 p-3 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-md"
-          style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))" }}
-        >
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-xl bg-white/[0.07] px-2 py-2 text-center">
-              <p className="text-[9.5px] font-semibold text-white/45">전장</p>
-              <p className="text-[16px] font-black text-green-400">{det.lengthCm != null ? `${det.lengthCm.toFixed(1)}cm` : "—"}</p>
-            </div>
-            <div className="rounded-xl bg-white/[0.07] px-2 py-2 text-center">
-              <p className="text-[9.5px] font-semibold text-white/45">폭</p>
-              <p className="text-[16px] font-black text-cyan-300">{det.widthCm != null ? `${det.widthCm.toFixed(1)}cm` : "—"}</p>
-            </div>
-            <div className="rounded-xl bg-white/[0.07] px-2 py-2 text-center">
-              <p className="text-[9.5px] font-semibold text-white/45">예상 무게</p>
-              <p className="text-[16px] font-black text-white">{resultWeightG != null ? formatWeight(resultWeightG) : "—"}</p>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <select
-              aria-label="어종 선택"
-              value={fishSpecies}
-              onChange={(e) => setFishSpecies(e.target.value)}
-              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-2.5 py-2.5 text-[12px] font-bold text-white outline-none"
+          {!ballFound && (
+            <div
+              className="pointer-events-none absolute inset-x-0 z-40 flex justify-center px-4"
+              style={{ bottom: `calc(${RESULT_BOTTOM_PANEL_H + 8}px + ${SAFE_LOCAL_BOTTOM})` }}
             >
-              {FISH_SPECIES.map((s: { key: string }) => <option key={s.key} value={s.key} className="bg-[#0b1e2e]">{s.key}</option>)}
-            </select>
-            <button
-              type="button"
-              onClick={resetMeasurementPoints}
-              aria-label="AI 측정 위치로 초기화"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white/75 active:scale-[0.97]"
-            >
-              <RefreshCw size={16} strokeWidth={2.2} />
-            </button>
-            <button
-              type="button"
-              onClick={confirm}
-              className="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-yellow-500 px-4 text-[13px] font-extrabold text-[#0d1b2a] active:scale-[0.97]"
-            >
-              다음 <ArrowRight size={15} strokeWidth={2.6} />
-            </button>
-          </div>
-          <p className="mt-2 text-center text-[9.5px] font-semibold text-white/50">
-            {activePointLabel ? `${activePointLabel} 위치 조정 중` : `점을 드래그해 입·꼬리·등·배를 조정 · ${refLabel} Ø40mm 기준`}
-          </p>
+              <span className="rounded-full bg-black/75 px-4 py-2 text-[13px] font-bold text-yellow-300 ring-1 ring-white/15 backdrop-blur-sm">
+                40mm 기준물을 다시 맞춰주세요
+              </span>
+            </div>
+          )}
         </div>
-
-        {!ballFound && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-24 z-40 flex justify-center px-4">
-            <span className="rounded-full bg-black/75 px-4 py-2 text-[13px] font-bold text-yellow-300 ring-1 ring-white/15 backdrop-blur-sm">
-              40mm 기준물을 다시 맞춰주세요
-            </span>
-          </div>
-        )}
       </div>
     )}
 

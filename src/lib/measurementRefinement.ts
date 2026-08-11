@@ -120,6 +120,167 @@ function angularCoverage(points: PixelPoint[], circle: Circle, bins = 48) {
   return count / bins;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   방사형 확장 탐색 — 기준물 외곽 "실측"
+
+   Vision 모델은 볼 표면의 로고·반사광 경계를 볼 외곽으로 착각해 반지름을 2배 이상
+   과소 추정하는 프레임이 있다. AI 반지름 ±30~45% 창 안에서만 찾는 기존 경로로는
+   이런 프레임이 영원히 작은 원으로 확정된다 (초록 기준원이 볼보다 훨씬 작게 보이는 원인).
+
+   그래서 AI 중심에서 48방향으로 광선을 쏘아 "볼 색(주황~노랑)이 마지막으로 나타나는
+   반경" = 실제 외곽을 방향별로 찾는다. 탐색 범위는 AI 반지름의 0.3~3.0배로,
+   과소 추정된 힌트에서 바깥쪽으로 점진 확장한다.
+     - 내부 로고·하이라이트는 "마지막 볼 색" 기준이라 자연스럽게 통과한다.
+     - 볼 색이 끊긴 뒤 배경이 충분히 길게 이어질 때만 외곽으로 인정해, 노이즈 한두 픽셀로
+       경계가 앞당겨지는 것을 막는다.
+     - 끈·노란 배경으로 튄 방향은 중앙값 대비 ±28% 필터로 제거하고, 남은 경계점에
+       원을 피팅해 중심·반지름을 함께 확정한다 (중심 보정 후 2회 반복).
+   원형도(잔차)·각도 커버리지·반지름 비율 검증에 실패하면 null 을 돌려
+   기존 경로(색 영역 피팅 → 방사 에지 → AI 원본 + 1.15 폴백)로 넘긴다.
+   ────────────────────────────────────────────────────────────────────────── */
+const RADIAL_DIRECTIONS = 48;
+const RADIAL_MIN_SCALE = 0.3;
+const RADIAL_MAX_SCALE = 3.0;
+/** 유효 경계를 찾아야 하는 최소 방향 비율 */
+const RADIAL_MIN_RAY_RATIO = 0.55;
+/** 중앙값 대비 이 비율을 벗어난 방향은 끈·배경으로 새어나간 것으로 보고 버린다 */
+const RADIAL_MEDIAN_TOLERANCE = 0.28;
+
+type RayHit = { radius: number; x: number; y: number };
+
+/**
+ * 중심 (cx, cy) 에서 방향별로 "볼 색이 마지막으로 나타나는 반경"을 찾는다.
+ * 경계를 확정하지 못한 방향(프레임 밖으로 나감·배경 구간 부족)은 결과에서 제외한다.
+ */
+function castBoundaryRays(
+  source: PixelSource,
+  cx: number,
+  cy: number,
+  aiR: number,
+  testBall: boolean,
+): RayHit[] {
+  const { data, width, height } = source;
+  const step = clamp(aiR * 0.025, 0.6, 2);
+  const rMin = Math.max(1, aiR * RADIAL_MIN_SCALE);
+  const rMax = aiR * RADIAL_MAX_SCALE;
+  const isBall = (x: number, y: number) => {
+    const px = Math.round(x);
+    const py = Math.round(y);
+    if (px < 0 || py < 0 || px >= width || py >= height) return null; // 프레임 밖
+    const i = (py * width + px) * 4;
+    return isReferenceYellow(data[i], data[i + 1], data[i + 2], testBall);
+  };
+
+  const hits: RayHit[] = [];
+  for (let i = 0; i < RADIAL_DIRECTIONS; i++) {
+    const a = (i / RADIAL_DIRECTIONS) * Math.PI * 2;
+    const cs = Math.cos(a), sn = Math.sin(a);
+    let lastBall = -1;   // 지금까지 확인한 가장 바깥쪽 볼 색 반경
+    let gapStart = -1;   // 볼 색이 끊긴 지점
+    let boundary = -1;
+    let reached = rMin;  // 실제로 확인한 마지막 반경 (프레임 밖 이탈 대비)
+    for (let r = rMin; r <= rMax; r += step) {
+      const ball = isBall(cx + cs * r, cy + sn * r);
+      if (ball === null) break; // 프레임 밖 — 아래 tail 검사로 판단
+      reached = r;
+      if (ball) {
+        lastBall = r;
+        gapStart = -1;
+        continue;
+      }
+      if (lastBall > 0 && gapStart < 0) gapStart = r;
+      // 배경이 충분히 길게 이어진 뒤에야 직전 볼 색 반경을 외곽으로 확정한다
+      if (gapStart > 0 && r - gapStart >= Math.max(2, lastBall * 0.12)) { boundary = lastBall; break; }
+    }
+    if (boundary < 0 && lastBall > 0 && reached - lastBall >= Math.max(2, lastBall * 0.12)) {
+      // 최대 반경까지 왔거나 프레임 밖으로 나갔지만 배경 구간은 충분히 확보된 경우
+      boundary = lastBall;
+    }
+    if (boundary <= 0) continue;
+    // step 양자화 오차(평균 step/2 만큼 과소)를 1/4 step 재탐색으로 줄인다
+    const fine = step / 4;
+    for (let r = boundary + fine; r <= boundary + step; r += fine) {
+      if (isBall(cx + cs * r, cy + sn * r) !== true) break;
+      boundary = r;
+    }
+    hits.push({ radius: boundary, x: cx + cs * boundary, y: cy + sn * boundary });
+  }
+  return hits;
+}
+
+/** 경계점 집합에 원을 피팅하고, 첫 원 근처 표본만 남겨 한 번 더 피팅한다. */
+function fitCircleRobust(points: PixelPoint[]): { circle: Circle; inliers: PixelPoint[] } | null {
+  const first = fitCircle(points);
+  if (!first) return null;
+  const limit = Math.max(2.5, first.r * 0.12);
+  const inliers = points.filter((p) => Math.abs(Math.hypot(p.x - first.x, p.y - first.y) - first.r) <= limit);
+  const second = fitCircle(inliers);
+  return second ? { circle: second, inliers } : { circle: first, inliers: points };
+}
+
+/**
+ * AI 반지름을 시작점으로 바깥쪽까지 확장 탐색해 기준물의 실제 외곽 원을 구한다.
+ * 검증에 실패하면 null (호출 측이 기존 경로로 폴백).
+ */
+function refineCircleByRadialExpansion(
+  source: PixelSource,
+  coarse: { centerX: number; centerY: number; radiusPx: number },
+  testBall: boolean,
+): ReferenceGeometry | null {
+  const aiR = coarse.radiusPx;
+  const minRays = Math.ceil(RADIAL_DIRECTIONS * RADIAL_MIN_RAY_RATIO);
+  let cx = coarse.centerX;
+  let cy = coarse.centerY;
+  let result: ReferenceGeometry | null = null;
+
+  // 1회차는 AI 중심, 2회차는 보정된 중심에서 다시 쏜다 (중심이 치우쳐도 수렴)
+  for (let iter = 0; iter < 2; iter++) {
+    const hits = castBoundaryRays(source, cx, cy, aiR, testBall);
+    if (hits.length < minRays) return null;
+    const sorted = hits.map((h) => h.radius).sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    if (!(median > 0)) return null;
+    const kept = hits.filter((h) => Math.abs(h.radius - median) <= median * RADIAL_MEDIAN_TOLERANCE);
+    if (kept.length < minRays) return null;
+
+    const fitted = fitCircleRobust(kept.map((h) => ({ x: h.x, y: h.y })));
+    if (!fitted) return null;
+    const { circle, inliers } = fitted;
+    if (!Number.isFinite(circle.x) || !Number.isFinite(circle.y) || !(circle.r > 0)) return null;
+
+    const coverage = angularCoverage(inliers, circle, 36);
+    const residual = inliers.length
+      ? inliers.reduce((sum, p) => sum + Math.abs(Math.hypot(p.x - circle.x, p.y - circle.y) - circle.r), 0) / inliers.length
+      : Infinity;
+    const residualRatio = residual / Math.max(circle.r, 1);
+    result = {
+      centerX: circle.x,
+      centerY: circle.y,
+      radiusPx: circle.r,
+      refined: true,
+      confidence: clamp(
+        coverage * 0.5 + (1 - Math.min(1, residualRatio / 0.14)) * 0.3 + (kept.length / RADIAL_DIRECTIONS) * 0.2,
+        0,
+        1,
+      ),
+      angularCoverage: coverage,
+    };
+
+    const radiusRatio = circle.r / aiR;
+    const centerShift = Math.hypot(circle.x - coarse.centerX, circle.y - coarse.centerY);
+    if (
+      // 3배 상한에 붙었다면 노란 배경으로 새어나간 것이다
+      radiusRatio < 0.6 || radiusRatio > RADIAL_MAX_SCALE * 0.95 ||
+      centerShift > Math.max(aiR, circle.r * 0.6) ||
+      coverage < 0.6 || residualRatio > 0.14
+    ) return null;
+
+    cx = circle.x;
+    cy = circle.y;
+  }
+  return result;
+}
+
 /**
  * Color segmentation can split on a large white logo/highlight. This secondary
  * pass searches for the strongest circular radial edge around the AI hint.
@@ -217,6 +378,13 @@ export function refineReferenceCircle(
   const { data, width, height } = source;
   const aiR = coarse.radiusPx;
   if (!data || !(width > 0) || !(height > 0) || !(aiR >= 5)) return fallback;
+
+  // ① AI 반지름을 시작점으로 바깥까지 확장 탐색해 실제 외곽을 찾는다.
+  //    AI 가 반지름을 크게 과소 추정한 프레임(로고/반사광만 측정)을 바로잡는 유일한 경로이므로
+  //    아래의 ±45% 창 기반 경로보다 먼저 시도한다. 검증 실패 시에만 기존 경로로 내려간다.
+  const expanded = refineCircleByRadialExpansion(source, coarse, testBall);
+  if (expanded) return expanded;
+
   const edgeFallback = () => refineCircleByRadialEdge(source, coarse, testBall);
 
   const searchR = Math.min(Math.max(aiR * 1.75, 18), Math.min(width, height) * 0.45);
