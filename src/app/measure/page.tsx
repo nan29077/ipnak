@@ -561,7 +561,8 @@ export default function MeasurePage() {
       toast(MEASURE_ERRORS.SAVE_SUCCESS, "success");
       // 사진만 실패한 경우 — 수치는 저장됐다는 점을 분명히 알린다
       if (!uploadedPhotoUrl) toast("사진 저장에 실패했어요. 수치는 저장됩니다.", "error");
-      else if (photoDropped) toast("저장 공간이 부족해 기기의 사진 미리보기는 생략했어요.", "info");
+      // photoDropped 토스트는 DatabaseService 가 ipnak:storage-warning CustomEvent 로 발생시키고
+      // StorageWarningListener(글로벌)가 수신해 표시한다 — 여기서 중복 노출하지 않는다.
       syncService.syncPendingMeasurements(); // 백그라운드 (서버 준비 전엔 스킵)
 
       const catchLat = tags?.location?.latitude ?? lastPoint?.lat ?? null;

@@ -148,10 +148,17 @@ class DatabaseService {
     try {
       this._lsSet(key, list)
     } catch {
-      // 용량 초과 → 사진(base64)을 떼고 재시도. 조용히 넘기지 않고 호출부에 알린다.
+      // 용량 초과 → 사진(base64)을 떼고 재시도.
       if (item.imageBase64) {
         item.imageBase64 = null
         photoDropped = true
+        // 서비스 레이어에서 UI 토스트를 직접 띄울 수 없으므로 CustomEvent 로 상위에 알린다.
+        // StorageWarningListener (글로벌 레이아웃)가 이 이벤트를 수신해 토스트를 표시한다.
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ipnak:storage-warning', {
+            detail: { message: '저장 공간이 부족하여 기기 사진 미리보기가 삭제되었습니다. 수치는 정상 저장됩니다.' },
+          }))
+        }
       }
       try {
         this._lsSet(key, list)

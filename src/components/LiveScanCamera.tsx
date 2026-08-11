@@ -1543,14 +1543,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         30% { opacity: 0.9; transform: scale(1.2) translateX(-4px) translateY(-8px); }
         70% { opacity: 0.6; transform: scale(0.9) translateX(5px) translateY(-4px); }
       }
-      .ipnak-result-photo { right: 0; }
-      .ipnak-result-side { display: none; }
-      .ipnak-result-bottom { display: flex; }
-      @media (min-aspect-ratio: 4 / 3) {
-        .ipnak-result-photo { right: 206px; }
-        .ipnak-result-side { display: flex; }
-        .ipnak-result-bottom { display: none; }
-      }
+      /* AI 측정 결과 — 세로/가로 화면 모두 이미지(좌)·수치(우) 가로 레이아웃 고정 */
+      .ipnak-result-photo { right: calc(45% + 12px); }
+      .ipnak-result-side { display: flex; }
+      .ipnak-result-bottom { display: none; }
     `}</style>
 
     {/* ── video/canvas는 항상 z-399 portrait fixed 레이어에 단일 배치 ──
@@ -1876,7 +1872,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         </div>
 
         {/* 가로 화면: 사진 오른쪽의 전용 여백에 측정값과 조작부를 둔다. */}
-        <aside className="ipnak-result-side absolute bottom-2 right-2 top-[54px] z-30 w-[190px] flex-col overflow-hidden rounded-[20px] bg-[#071827]/90 p-2.5 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-md">
+        <aside className="ipnak-result-side absolute bottom-2 right-2 top-[54px] z-30 flex-col overflow-hidden rounded-[20px] bg-[#071827]/90 p-2.5 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-md" style={{ width: "calc(45% - 8px)" }}>
           <div className="flex items-center gap-1.5 text-[12px] font-extrabold text-green-300">
             <Check size={14} strokeWidth={2.7} />
             측정 완료

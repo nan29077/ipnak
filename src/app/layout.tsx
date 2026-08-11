@@ -9,6 +9,7 @@ import { getBoolSetting, getSetting } from "@/lib/settings";
 import { AppShell } from "@/components/AppShell";
 import { AppSettingsProvider } from "@/lib/appSettingsContext";
 import { ConsentSheet } from "@/components/ConsentSheet";
+import { StorageWarningListener } from "@/components/StorageWarningListener";
 
 const SHARE_TITLE = "입낚 — 낚시인의 모든 순간을 기록하다";
 const SHARE_DESCRIPTION = "조황 기록, 피싱포인트, 스마트 계측, 낚시 커뮤니티를 입낚에서 한 번에 만나보세요.";
@@ -98,6 +99,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <AppShell user={user} shopEnabled={shopEnabled} reservationEnabled={reservationEnabled} pointsEnabled={pointsEnabledSetting} pcMarginBg={pcMarginBg}>{children}</AppShell>
             </AppSettingsProvider>
           </RecordingProvider>
+          {/* localStorage quota exceeded 시 DatabaseService → CustomEvent → 토스트 */}
+          <StorageWarningListener />
           {/* 소셜 가입 후 약관 미동의 사용자에게 필수 동의 시트 표시 */}
           <ConsentSheet alreadyConsented={!user || (user as { locationConsent?: boolean }).locationConsent === true} />
         </ToastProvider>
