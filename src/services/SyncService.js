@@ -41,6 +41,13 @@ class SyncService {
               shareToFeed: false,
               ballId: item.ballId ?? item.ball_id ?? null,
               keyringId: item.keyringId ?? item.keyring_id ?? null,
+              // 환경 정보 — 로컬 기록에 있는 날씨·수온·물때를 그대로 올린다.
+              // 빠뜨리면 동기화로 만들어진 서버 기록만 계측일지에서 "정보 없음"으로 보인다.
+              weather: item.weather ?? null,
+              airTemp: item.temperature ?? null,
+              waterTemp: item.waterTemp ?? null,
+              tideName: item.tideName ?? null,
+              tidePhase: item.tidePhase ?? null,
             }),
             signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout
               ? AbortSignal.timeout(10000)

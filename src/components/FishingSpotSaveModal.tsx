@@ -1,15 +1,16 @@
 "use client";
 /**
- * 어장포인트 저장 공통 모달
+ * 어장포인트 저장 공통 바텀시트
  *
- * 스마트피싱 기록(TripDetailSheet)·AI 측정(measure) 양쪽에서 재사용한다.
- * - 위치·어종·사진 등은 호출부가 initial 로 자동 입력해 준다.
- * - 사용자는 스팟 이름과 메모만 채우면 저장된다.
+ * 스마트피싱 기록(TripDetailSheet)·AI 측정(measure)·어장 탭(FishingSpotTab)에서 재사용한다.
+ * - 위치·날씨·기온·수온·바람·물때·어종은 호출부가 initial 로 자동 입력해 주고,
+ *   사용자는 그대로 두거나 직접 고칠 수 있다 (값이 없으면 빈 칸으로 둔다 — 숨기지 않는다).
+ * - 수심·최적 계절/시간·메모는 센서로 알 수 없어 수동 입력 항목이다.
  * - spotId 가 있으면 수정 모드(PATCH), 없으면 신규 저장(POST).
  *
- * 바텀시트(z-9999) 위에 떠야 하므로 body 포털 + z-[10000] 으로 올린다.
+ * 다른 바텀시트(z-9999) 위에 떠야 하므로 body 포털 + z-[10000] 으로 올린다.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, MapPin, X } from "lucide-react";
 import { useToast } from "@/components/Toast";
@@ -31,6 +32,13 @@ export type FishingSpot = {
   sourceCatchId: string | null;
   createdAt: string;
   updatedAt: string;
+  /* ── 위치 표기 + 환경 정보 (Prisma 스키마 밖 raw 컬럼) ── */
+  locationName?: string | null;
+  weather?: string | null;
+  airTemp?: number | null;
+  waterTemp?: number | null;
+  wind?: string | null;
+  tideName?: string | null;
 };
 
 export type FishingSpotDraft = {
@@ -42,19 +50,22 @@ export type FishingSpotDraft = {
   season?: string | null;
   memo?: string | null;
   photoUrl?: string | null;
-  /* ── 자동 수집된 환경 정보 (표시 전용 — 저장 payload 에는 포함하지 않는다) ──
-     계측 저장 시점의 날씨를 그대로 보여줘, 어떤 조건에서 잡은 자리인지 알 수 있게 한다.
-     값이 하나도 없으면 "날씨 (자동 입력)" 행 자체가 숨겨진다. */
+  /* ── 자동 입력 항목 — 폼에 채워지고 사용자가 수정할 수 있다 ── */
+  /** 위치 표기 (지명). 없으면 좌표 문자열로 채운다. */
+  locationName?: string | null;
+  /** 날씨 상태 (예: "맑음") */
   weather?: string | null;
   /** 기온(°C) */
   temperature?: number | null;
-  /** 풍속(m/s) */
+  /** 수온(°C) */
+  waterTemp?: number | null;
+  /** 풍속(m/s) — windLabel 과 합쳐 "서북서 0.9m/s" 형태로 표시한다 */
   windSpeed?: number | null;
   /** 풍향 한글 (북/북동/동 ...) */
   windLabel?: string | null;
-  /** 수온(°C) */
-  waterTemp?: number | null;
-  /** 물때 이름 (예: "7물") */
+  /** 이미 조합된 바람 문자열 (수정 모드에서 저장된 값을 되돌려줄 때 사용) */
+  wind?: string | null;
+  /** 물때 이름 (예: "4물") */
   tideName?: string | null;
 };
 
@@ -75,7 +86,42 @@ type Props = {
 
 const inputCls =
   "w-full rounded-xl border border-navy-100/30 bg-[#0d1b2a] px-3 py-2.5 text-[14px] text-navy-800 outline-none transition-colors placeholder:text-navy-400 focus:border-orange-400";
-const labelCls = "mb-1 block text-[11px] font-semibold text-navy-400";
+const labelCls = "mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-navy-400";
+
+/** 자동 입력 항목임을 알리는 작은 배지 — 수정 가능하다는 점을 함께 알린다 */
+function AutoBadge() {
+  return (
+    <span className="rounded-full bg-aqua-500/12 px-1.5 py-[1px] text-[9.5px] font-bold text-aqua-300">
+      자동
+    </span>
+  );
+}
+
+/** 좌표를 사람이 읽는 문자열로 (지명이 없을 때의 기본 위치 표기) */
+function coordText(lat: number, lng: number) {
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
+/**
+ * 위치 입력값 파싱 — "위도, 경도" 형태면 좌표로 인정한다.
+ * 지명을 적었으면 null 을 돌려주고, 좌표는 원래 값을 유지한다.
+ */
+function parseCoords(text: string): { lat: number; lng: number } | null {
+  const m = text.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,/\s]\s*(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lng = Number(m[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
+/** 자동 수집된 풍향·풍속 → "서북서 0.9m/s" */
+function windText(d: FishingSpotDraft): string {
+  if (d.wind) return d.wind;
+  if (d.windSpeed == null) return d.windLabel ?? "";
+  return `${d.windLabel ? `${d.windLabel} ` : ""}${d.windSpeed}m/s`;
+}
 
 export function FishingSpotSaveModal({
   open,
@@ -89,11 +135,19 @@ export function FishingSpotSaveModal({
 }: Props) {
   const toast = useToast();
   const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [weather, setWeather] = useState("");
+  const [airTemp, setAirTemp] = useState("");
+  const [waterTemp, setWaterTemp] = useState("");
+  const [wind, setWind] = useState("");
+  const [tideName, setTideName] = useState("");
   const [depth, setDepth] = useState("");
   const [species, setSpecies] = useState("");
   const [season, setSeason] = useState("");
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
+  // 바텀시트 슬라이드 업 — 마운트 직후 한 프레임 뒤에 올린다
+  const [shown, setShown] = useState(false);
 
   // 자동 입력값은 ref 로 들고 있는다 — 호출부가 렌더마다 새 객체를 만들어도
   // 입력 중인 폼이 초기화되지 않도록 "닫힘 → 열림" 전환에서만 채운다.
@@ -101,32 +155,42 @@ export function FishingSpotSaveModal({
   initialRef.current = initial;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setShown(false); return; }
     const src = initialRef.current;
     setName(src?.name ?? "");
+    // 위치: 지명이 있으면 지명, 없으면 좌표 문자열을 기본값으로 채운다
+    setLocation(src?.locationName ?? (src ? coordText(src.lat, src.lng) : ""));
+    setWeather(src?.weather ?? "");
+    setAirTemp(src?.temperature != null ? String(src.temperature) : "");
+    setWaterTemp(src?.waterTemp != null ? String(src.waterTemp) : "");
+    setWind(src ? windText(src) : "");
+    setTideName(src?.tideName ?? "");
     setDepth(src?.depth != null ? String(src.depth) : "");
     setSpecies(src?.species ?? "");
     setSeason(src?.season ?? "");
     setMemo(src?.memo ?? "");
     setSaving(false);
+    // 한 프레임 뒤에 올린다. requestAnimationFrame 은 화면이 가려진 탭에서 아예 발화하지
+    // 않아 시트가 화면 밖에 멈춰 버리므로, 숨김 상태에서도 도는 타이머를 쓴다.
+    const t = setTimeout(() => setShown(true), 16);
+    return () => clearTimeout(t);
   }, [open]);
 
-  if (!open || !initial || typeof document === "undefined") return null;
+  // 닫기 — 시트를 먼저 내리고 애니메이션이 끝나면 언마운트한다
+  const requestClose = useCallback(() => {
+    setShown(false);
+    setTimeout(onClose, 220);
+  }, [onClose]);
 
-  // 표시할 환경 정보만 골라낸다 — 하나도 없으면 "날씨 (자동 입력)" 행을 통째로 숨긴다
-  const weatherChips = [
-    { label: "날씨", value: initial.weather ?? null },
-    { label: "기온", value: initial.temperature != null ? `${initial.temperature}°C` : null },
-    { label: "수온", value: initial.waterTemp != null ? `${initial.waterTemp}°C` : null },
-    {
-      label: "바람",
-      value:
-        initial.windSpeed != null
-          ? `${initial.windLabel ? `${initial.windLabel} ` : ""}${initial.windSpeed}m/s`
-          : initial.windLabel ?? null,
-    },
-    { label: "물때", value: initial.tideName ?? null },
-  ].filter((c): c is { label: string; value: string } => !!c.value);
+  // ESC 로 닫기 (데스크톱)
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, requestClose]);
+
+  if (!open || !initial || typeof document === "undefined") return null;
 
   async function handleSave() {
     if (saving || !initial) return;
@@ -137,10 +201,18 @@ export function FishingSpotSaveModal({
     }
     setSaving(true);
     try {
+      // 위치 칸에 좌표를 직접 적었으면 그 좌표로 저장한다 (지명이면 좌표는 그대로 유지).
+      const typed = parseCoords(location);
       const payload = {
         name: trimmed,
-        lat: initial.lat,
-        lng: initial.lng,
+        lat: typed?.lat ?? initial.lat,
+        lng: typed?.lng ?? initial.lng,
+        locationName: location.trim() || null,
+        weather: weather.trim() || null,
+        airTemp: airTemp.trim() === "" ? null : Number(airTemp),
+        waterTemp: waterTemp.trim() === "" ? null : Number(waterTemp),
+        wind: wind.trim() || null,
+        tideName: tideName.trim() || null,
         depth: depth.trim() === "" ? null : Number(depth),
         species: species.trim() || null,
         season: season.trim() || null,
@@ -162,7 +234,7 @@ export function FishingSpotSaveModal({
       }
       toast(spotId ? "어장포인트를 수정했어요" : "어장포인트에 저장했어요", "success");
       if (data.spot) onSaved?.(data.spot as FishingSpot);
-      onClose();
+      requestClose();
     } catch {
       toast("어장포인트 저장에 실패했어요.", "error");
     } finally {
@@ -172,65 +244,60 @@ export function FishingSpotSaveModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[10000] flex items-end justify-center sm:items-center"
+      className="fixed inset-0 z-[10000] flex items-end justify-center"
       role="dialog"
       aria-modal="true"
       aria-label="어장포인트 저장"
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative flex max-h-[88vh] w-full max-w-[440px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#162538] sm:rounded-3xl">
-        {/* 드래그 핸들 */}
-        <div className="mx-auto mt-2.5 mb-0.5 h-1 w-10 rounded-full bg-navy-200/50" aria-hidden />
-        {/* 헤더 */}
-        <div className="flex items-center justify-between border-b border-navy-100/15 px-4 py-3.5">
-          <div className="flex items-center gap-2">
-            <MapPin size={16} className="text-orange-400" strokeWidth={2} />
-            <p className="text-[15px] font-bold text-navy-800">
-              {spotId ? "어장포인트 수정" : "어장포인트로 저장"}
-            </p>
-          </div>
+      {/* 배경 — 클릭하면 닫힌다 */}
+      <div
+        className={
+          "absolute inset-0 bg-black/70 backdrop-blur-[2px] transition-opacity duration-200 " +
+          (shown ? "opacity-100" : "opacity-0")
+        }
+        onClick={requestClose}
+      />
+
+      {/* 바텀시트 — 화면 하단에서 올라온다 */}
+      <div
+        className={
+          "relative flex w-full max-w-[440px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#162538] " +
+          "transition-transform duration-200 ease-out will-change-transform " +
+          (shown ? "translate-y-0" : "translate-y-full")
+        }
+        style={{ maxHeight: "85vh" }}
+      >
+        {/* pill 드래그 핸들 */}
+        <div className="mx-auto mb-0.5 mt-2.5 h-1 w-10 shrink-0 rounded-full bg-navy-200/50" aria-hidden />
+
+        {/* 헤더 — 제목이 잘리지 않도록 아이콘/닫기 버튼을 shrink-0 로 고정한다 */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-navy-100/15 px-4 py-3.5">
+          <MapPin size={16} className="shrink-0 text-orange-400" strokeWidth={2} />
+          <p className="min-w-0 flex-1 text-[15px] font-bold text-navy-800">
+            {spotId ? "어장포인트 수정" : "어장포인트로 저장"}
+          </p>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="닫기"
-            className="rounded-full p-1 text-navy-300 transition-colors hover:bg-white/5"
+            className="shrink-0 rounded-full p-1 text-navy-300 transition-colors hover:bg-white/5"
           >
             <X size={19} />
           </button>
         </div>
 
-        {/* 폼 */}
+        {/* 폼 — 내부 스크롤 */}
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-          {/* 자동 입력된 위치 */}
-          <div className="rounded-xl border border-navy-100/20 bg-[#0d1b2a] px-3 py-2.5">
-            <p className="text-[11px] font-semibold text-navy-400">위치 (자동 입력)</p>
-            <p className="mt-0.5 text-[13px] font-semibold tabular-nums text-navy-800">
-              {initial.lat.toFixed(5)}, {initial.lng.toFixed(5)}
-            </p>
-          </div>
-
-          {/* 자동 입력된 날씨 — 계측 시점에 수집된 값이 있을 때만 표시 (수정 불가) */}
-          {weatherChips.length > 0 && (
-            <div className="rounded-xl border border-navy-100/20 bg-[#0d1b2a] px-3 py-2.5">
-              <p className="text-[11px] font-semibold text-navy-400">날씨 (자동 입력)</p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                {weatherChips.map((c) => (
-                  <span key={c.label} className="text-[13px] font-semibold text-navy-800">
-                    <span className="mr-1 text-[11px] font-medium text-navy-400">{c.label}</span>
-                    <span className="tabular-nums">{c.value}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
+          {/* 사진 섬네일 — 잘리지 않게 object-contain 으로 전체를 보여준다 */}
           {initial.photoUrl && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={initial.photoUrl}
-              alt="어장포인트 사진"
-              className="h-32 w-full rounded-xl object-cover"
-            />
+            <div className="flex items-center justify-center rounded-xl border border-navy-100/20 bg-[#0d1b2a] p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={initial.photoUrl}
+                alt="어장포인트 사진"
+                className="max-h-28 w-auto max-w-full rounded-lg object-contain"
+              />
+            </div>
           )}
 
           <div>
@@ -247,7 +314,74 @@ export function FishingSpotSaveModal({
             />
           </div>
 
+          <div>
+            <label className={labelCls} htmlFor="spot-location">위치 <AutoBadge /></label>
+            <input
+              id="spot-location"
+              className={inputCls}
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="지명 또는 좌표 (예: 34.79000, 126.39000)"
+              maxLength={120}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={labelCls} htmlFor="spot-weather">날씨 <AutoBadge /></label>
+              <input
+                id="spot-weather"
+                className={inputCls}
+                value={weather}
+                onChange={(e) => setWeather(e.target.value)}
+                placeholder="예: 맑음"
+                maxLength={64}
+              />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="spot-airtemp">기온 (°C) <AutoBadge /></label>
+              <input
+                id="spot-airtemp"
+                className={inputCls}
+                value={airTemp}
+                onChange={(e) => setAirTemp(e.target.value)}
+                inputMode="decimal"
+                placeholder="예: 24.6"
+              />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="spot-watertemp">수온 (°C) <AutoBadge /></label>
+              <input
+                id="spot-watertemp"
+                className={inputCls}
+                value={waterTemp}
+                onChange={(e) => setWaterTemp(e.target.value)}
+                inputMode="decimal"
+                placeholder="예: 26.5"
+              />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="spot-wind">바람 <AutoBadge /></label>
+              <input
+                id="spot-wind"
+                className={inputCls}
+                value={wind}
+                onChange={(e) => setWind(e.target.value)}
+                placeholder="예: 서북서 0.9m/s"
+                maxLength={64}
+              />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="spot-tide">물때 <AutoBadge /></label>
+              <input
+                id="spot-tide"
+                className={inputCls}
+                value={tideName}
+                onChange={(e) => setTideName(e.target.value)}
+                placeholder="예: 4물"
+                maxLength={32}
+              />
+            </div>
             <div>
               <label className={labelCls} htmlFor="spot-depth">수심 (m)</label>
               <input
@@ -259,21 +393,22 @@ export function FishingSpotSaveModal({
                 placeholder="예: 3.5"
               />
             </div>
-            <div>
-              <label className={labelCls} htmlFor="spot-season">최적 계절/시간</label>
-              <input
-                id="spot-season"
-                className={inputCls}
-                value={season}
-                onChange={(e) => setSeason(e.target.value)}
-                placeholder="예: 봄 새벽"
-                maxLength={100}
-              />
-            </div>
           </div>
 
           <div>
-            <label className={labelCls} htmlFor="spot-species">주요 어종 (쉼표로 구분)</label>
+            <label className={labelCls} htmlFor="spot-season">최적 계절/시간</label>
+            <input
+              id="spot-season"
+              className={inputCls}
+              value={season}
+              onChange={(e) => setSeason(e.target.value)}
+              placeholder="예: 봄 새벽"
+              maxLength={100}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls} htmlFor="spot-species">주요 어종 (쉼표로 구분) <AutoBadge /></label>
             <input
               id="spot-species"
               className={inputCls}
@@ -297,8 +432,11 @@ export function FishingSpotSaveModal({
           </div>
         </div>
 
-        {/* 저장 */}
-        <div className="border-t border-navy-100/15 px-4 py-3">
+        {/* 저장 — 하단 고정 */}
+        <div
+          className="shrink-0 border-t border-navy-100/15 px-4 pt-3"
+          style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom, 0px))" }}
+        >
           <button
             type="button"
             onClick={handleSave}

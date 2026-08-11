@@ -139,7 +139,8 @@ export function AdminShell({ userId, nickname, avatarUrl, children }: { userId?:
             <p className="text-[11px] text-gray-500">최고관리자</p>
           </div>
         </div>
-        <Link href="/" className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-white"><ExternalLink size={14} /> 앱으로 이동</Link>
+        {/* "/" 는 미들웨어가 로그인 사용자를 /map(스마트피싱)으로 보내므로 홈으로 직접 보낸다 */}
+        <Link href="/home" className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-white"><ExternalLink size={14} /> 앱으로 이동</Link>
         <button onClick={logout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/10"><LogOut size={14} /> 로그아웃</button>
       </div>
     </>

@@ -801,7 +801,9 @@ export default function MeasurePage() {
       if (!uploadedPhotoUrl) toast("사진 저장에 실패했어요. 수치는 저장됩니다.", "error");
       // photoDropped 토스트는 DatabaseService 가 ipnak:storage-warning CustomEvent 로 발생시키고
       // StorageWarningListener(글로벌)가 수신해 표시한다 — 여기서 중복 노출하지 않는다.
-      syncService.syncPendingMeasurements(); // 백그라운드 (서버 준비 전엔 스킵)
+      // (동기화는 아래 /api/catch 저장이 끝난 뒤에 돌린다 — 여기서 바로 부르면
+      //  방금 만든 로컬 기록이 아직 serverId 가 없어 SyncService 가 같은 조과를 한 번 더
+      //  올려 버린다. 그 중복 기록에는 날씨가 없어 계측일지에 "정보 없음"으로 보였다.)
 
       const catchLat = tags?.location?.latitude ?? lastPoint?.lat ?? null;
       const catchLng = tags?.location?.longitude ?? lastPoint?.lng ?? null;
@@ -834,13 +836,16 @@ export default function MeasurePage() {
       })
         // 어장포인트 저장 버튼에 쓸 catch id 확보 (실패해도 무시)
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
+        .then(async (d) => {
           if (!d?.catchId) return;
           setSpotCatchId(d.catchId as string);
           // 로컬 기록 ↔ 서버 기록 연결 — 계측일지에서 같은 조과가 두 번 보이지 않게 한다
-          void dbService.attachServerId(localId, d.catchId as string);
+          await dbService.attachServerId(localId, d.catchId as string);
         })
-        .catch(() => {}); // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
+        .catch(() => {}) // 백그라운드 저장 — 실패해도 기록 흐름 중단 없음
+        // 연결이 끝난 뒤 밀린 기록을 동기화한다. 이 시점에는 방금 기록에 serverId 가
+        // 있으므로 SyncService 가 건너뛰고, 정말 못 올린 과거 기록만 재전송된다.
+        .finally(() => { syncService.syncPendingMeasurements(); });
 
       // 어장포인트 자동 입력값 — 위치가 있을 때만 버튼을 띄운다
       setSpotCatchId(null);
@@ -852,7 +857,9 @@ export default function MeasurePage() {
               lng: catchLng,
               species: species || null,
               photoUrl: uploadedPhotoUrl,
-              // 표시 전용 자동 입력값 — 모달의 "날씨 (자동 입력)" 행에서 보여준다
+              // 자동 입력값 — 저장 바텀시트의 위치·날씨·기온·수온·바람·물때 칸을 채운다
+              // (사용자가 그대로 두거나 직접 고칠 수 있다)
+              locationName: tags?.location?.locationName ?? null,
               weather: env.weather,
               temperature: env.temperature,
               windSpeed: env.windSpeed,

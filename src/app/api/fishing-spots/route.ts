@@ -2,6 +2,11 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import {
+  ensureFishingSpotEnvColumns,
+  pickSpotEnv,
+  SPOT_ENV_COLUMNS,
+} from "@/lib/ensureFishingSpotEnvColumns";
 
 /** 저장 가능한 sourceType */
 const SOURCE_TYPES = ["ai", "trip", "manual"] as const;
@@ -35,12 +40,33 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       take: 200,
     });
+
+    // 위치·환경 정보는 Prisma 가 모르는 raw 컬럼이라 별도로 읽어 붙인다.
+    // 조회에 실패해도(컬럼 미생성 등) 기존 필드만으로 화면은 정상 동작한다.
+    const envById = new Map<string, Record<string, unknown>>();
+    if (spots.length) {
+      try {
+        await ensureFishingSpotEnvColumns();
+        const cols = SPOT_ENV_COLUMNS.map((c) => `\`${c}\``).join(", ");
+        const placeholders = spots.map(() => "?").join(", ");
+        const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+          `SELECT \`id\`, ${cols} FROM \`FishingSpot\` WHERE \`id\` IN (${placeholders})`,
+          ...spots.map((s) => s.id),
+        );
+        for (const r of rows) envById.set(String(r.id), r);
+      } catch { /* 환경 정보 없이 진행 */ }
+    }
+
     return NextResponse.json({
-      spots: spots.map((s) => ({
-        ...s,
-        createdAt: s.createdAt.toISOString(),
-        updatedAt: s.updatedAt.toISOString(),
-      })),
+      spots: spots.map((s) => {
+        const { id: _omit, ...env } = envById.get(s.id) ?? {};
+        return {
+          ...s,
+          ...env,
+          createdAt: s.createdAt.toISOString(),
+          updatedAt: s.updatedAt.toISOString(),
+        };
+      }),
     });
   } catch {
     // FishingSpot 테이블이 아직 없는 환경(db push 전)에서도 화면이 깨지지 않게 한다
@@ -90,10 +116,27 @@ export async function POST(req: Request) {
         sourceCatchId: str(b.sourceCatchId, 60),
       },
     });
+
+    // 위치 표기·날씨·기온·수온·바람·물때 — raw 컬럼이라 생성 뒤 별도 UPDATE 로 기록한다.
+    // 값이 하나도 없으면 UPDATE 를 생략하고, 실패해도 어장포인트 저장은 성공 처리한다.
+    const env = pickSpotEnv(b as Record<string, unknown>);
+    const envSet = Object.entries(env).filter(([, v]) => v !== null);
+    if (envSet.length) {
+      try {
+        await ensureFishingSpotEnvColumns();
+        await prisma.$executeRawUnsafe(
+          `UPDATE \`FishingSpot\` SET ${envSet.map(([k]) => `\`${k}\` = ?`).join(", ")} WHERE \`id\` = ?`,
+          ...envSet.map(([, v]) => v),
+          spot.id,
+        );
+      } catch { /* noop — 부가 정보라 저장 실패해도 포인트는 유지 */ }
+    }
+
     return NextResponse.json({
       ok: true,
       spot: {
         ...spot,
+        ...env,
         createdAt: spot.createdAt.toISOString(),
         updatedAt: spot.updatedAt.toISOString(),
       },

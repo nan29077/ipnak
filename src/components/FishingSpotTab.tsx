@@ -208,6 +208,13 @@ export function FishingSpotTab() {
         season: spot.season,
         memo: spot.memo,
         photoUrl: spot.photoUrl,
+        // 저장해 둔 위치 표기·환경 정보도 그대로 되돌려 준다 (수정 모드에서 값 유실 방지)
+        locationName: spot.locationName ?? null,
+        weather: spot.weather ?? null,
+        temperature: spot.airTemp ?? null,
+        waterTemp: spot.waterTemp ?? null,
+        wind: spot.wind ?? null,
+        tideName: spot.tideName ?? null,
       },
       sourceType: (spot.sourceType as FishingSpotSource) || "manual",
       sourceTripId: spot.sourceTripId,

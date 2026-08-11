@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { ensureFishingSpotEnvColumns, pickSpotEnv } from "@/lib/ensureFishingSpotEnvColumns";
 
 /** 문자열 필드 정리 — 빈 문자열은 null(값 지움)로 본다 */
 function str(v: unknown, max: number): string | null {
@@ -64,16 +65,37 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if ("memo" in b) data.memo = str(b.memo, 1000);
   if ("photoUrl" in b) data.photoUrl = str(b.photoUrl, 100000);
 
-  if (Object.keys(data).length === 0) {
+  // 위치 표기·날씨·기온·수온·바람·물때 — raw 컬럼이라 Prisma update 와 분리해 처리한다.
+  // 본문에 실제로 들어온 키만 갱신한다 (부분 수정 규칙을 그대로 따른다).
+  const env = pickSpotEnv(b as Record<string, unknown>, { partial: true });
+  const envEntries = Object.entries(env);
+
+  if (Object.keys(data).length === 0 && envEntries.length === 0) {
     return NextResponse.json({ error: "수정할 내용이 없습니다." }, { status: 400 });
   }
 
   try {
-    const spot = await prisma.fishingSpot.update({ where: { id: params.id }, data });
+    // 일반 필드가 하나도 없으면 Prisma update 는 건너뛰고 현재 값만 읽어 온다
+    const spot = Object.keys(data).length
+      ? await prisma.fishingSpot.update({ where: { id: params.id }, data })
+      : await prisma.fishingSpot.findUniqueOrThrow({ where: { id: params.id } });
+
+    if (envEntries.length) {
+      try {
+        await ensureFishingSpotEnvColumns();
+        await prisma.$executeRawUnsafe(
+          `UPDATE \`FishingSpot\` SET ${envEntries.map(([k]) => `\`${k}\` = ?`).join(", ")} WHERE \`id\` = ?`,
+          ...envEntries.map(([, v]) => v),
+          params.id,
+        );
+      } catch { /* noop — 부가 정보 저장 실패해도 수정 자체는 성공 처리 */ }
+    }
+
     return NextResponse.json({
       ok: true,
       spot: {
         ...spot,
+        ...env,
         createdAt: spot.createdAt.toISOString(),
         updatedAt: spot.updatedAt.toISOString(),
       },
