@@ -28,6 +28,7 @@ import { FishScanGlow } from "@/components/FishScanGlow";
 import { FishShimmer } from "@/components/FishShimmer";
 import { estimateWeightByWidth } from "@/lib/weightEstimation";
 import { AI_REFERENCE_RADIUS_MARGIN, refineReferenceCircle } from "@/lib/measurementRefinement";
+import { filterMarineEnvironment } from "@/lib/measurementEnvironment";
 import { BallLinkSection, KeyringLinkSection } from "@/components/BallLinkSection";
 import { SpeciesIdentifySection } from "@/components/SpeciesIdentifySection";
 import { useRecording } from "@/components/RecordingProvider";
@@ -539,24 +540,38 @@ export default function MeasurePage() {
      /api/weather/current(날씨·기온) 와 /api/tide/current(수온·물때·바람) 를 병렬 호출하며,
      어느 하나가 실패해도 나머지는 그대로 반환한다(전부 실패 시 null). */
   const envTagsRef = useRef<any>(null);
+  const envTagsPromiseRef = useRef<Promise<any> | null>(null);
 
   useEffect(() => {
     if (phase !== "RESULT") return;
-    if (envTagsRef.current) return; // 어종 변경 등으로 재진입해도 다시 모으지 않는다
+    if (envTagsRef.current || envTagsPromiseRef.current) return; // 같은 측정에서는 진행 중인 조회도 재사용
     let alive = true;
-    autoTagService
-      .collectAll()
+    const promise = autoTagService.collectAll();
+    envTagsPromiseRef.current = promise;
+    promise
       .then((t) => { if (alive && t) envTagsRef.current = t; })
-      .catch(() => { /* 수집 실패 — 저장 시 한 번 더 시도한다 */ });
+      .catch(() => { /* 수집 실패 — 저장 시 한 번 더 시도한다 */ })
+      .finally(() => { if (envTagsPromiseRef.current === promise) envTagsPromiseRef.current = null; });
     return () => { alive = false; };
   }, [phase]);
 
-  /** 저장 시점의 환경 태그 — 미리 모아둔 값이 있으면 재사용, 없으면 지금 수집 (실패 시 null) */
+  /** 저장 시점의 환경 태그 — 진행 중인 사전 조회를 재사용하고 필수 값만 한 번 보완한다. */
   async function getEnvTags() {
-    if (envTagsRef.current) return envTagsRef.current;
-    const t = await autoTagService.collectAll().catch(() => null);
-    if (t) envTagsRef.current = t;
-    return t;
+    let tags = envTagsRef.current;
+    if (!tags && envTagsPromiseRef.current) {
+      tags = await envTagsPromiseRef.current.catch(() => null);
+    }
+    if (!tags) tags = await autoTagService.collectAll().catch(() => null);
+
+    const needsRequiredRetry = tags?.location && (
+      !tags.location.locationName ||
+      tags.weather?.weather == null ||
+      tags.weather?.temperature == null
+    );
+    if (needsRequiredRetry) tags = await autoTagService.complete(tags).catch(() => tags);
+
+    if (tags) envTagsRef.current = tags;
+    return tags;
   }
 
   /* ── 어종 자동 인식용 사진 준비 (결과 화면 진입 시 1회) ──
@@ -740,7 +755,7 @@ export default function MeasurePage() {
       const tags = await getEnvTags();
       // 계측일지·어장포인트에 함께 기록할 환경 정보 (없으면 null — 저장 흐름은 그대로 진행)
       const envTemp = tags?.weather?.temperature ?? tags?.tide?.airTemp ?? null;
-      const env = {
+      const env = filterMarineEnvironment({
         weather: tags?.weather?.weather ?? null,
         temperature: envTemp,
         waterTemp: tags?.tide?.waterTemp ?? null,
@@ -748,7 +763,7 @@ export default function MeasurePage() {
         tidePhase: tags?.tide?.tidePhase ?? null,
         windSpeed: tags?.tide?.windSpeed ?? null,
         windLabel: tags?.tide?.windLabel ?? null,
-      };
+      }, species);
 
       // 저장용 이미지: 640px 로 축소 (localStorage 용량 보호)
       const work = workCanvasRef.current!;
@@ -820,6 +835,8 @@ export default function MeasurePage() {
           photoUrl: uploadedPhotoUrl,
           lat: catchLat,
           lng: catchLng,
+          locationName: tags?.location?.locationName ?? null,
+          region: tags?.location?.locationName ?? null,
           tripId: sessionId ?? null,
           shareToFeed: false,
           pointVisibility: "EXACT",
@@ -866,6 +883,7 @@ export default function MeasurePage() {
               windLabel: env.windLabel,
               waterTemp: env.waterTemp,
               tideName: env.tideName,
+              tidePhase: env.tidePhase,
             }
           : null
       );
@@ -980,6 +998,7 @@ export default function MeasurePage() {
     dragTargetRef.current = null;
     if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
     envTagsRef.current = null; // 새 측정은 그때의 위치·날씨를 다시 수집한다
+    envTagsPromiseRef.current = null;
     workCanvasRef.current = null;
   }
 

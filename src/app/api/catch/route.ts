@@ -94,6 +94,36 @@ export async function GET(req: Request) {
   return NextResponse.json({ items });
 }
 
+// PATCH /api/catch — 관측 불가 지역에서 사용자가 선택 입력한 수온·물때만 보완
+export async function PATCH(req: Request) {
+  let user; try { user = await requireUser(); } catch { return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }); }
+  const b = await req.json().catch(() => ({}));
+  const id = typeof b.id === "string" ? b.id : "";
+  if (!id) return NextResponse.json({ error: "기록 ID가 필요합니다." }, { status: 400 });
+
+  const owned = await prisma.catchRecord.findFirst({ where: { id, userId: user.id }, select: { id: true } });
+  if (!owned) return NextResponse.json({ error: "기록을 찾을 수 없습니다." }, { status: 404 });
+
+  const values: Record<string, string | number | null> = {};
+  if ("waterTemp" in b) values.waterTemp = numOrNull(b.waterTemp);
+  if ("tideName" in b) values.tideName = typeof b.tideName === "string" && b.tideName.trim() ? b.tideName.trim().slice(0, 32) : null;
+  if ("tidePhase" in b) values.tidePhase = typeof b.tidePhase === "string" && b.tidePhase.trim() ? b.tidePhase.trim().slice(0, 32) : null;
+  const entries = Object.entries(values);
+  if (!entries.length) return NextResponse.json({ error: "수정할 값이 없습니다." }, { status: 400 });
+
+  try {
+    await ensureCatchEnvColumns();
+    await prisma.$executeRawUnsafe(
+      `UPDATE \`CatchRecord\` SET ${entries.map(([key]) => `\`${key}\` = ?`).join(", ")} WHERE \`id\` = ?`,
+      ...entries.map(([, value]) => value),
+      id,
+    );
+    return NextResponse.json({ ok: true, values });
+  } catch {
+    return NextResponse.json({ error: "환경정보를 저장하지 못했습니다." }, { status: 500 });
+  }
+}
+
 // 새 형태(b.productTags: {productId,posX,posY}[]) 우선, 없으면 기존 productIds 자동 배치로 폴백
 function buildProductTags(b: any) {
   if (Array.isArray(b.productTags) && b.productTags.length) {
@@ -127,6 +157,11 @@ export async function POST(req: Request) {
     Number.isFinite(latRaw) && Number.isFinite(lngRaw) && Math.abs(latRaw) <= 90 && Math.abs(lngRaw) <= 180;
   const lat: number | null = hasCoords ? latRaw : null;
   const lng: number | null = hasCoords ? lngRaw : null;
+  // 계측 화면은 locationName, 기존 작성 화면은 region 이름을 사용한다.
+  // 두 입력을 모두 받아 서버 계측일지의 사람이 읽는 위치명이 누락되지 않게 한다.
+  const region = typeof (b.region ?? b.locationName) === "string"
+    ? String(b.region ?? b.locationName).trim().slice(0, 120) || null
+    : null;
 
   // 추정 무게(g) — 클라이언트 값이 없으면 길이·너비·어종으로 서버에서 산출
   const weightKey = b.species || speciesKeyFromName(b.speciesName);
@@ -150,7 +185,7 @@ export async function POST(req: Request) {
               userId: user.id, lat, lng, accuracy: b.accuracy ?? 12,
               tripId: b.tripId || null,
               speciesName: b.speciesName || null, sizeCm: b.sizeCm ? Number(b.sizeCm) : null,
-              photoUrl: photo, gearSetup: b.gearSummary || null, region: b.region || null,
+              photoUrl: photo, gearSetup: b.gearSummary || null, region,
               visibility: b.pointVisibility || "EXACT",
             },
           })
@@ -180,10 +215,10 @@ export async function POST(req: Request) {
       const feedPost = await tx.post.create({
         data: {
           authorId: user.id, postType: "FISHING_POINT", fishingPointId: point?.id ?? null,
-          caption: b.caption || `${b.region || ""} ${b.speciesName || ""} ${b.sizeCm || ""}cm 🎣`,
+          caption: b.caption || `${region || ""} ${b.speciesName || ""} ${b.sizeCm || ""}cm 🎣`,
           speciesName: b.speciesName || null, fishingType: b.fishingType || null,
           categoryPath: b.categoryPath || null, sizeCm: b.sizeCm ? Number(b.sizeCm) : null,
-          region: b.region || null, lat, lng, visibility: b.visibility || "PUBLIC",
+          region, lat, lng, visibility: b.visibility || "PUBLIC",
           // 사진이 없으면 이미지 레코드를 만들지 않는다 (빈 URL 이미지 방지)
           images: photo ? { create: [{ url: photo, alt: "계측 사진", order: 0 }] } : undefined,
           productTags: buildProductTags(b),

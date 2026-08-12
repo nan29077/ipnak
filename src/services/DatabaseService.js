@@ -187,6 +187,18 @@ class DatabaseService {
     return true
   }
 
+  /** 계측일지의 선택 환경정보(수온·물때)를 로컬 기록에 보완한다. */
+  async updateMeasurement(id, patch) {
+    await this.initDB()
+    const key = this._storeKey()
+    const list = this._lsGet(key, [])
+    const i = list.findIndex((m) => m.id === id)
+    if (i < 0) return false
+    list[i] = { ...list[i], ...patch }
+    this._lsSet(key, list)
+    return true
+  }
+
   /** 기록 목록 (페이지네이션 + 필터) */
   async getMeasurements({ page = 1, limit = 20, species = '', dateFrom = '', dateTo = '', ballId = '', keyringId = '' } = {}) {
     await this.initDB()

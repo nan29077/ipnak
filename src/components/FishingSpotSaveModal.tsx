@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, MapPin, X } from "lucide-react";
 import { useToast } from "@/components/Toast";
+import { isFreshwaterSpecies } from "@/lib/measurementEnvironment";
 
 export type FishingSpotSource = "ai" | "trip" | "manual";
 
@@ -39,6 +40,7 @@ export type FishingSpot = {
   waterTemp?: number | null;
   wind?: string | null;
   tideName?: string | null;
+  tidePhase?: string | null;
 };
 
 export type FishingSpotDraft = {
@@ -67,6 +69,8 @@ export type FishingSpotDraft = {
   wind?: string | null;
   /** 물때 이름 (예: "4물") */
   tideName?: string | null;
+  /** 조석 상태 (예: "밀물", "썰물") */
+  tidePhase?: string | null;
 };
 
 type Props = {
@@ -93,6 +97,15 @@ function AutoBadge() {
   return (
     <span className="rounded-full bg-aqua-500/12 px-1.5 py-[1px] text-[9.5px] font-bold text-aqua-300">
       자동
+    </span>
+  );
+}
+
+/** 관측 가능 지역만 자동 입력되고, 나머지는 사용자가 선택 입력하는 항목 */
+function OptionalBadge() {
+  return (
+    <span className="rounded-full bg-navy-100/50 px-1.5 py-[1px] text-[9.5px] font-bold text-navy-400">
+      자동 · 선택
     </span>
   );
 }
@@ -150,11 +163,13 @@ export function FishingSpotSaveModal({
   const [waterTemp, setWaterTemp] = useState("");
   const [wind, setWind] = useState("");
   const [tideName, setTideName] = useState("");
+  const [tidePhase, setTidePhase] = useState("");
   const [depth, setDepth] = useState("");
   const [species, setSpecies] = useState("");
   const [season, setSeason] = useState("");
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [autoLoading, setAutoLoading] = useState(false);
   // 바텀시트 슬라이드 업 — 마운트 직후 한 프레임 뒤에 올린다
   const [shown, setShown] = useState(false);
 
@@ -174,6 +189,7 @@ export function FishingSpotSaveModal({
     setWaterTemp(src?.waterTemp != null ? String(src.waterTemp) : "");
     setWind(src ? windText(src) : "");
     setTideName(src?.tideName ?? "");
+    setTidePhase(src?.tidePhase ?? "");
     setDepth(src?.depth != null ? String(src.depth) : "");
     setSpecies(src?.species ?? "");
     // 계절은 저장 시점 기준으로 자동 입력한다. 이미 값이 있으면(수정 모드 등) 그대로 둔다.
@@ -185,6 +201,40 @@ export function FishingSpotSaveModal({
     const t = setTimeout(() => setShown(true), 16);
     return () => clearTimeout(t);
   }, [open]);
+
+  // 호출부의 사전 수집값이 비어 있으면 모달을 여는 시점에 같은 좌표로 한 번 보완한다.
+  // 사용자가 이미 입력한 값은 덮어쓰지 않으며, 민물·관측 불가 지역의 수온/물때는 빈 칸으로 둔다.
+  useEffect(() => {
+    if (!open || !initial) return;
+    const controller = new AbortController();
+    const { lat, lng } = initial;
+    setAutoLoading(true);
+
+    const freshwater = isFreshwaterSpecies(initial.species);
+    Promise.all([
+      fetch(`/api/reverse-geocode?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`, { signal: controller.signal })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch(`/api/weather/current?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`, { signal: controller.signal })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      freshwater
+        ? Promise.resolve(null)
+        : fetch(`/api/tide/current?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`, { signal: controller.signal })
+            .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ])
+      .then(([place, currentWeather, marine]) => {
+        if (controller.signal.aborted) return;
+        setLocation((value) => (!value || parseCoords(value)) && place?.name ? place.name : value);
+        setWeather((value) => value || currentWeather?.weather || "");
+        setAirTemp((value) => value || (currentWeather?.temperature != null ? String(currentWeather.temperature) : marine?.airTemp != null ? String(marine.airTemp) : ""));
+        setWaterTemp((value) => value || (marine?.waterTemp != null ? String(marine.waterTemp) : ""));
+        setWind((value) => value || [marine?.windLabel, marine?.windSpeed != null ? `${marine.windSpeed}m/s` : null].filter(Boolean).join(" "));
+        setTideName((value) => value || marine?.mulddae || "");
+        setTidePhase((value) => value || marine?.tidePhase || "");
+      })
+      .finally(() => { if (!controller.signal.aborted) setAutoLoading(false); });
+
+    return () => controller.abort();
+  }, [open, initial]);
 
   // 닫기 — 시트를 먼저 내리고 애니메이션이 끝나면 언마운트한다
   const requestClose = useCallback(() => {
@@ -223,6 +273,7 @@ export function FishingSpotSaveModal({
         waterTemp: waterTemp.trim() === "" ? null : Number(waterTemp),
         wind: wind.trim() || null,
         tideName: tideName.trim() || null,
+        tidePhase: tidePhase.trim() || null,
         depth: depth.trim() === "" ? null : Number(depth),
         species: species.trim() || null,
         season: season.trim() || null,
@@ -335,10 +386,14 @@ export function FishingSpotSaveModal({
               className={inputCls}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="지명 또는 좌표 (예: 34.79000, 126.39000)"
+              placeholder={autoLoading ? "현재 위치의 지명을 확인하는 중..." : "지명을 입력해 주세요"}
               maxLength={120}
             />
           </div>
+
+          <p className="rounded-xl bg-navy-50 px-3 py-2 text-[10.5px] leading-relaxed text-navy-400">
+            날씨·기온·위치는 자동 입력됩니다. 수온·물때는 바다 또는 관측 가능한 지역만 자동 입력되며, 값이 없으면 선택사항으로 직접 입력할 수 있어요.
+          </p>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -364,7 +419,7 @@ export function FishingSpotSaveModal({
               />
             </div>
             <div>
-              <label className={labelCls} htmlFor="spot-watertemp">수온 (°C) <AutoBadge /></label>
+              <label className={labelCls} htmlFor="spot-watertemp">수온 (°C) <OptionalBadge /></label>
               <input
                 id="spot-watertemp"
                 className={inputCls}
@@ -386,13 +441,24 @@ export function FishingSpotSaveModal({
               />
             </div>
             <div>
-              <label className={labelCls} htmlFor="spot-tide">물때 <AutoBadge /></label>
+              <label className={labelCls} htmlFor="spot-tide">물때 <OptionalBadge /></label>
               <input
                 id="spot-tide"
                 className={inputCls}
                 value={tideName}
                 onChange={(e) => setTideName(e.target.value)}
                 placeholder="예: 4물"
+                maxLength={32}
+              />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="spot-tide-phase">조석 상태 <OptionalBadge /></label>
+              <input
+                id="spot-tide-phase"
+                className={inputCls}
+                value={tidePhase}
+                onChange={(e) => setTidePhase(e.target.value)}
+                placeholder="예: 밀물"
                 maxLength={32}
               />
             </div>

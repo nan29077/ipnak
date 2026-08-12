@@ -38,6 +38,8 @@ class SyncService {
               photoUrl: item.imageUrl ?? null,
               lat: item.latitude ?? null,
               lng: item.longitude ?? null,
+              locationName: item.locationName ?? null,
+              region: item.locationName ?? null,
               shareToFeed: false,
               ballId: item.ballId ?? item.ball_id ?? null,
               keyringId: item.keyringId ?? item.keyring_id ?? null,

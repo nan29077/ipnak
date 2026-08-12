@@ -239,6 +239,7 @@ export function FishingSpotTab() {
         waterTemp: spot.waterTemp ?? null,
         wind: spot.wind ?? null,
         tideName: spot.tideName ?? null,
+        tidePhase: spot.tidePhase ?? null,
       },
       sourceType: (spot.sourceType as FishingSpotSource) || "manual",
       sourceTripId: spot.sourceTripId,
@@ -457,7 +458,7 @@ export function FishingSpotTab() {
               <SpotStat
                 icon={<Waves size={13} className="text-navy-400" />}
                 label="물때"
-                value={selected.tideName}
+                value={[selected.tideName, selected.tidePhase].filter(Boolean).join(" · ") || null}
                 className="col-span-2"
               />
             </div>
@@ -467,9 +468,9 @@ export function FishingSpotTab() {
                 <MapPin size={13} className="text-navy-400" />
                 <p className="text-[10px] text-navy-400">위치</p>
               </div>
-              {/* 저장할 때 적어 둔 지명이 있으면 그것을, 없으면 기존처럼 좌표를 보여준다 */}
+              {/* 좌표는 지도 표시에만 사용하고, 사람에게는 지명만 보여준다. */}
               <p className="text-[13px] font-semibold tabular-nums text-navy-800">
-                {selected.locationName || `${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}`}
+                {selected.locationName || "위치명 정보 없음"}
               </p>
               {selected.season && (
                 <p className="mt-1 text-[12px] text-navy-400">최적 계절/시간: {selected.season}</p>

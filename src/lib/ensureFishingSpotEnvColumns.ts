@@ -22,6 +22,7 @@ const COLUMNS: Record<string, string> = {
   waterTemp: "DOUBLE NULL", // 수온(°C)
   wind: "VARCHAR(64) NULL", // 바람 (예: "서북서 0.9m/s")
   tideName: "VARCHAR(32) NULL", // 물때 (예: "4물")
+  tidePhase: "VARCHAR(32) NULL", // 조석 상태 (예: "밀물", "썰물")
 };
 
 /** 외부에서 읽고 쓸 컬럼 목록 */
@@ -67,7 +68,7 @@ export function pickSpotEnv(
       const n = Number(v);
       out[key] = Number.isFinite(n) ? n : null;
     } else {
-      const max = key === "locationName" ? 120 : key === "tideName" ? 32 : 64;
+      const max = key === "locationName" ? 120 : key === "tideName" || key === "tidePhase" ? 32 : 64;
       out[key] = typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
     }
   }

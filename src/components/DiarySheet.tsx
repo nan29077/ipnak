@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera, Trophy, Ruler, Hash, MapPin, Thermometer, Waves,
   Trash2, CloudSun, Moon, ChevronRight, Loader2,
+  Pencil,
 } from "lucide-react";
 import { Button, Chip, EmptyState, LoadingState, Sheet, Badge } from "@/components/ui";
 import { useToast } from "@/components/Toast";
@@ -25,6 +26,7 @@ type Item = {
   id: number | string;
   /** "local" = 이 기기 localStorage, "server" = /api/catch 서버 기록 */
   source?: "local" | "server";
+  serverId?: string | null;
   measuredAt: string;
   lengthCm: number;
   weightG: number | null;
@@ -161,6 +163,11 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
   const [species, setSpecies] = useState("");
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<Item | null>(null);
+  const [optionalEnvOpen, setOptionalEnvOpen] = useState(false);
+  const [editWaterTemp, setEditWaterTemp] = useState("");
+  const [editTideName, setEditTideName] = useState("");
+  const [editTidePhase, setEditTidePhase] = useState("");
+  const [optionalEnvSaving, setOptionalEnvSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
   const [pendingSync, setPendingSync] = useState(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -183,6 +190,52 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
     setPendingSync(st.pendingCount);
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    setOptionalEnvOpen(false);
+    setEditWaterTemp(detail?.waterTemp != null ? String(detail.waterTemp) : "");
+    setEditTideName(detail?.tideName ?? "");
+    setEditTidePhase(detail?.tidePhase ?? "");
+    setOptionalEnvSaving(false);
+  }, [detail?.id, detail?.waterTemp, detail?.tideName, detail?.tidePhase]);
+
+  async function saveOptionalEnvironment() {
+    if (!detail || optionalEnvSaving) return;
+    const parsedWater = editWaterTemp.trim() === "" ? null : Number(editWaterTemp);
+    if (parsedWater != null && (!Number.isFinite(parsedWater) || parsedWater < -5 || parsedWater > 50)) {
+      toast("수온은 -5~50°C 범위로 입력해 주세요.", "error");
+      return;
+    }
+    const patch = {
+      waterTemp: parsedWater,
+      tideName: editTideName.trim() || null,
+      tidePhase: editTidePhase.trim() || null,
+    };
+    const serverId = detail.serverId ?? (String(detail.id).startsWith("srv:") ? String(detail.id).slice(4) : null);
+    setOptionalEnvSaving(true);
+    try {
+      if (serverId) {
+        const res = await fetch("/api/catch", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: serverId, ...patch }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "환경정보를 저장하지 못했습니다.");
+      }
+      if (detail.source !== "server") await dbService.updateMeasurement(detail.id, patch);
+
+      const updated = { ...detail, ...patch };
+      setDetail(updated);
+      setAll((items) => items.map((item) => item.id === detail.id ? { ...item, ...patch } : item));
+      setOptionalEnvOpen(false);
+      toast("수온·물때 정보를 저장했습니다.", "success");
+    } catch (error: any) {
+      toast(error?.message || "환경정보를 저장하지 못했습니다.", "error");
+    } finally {
+      setOptionalEnvSaving(false);
+    }
+  }
 
   // 시트 열릴 때 1회만 초기화 + 로드 (예전엔 필터 이펙트까지 함께 돌아 2회 로드됐다)
   useEffect(() => {
@@ -419,6 +472,59 @@ export function DiarySheet({ open, onClose, groupByDate = false }: DiarySheetPro
                 <MapPin size={13} strokeWidth={1.8} className="shrink-0 text-aqua-400" />
                 {detail.locationName}
               </p>
+            )}
+            {(detail.waterTemp == null || !detail.tideName) && (
+              <div className="rounded-xl border border-navy-100 bg-navy-50 p-3">
+                {!optionalEnvOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setOptionalEnvOpen(true)}
+                    className="flex w-full items-center justify-center gap-1.5 text-[12px] font-semibold text-aqua-400"
+                  >
+                    <Pencil size={13} />
+                    수온·물때 직접 입력 (선택)
+                  </button>
+                ) : (
+                  <div className="space-y-2.5">
+                    <p className="text-[10.5px] leading-relaxed text-navy-400">
+                      민물이나 관측 정보가 없는 장소에서만 필요한 값을 직접 입력해 주세요.
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        value={editWaterTemp}
+                        onChange={(e) => setEditWaterTemp(e.target.value)}
+                        inputMode="decimal"
+                        aria-label="수온 직접 입력"
+                        placeholder="수온 °C"
+                        className="min-w-0 rounded-lg border border-navy-100 bg-surface-100 px-2 py-2 text-[12px] outline-none focus:border-aqua-400"
+                      />
+                      <input
+                        value={editTideName}
+                        onChange={(e) => setEditTideName(e.target.value)}
+                        aria-label="물때 직접 입력"
+                        placeholder="예: 5물"
+                        maxLength={32}
+                        className="min-w-0 rounded-lg border border-navy-100 bg-surface-100 px-2 py-2 text-[12px] outline-none focus:border-aqua-400"
+                      />
+                      <input
+                        value={editTidePhase}
+                        onChange={(e) => setEditTidePhase(e.target.value)}
+                        aria-label="조석 상태 직접 입력"
+                        placeholder="예: 밀물"
+                        maxLength={32}
+                        className="min-w-0 rounded-lg border border-navy-100 bg-surface-100 px-2 py-2 text-[12px] outline-none focus:border-aqua-400"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setOptionalEnvOpen(false)} className="rounded-lg border border-navy-100 py-2 text-[12px] text-navy-400">취소</button>
+                      <button type="button" onClick={saveOptionalEnvironment} disabled={optionalEnvSaving} className="flex items-center justify-center gap-1 rounded-lg bg-aqua-500 py-2 text-[12px] font-bold text-gray-900 disabled:opacity-50">
+                        {optionalEnvSaving && <Loader2 size={12} className="animate-spin" />}
+                        저장
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
             {/* 서버 기록은 다른 기기에서 올라온 조과 — 이 화면에서는 삭제 대상이 아니다 */}
             {detail.source === "server" ? (
