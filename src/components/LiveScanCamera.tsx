@@ -2164,14 +2164,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     </div>
     )}
 
-    {/* ── 결과 화면 (stage === "result") — 폰 방향과 무관하게 항상 전체화면 오버레이 ──
-        루트는 언제나 화면 좌표계의 fixed inset-0 이다. 그 안의 "무대(stage)"만
-        사용자가 폰을 눕혀 들고 있는 경우(needsCssRotation)에 촬영 UI 와 똑같이
-        rotate(90deg) 되어, 배지·수치·버튼이 사용자 기준으로 바로 서서 보인다.
-
-        사진은 무대 전체(상단 배지 · 하단 패널 사이 여백)에 비율 유지 contain 으로 채우고,
-        표시 회전은 resultPhotoRotDeg 하나로만 결정한다 (뒤집힘 방지).
-        모든 정보/버튼은 사진 영역 바깥의 상·하단 반투명 오버레이에 배치해 물고기를 가리지 않는다. */}
+    {/* ── 결과 화면 (stage === "result") — 풀스크린 사진 + 우측 글라스 카드 오버레이 ── */}
     {stage === "result" && det && (
       <div
         data-testid="ai-measurement-result"
@@ -2179,7 +2172,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         style={{ width: "100vw", height: "100dvh" }}
       >
         <div ref={resultStageRef} style={resultStageStyle}>
-          {/* 같은 프레임을 cover + 블러로 깔아 letterbox 여백까지 화면을 채운다 */}
+          {/* 배경 블러 */}
           <canvas
             ref={bgRef}
             aria-hidden
@@ -2187,11 +2180,10 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
             style={{ objectFit: "cover", filter: "blur(26px)", transform: "scale(1.15)", opacity: 0.45 }}
           />
 
-          {/* ── 사진 영역 — 상단 배지와 하단 패널 사이 전체 (프레임 비율 유지 contain) ── */}
+          {/* ── 사진 영역 — 전체 화면 (contain, 비율 유지) ── */}
           <div
             ref={resultAreaRef}
-            className="absolute inset-x-0 flex items-center justify-center overflow-hidden"
-            style={{ top: RESULT_TOP_INSET, bottom: RESULT_BOTTOM_INSET }}
+            className="absolute inset-0 flex items-center justify-center overflow-hidden"
           >
             {fitBox && (
               <div
@@ -2199,19 +2191,11 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                 style={{
                   width: fitBox.w,
                   height: fitBox.h,
-                  // 캔버스 픽셀이 이미 landscape 로 확정돼 있으므로 무대 회전분만 상쇄한다
                   transform: resultPhotoRotDeg ? `rotate(${resultPhotoRotDeg}deg)` : undefined,
                 }}
               >
-                <canvas
-                  ref={frozenRef}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-                />
-                <canvas
-                  ref={resultOverlayRef}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-                />
-                {/* 끝점 드래그 수정 레이어 — 표시 박스와 정확히 일치 (로컬 정규화 좌표 = 프레임 정규화 좌표) */}
+                <canvas ref={frozenRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+                <canvas ref={resultOverlayRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
                 <div
                   className="absolute inset-0"
                   style={{ touchAction: "none" }}
@@ -2224,51 +2208,97 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
             )}
           </div>
 
-          {/* ── 상단 오버레이 — 타이틀 · 인식 배지 · 닫기 ──
-              회전 무대에서는 LOCAL top = 기기 right 이므로 두 safe-area 축을 max() 로 함께 잡는다. */}
+          {/* ── 상단 — X닫기(좌) + 인식완료 배지(우) ── */}
           <div
-            className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-2 bg-gradient-to-b from-black/85 via-black/45 to-transparent"
-            style={{
-              height: RESULT_TOP_INSET,
-              paddingTop: SAFE_LOCAL_TOP,
-              paddingLeft: "max(12px, env(safe-area-inset-left, 0px), env(safe-area-inset-top, 0px))",
-              paddingRight: "max(12px, env(safe-area-inset-right, 0px), env(safe-area-inset-bottom, 0px))",
-            }}
+            className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4"
+            style={{ paddingTop: SAFE_LOCAL_TOP, height: RESULT_TOP_INSET }}
           >
-            <div className="flex min-w-0 items-center gap-1.5">
-              <ScanLine size={16} strokeWidth={1.9} className="shrink-0 text-aqua-400" />
-              <span className="truncate text-[13px] font-bold text-white">AI 측정 확인</span>
-            </div>
-            {/* 좁은 무대(세로 화면)에서도 잘리지 않게 가운데 배지가 남는 폭을 모두 가져간다 */}
-            <div className="pointer-events-none mx-1 flex min-w-0 flex-1 items-center justify-center gap-1.5 self-center rounded-full bg-green-600/85 px-3 py-1 text-[11.5px] font-extrabold text-white shadow-lg ring-1 ring-green-300/40 backdrop-blur-sm">
-              <Check size={13} strokeWidth={2.8} className="shrink-0" />
-              <span className="truncate">
-                물고기 인식됨
-                {det.lengthCm != null && ` · 약 ${det.lengthCm}cm`}
-                {det.widthCm != null && ` · 폭 ${det.widthCm}cm`}
-              </span>
-            </div>
-            {/* 플래시 버튼은 촬영(scan) 단계 상단 바로 옮겼다 — 결과 화면에서는 노출하지 않는다 */}
-            <div className="flex shrink-0 items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => { cleanupStream(); onClose(); }}
-                aria-label="닫기"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
-              >
-                <X size={17} />
-              </button>
+            <button
+              type="button"
+              onClick={() => { cleanupStream(); onClose(); }}
+              aria-label="닫기"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/15 backdrop-blur-sm"
+            >
+              <X size={18} />
+            </button>
+            <div className="flex items-center gap-1.5 rounded-full bg-green-500/90 px-3.5 py-1.5 shadow-lg backdrop-blur-sm ring-1 ring-green-300/30">
+              <Check size={13} strokeWidth={2.8} className="shrink-0 text-white" />
+              <span className="text-[12px] font-extrabold text-white">인식 완료</span>
             </div>
           </div>
 
-          {/* ── 하단 오버레이 — 어종 칩 · 전장/폭/무게 · 초기화 · 다음 ──
-              회전 무대에서는 LOCAL bottom = 기기 left 이므로 두 safe-area 축을 max() 로 함께 잡는다. */}
+          {/* ── 우측 — 측정값 글라스 카드 (세로 중앙 정렬) ── */}
           <div
-            className="absolute inset-x-0 bottom-0 z-30 flex flex-col justify-end gap-1.5 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-3 pt-5"
-            style={{ height: RESULT_BOTTOM_INSET, paddingBottom: SAFE_LOCAL_BOTTOM }}
+            className="absolute right-3 z-30 flex flex-col gap-2"
+            style={{ top: "50%", transform: "translateY(-50%)" }}
           >
-            {/* 어종 선택 칩 — 회전 무대에서 방향이 어긋나는 네이티브 select 대신 가로 스크롤 칩 */}
-            <div className="ipnak-chip-row flex shrink-0 gap-1.5 overflow-x-auto">
+            {/* 길이 */}
+            <div className="w-[108px] rounded-2xl bg-black/52 px-3 py-2.5 shadow-xl backdrop-blur-md ring-1 ring-white/14">
+              <div className="mb-1 flex items-center gap-1">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/40"><path d="M2 12h20M2 6l4 6-4 6M22 6l-4 6 4 6"/></svg>
+                <span className="text-[10px] font-semibold text-white/45">길이</span>
+              </div>
+              <p className="leading-none">
+                <span className="text-[24px] font-black text-white">
+                  {det.lengthCm != null ? det.lengthCm.toFixed(1) : "—"}
+                </span>
+                <span className="ml-1 text-[12px] font-bold text-white/55">cm</span>
+              </p>
+            </div>
+
+            {/* 폭 */}
+            <div className="w-[108px] rounded-2xl bg-black/52 px-3 py-2.5 shadow-xl backdrop-blur-md ring-1 ring-white/14">
+              <div className="mb-1 flex items-center gap-1">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/40"><path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/></svg>
+                <span className="text-[10px] font-semibold text-white/45">폭</span>
+              </div>
+              <p className="leading-none">
+                <span className="text-[24px] font-black text-white">
+                  {det.widthCm != null ? det.widthCm.toFixed(1) : "—"}
+                </span>
+                <span className="ml-1 text-[12px] font-bold text-white/55">cm</span>
+              </p>
+            </div>
+
+            {/* 무게 */}
+            <div className="w-[108px] rounded-2xl bg-black/52 px-3 py-2.5 shadow-xl backdrop-blur-md ring-1 ring-white/14">
+              <div className="mb-1 flex items-center gap-1">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/40"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+                <span className="text-[10px] font-semibold text-white/45">무게</span>
+              </div>
+              <p className="text-[20px] font-black leading-none text-white">
+                {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
+              </p>
+            </div>
+
+            {/* 어종 */}
+            <div className="w-[108px] rounded-2xl bg-black/52 px-3 py-2.5 shadow-xl backdrop-blur-md ring-1 ring-white/14">
+              <div className="mb-1 flex items-center gap-1">
+                <span className="text-[10px] font-semibold text-white/45">어종</span>
+              </div>
+              <p className="truncate text-[14px] font-black leading-none text-yellow-300">
+                {fishSpecies || "기타"}
+              </p>
+            </div>
+          </div>
+
+          {/* ── 하단 — 측정완료 메시지 + 어종칩 + 버튼 ── */}
+          <div
+            className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/88 via-black/60 to-transparent px-3 pt-8"
+            style={{ paddingBottom: SAFE_LOCAL_BOTTOM }}
+          >
+            {/* 측정 완료 메시지 */}
+            <div className="mb-2.5 rounded-2xl bg-black/50 px-4 py-2.5 backdrop-blur-md ring-1 ring-white/10">
+              <p className="text-[13px] font-extrabold text-white">입낚 측정 완료!</p>
+              <p className="text-[10px] text-white/45 mt-0.5">
+                {activePointLabel
+                  ? `${activePointLabel} 위치 조정 중 · 길게 누르면 확대`
+                  : "끝점을 드래그해 조정할 수 있어요"}
+              </p>
+            </div>
+
+            {/* 어종 선택 칩 */}
+            <div className="ipnak-chip-row mb-2.5 flex gap-1.5 overflow-x-auto">
               {FISH_SPECIES.map((s: { key: string }) => (
                 <button
                   key={s.key}
@@ -2278,8 +2308,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                   className={
                     "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors " +
                     (fishSpecies === s.key
-                      ? "bg-aqua-500 text-white shadow-md shadow-aqua-500/30"
-                      : "bg-white/12 text-white/70 hover:bg-white/20")
+                      ? "bg-yellow-400 text-black shadow-md"
+                      : "bg-white/15 text-white/65 hover:bg-white/25")
                   }
                 >
                   {s.key}
@@ -2287,55 +2317,43 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               ))}
             </div>
 
-            <div className="flex shrink-0 items-center gap-1.5">
-              <div className="flex min-w-0 flex-1 gap-1.5">
-                <div className="min-w-0 flex-1 rounded-xl bg-black/55 px-2 py-1 text-center ring-1 ring-white/10">
-                  <p className="text-[9px] font-semibold leading-none text-white/45">전장</p>
-                  <p className="mt-0.5 truncate text-[15px] font-black leading-none text-green-400">
-                    {det.lengthCm != null ? `${det.lengthCm.toFixed(1)}cm` : "—"}
-                  </p>
-                </div>
-                <div className="min-w-0 flex-1 rounded-xl bg-black/55 px-2 py-1 text-center ring-1 ring-white/10">
-                  <p className="text-[9px] font-semibold leading-none text-white/45">폭</p>
-                  <p className="mt-0.5 truncate text-[15px] font-black leading-none text-cyan-300">
-                    {det.widthCm != null ? `${det.widthCm.toFixed(1)}cm` : "—"}
-                  </p>
-                </div>
-                <div className="min-w-0 flex-1 rounded-xl bg-black/55 px-2 py-1 text-center ring-1 ring-white/10">
-                  <p className="text-[9px] font-semibold leading-none text-white/45">예상 무게</p>
-                  <p className="mt-0.5 truncate text-[15px] font-black leading-none text-white">
-                    {resultWeightG != null ? formatWeight(resultWeightG) : "—"}
-                  </p>
-                </div>
-              </div>
+            {/* 버튼 행 */}
+            <div className="flex items-center gap-2 pb-1">
+              {/* 편집 */}
               <button
                 type="button"
                 onClick={resetMeasurementPoints}
-                aria-label="AI 측정 위치로 초기화"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/12 text-white/75 transition-colors hover:bg-white/20 active:scale-[0.97]"
+                className="flex h-11 items-center gap-1.5 rounded-2xl bg-white/15 px-4 text-[13px] font-bold text-white ring-1 ring-white/10 backdrop-blur-sm active:scale-[0.97]"
               >
-                <RefreshCw size={15} strokeWidth={2.2} />
+                <RefreshCw size={14} strokeWidth={2.2} />
+                편집
               </button>
-              <button
-                type="button"
-                onClick={confirm}
-                className="flex h-9 shrink-0 items-center gap-1 rounded-xl bg-yellow-500 px-4 text-[13px] font-extrabold text-[#0d1b2a] shadow-lg shadow-yellow-500/20 transition-all active:scale-[0.97]"
-              >
-                다음
-                <ArrowRight size={15} strokeWidth={2.6} />
-              </button>
+              <div className="flex flex-1 justify-end gap-2">
+                {/* 공유 */}
+                <button
+                  type="button"
+                  onClick={confirm}
+                  aria-label="공유"
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-white ring-1 ring-white/10 backdrop-blur-sm active:scale-[0.97]"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+                  </svg>
+                </button>
+                {/* 확인 */}
+                <button
+                  type="button"
+                  onClick={confirm}
+                  className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-[#1a3a5c] px-4 text-[13px] font-extrabold text-white shadow-lg active:scale-[0.97]"
+                >
+                  <Check size={15} strokeWidth={2.6} />
+                  확인
+                </button>
+              </div>
             </div>
-
-            <p className="shrink-0 truncate text-center text-[9.5px] font-semibold text-white/50">
-              {activePointLabel
-                ? `${activePointLabel} 위치 조정 중 · 길게 누르면 확대`
-                : `점을 드래그해 조정 · 길게 누르면 확대 · ${refLabel} Ø40mm 기준`}
-            </p>
           </div>
 
-          {/* ── 돋보기 — 끝점을 길게 누르는 동안만 표시 ──
-              기본 위치는 사진 영역 상단(손가락 반대편). 누른 지점과 겹치면 위 effect 가
-              box.style.top 을 하단으로 바꾼다 (초기값을 기본 위치로 두어 깜빡임 없음). */}
+          {/* 돋보기 */}
           {loupePoint && (
             <div
               ref={loupeBoxRef}
@@ -2354,7 +2372,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           {!ballFound && (
             <div
               className="pointer-events-none absolute inset-x-0 z-40 flex justify-center px-4"
-              style={{ bottom: `calc(${RESULT_BOTTOM_PANEL_H + 8}px + ${SAFE_LOCAL_BOTTOM})` }}
+              style={{ bottom: `calc(180px + ${SAFE_LOCAL_BOTTOM})` }}
             >
               <span className="rounded-full bg-black/75 px-4 py-2 text-[13px] font-bold text-yellow-300 ring-1 ring-white/15 backdrop-blur-sm">
                 40mm 기준물을 다시 맞춰주세요
