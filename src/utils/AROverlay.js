@@ -34,7 +34,7 @@ class AROverlay {
     // (ballResult 는 측정 스케일 기준으로만 쓰인다)
     if (headPoint || tailPoint) this._drawMeasureLine(ctx, headPoint, tailPoint, measureResult && measureResult.lengthCm, canvas)
     if (widthPoints) this._drawWidthLine(ctx, widthPoints, measureResult && measureResult.widthCm, canvas)
-    if (measureResult) this._drawResultCard(ctx, measureResult, selectedSpecies, canvas)
+    // 측정 수치는 React UI 패널에만 표시 — 캔버스 위 카드 라벨 완전 제거
     if (isMockMode) this._drawMockBanner(ctx, canvas)
   }
 

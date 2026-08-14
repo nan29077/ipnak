@@ -521,6 +521,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const scanIdRef = useRef(0);
   // 재촬영 직후 drawOverlay 가 이전 프레임으로 한 번 더 그리는 플래시 방지
   const isRetakingRef = useRef(false);
+  // isRetakingRef 의 React state 사본 — badge HTML 요소가 한 프레임 더 렌더되는 것을 차단
+  const [isRetaking, setIsRetaking] = useState(false);
   // finalizeOrientation 이 적용한 90° 회전 방향 (portrait→landscape 변환) — outline 좌표 변환용
   const frameTurnRef = useRef<QuarterTurn | null>(null);
   // 마지막 성공 프레임 + 정규화 감지 좌표 (측정하기 확정용)
@@ -1214,9 +1216,39 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                   : rawContour;
                 const s = successRef.current;
                 if (!s) return;
-                const updated: Detection = { ...s.det, contourN: outlineContour };
+                // AI 정밀 윤곽으로 폭(widthN)도 함께 재보정한다.
+                // FishContourDetector 윤곽보다 AI outline 이 훨씬 정밀하므로,
+                // 특히 FishContourDetector 가 실패했거나 AI 가 bodyTop/Bottom 을 과소추정한
+                // 경우에도 올바른 최대 폭 단면을 복구할 수 있다.
+                const refW = s.work.width, refH = s.work.height;
+                const widthRefined = refineFishLandmarks(
+                  outlineContour, refW, refH,
+                  { head: s.det.headN, tail: s.det.tailN, width: s.det.widthN },
+                );
+                const newWidthN = widthRefined.width;
+                let newWidthCm = s.det.widthCm;
+                if (newWidthN) {
+                  const dPx = 2 * s.det.ballN.r * refW;
+                  if (dPx > 0) {
+                    const mPP = REF_DIAMETER_MM / dPx;
+                    const wpx = Math.hypot(
+                      (newWidthN.bottom.x - newWidthN.top.x) * refW,
+                      (newWidthN.bottom.y - newWidthN.top.y) * refH,
+                    );
+                    if (wpx > 0) newWidthCm = Math.round(wpx * mPP / 10 * 10) / 10;
+                  }
+                }
+                const updated: Detection = {
+                  ...s.det,
+                  contourN: outlineContour,
+                  widthN: newWidthN,
+                  widthCm: newWidthCm,
+                };
                 successRef.current = { work: s.work, det: updated };
-                setDet((prev) => prev ? { ...prev, contourN: outlineContour } : prev);
+                setDet((prev) => prev
+                  ? { ...prev, contourN: outlineContour, widthN: newWidthN, widthCm: newWidthCm }
+                  : prev
+                );
               } catch {
                 // 실패 시 기존 FishContourDetector 윤곽 유지 (사용자에게 영향 없음)
               } finally {
@@ -1756,6 +1788,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const handleRetake = useCallback(() => {
     // clearRect 보다 먼저 플래그를 세워, 배치 커밋 전 drawOverlay 가 구 det 로 그리는 것을 차단한다
     isRetakingRef.current = true;
+    setIsRetaking(true); // state 사본: badge HTML 요소가 한 프레임 더 렌더되는 것을 배치 커밋으로 차단
     // ① 진행 중/늦게 도착할 비동기 응답 무효화 — 회차 ID 를 올려 이전 회차의
     //    outline 응답이 재촬영 후 상태를 되살리지 못하게 한다 (abort 만으로는
     //    이미 완료된 응답의 후속 처리를 막지 못한다)
@@ -1808,6 +1841,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   useEffect(() => {
     if (stage === "scan" && !det) {
       isRetakingRef.current = false;
+      setIsRetaking(false);
     }
   }, [stage, det]);
 
@@ -2211,7 +2245,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       )}
 
       {/* 감지 시 상단 배지 — 결과 패널에서는 데이터 패널이 대신한다 */}
-      {canConfirm && stage !== "result" && (
+      {canConfirm && stage !== "result" && !isRetaking && (
         <div className="pointer-events-none absolute left-1/2 top-14 z-20 -translate-x-1/2">
           <span className="flex items-center gap-1.5 rounded-full bg-green-500/90 px-3 py-1.5 text-[12px] font-bold text-white shadow-lg">
             <Check size={14} strokeWidth={2.6} />
