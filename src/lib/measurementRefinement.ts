@@ -669,55 +669,44 @@ export function refineFishLandmarks(
   const snappedTail = chooseEnd(tail, false);
   let nextWidth = input.width;
   let refinedWidth = false;
-  if (input.width) {
-    const top = toPx(input.width.top);
-    const bottom = toPx(input.width.bottom);
-    const mid = { x: (top.x + bottom.x) / 2, y: (top.y + bottom.y) / 2 };
-    const widthLen = Math.hypot(bottom.x - top.x, bottom.y - top.y);
-    const requestedStation = clamp(projection(mid), minT + span * 0.15, maxT - span * 0.15);
-    const nx = -uy, ny = ux;
-    const cross = (p: PixelPoint) => (p.x - head.x) * nx + (p.y - head.y) * ny;
 
-    // 순서 있는 외곽선과 축에 정확히 수직인 단면선의 교차점을 구한다.
-    // 두 끝점의 축 투영값이 같으므로 결과 폭선이 입↔꼬리 선에 수직으로 유지된다.
-    const intersectionsAt = (station: number) => {
-      const intersections: PixelPoint[] = [];
-      for (let i = 0; i < pts.length; i++) {
-        const a = pts[i], b = pts[(i + 1) % pts.length];
-        const ta = projection(a), tb = projection(b);
-        if ((ta - station) * (tb - station) > 0 || Math.abs(tb - ta) < 1e-6) continue;
-        const ratio = (station - ta) / (tb - ta);
-        if (ratio < -1e-6 || ratio > 1 + 1e-6) continue;
-        const p = { x: a.x + (b.x - a.x) * ratio, y: a.y + (b.y - a.y) * ratio };
-        if (!intersections.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 1.5)) intersections.push(p);
-      }
-      return intersections.sort((a, b) => cross(a) - cross(b));
-    };
+  // 축에 수직인 방향벡터 (단면선 교차점 정렬 기준)
+  const nx = -uy, ny = ux;
+  const cross = (p: PixelPoint) => (p.x - head.x) * nx + (p.y - head.y) * ny;
 
-    const stationStep = span * 0.012;
-    const stations = [requestedStation, requestedStation - stationStep, requestedStation + stationStep];
-    let bestPair: { top: PixelPoint; bottom: PixelPoint; score: number } | null = null;
-    for (const station of stations) {
-      const intersections = intersectionsAt(station);
-      if (intersections.length < 2) continue;
-      const a = intersections[0], b = intersections[intersections.length - 1];
-      const direct = Math.hypot(a.x - top.x, a.y - top.y) + Math.hypot(b.x - bottom.x, b.y - bottom.y);
-      const swapped = Math.hypot(b.x - top.x, b.y - top.y) + Math.hypot(a.x - bottom.x, a.y - bottom.y);
-      const st = direct <= swapped ? a : b;
-      const sb = direct <= swapped ? b : a;
-      const snappedWidth = Math.hypot(sb.x - st.x, sb.y - st.y);
-      const moveTop = Math.hypot(st.x - top.x, st.y - top.y);
-      const moveBottom = Math.hypot(sb.x - bottom.x, sb.y - bottom.y);
-      const moveLimit = Math.max(18, axisLen * 0.18);
-      if (
-        snappedWidth < widthLen * 0.6 || snappedWidth > widthLen * 1.5 ||
-        moveTop > moveLimit || moveBottom > moveLimit
-      ) continue;
-      const score = moveTop + moveBottom + Math.abs(station - requestedStation) * 0.4;
-      if (!bestPair || score < bestPair.score) bestPair = { top: st, bottom: sb, score };
+  // 순서 있는 외곽선과 축에 정확히 수직인 단면선의 교차점을 구한다.
+  // 두 끝점의 축 투영값이 같으므로 결과 폭선이 입↔꼬리 선에 수직으로 유지된다.
+  const intersectionsAt = (station: number) => {
+    const intersections: PixelPoint[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const ta = projection(a), tb = projection(b);
+      if ((ta - station) * (tb - station) > 0 || Math.abs(tb - ta) < 1e-6) continue;
+      const ratio = (station - ta) / (tb - ta);
+      if (ratio < -1e-6 || ratio > 1 + 1e-6) continue;
+      const p = { x: a.x + (b.x - a.x) * ratio, y: a.y + (b.y - a.y) * ratio };
+      if (!intersections.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 1.5)) intersections.push(p);
     }
-    if (bestPair) {
-      nextWidth = { top: toNorm(bestPair.top), bottom: toNorm(bestPair.bottom) };
+    return intersections.sort((a, b) => cross(a) - cross(b));
+  };
+
+  // 컨투어 전체를 스캔해 최대 폭 단면을 찾는다.
+  // AI 원본 폭 좌표(bodyTop/Bottom)에 의존하면 AI가 과소평가할 때 보정이 실패하므로,
+  // 물고기 몸통 영역(전장의 15%~85%)을 22단계로 나눠 각 단면의 폭을 비교한다.
+  {
+    const STEPS = 22;
+    let best: { top: PixelPoint; bottom: PixelPoint; widthPx: number } | null = null;
+    for (let i = 0; i <= STEPS; i++) {
+      const station = minT + span * (0.15 + (i / STEPS) * 0.70);
+      const ints = intersectionsAt(station);
+      if (ints.length < 2) continue;
+      const a = ints[0], b = ints[ints.length - 1];
+      const w = Math.hypot(a.x - b.x, a.y - b.y);
+      if (!best || w > best.widthPx) best = { top: a, bottom: b, widthPx: w };
+    }
+    // 최소 전장의 8% 이상이어야 유효한 폭으로 인정 (윤곽 오인식 방지)
+    if (best && best.widthPx > axisLen * 0.08) {
+      nextWidth = { top: toNorm(best.top), bottom: toNorm(best.bottom) };
       refinedWidth = true;
     }
   }

@@ -519,6 +519,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const aiOutlineAbortRef = useRef<AbortController | null>(null);
   // 스캔 성공 회차 ID — outline 응답이 돌아왔을 때 같은 회차인지 확인
   const scanIdRef = useRef(0);
+  // 재촬영 직후 drawOverlay 가 이전 프레임으로 한 번 더 그리는 플래시 방지
+  const isRetakingRef = useRef(false);
   // finalizeOrientation 이 적용한 90° 회전 방향 (portrait→landscape 변환) — outline 좌표 변환용
   const frameTurnRef = useRef<QuarterTurn | null>(null);
   // 마지막 성공 프레임 + 정규화 감지 좌표 (측정하기 확정용)
@@ -920,6 +922,9 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     const ctx = ov.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
+
+    // 재촬영 직후 — 배치 커밋 전 구(舊) det 으로 한 프레임 더 그려지는 flash 방지
+    if (isRetakingRef.current) return;
 
     /* ── 결과 화면에서는 라이브 오버레이에 아무것도 그리지 않는다 ──
        결과 화면의 det 는 finalizeOrientation 이 landscape 로 회전시킨 좌표라,
@@ -1749,6 +1754,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
      다시 그리기 전까지(또는 effect 가 조기 return 으로 clearRect 를 건너뛰면 계속)
      이전 측정 오버레이가 화면에 그대로 남는다. 클릭 즉시 동기적으로 전부 지운다. */
   const handleRetake = useCallback(() => {
+    // clearRect 보다 먼저 플래그를 세워, 배치 커밋 전 drawOverlay 가 구 det 로 그리는 것을 차단한다
+    isRetakingRef.current = true;
     // ① 진행 중/늦게 도착할 비동기 응답 무효화 — 회차 ID 를 올려 이전 회차의
     //    outline 응답이 재촬영 후 상태를 되살리지 못하게 한다 (abort 만으로는
     //    이미 완료된 응답의 후속 처리를 막지 못한다)
@@ -1793,6 +1800,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     clearLoupe();
   }, [stage, clearLoupe]);
   useEffect(() => () => { if (loupeTimerRef.current) clearTimeout(loupeTimerRef.current); }, []);
+
+  /* ── 재촬영 플래시 방지 플래그 해제 ──
+     handleRetake 에서 isRetakingRef.current = true 로 세운 뒤,
+     스캔 단계로 안정화(det=null, stage="scan")되면 false 로 돌려
+     이후 drawOverlay 가 정상적으로 YOLO/측정 오버레이를 그릴 수 있게 한다. */
+  useEffect(() => {
+    if (stage === "scan" && !det) {
+      isRetakingRef.current = false;
+    }
+  }, [stage, det]);
 
   /* ── no-ref-warning → 1.5초 후 자동으로 ref-missing 모달로 전환 ── */
   useEffect(() => {

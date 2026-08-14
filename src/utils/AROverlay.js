@@ -71,19 +71,7 @@ class AROverlay {
       ctx.stroke()
     })
 
-    if (lengthCm && head && tail) {
-      const mx = (head.x + tail.x) / 2
-      const my = (head.y + tail.y) / 2
-      const label = `${lengthCm} cm`
-      const fs = Math.max(16, canvas.width * 0.028)
-      ctx.font = `bold ${fs}px sans-serif`
-      ctx.textAlign = 'center'
-      const tw = ctx.measureText(label).width
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'
-      ctx.fillRect(mx - tw / 2 - 8, my - fs - 12, tw + 16, fs + 12)
-      ctx.fillStyle = this.COLORS.line
-      ctx.fillText(label, mx, my - 8)
-    }
+    // 길이 수치는 우측 결과 카드에만 표기 — 물고기 위 라벨 생략
   }
 
   /**
@@ -148,29 +136,7 @@ class AROverlay {
       ctx.stroke()
     })
 
-    if (widthCm) {
-      const mx = (top.x + bottom.x) / 2
-      const my = (top.y + bottom.y) / 2
-      const label = `폭 ${widthCm} cm`
-      const fs = Math.max(14, canvas.width * 0.024)
-      ctx.font = `bold ${fs}px sans-serif`
-      ctx.textAlign = 'left'
-      const tw = ctx.measureText(label).width
-      const bx = mx + R * 1.8
-      const by = my - fs * 0.95
-      const bw = tw + 14
-      const bh = fs + 10
-      // 라벨 배경 박스 — 불투명도를 올리고 청록 테두리를 둘러 폭 표시임을 명확히 한다
-      ctx.fillStyle = 'rgba(0,0,0,0.78)'
-      this._roundRect(ctx, bx, by, bw, bh, 6)
-      ctx.fill()
-      ctx.strokeStyle = this.COLORS.widthLine
-      ctx.lineWidth = 1.5
-      this._roundRect(ctx, bx, by, bw, bh, 6)
-      ctx.stroke()
-      ctx.fillStyle = this.COLORS.widthLine
-      ctx.fillText(label, bx + 7, my + fs * 0.2)
-    }
+    // 폭 수치도 우측 결과 카드에만 표기 — 물고기 위 라벨 생략
   }
 
   _drawResultCard(ctx, result, species, canvas) {
