@@ -2365,7 +2365,17 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               {/* 재촬영 */}
               <button
                 type="button"
-                onClick={() => goStage("scan")}
+                onClick={() => {
+                  successRef.current = null;
+                  setDet(null);
+                  consecutiveSuccessRef.current = 0;
+                  aiOutlineAbortRef.current?.abort();
+                  aiOutlineAbortRef.current = null;
+                  frameTurnRef.current = null;
+                  setFrameTurn(null);
+                  finalizedFrameRef.current = null;
+                  goStage("scan");
+                }}
                 className="flex h-9 items-center gap-1.5 rounded-xl bg-white/15 px-3 text-[12px] font-bold text-white ring-1 ring-white/10 backdrop-blur-sm active:scale-[0.97]"
               >
                 <RotateCw size={13} strokeWidth={2.2} />
