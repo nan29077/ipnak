@@ -515,6 +515,12 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   const firstScanRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isScanningRef = useRef(false); // 동시 요청 방지
   const abortRef = useRef<AbortController | null>(null);
+  // 정밀 윤곽 요청 abort controller (스캔 성공마다 1회 발사, 다음 성공 시 이전 요청 취소)
+  const aiOutlineAbortRef = useRef<AbortController | null>(null);
+  // 스캔 성공 회차 ID — outline 응답이 돌아왔을 때 같은 회차인지 확인
+  const scanIdRef = useRef(0);
+  // finalizeOrientation 이 적용한 90° 회전 방향 (portrait→landscape 변환) — outline 좌표 변환용
+  const frameTurnRef = useRef<QuarterTurn | null>(null);
   // 마지막 성공 프레임 + 정규화 감지 좌표 (측정하기 확정용)
   const successRef = useRef<{ work: HTMLCanvasElement; det: Detection } | null>(null);
   const frameFilterRef = useRef(
@@ -654,6 +660,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     if (firstScanRef.current) { clearTimeout(firstScanRef.current); firstScanRef.current = null; }
     abortRef.current?.abort();
     abortRef.current = null;
+    aiOutlineAbortRef.current?.abort();
+    aiOutlineAbortRef.current = null;
     isScanningRef.current = false;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -873,6 +881,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       if (firstScanRef.current) { clearTimeout(firstScanRef.current); firstScanRef.current = null; }
       abortRef.current?.abort();
+      aiOutlineAbortRef.current?.abort();
     };
   }, []);
 
@@ -1159,6 +1168,49 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           ) {
             consecutiveSuccessRef.current = 0;
             goStage("shimmer");
+
+            // ── AI 정밀 윤곽 요청 (shimmer 1.8초 동안 백그라운드 실행) ──
+            // gpt-4o-mini 로 물고기 외곽선 폴리곤(20~24점)을 추출한다.
+            // 응답이 shimmer 중에 오면 result 화면 진입 전에 contourN 이 교체되고,
+            // result 화면 진입 후에 오면 det 상태 갱신으로 오버레이가 자동 리드로된다.
+            // 실패·타임아웃 시엔 기존 FishContourDetector 윤곽을 그대로 사용한다.
+            aiOutlineAbortRef.current?.abort();
+            const outlineCtrl = new AbortController();
+            aiOutlineAbortRef.current = outlineCtrl;
+            scanIdRef.current += 1;
+            const currentScanId = scanIdRef.current;
+            const capturedDataUrl = dataUrl;
+            const capturedFrame = frame;
+            void (async () => {
+              try {
+                const r = await fetch("/api/measure/outline", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ imageBase64: capturedDataUrl }),
+                  signal: outlineCtrl.signal,
+                });
+                if (!r.ok) return;
+                const od = await r.json();
+                if (!od?.ok || !Array.isArray(od.contour) || od.contour.length < 8) return;
+                // 다른 스캔 회차로 교체됐다면 무시
+                if (scanIdRef.current !== currentScanId) return;
+                // finalizeOrientation 이 portrait→landscape 회전을 적용했다면 좌표 변환
+                const turn = frameTurnRef.current;
+                const rawContour: Array<{ x: number; y: number }> = od.contour;
+                const outlineContour = turn
+                  ? rawContour.map((p) => rotateNormPoint(p, turn))
+                  : rawContour;
+                const s = successRef.current;
+                if (!s) return;
+                const updated: Detection = { ...s.det, contourN: outlineContour };
+                successRef.current = { work: s.work, det: updated };
+                setDet((prev) => prev ? { ...prev, contourN: outlineContour } : prev);
+              } catch {
+                // 실패 시 기존 FishContourDetector 윤곽 유지 (사용자에게 영향 없음)
+              } finally {
+                if (aiOutlineAbortRef.current === outlineCtrl) aiOutlineAbortRef.current = null;
+              }
+            })();
           }
         } else {
           // 실패/인식 안 됨 → 오버레이 제거 (스펙: 카메라 화면만 유지)
@@ -1406,6 +1458,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     finalizedFrameRef.current = dst;
     // 표시 회전량의 유일한 기준 — 이후 기기 방향이 바뀌어도 사진은 정방향을 유지한다
     setFrameTurn(turn);
+    frameTurnRef.current = turn; // outline 좌표 변환용 ref 동기화
     setDet(rotated);
   }, []);
 
