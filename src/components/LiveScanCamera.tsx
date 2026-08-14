@@ -2276,7 +2276,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               <div className="mb-1 flex items-center gap-1">
                 <span className="text-[10px] font-semibold text-white/45">어종</span>
               </div>
-              <p className="truncate text-[14px] font-black leading-none text-yellow-300">
+              <p className="truncate text-[14px] font-black leading-none text-white">
                 {fishSpecies || "기타"}
               </p>
             </div>
@@ -2309,14 +2309,14 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
 
             {/* 버튼 행 */}
             <div className="flex items-center gap-2 pb-1">
-              {/* 편집 */}
+              {/* 재촬영 */}
               <button
                 type="button"
-                onClick={resetMeasurementPoints}
+                onClick={() => goStage("scan")}
                 className="flex h-9 items-center gap-1.5 rounded-xl bg-white/15 px-3 text-[12px] font-bold text-white ring-1 ring-white/10 backdrop-blur-sm active:scale-[0.97]"
               >
-                <RefreshCw size={13} strokeWidth={2.2} />
-                편집
+                <RotateCw size={13} strokeWidth={2.2} />
+                재촬영
               </button>
               <div className="flex-1" />
             </div>
