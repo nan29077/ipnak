@@ -12,6 +12,7 @@
  * ⚠️ 오버레이 정렬을 위해 video / overlay 모두 object-cover 사용 (동일 크롭 → 좌표 일치)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { X, Camera, Loader2, RefreshCw, ScanLine, Check, RotateCw, AlertTriangle, Zap, ArrowRight } from "lucide-react";
 import { estimateWeight, estimateWeightByWidth, formatWeight } from "@/lib/weightEstimation";
 import { FISH_SPECIES } from "@/constants/errorMessages";
@@ -1216,21 +1217,71 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                   : rawContour;
                 const s = successRef.current;
                 if (!s) return;
+                const refW = s.work.width, refH = s.work.height;
+
+                // ── AI 정밀 볼 좌표로 기준원 재보정 (결과 화면 원 위치 교정) ──
+                // 스캔 응답의 볼 힌트가 그림자·반사·끈에 끌리면 refineReferenceCircle 이
+                // 실제 볼에서 벗어난 원을 확정하고, 결과 화면의 노란 원이 볼 아래쪽 등
+                // 엉뚱한 곳에 그려진다. outline(gpt-4o-mini, detail high)의 볼 중심을
+                // 새 힌트로 캡처 프레임 픽셀에서 실측을 다시 시도하고,
+                // 원형도·각도 커버리지 검증을 통과(refined)한 경우에만 교체한다.
+                let newBallN = s.det.ballN;
+                const ob = od.ball;
+                if (
+                  ob &&
+                  typeof ob.x === "number" && typeof ob.y === "number" &&
+                  typeof ob.r === "number" && ob.r > 0
+                ) {
+                  try {
+                    // capturedFrame 은 회전 전 원본 캡처 캔버스 — outline 좌표와 같은 좌표계다
+                    const fw = capturedFrame.width, fh = capturedFrame.height;
+                    const fctx = capturedFrame.getContext("2d", { willReadFrequently: true });
+                    if (fctx && fw > 0 && fh > 0) {
+                      const pixels = fctx.getImageData(0, 0, fw, fh);
+                      const refined = refineReferenceCircle(
+                        { data: pixels.data, width: fw, height: fh },
+                        { centerX: ob.x * fw, centerY: ob.y * fh, radiusPx: ob.r * fw },
+                        testBall,
+                      );
+                      if (refined.refined) {
+                        // capturedFrame(회전 전) 정규화 좌표 → 현재 det 좌표계로 변환
+                        // (finalizeOrientation 이 이미 landscape 회전을 적용했다면 turn 반영)
+                        let c: Norm = { x: refined.centerX / fw, y: refined.centerY / fh };
+                        let rN = refined.radiusPx / fw;
+                        if (turn) {
+                          c = rotateNormPoint(c, turn);
+                          rN = rotateWidthNormalizedRadius(rN, fw, fh);
+                        }
+                        // 키링은 스캔 경로와 동일하게 서버 검증 장축 스케일을 유지하고 중심만 보정
+                        newBallN = refType === "keyring"
+                          ? { x: c.x, y: c.y, r: s.det.ballN.r }
+                          : { x: c.x, y: c.y, r: rN };
+                      }
+                    }
+                  } catch { /* 픽셀 접근 실패 시 기존 기준원 유지 */ }
+                }
+
                 // AI 정밀 윤곽으로 폭(widthN)도 함께 재보정한다.
                 // FishContourDetector 윤곽보다 AI outline 이 훨씬 정밀하므로,
                 // 특히 FishContourDetector 가 실패했거나 AI 가 bodyTop/Bottom 을 과소추정한
                 // 경우에도 올바른 최대 폭 단면을 복구할 수 있다.
-                const refW = s.work.width, refH = s.work.height;
                 const widthRefined = refineFishLandmarks(
                   outlineContour, refW, refH,
                   { head: s.det.headN, tail: s.det.tailN, width: s.det.widthN },
                 );
                 const newWidthN = widthRefined.width;
+                // 보정된 기준원 스케일(newBallN.r)로 길이·폭을 재계산한다
+                let newLengthCm = s.det.lengthCm;
                 let newWidthCm = s.det.widthCm;
-                if (newWidthN) {
-                  const dPx = 2 * s.det.ballN.r * refW;
-                  if (dPx > 0) {
-                    const mPP = REF_DIAMETER_MM / dPx;
+                const dPx = 2 * newBallN.r * refW;
+                if (dPx > 0) {
+                  const mPP = REF_DIAMETER_MM / dPx;
+                  const lpx = Math.hypot(
+                    (s.det.tailN.x - s.det.headN.x) * refW,
+                    (s.det.tailN.y - s.det.headN.y) * refH,
+                  );
+                  if (lpx > 0) newLengthCm = Math.round(lpx * mPP / 10 * 10) / 10;
+                  if (newWidthN) {
                     const wpx = Math.hypot(
                       (newWidthN.bottom.x - newWidthN.top.x) * refW,
                       (newWidthN.bottom.y - newWidthN.top.y) * refH,
@@ -1240,13 +1291,36 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
                 }
                 const updated: Detection = {
                   ...s.det,
+                  ballN: newBallN,
                   contourN: outlineContour,
                   widthN: newWidthN,
+                  lengthCm: newLengthCm,
                   widthCm: newWidthCm,
                 };
                 successRef.current = { work: s.work, det: updated };
+                // 결과 화면 "초기값" 기준(끝점 되돌리기)도 AI 최종 자동값으로 동기화한다
+                const init = initialDetectionRef.current;
+                if (init) {
+                  initialDetectionRef.current = {
+                    ...init,
+                    ballN: { ...newBallN },
+                    contourN: outlineContour.map((p) => ({ ...p })),
+                    widthN: newWidthN
+                      ? { top: { ...newWidthN.top }, bottom: { ...newWidthN.bottom } }
+                      : null,
+                    lengthCm: newLengthCm,
+                    widthCm: newWidthCm,
+                  };
+                }
                 setDet((prev) => prev
-                  ? { ...prev, contourN: outlineContour, widthN: newWidthN, widthCm: newWidthCm }
+                  ? {
+                      ...prev,
+                      ballN: newBallN,
+                      contourN: outlineContour,
+                      widthN: newWidthN,
+                      lengthCm: newLengthCm,
+                      widthCm: newWidthCm,
+                    }
                   : prev
                 );
               } catch {
@@ -1786,9 +1860,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
      다시 그리기 전까지(또는 effect 가 조기 return 으로 clearRect 를 건너뛰면 계속)
      이전 측정 오버레이가 화면에 그대로 남는다. 클릭 즉시 동기적으로 전부 지운다. */
   const handleRetake = useCallback(() => {
-    // clearRect 보다 먼저 플래그를 세워, 배치 커밋 전 drawOverlay 가 구 det 로 그리는 것을 차단한다
+    // 어떤 렌더보다 먼저 플래그를 세워, 커버가 내려가기 전까지 drawOverlay 가 구 det 로 그리는 것을 차단한다
     isRetakingRef.current = true;
-    setIsRetaking(true); // state 사본: badge HTML 요소가 한 프레임 더 렌더되는 것을 배치 커밋으로 차단
     // ① 진행 중/늦게 도착할 비동기 응답 무효화 — 회차 ID 를 올려 이전 회차의
     //    outline 응답이 재촬영 후 상태를 되살리지 못하게 한다 (abort 만으로는
     //    이미 완료된 응답의 후속 처리를 막지 못한다)
@@ -1797,7 +1870,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     aiOutlineAbortRef.current = null;
     abortRef.current?.abort();
     abortRef.current = null;
-    // ② 감지·결과 상태 초기화
+    // ② 감지·결과 상태 초기화 (ref)
     successRef.current = null;
     finalizedFrameRef.current = null;
     frameTurnRef.current = null;
@@ -1810,13 +1883,22 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     // 이전 프레임의 YOLO 박스·크기 카드가 스캔 복귀 직후 다시 그려지는 것 방지
     yoloRef.current = null;
     dragKeyRef.current = null;
-    setActiveDragKey(null);
     clearLoupe();
-    setDet(null);
-    setFrameTurn(null);
-    setKeyringTilted(false);
-    setPlaneMismatch(false);
-    // ③ 이전 측정 오버레이가 그려진 캔버스를 즉시 비운다 (다음 페인트 전에 확정)
+    // ③ flushSync — 이 클릭 핸들러 안에서 React 커밋(DOM 반영)까지 동기로 끝낸다.
+    //    브라우저는 이벤트 핸들러가 끝난 뒤에야 페인트하므로, 다음 페인트 시점에는
+    //    결과 화면 언마운트 + det=null + 전체 검은 커버(isRetaking)가 이미 확정돼 있다.
+    //    → 상태 배칭/폴링 경쟁 타이밍과 무관하게 "한 프레임 잔상"이 원천적으로 불가능하다.
+    flushSync(() => {
+      setIsRetaking(true); // 전체 화면 검은 커버 표시 (스캔 안정화 후 2프레임 뒤 해제)
+      setActiveDragKey(null);
+      setDet(null);
+      setFrameTurn(null);
+      setKeyringTilted(false);
+      setPlaneMismatch(false);
+      goStage("scan");
+    });
+    // ④ 커밋이 끝난 뒤, 이전 측정 오버레이가 그려진 캔버스 픽셀을 즉시 비운다.
+    //    (검은 커버 아래에서 정리되므로 사용자에게는 어떤 잔상도 보이지 않는다)
     //    frozenRef/resultOverlayRef/bgRef 는 결과 화면과 함께 언마운트되지만,
     //    같은 프레임에 재진입하는 경우까지 대비해 남은 픽셀을 모두 지운다.
     for (const ref of [overlayRef, resultOverlayRef, frozenRef, bgRef, lockedFrameRef]) {
@@ -1824,7 +1906,6 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       if (!cv) continue;
       cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
     }
-    goStage("scan");
   }, [clearLoupe, goStage]);
 
   /* ── 결과 화면을 벗어나거나 언마운트되면 롱프레스 타이머를 반드시 정리한다 ── */
@@ -1834,16 +1915,25 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   }, [stage, clearLoupe]);
   useEffect(() => () => { if (loupeTimerRef.current) clearTimeout(loupeTimerRef.current); }, []);
 
-  /* ── 재촬영 플래시 방지 플래그 해제 ──
-     handleRetake 에서 isRetakingRef.current = true 로 세운 뒤,
-     스캔 단계로 안정화(det=null, stage="scan")되면 false 로 돌려
-     이후 drawOverlay 가 정상적으로 YOLO/측정 오버레이를 그릴 수 있게 한다. */
+  /* ── 재촬영 전환 커버(isRetaking) 해제 ──
+     handleRetake 의 flushSync 로 스캔 화면 복귀가 커밋된 뒤에도, 캔버스 정리·리렌더가
+     실제 화면에 페인트될 때까지 검은 커버를 유지해야 잔상이 절대 보이지 않는다.
+     requestAnimationFrame 2회 = "스캔 화면이 최소 한 번 깨끗하게 페인트된 다음 프레임"에
+     커버를 내리고, 그때 drawOverlay 가드(isRetakingRef)도 함께 푼다. */
   useEffect(() => {
-    if (stage === "scan" && !det) {
-      isRetakingRef.current = false;
-      setIsRetaking(false);
-    }
-  }, [stage, det]);
+    if (!isRetaking || stage !== "scan") return;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        isRetakingRef.current = false;
+        setIsRetaking(false);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [stage, isRetaking]);
 
   /* ── no-ref-warning → 1.5초 후 자동으로 ref-missing 모달로 전환 ── */
   useEffect(() => {
@@ -2814,6 +2904,17 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
           </div>
         </div>
       </div>
+    )}
+
+    {/* ── 재촬영 전환 커버 ──
+        재촬영 클릭 직후부터 스캔 화면이 깨끗하게 페인트된 뒤(2프레임)까지 화면 전체를 덮는다.
+        이 커버가 떠 있는 동안에는 이전 측정 오버레이·배지가 어떤 타이밍에 그려지더라도
+        사용자에게 절대 보이지 않는다 (플래시 원천 차단의 최종 안전망). */}
+    {isRetaking && (
+      <div
+        aria-hidden
+        style={{ position: "fixed", inset: 0, background: "#000", zIndex: 999 }}
+      />
     )}
   </>
   );
