@@ -921,6 +921,13 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
 
+    /* ── 결과 화면에서는 라이브 오버레이에 아무것도 그리지 않는다 ──
+       결과 화면의 det 는 finalizeOrientation 이 landscape 로 회전시킨 좌표라,
+       회전 전 라이브 프레임 위에 그리면 엉뚱한 위치에 점·선이 남는다.
+       (결과 진입·끝점 드래그 때마다 이 effect 가 돌므로, 여기서 그려 두면
+        재촬영으로 스캔 화면에 복귀했을 때 이전 측정 오버레이 잔상의 원인이 된다) */
+    if (stage === "result") return;
+
     /* ── YOLO 감지 박스 (모델이 배포된 경우에만) ──
        기존 오버레이보다 먼저 그려 아래 레이어로 깔린다.
        모델이 없으면 yoloRef 가 항상 null 이라 이 블록은 실행되지 않는다. */
@@ -1736,6 +1743,50 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
     setDet(restored);
   }, [clearLoupe]);
 
+  /* ── 재촬영: 이전 측정의 모든 흔적을 지우고 스캔 단계로 복귀 ──
+     결과 화면은 세로/가로가 회전 무대(resultStageStyle) 하나를 공유하므로 버튼도 이 하나뿐이다.
+     state 초기화만으로는 부족하다 — 캔버스 픽셀은 React 상태가 아니라서, effect 가
+     다시 그리기 전까지(또는 effect 가 조기 return 으로 clearRect 를 건너뛰면 계속)
+     이전 측정 오버레이가 화면에 그대로 남는다. 클릭 즉시 동기적으로 전부 지운다. */
+  const handleRetake = useCallback(() => {
+    // ① 진행 중/늦게 도착할 비동기 응답 무효화 — 회차 ID 를 올려 이전 회차의
+    //    outline 응답이 재촬영 후 상태를 되살리지 못하게 한다 (abort 만으로는
+    //    이미 완료된 응답의 후속 처리를 막지 못한다)
+    scanIdRef.current += 1;
+    aiOutlineAbortRef.current?.abort();
+    aiOutlineAbortRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    // ② 감지·결과 상태 초기화
+    successRef.current = null;
+    finalizedFrameRef.current = null;
+    frameTurnRef.current = null;
+    initialDetectionRef.current = null;
+    consecutiveSuccessRef.current = 0;
+    refMissRef.current = 0;
+    fishMissRef.current = 0;
+    bothMissRef.current = 0;
+    totalFailRef.current = 0;
+    // 이전 프레임의 YOLO 박스·크기 카드가 스캔 복귀 직후 다시 그려지는 것 방지
+    yoloRef.current = null;
+    dragKeyRef.current = null;
+    setActiveDragKey(null);
+    clearLoupe();
+    setDet(null);
+    setFrameTurn(null);
+    setKeyringTilted(false);
+    setPlaneMismatch(false);
+    // ③ 이전 측정 오버레이가 그려진 캔버스를 즉시 비운다 (다음 페인트 전에 확정)
+    //    frozenRef/resultOverlayRef/bgRef 는 결과 화면과 함께 언마운트되지만,
+    //    같은 프레임에 재진입하는 경우까지 대비해 남은 픽셀을 모두 지운다.
+    for (const ref of [overlayRef, resultOverlayRef, frozenRef, bgRef, lockedFrameRef]) {
+      const cv = ref.current;
+      if (!cv) continue;
+      cv.getContext("2d")?.clearRect(0, 0, cv.width, cv.height);
+    }
+    goStage("scan");
+  }, [clearLoupe, goStage]);
+
   /* ── 결과 화면을 벗어나거나 언마운트되면 롱프레스 타이머를 반드시 정리한다 ── */
   useEffect(() => {
     if (stage === "result") return;
@@ -2365,17 +2416,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               {/* 재촬영 */}
               <button
                 type="button"
-                onClick={() => {
-                  successRef.current = null;
-                  setDet(null);
-                  consecutiveSuccessRef.current = 0;
-                  aiOutlineAbortRef.current?.abort();
-                  aiOutlineAbortRef.current = null;
-                  frameTurnRef.current = null;
-                  setFrameTurn(null);
-                  finalizedFrameRef.current = null;
-                  goStage("scan");
-                }}
+                onClick={handleRetake}
                 className="flex h-9 items-center gap-1.5 rounded-xl bg-white/15 px-3 text-[12px] font-bold text-white ring-1 ring-white/10 backdrop-blur-sm active:scale-[0.97]"
               >
                 <RotateCw size={13} strokeWidth={2.2} />
