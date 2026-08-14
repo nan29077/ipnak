@@ -2282,23 +2282,13 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
             </div>
           </div>
 
-          {/* ── 하단 — 측정완료 메시지 + 어종칩 + 버튼 ── */}
+          {/* ── 하단 — 어종칩 + 편집버튼 (좌하단) ── */}
           <div
-            className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/88 via-black/60 to-transparent px-3 pt-8"
+            className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-3 pt-8"
             style={{ paddingBottom: SAFE_LOCAL_BOTTOM }}
           >
-            {/* 측정 완료 메시지 */}
-            <div className="mb-2.5 rounded-2xl bg-black/50 px-4 py-2.5 backdrop-blur-md ring-1 ring-white/10">
-              <p className="text-[13px] font-extrabold text-white">입낚 측정 완료!</p>
-              <p className="text-[10px] text-white/45 mt-0.5">
-                {activePointLabel
-                  ? `${activePointLabel} 위치 조정 중 · 길게 누르면 확대`
-                  : "끝점을 드래그해 조정할 수 있어요"}
-              </p>
-            </div>
-
             {/* 어종 선택 칩 */}
-            <div className="ipnak-chip-row mb-2.5 flex gap-1.5 overflow-x-auto">
+            <div className="ipnak-chip-row mb-2.5 flex gap-1.5 overflow-x-auto pr-24">
               {FISH_SPECIES.map((s: { key: string }) => (
                 <button
                   key={s.key}
@@ -2323,34 +2313,28 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
               <button
                 type="button"
                 onClick={resetMeasurementPoints}
-                className="flex h-11 items-center gap-1.5 rounded-2xl bg-white/15 px-4 text-[13px] font-bold text-white ring-1 ring-white/10 backdrop-blur-sm active:scale-[0.97]"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-white/15 px-3 text-[12px] font-bold text-white ring-1 ring-white/10 backdrop-blur-sm active:scale-[0.97]"
               >
-                <RefreshCw size={14} strokeWidth={2.2} />
+                <RefreshCw size={13} strokeWidth={2.2} />
                 편집
               </button>
-              <div className="flex flex-1 justify-end gap-2">
-                {/* 공유 */}
-                <button
-                  type="button"
-                  onClick={confirm}
-                  aria-label="공유"
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-white ring-1 ring-white/10 backdrop-blur-sm active:scale-[0.97]"
-                >
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
-                  </svg>
-                </button>
-                {/* 확인 */}
-                <button
-                  type="button"
-                  onClick={confirm}
-                  className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-[#1a3a5c] px-4 text-[13px] font-extrabold text-white shadow-lg active:scale-[0.97]"
-                >
-                  <Check size={15} strokeWidth={2.6} />
-                  확인
-                </button>
-              </div>
+              <div className="flex-1" />
             </div>
+          </div>
+
+          {/* ── 우하단 고정 — 확인 버튼 ── */}
+          <div
+            className="absolute right-3 z-30"
+            style={{ bottom: `calc(${SAFE_LOCAL_BOTTOM} + 12px)` }}
+          >
+            <button
+              type="button"
+              onClick={confirm}
+              className="flex h-10 items-center gap-1.5 rounded-xl bg-[#1a3a5c]/90 px-4 text-[12px] font-extrabold text-white shadow-lg backdrop-blur-sm active:scale-[0.97]"
+            >
+              <Check size={14} strokeWidth={2.6} />
+              확인
+            </button>
           </div>
 
           {/* 돋보기 */}
