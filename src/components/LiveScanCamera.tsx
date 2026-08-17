@@ -111,10 +111,12 @@ const SPARKLES = Array.from({ length: 34 }, (_, i) => {
 const REF_DIAMETER_MM = 40;
 
 const POLL_INTERVAL_MS = 1500; // 스캔 폴링 주기
+const FIRST_SCAN_DELAY_MS = 0; // 카메라 프레임 준비 즉시 첫 스캔 시작
 // idle 상태에서 연속으로 건너뛸 수 있는 최대 틱 수
 // 이 횟수를 초과하면 idle이어도 강제 호출 (물고기를 놓치지 않기 위한 안전망)
 const IDLE_SKIP_LIMIT = 3; // 3틱 = 4.5초
 const SCAN_MAX_PX = 1280;      // 끝점·볼 외곽 정밀화를 위한 전송 프레임 최대 해상도
+const SCAN_JPEG_QUALITY = 0.84; // 좌표 정밀도는 유지하면서 모바일 업로드 용량 절감
 const REQ_TIMEOUT_MS = 9000;   // 개별 요청 하드 타임아웃
 const CONFIDENCE_MIN = 0.7;    // 이 미만이면 실패 처리 (measure 페이지와 동일 기준)
 const SHIMMER_MS = 1800;       // 윤슬(빛 포인트)이 물고기 외곽을 한 바퀴 도는 시간
@@ -1008,6 +1010,8 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
   useEffect(() => {
     if (camStatus !== "ready" || !videoHasData || (stage !== "scan")) return;
     let stopped = false;
+    let hasSentScanRequest = false;
+    idleSkipCountRef.current = 0;
 
     const runScan = async () => {
       if (stopped || isScanningRef.current) return;
@@ -1022,16 +1026,16 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         const frameCtx = frame.getContext("2d", { willReadFrequently: true });
         if (!frameCtx) return;
         frameCtx.drawImage(v, 0, 0, frame.width, frame.height);
-        const dataUrl = frame.toDataURL("image/jpeg", 0.88);
+        const dataUrl = frame.toDataURL("image/jpeg", SCAN_JPEG_QUALITY);
 
         // ── YOLO 온디바이스 감지 (모델이 배포된 경우에만) ──
         // 서버 스캔을 늦추지 않도록 await 하지 않고 백그라운드로 돌린다.
         // 결과는 오버레이 박스 표시에만 쓰이며, 측정값 계산에는 관여하지 않는다.
         void runYolo(frame);
 
-        // 빈 프레임 차단: FishScanGlow 윤곽 감지 없으면 건너뜀 (API 비용 절감)
-        // IDLE_SKIP_LIMIT 틱 초과 시 강제 호출 (물고기를 놓치지 않는 안전망)
-        if (scanStatusRef.current === "idle") {
+        // 첫 프레임은 FishScanGlow 상태가 아직 idle 이어도 즉시 서버에 보낸다.
+        // 이후 프레임만 빈 화면으로 보일 때 건너뛰어 초기 스캔 지연 없이 API 비용을 절감한다.
+        if (hasSentScanRequest && scanStatusRef.current === "idle") {
           idleSkipCountRef.current += 1;
           if (idleSkipCountRef.current < IDLE_SKIP_LIMIT) return;
         }
@@ -1046,6 +1050,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
         const to = setTimeout(() => controller.abort(), REQ_TIMEOUT_MS);
         let data: any = null;
         try {
+          hasSentScanRequest = true;
           const res = await fetch("/api/measure/scan", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1412,7 +1417,7 @@ export function LiveScanCamera({ onConfirm, onClose, testBall = false, refType =
       }
     };
 
-    firstScanRef.current = setTimeout(runScan, 700); // 첫 스캔은 조금 빨리
+    firstScanRef.current = setTimeout(runScan, FIRST_SCAN_DELAY_MS);
     pollRef.current = setInterval(runScan, POLL_INTERVAL_MS);
 
     return () => {
